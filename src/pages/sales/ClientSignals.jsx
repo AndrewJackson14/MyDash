@@ -19,9 +19,9 @@ const SIGNAL_TYPES = [
 ];
 
 const SIGNAL_COLORS = {
-  churn: "#E24B4A", trending_down: "#EF9F27", whale: "#534AB7",
-  seasonal: "#1D9E75", crosssell: "#378ADD", upsell: "#D85A30",
-  competitor: "#D4537E", stale_lead: "#888780", inventory: "#639922",
+  churn: "#71717a", trending_down: "#52525b", whale: "#3f3f46",
+  seasonal: "#a1a1aa", crosssell: "#78716c", upsell: "#57534e",
+  competitor: "#64748b", stale_lead: "#a8a29e", inventory: "#6b7280",
 };
 
 export default function ClientSignals({
@@ -51,11 +51,15 @@ export default function ClientSignals({
       });
   }, [myPriorities, currentUser]);
 
-  // My clients (lapsed + leads only)
-  const myLapsed = useMemo(() => {
-    const _clients = jurisdiction?.isSalesperson ? (jurisdiction.myClients || []) : (clients || []);
-    return _clients.filter(c => c.status === "Lapsed" || c.status === "Lead");
+  // All clients for this salesperson (signals scan the full book of business)
+  const myClients = useMemo(() => {
+    return jurisdiction?.isSalesperson ? (jurisdiction.myClients || []) : (clients || []);
   }, [clients, jurisdiction]);
+
+  // Lapsed + Lead subset (for churn-specific signals)
+  const myLapsed = useMemo(() => {
+    return myClients.filter(c => c.status === "Lapsed" || c.status === "Lead");
+  }, [myClients]);
 
   // Pre-compute per-client sales data
   const clientSalesMap = useMemo(() => {
@@ -102,11 +106,11 @@ export default function ClientSignals({
     });
   }, [myLapsed, clientSalesMap, priorityClientIds]);
 
-  // 2. Spend trending down YoY
+  // 2. Spend trending down YoY (all clients, not just lapsed)
   const trendingDownSignals = useMemo(() => {
     const thisYear = today.slice(0, 4);
     const lastYear = String(parseInt(thisYear) - 1);
-    return myLapsed.filter(c => {
+    return myClients.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
       const d = clientSalesMap[c.id];
       if (!d) return false;
@@ -122,7 +126,7 @@ export default function ClientSignals({
       const pctDown = lyRev > 0 ? Math.round(((lyRev - tyRev) / lyRev) * 100) : 0;
       return { clientId: c.id, name: c.name, spend: d.totalSpend, detail: `${fmtK(d.totalSpend)} lifetime, down ${pctDown}% YoY · was ${d.pubSet.size} pubs`, signal: "trending_down" };
     });
-  }, [myLapsed, clientSalesMap, priorityClientIds, today]);
+  }, [myClients, clientSalesMap, priorityClientIds, today]);
 
   // 3. Lapsed whales ($10K+ lifetime)
   const whaleSignals = useMemo(() => {
@@ -168,9 +172,9 @@ export default function ClientSignals({
     return results.sort((a, b) => b.spend - a.spend).slice(0, 20);
   }, [issues, sales, clients, priorityClientIds, today]);
 
-  // 5. Cross-sell — lapsed clients buying in only 1-2 pubs
+  // 5. Cross-sell — clients buying in only 1-2 pubs
   const crossSellSignals = useMemo(() => {
-    return myLapsed.filter(c => {
+    return myClients.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
       const d = clientSalesMap[c.id];
       return d && d.pubSet.size <= 2 && d.totalSpend >= 2000;
@@ -182,11 +186,11 @@ export default function ClientSignals({
       const otherPubs = (pubs || []).filter(p => !d.pubSet.has(p.id)).slice(0, 2).map(p => p.name).join(", ");
       return { clientId: c.id, name: c.name, spend: d.totalSpend, detail: `${fmtK(d.totalSpend)} but only ${currentPubs} · try ${otherPubs}?`, signal: "crosssell" };
     });
-  }, [myLapsed, clientSalesMap, pubs, priorityClientIds]);
+  }, [myClients, clientSalesMap, pubs, priorityClientIds]);
 
   // 6. Upsell — same ad size for 6+ months
   const upsellSignals = useMemo(() => {
-    return myLapsed.filter(c => {
+    return myClients.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
       const d = clientSalesMap[c.id];
       if (!d || d.closed.length < 4) return false;
@@ -198,7 +202,7 @@ export default function ClientSignals({
       const size = [...d.adSizes][0] || "same size";
       return { clientId: c.id, name: c.name, spend: d.totalSpend, detail: `${size} x${d.closed.length} months · upgrade?`, signal: "upsell" };
     });
-  }, [myLapsed, clientSalesMap, priorityClientIds]);
+  }, [myClients, clientSalesMap, priorityClientIds]);
 
   // 7. Competitor just bought — same industry, lapsed client
   const competitorSignals = useMemo(() => {
@@ -348,13 +352,13 @@ export default function ClientSignals({
   const STAT_CARDS = [
     { key: "churn", label: "Missed Cycle", color: SIGNAL_COLORS.churn, icon: "\u21ba" },
     { key: "trending_down", label: "Trending Down", color: SIGNAL_COLORS.trending_down, icon: "\u2198" },
-    { key: "whale", label: "Whales", color: SIGNAL_COLORS.whale, icon: "\ud83d\udc0b" },
-    { key: "seasonal", label: "Seasonal", color: SIGNAL_COLORS.seasonal, icon: "\ud83c\udf43" },
+    { key: "whale", label: "Whales", color: SIGNAL_COLORS.whale, icon: "\u2666" },
+    { key: "seasonal", label: "Seasonal", color: SIGNAL_COLORS.seasonal, icon: "\u25d4" },
     { key: "crosssell", label: "Cross-sell", color: SIGNAL_COLORS.crosssell, icon: "\u2194" },
     { key: "upsell", label: "Upsell", color: SIGNAL_COLORS.upsell, icon: "\u2191" },
     { key: "competitor", label: "Competitor", color: SIGNAL_COLORS.competitor, icon: "\u2694" },
-    { key: "stale_lead", label: "Stale Leads", color: SIGNAL_COLORS.stale_lead, icon: "\u23f3" },
-    { key: "inventory", label: "Inventory", color: SIGNAL_COLORS.inventory, icon: "\ud83d\udce6" },
+    { key: "stale_lead", label: "Stale Leads", color: SIGNAL_COLORS.stale_lead, icon: "\u25cb" },
+    { key: "inventory", label: "Inventory", color: SIGNAL_COLORS.inventory, icon: "\u25a1" },
   ];
 
   const PANELS = [

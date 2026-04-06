@@ -30,9 +30,9 @@ export const DARK = {
 };
 
 export const LIGHT = {
-  bg:  "#F0F1F4",
-  sf:  "#F6F7F9",
-  sa:  "#EBEDF2",
+  bg:  "#FFFFFF",
+  sf:  "#F9FAFB",
+  sa:  "#F3F4F6",
   bd:  "#E0E2E8",
   tx:  "#111318",
   tx2: "#2D3142",

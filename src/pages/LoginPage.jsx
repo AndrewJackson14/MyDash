@@ -34,7 +34,7 @@ export default function LoginPage({ onSkip }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${Z.bg} url('/bg-dark.jpg') center/cover no-repeat`, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: Z.bg, fontFamily: BODY, position: 'relative', overflow: 'hidden' }}>
 
       {/* LOGO — always visible, moves up when login appears */}
       <motion.div

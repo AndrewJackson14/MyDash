@@ -250,11 +250,8 @@ export default function App() {
   const vis = (pageId) => ({ display: pg === pageId ? "block" : "none" });
   const show = (pageId) => visited.has(pageId);
 
-  const isDark = Z.bg === DARK.bg;
-  const starsBg = isDark ? "/bg-dark.jpg" : "/bg-light.jpg";
-
   // ─── Render ─────────────────────────────────────────────
-  return <div style={{ display: "flex", height: "100vh", background: `${Z.bg} url('${starsBg}') center/cover no-repeat fixed`, color: Z.tx, fontFamily: BODY }}>
+  return <div style={{ display: "flex", height: "100vh", background: Z.bg, color: Z.tx, fontFamily: BODY }}>
     <link href={FONT_URL} rel="stylesheet" />
 
     {/* ── Sidebar Nav ──────────────────────────────────── */}
