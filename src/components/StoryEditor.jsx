@@ -10,6 +10,7 @@ import { Z, SC, COND, DISPLAY } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
+import MediaModal from "./MediaModal";
 
 // ── Constants ────────────────────────────────────────────────────
 const WORKFLOW_STAGES = ["Draft", "Assigned", "Editing", "Ready"];
@@ -117,6 +118,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerMode, setMediaPickerMode] = useState("featured"); // "featured" or "inline"
   const [imageCaption, setImageCaption] = useState("");
   const [pendingImageUrl, setPendingImageUrl] = useState("");
   const [activity, setActivity] = useState([]);
@@ -395,7 +398,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <TBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Quote">{"\u201c"}</TBtn>
             <TSep />
             <TBtn onClick={() => { setLinkUrl(editor.getAttributes("link").href || ""); setLinkModalOpen(true); }} active={editor.isActive("link")} title="Link">{"\ud83d\udd17"}</TBtn>
-            <TBtn onClick={() => fileInput.current?.click()} title="Image">{"\ud83d\udcf7"}</TBtn>
+            <TBtn onClick={() => fileInput.current?.click()} title="Upload Image">{"\ud83d\udcf7"}</TBtn>
+            <TBtn onClick={() => { setMediaPickerMode("inline"); setMediaPickerOpen(true); }} title="From Library">{"\ud83d\uddbc"}</TBtn>
             <TBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">{"\u2014"}</TBtn>
             <TSep />
             <TBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">{"\u21a9"}</TBtn>
@@ -466,9 +470,19 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Featured Image</div>
             {meta.featured_image_url ? (
-              <div style={{ position: "relative" }}><img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd }} /><button onClick={setFeaturedImage} style={{ position: "absolute", bottom: 6, right: 6, padding: "3px 8px", borderRadius: 2, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10, cursor: "pointer", fontFamily: COND }}>Change</button></div>
+              <div>
+                <div style={{ position: "relative" }}><img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd }} /></div>
+                <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                  <button onClick={setFeaturedImage} style={{ flex: 1, padding: "4px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Upload New</button>
+                  <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, padding: "4px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Library</button>
+                  <button onClick={() => saveMeta("featured_image_url", null)} style={{ padding: "4px 6px", borderRadius: 2, border: "1px solid #ef444430", background: "transparent", color: "#ef4444", fontSize: 10, cursor: "pointer", fontFamily: COND }}>Remove</button>
+                </div>
+              </div>
             ) : (
-              <button onClick={setFeaturedImage} style={{ width: "100%", height: 80, border: "1px dashed " + Z.bd, borderRadius: 3, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: Z.tm, fontFamily: COND }}>+ Add Featured Image</button>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button onClick={setFeaturedImage} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: 3, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>+ Upload</button>
+                <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: 3, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>From Library</button>
+              </div>
             )}
           </div>
 
@@ -560,6 +574,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       <Modal open={linkModalOpen} onClose={() => setLinkModalOpen(false)} title="Insert Link"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}><Inp label="URL" value={linkUrl} onChange={setLinkUrl} placeholder="https://\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>{editor?.isActive("link") && <Btn sm v="secondary" onClick={() => { editor.chain().focus().unsetLink().run(); setLinkModalOpen(false); }}>Remove Link</Btn>}<Btn sm onClick={insertLink}>Insert Link</Btn></div></div></Modal>
 
       <Modal open={imageModalOpen} onClose={() => setImageModalOpen(false)} title="Add Image"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}>{pendingImageUrl && <img src={pendingImageUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 3, background: Z.sa }} />}<Inp label="Caption (optional)" value={imageCaption} onChange={setImageCaption} placeholder="Photo credit or description\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn sm v="secondary" onClick={() => setImageModalOpen(false)}>Cancel</Btn><Btn sm onClick={insertImage}>Insert Image</Btn></div></div></Modal>
+
+      <MediaModal open={mediaPickerOpen} onClose={() => setMediaPickerOpen(false)} pubs={pubs} pubFilter={selectedPubs[0] || undefined} onSelect={(media) => {
+        if (mediaPickerMode === "featured") {
+          saveMeta("featured_image_url", media.url);
+          if (media.id) saveMeta("featured_image_id", media.id);
+        } else {
+          if (editor) editor.chain().focus().setImage({ src: media.url, alt: media.alt || "", title: media.caption || "" }).run();
+        }
+      }} />
 
       <style>{"\
         .tiptap { outline: none; }\

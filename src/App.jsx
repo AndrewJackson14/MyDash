@@ -28,6 +28,7 @@ import TeamModule from "./pages/TeamModule";
 import Analytics from "./pages/Analytics";
 import IntegrationsPage from "./pages/IntegrationsPage";
 import SiteSettings from "./pages/SiteSettings";
+import MediaLibrary from "./pages/MediaLibrary";
 import DataImport from "./pages/DataImport";
 import IssueDetail from "./pages/IssueDetail";
 import Billing from "./pages/Billing";
@@ -196,6 +197,7 @@ export default function App() {
     calendar: 'calendar', team: 'team', publications: 'publications',
     schedule: 'publications', analytics: 'analytics', integrations: 'integrations',
     permissions: 'permissions', dataimport: 'integrations',
+    medialibrary: 'stories',
     sitesettings: 'publications',
   };
 
@@ -228,6 +230,7 @@ export default function App() {
     { id: "publications", label: "Publications", icon: Ic.pub },
     { id: "schedule", label: "Schedule", icon: Ic.story },
     { id: "analytics", label: "Analytics", icon: Ic.lineGraph },
+    { id: "medialibrary", label: "Media Library", icon: Ic.flat },
     { id: "sitesettings", label: "Site Settings", icon: Ic.globe },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
     { id: "permissions", label: "Permissions", icon: Ic.lock },
@@ -408,6 +411,7 @@ export default function App() {
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan jurisdiction={jurisdiction} pubs={pubs} issues={issues} setIssues={setIssues} sales={sales} setSales={setSales} updateSale={appData.updateSale} clients={clients} stories={stories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} /></div>}
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={stories} setStories={setStories} pubs={pubs} issues={issues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={sales} clients={clients} issues={issues} stories={stories} invoices={invoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
+        {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
