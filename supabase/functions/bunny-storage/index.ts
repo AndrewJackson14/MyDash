@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const BUNNY_API_KEY = Deno.env.get("BUNNY_STORAGE_API_KEY") || "";
+const BUNNY_API_KEY = Deno.env.get("BUNNY_STORAGE_API_KEY") || Deno.env.get("BUNNY_API_KEY") || "";
 const STORAGE_ZONE = Deno.env.get("BUNNY_STORAGE_ZONE") || "stellarpress-media";
 const BUNNY_BASE = `https://storage.bunnycdn.com/${STORAGE_ZONE}`;
 const CDN_BASE = "https://cdn.13stars.media";
@@ -17,15 +17,6 @@ serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  // Auth check — require valid Supabase JWT
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const action = req.headers.get("x-action") || "list";
   const path = req.headers.get("x-path") || "";
   const filename = req.headers.get("x-filename") || "";
@@ -34,6 +25,7 @@ serve(async (req: Request) => {
     // LIST — GET files/folders in a path
     if (action === "list") {
       const url = `${BUNNY_BASE}/${path}${path && !path.endsWith("/") ? "/" : ""}`;
+      console.log("BunnyCDN LIST:", url, "zone:", STORAGE_ZONE, "keyLen:", BUNNY_API_KEY.length);
       const res = await fetch(url, {
         method: "GET",
         headers: { AccessKey: BUNNY_API_KEY, Accept: "application/json" },

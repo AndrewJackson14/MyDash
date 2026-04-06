@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri } from "../lib/theme";
 import { Ic, Btn, SB } from "../components/ui";
-import { supabase } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
@@ -19,27 +18,18 @@ const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|ico)$/i.test(na
 const sanitize = (name) => name.toLowerCase().replace(/[^a-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
 // ── BunnyCDN API calls via proxy ─────────────────────────────────
-async function getAuthToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("Not authenticated");
-  return session.access_token;
-}
-
 async function bunnyList(path) {
-  const token = await getAuthToken();
   const res = await fetch(PROXY_URL, {
-    headers: { Authorization: "Bearer " + token, "x-action": "list", "x-path": path || "" },
+    headers: { "x-action": "list", "x-path": path || "" },
   });
   if (!res.ok) throw new Error("List failed: " + res.status);
   return res.json();
 }
 
 async function bunnyUpload(file, path, filename) {
-  const token = await getAuthToken();
   const res = await fetch(PROXY_URL, {
     method: "POST",
     headers: {
-      Authorization: "Bearer " + token,
       "Content-Type": file.type || "application/octet-stream",
       "x-action": "upload",
       "x-path": path,
@@ -52,10 +42,9 @@ async function bunnyUpload(file, path, filename) {
 }
 
 async function bunnyDelete(path, filename) {
-  const token = await getAuthToken();
   const res = await fetch(PROXY_URL, {
     method: "DELETE",
-    headers: { Authorization: "Bearer " + token, "x-action": "delete", "x-path": path, "x-filename": filename },
+    headers: { "x-action": "delete", "x-path": path, "x-filename": filename },
   });
   if (!res.ok) throw new Error("Delete failed: " + res.status);
 }
@@ -128,50 +117,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
   );
 };
 
-// ══════════════════════════════════════════════════════════════════
-// FOLDER TREE
-// ══════════════════════════════════════════════════════════════════
-const FolderTree = ({ currentPath, onNavigate, items }) => {
-  const folders = (items || []).filter(i => i.IsDirectory);
-  return (
-    <div style={{ width: 200, flexShrink: 0, borderRight: "1px solid " + Z.bd, overflowY: "auto", padding: "8px 0" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, padding: "4px 12px", marginBottom: 4 }}>Publications</div>
-      {PUB_FOLDERS.map(pf => {
-        const isActive = currentPath === pf.slug || currentPath.startsWith(pf.slug + "/");
-        return (
-          <button key={pf.slug} onClick={() => onNavigate(pf.slug)} style={{
-            display: "block", width: "100%", textAlign: "left", padding: "5px 12px", border: "none",
-            background: isActive ? Z.ac + "10" : "transparent", color: isActive ? Z.ac : Z.tx,
-            fontSize: 11, fontWeight: isActive ? 700 : 500, fontFamily: COND, cursor: "pointer",
-            borderLeft: isActive ? "3px solid " + Z.ac : "3px solid transparent",
-          }}>{pf.label}</button>
-        );
-      })}
-
-      {/* Sub-folders in current path */}
-      {folders.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, padding: "8px 12px 4px", marginTop: 8, borderTop: "1px solid " + Z.bd }}>Folders</div>
-          {folders.map(f => (
-            <button key={f.ObjectName} onClick={() => onNavigate(currentPath + "/" + f.ObjectName)} style={{
-              display: "block", width: "100%", textAlign: "left", padding: "4px 12px 4px 20px", border: "none",
-              background: "transparent", color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer",
-            }}>{"\ud83d\udcc1"} {f.ObjectName}</button>
-          ))}
-        </>
-      )}
-
-      {/* Breadcrumb back */}
-      {currentPath.includes("/") && (
-        <button onClick={() => onNavigate(currentPath.split("/").slice(0, -1).join("/"))} style={{
-          display: "block", width: "100%", textAlign: "left", padding: "6px 12px", border: "none",
-          background: "transparent", color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer", marginTop: 8,
-          borderTop: "1px solid " + Z.bd,
-        }}>{"\u2190"} Up one level</button>
-      )}
-    </div>
-  );
-};
+// (Folder tree replaced by horizontal pub tabs in toolbar)
 
 // ══════════════════════════════════════════════════════════════════
 // MEDIA LIBRARY
@@ -331,9 +277,34 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Publication tabs + toolbar */}
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+        {PUB_FOLDERS.map(pf => {
+          const isActive = currentPath === pf.slug || currentPath.startsWith(pf.slug + "/");
+          return (
+            <button key={pf.slug} onClick={() => navigate(pf.slug)} style={{
+              padding: "5px 10px", borderRadius: 3, border: "1px solid " + (isActive ? Z.ac : Z.bd),
+              background: isActive ? Z.ac + "12" : "transparent", color: isActive ? Z.ac : Z.tm,
+              fontSize: 11, fontWeight: isActive ? 700 : 500, fontFamily: COND, cursor: "pointer",
+            }}>{pf.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Subfolder chips + search + sort + view */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ flex: 1, minWidth: 180 }}><SB value={search} onChange={setSearch} placeholder="Search files..." /></div>
+        {/* Subfolder nav */}
+        {items.filter(i => i.IsDirectory).length > 0 && (
+          <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+            {currentPath.includes("/") && (
+              <button onClick={() => navigate(currentPath.split("/").slice(0, -1).join("/"))} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
+            )}
+            {items.filter(i => i.IsDirectory).map(f => (
+              <button key={f.ObjectName} onClick={() => navigate(currentPath + "/" + f.ObjectName)} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
+            ))}
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 150 }}><SB value={search} onChange={setSearch} placeholder="Search files..." /></div>
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
           <option value="date">Newest</option>
           <option value="name">Name A-Z</option>
@@ -360,13 +331,10 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         </div>
       )}
 
-      {/* Main content: folder tree + grid + detail */}
+      {/* Main content: grid + detail */}
       <div style={{ display: "flex", flex: 1, minHeight: 400, gap: 0 }}>
-        {/* Folder tree */}
-        <FolderTree currentPath={currentPath} onNavigate={navigate} items={items} />
-
         {/* File grid/list */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 12px" }}>
+        <div style={{ flex: 1, overflowY: "auto" }}>
           {loading && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>Loading...</div>}
           {!loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files in this folder</div>}
 
