@@ -1,0 +1,160 @@
+import { useState, useEffect, createContext, useContext } from 'react';
+import { supabase, isOnline } from '../lib/supabase';
+
+// ============================================================
+// Auth Context
+// ============================================================
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null);       // Supabase auth user
+  const [teamMember, setTeamMember] = useState(null); // Team member record
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isOnline()) {
+      // Offline mode: use default user
+      setTeamMember({
+        id: 'tm1',
+        name: 'Hayley Mattson',
+        role: 'Publisher',
+        email: 'hayley@13stars.media',
+        permissions: ['admin'],
+        assigned_pubs: ['all'],
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        setUser(session.user);
+        fetchTeamMember(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    }).catch((err) => {
+      console.error('Auth session error:', err);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        if (session?.user) {
+          setUser(session.user);
+          await fetchTeamMember(session.user.id);
+        } else {
+          setUser(null);
+          setTeamMember(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchTeamMember = async (authId) => {
+    try {
+      // Try direct match
+      const { data } = await supabase
+        .from('team_members')
+        .select('*')
+        .eq('auth_id', authId)
+        .single();
+
+      if (data) {
+        setTeamMember(data);
+      } else {
+        // Fallback: get all and match manually
+        const all = await supabase.from('team_members').select('*');
+        const match = all.data?.find(t => String(t.auth_id) === String(authId));
+        if (match) setTeamMember(match);
+      }
+    } catch (err) {
+      console.error('fetchTeamMember error:', err);
+    }
+    setLoading(false);
+  };
+
+  // Failsafe: if auth check takes more than 4 seconds, stop loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth timeout — loading app');
+        setLoading(false);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // Auth methods
+  const signInWithGoogle = async () => {
+    if (!isOnline()) return;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar',
+      },
+    });
+    if (error) console.error('Sign in error:', error);
+  };
+
+  const signInWithEmail = async (email, password) => {
+    if (!isOnline()) return;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+
+  const signOut = async () => {
+    if (!isOnline()) return;
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setTeamMember(null);
+  };
+
+  // Permission checks
+  const hasPermission = (perm) => {
+    if (!teamMember) return false;
+    return teamMember.permissions?.includes('admin') || teamMember.permissions?.includes(perm);
+  };
+
+  const isAdmin = () => hasPermission('admin');
+  const canSell = () => hasPermission('sales') || hasPermission('clients');
+  const canEdit = () => hasPermission('editorial') || hasPermission('stories');
+  const canFlatplan = () => hasPermission('flatplan') || hasPermission('editorial');
+
+  const value = {
+    session,
+    user,
+    teamMember,
+    loading,
+    signInWithGoogle,
+    signInWithEmail,
+    signOut,
+    hasPermission,
+    isAdmin,
+    canSell,
+    canEdit,
+    canFlatplan,
+    isOnline: isOnline(),
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};

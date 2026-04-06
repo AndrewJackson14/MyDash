@@ -1,0 +1,174 @@
+// ============================================================
+// Shared UI Primitives — MyDash Editorial Monochrome
+// R = 5px card radius, Ri = 3px internal radius, SP = spacing
+// ============================================================
+import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW } from "../../lib/theme";
+import Ic from "./Icons";
+
+export const ThemeToggle = ({ onToggle }) => {
+  const isDark = Z.bg === "#08090D";
+  return <button onClick={onToggle} title={isDark ? "Light mode" : "Dark mode"} style={{ background: Z.tx, color: Z.bg, border: "none", borderRadius: Ri, padding: "5px 12px", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 6 }}>{isDark ? "☀" : "🌙"}<span>{isDark ? "Light" : "Dark"}</span></button>;
+};
+
+export const BackBtn = ({ onClick }) => <button onClick={onClick} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tx, fontSize: FS.base, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 4, padding: "4px 0", marginBottom: 4 }}><span style={{ fontSize: FS.lg }}>&larr;</span> Back</button>;
+
+export const FilterBar = ({ options, active, onChange, colorMap }) => <div style={{ display: "flex", gap: 16 }}>{options.map(o => { const val = typeof o === "string" ? o : o.value; const label = typeof o === "string" ? o : o.label; const isActive = Array.isArray(active) ? active.includes(val) : active === val; return <button key={val} onClick={() => onChange(val)} style={{ padding: 0, borderRadius: 0, border: "none", borderBottom: isActive ? `2px solid ${Z.tx}` : "2px solid transparent", background: "transparent", cursor: "pointer", fontSize: FS.base, fontWeight: isActive ? 700 : 600, color: isActive ? Z.tx : Z.td, fontFamily: COND, whiteSpace: "nowrap", paddingBottom: 4 }}>{label}</button>; })}</div>;
+
+export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => <tr style={{ background: Z.sa }}>{columns.map(h => <th key={h} onClick={() => onSort(h)} style={{ padding: TBL.cellPad, textAlign: "left", fontWeight: TBL.headerWeight, color: Z.td, fontSize: TBL.headerSize, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", cursor: h ? "pointer" : "default", userSelect: "none", fontFamily: COND }}>{h}{sortCol === h && <span style={{ marginLeft: 3, fontSize: 9 }}>{sortDir === "asc" ? "▲" : "▼"}</span>}</th>)}</tr>;
+
+// DataTable — universal frosted glass table with standardized styles
+export const DataTable = ({ children, style, emptyMessage }) => {
+  const isDark = Z.bg === "#08090D";
+  const glassBg = isDark ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)";
+  const glassBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)";
+  const headerBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+  const hoverBg = isDark ? "rgba(255,255,255," + TBL.hoverAlpha + ")" : "rgba(0,0,0," + TBL.hoverAlpha + ")";
+  const activeBg = isDark ? "rgba(255,255,255," + TBL.activeAlpha + ")" : "rgba(0,0,0," + TBL.activeAlpha + ")";
+  const rowBorder = isDark ? "rgba(255,255,255," + TBL.borderAlpha + ")" : "rgba(0,0,0," + TBL.borderAlpha + ")";
+  const uid = "dt" + Math.random().toString(36).slice(2, 6);
+  return <div style={{
+    overflowX: "auto", borderRadius: TBL.radius,
+    border: `1px solid ${glassBorder}`,
+    background: glassBg,
+    backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+    ...style,
+  }}>
+    <style>{`
+      .${uid} { width: 100%; border-collapse: collapse; font-size: ${TBL.bodySize}px; font-family: ${COND}; }
+      .${uid} thead tr { background: ${headerBg}; }
+      .${uid} th { padding: ${TBL.cellPad}; text-align: left; font-weight: ${TBL.headerWeight}; color: ${Z.td}; font-size: ${TBL.headerSize}px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid ${rowBorder}; white-space: nowrap; cursor: pointer; user-select: none; font-family: ${COND}; }
+      .${uid} td { padding: ${TBL.cellPad}; border-bottom: 1px solid ${rowBorder}; vertical-align: middle; font-family: ${COND}; }
+      .${uid} tbody tr { transition: background 0.1s; cursor: pointer; }
+      .${uid} tbody tr:hover { background: ${hoverBg}; }
+      .${uid} tbody tr.dt-active { background: ${activeBg}; }
+      .${uid} tbody tr:last-child td { border-bottom: none; }
+    `}</style>
+    <table className={uid}>{children}</table>
+  </div>;
+};
+
+export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa, text: Z.tm }; return <span style={{ display: "inline-flex", alignItems: "center", padding: small ? "2px 8px" : "4px 12px", borderRadius: Ri, fontSize: small ? 10 : 11, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap", fontFamily: COND, letterSpacing: 0.3 }}>{status}</span>; };
+
+export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
+  const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: Ri, fontWeight: FW.bold, fontSize: sm ? 12 : 13, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? "7px 16px" : "9px 22px", opacity: disabled ? 0.4 : 1 };
+  const variants = {
+    primary:   { background: Z.go, color: "#fff" },
+    success:   { background: Z.go, color: "#fff" },
+    secondary: { background: Z.tx, color: Z.bg },
+    ghost:     { background: "transparent", color: Z.tx, border: "none", textDecoration: "underline", textUnderlineOffset: 3 },
+    danger:    { background: Z.da, color: "#fff" },
+    warning:   { background: Z.wa, color: "#fff" },
+  };
+  return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[v], ...style }}>{children}</button>;
+};
+
+export const Inp = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<input style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 14px", color: Z.tx, fontSize: FS.base, outline: "none" }} {...p} /></div>;
+
+export const Sel = ({ label, options, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<div style={{ position: "relative" }}><select style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 32px 9px 14px", color: Z.tx, fontSize: FS.base, outline: "none", width: "100%", cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }} {...p}>{options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}</select><div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: Z.tm, fontSize: FS.micro }}>▼</div></div></div>;
+
+export const TA = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<textarea style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "11px 14px", color: Z.tx, fontSize: FS.base, outline: "none", resize: "vertical", minHeight: 80, fontFamily: "inherit" }} {...p} /></div>;
+
+export const Card = ({ children, style }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad, ...style }}>{children}</div>;
+
+export const SB = ({ value, onChange, placeholder }) => <div style={{ position: "relative", flex: 1, maxWidth: 280 }}><div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: Z.td }}><Ic.search size={15} /></div><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || "Search..."} style={{ width: "100%", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 14px 9px 34px", color: Z.tx, fontSize: FS.base, outline: "none", boxSizing: "border-box" }} /></div>;
+
+export const TB = ({ tabs, active, onChange }) => <div style={{ display: "flex", gap: 16 }}>{tabs.map(t => <button key={t} onClick={() => onChange(t)} style={{ padding: "0 0 4px", borderRadius: 0, border: "none", borderBottom: active === t ? `2px solid ${Z.tx}` : "2px solid transparent", cursor: "pointer", fontSize: FS.base, fontWeight: active === t ? 700 : 600, fontFamily: COND, background: "transparent", color: active === t ? Z.tx : Z.td }}>{t}</button>)}</div>;
+
+export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, fontFamily: COND }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
+
+export const Modal = ({ open, onClose, title, children, width = 540, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)", outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
+
+export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0))); return <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>{data.map((d, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>{[...keys].reverse().map(k => <div key={k} style={{ height: Math.max(2, (d[k] / mx) * (height - 30)), background: colors[k] || Z.tx, borderRadius: R }} />)}</div><span style={{ fontSize: FS.base, color: Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{d.month}</span></div>)}</div>; };
+
+// ============================================================
+// Global Layout Components — used across all pages
+// ============================================================
+
+// Glass effect — reusable inline style mixin for frosted glass appearance
+const _isDark = () => Z.bg === "#08090D";
+export const glass = () => ({
+  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
+  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+});
+
+export const GlassCard = ({ children, style, noPad }) => <div style={{
+  ...glass(),
+  borderRadius: R, padding: noPad ? 0 : "22px 24px", ...style,
+}}>{children}</div>;
+
+// ListCard — individual frosted glass card for list items (floating cards with gap)
+export const ListCard = ({ children, style, onClick, active }) => <div onClick={onClick} style={{
+  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
+  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+  borderRadius: CARD.radius, padding: CARD.pad,
+  cursor: onClick ? "pointer" : "default",
+  transition: "background 0.1s",
+  ...(active ? { background: _isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" } : {}),
+  ...style,
+}} onMouseEnter={e => { if (onClick) e.currentTarget.style.background = _isDark() ? "rgba(255,255,255," + CARD.hoverAlpha + ")" : "rgba(0,0,0," + CARD.hoverAlpha + ")"; }}
+   onMouseLeave={e => { e.currentTarget.style.background = active ? (_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)") : (_isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)"); }}
+>{children}</div>;
+
+// ListDivider — translucent divider for items inside a grouped card
+export const ListDivider = () => <div style={{ height: 1, background: _isDark() ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }} />;
+
+// ListGrid — container for floating cards with standard gap
+export const ListGrid = ({ children, cols, style }) => <div style={{
+  display: "grid", gridTemplateColumns: cols || "1fr", gap: CARD.gap, ...style,
+}}>{children}</div>;
+
+// Page header — Line 1: [Title] ... [right-side children (search, dropdown, +Action)]
+export const PageHeader = ({ title, count, children }) => <div style={{
+  display: "flex", justifyContent: "space-between", alignItems: "center",
+  flexWrap: "wrap", gap: 10,
+}}>
+  <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
+    {title}{count != null && <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tm, marginLeft: 8 }}>({count})</span>}
+  </h2>
+  {children && <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{children}</div>}
+</div>;
+
+// Tab row — Line 2: [View tabs] | [Filter tabs]. Accepts multiple TB groups separated by pipe.
+export const TabRow = ({ children }) => <div style={{
+  display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflowX: "auto",
+}}>{children}</div>;
+
+// Pipe separator for use inside TabRow
+export const TabPipe = () => <span style={{
+  margin: "0 16px", color: Z.td, fontSize: FS.lg, fontWeight: 300, userSelect: "none",
+}}>|</span>;
+
+// Solid-fill filter tabs — green active, transparent inactive
+export const SolidTabs = ({ options, active, onChange }) => <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+  {options.map(o => {
+    const val = typeof o === "string" ? o : o.value;
+    const label = typeof o === "string" ? o : o.label;
+    const isActive = active === val;
+    return <button key={val} onClick={() => onChange(val)} style={{
+      padding: "5px 14px", borderRadius: Ri, border: "none",
+      background: isActive ? Z.go : "transparent",
+      color: isActive ? "#fff" : Z.td,
+      cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
+    }}>{label}</button>;
+  })}
+</div>;
+
+// Glass stat card — metric display with frosted effect
+export const GlassStat = ({ label, value, sub }) => <div style={{
+  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
+  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+  borderRadius: R, padding: SP.cardPad,
+}}>
+  <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, fontFamily: COND }}>{label}</div>
+  <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>
+  {sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}
+</div>;
+
+// Section title inside a card
+export const SectionTitle = ({ children }) => <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 16 }}>{children}</div>;
+
+// Glass divider — translucent line inside glass cards
+export const GlassDivider = () => <div style={{ height: 1, background: _isDark() ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />;

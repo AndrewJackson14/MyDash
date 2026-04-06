@@ -1,0 +1,160 @@
+// ============================================================
+// Theme — MyDash Design System (Editorial Monochrome)
+// 
+// Philosophy: Black, white, and greys do the work. Color is
+// reserved for true alerts (overdue, danger, deadlines).
+// Typography (size, weight, family) creates hierarchy, not color.
+// ============================================================
+
+export const DARK = {
+  bg:  "#08090D",
+  sf:  "#0E1018",
+  sa:  "#161A24",
+  bd:  "#1C2130",
+  tx:  "#E8ECF2",
+  tx2: "#C8CED8",
+  tm:  "#8A95A8",
+  td:  "#525E72",
+  go:  "#00a300",
+  da:  "#E05050",
+  ds:  "rgba(224,80,80,0.12)",
+  wa:  "#D4890E",
+  ws:  "rgba(212,137,14,0.12)",
+  ac:  "#E8ECF2",
+  as:  "rgba(232,236,242,0.08)",
+  su:  "#E8ECF2",
+  ss:  "rgba(232,236,242,0.06)",
+  pu:  "#8A95A8",
+  ps:  "rgba(138,149,168,0.08)",
+  or:  "#D4890E",
+};
+
+export const LIGHT = {
+  bg:  "#F0F1F4",
+  sf:  "#F6F7F9",
+  sa:  "#EBEDF2",
+  bd:  "#E0E2E8",
+  tx:  "#111318",
+  tx2: "#2D3142",
+  tm:  "#6B7280",
+  td:  "#9CA3AF",
+  go:  "#00a300",
+  da:  "#C53030",
+  ds:  "rgba(197,48,48,0.08)",
+  wa:  "#D4890E",
+  ws:  "rgba(212,137,14,0.08)",
+  ac:  "#111318",
+  as:  "rgba(17,19,24,0.06)",
+  su:  "#111318",
+  ss:  "rgba(17,19,24,0.04)",
+  pu:  "#6B7280",
+  ps:  "rgba(107,114,128,0.06)",
+  or:  "#D4890E",
+};
+
+const getInitTheme = () => {
+  try { const s = localStorage.getItem("mydash-theme"); if (s) return s; } catch(e) {}
+  return window.matchMedia?.("(prefers-color-scheme: light)")?.matches ? "light" : "dark";
+};
+
+export let Z = getInitTheme() === "light" ? { ...LIGHT } : { ...DARK };
+
+export const getStatusColors = () => ({
+  Discovery:    { bg: Z.sa, text: Z.tm },
+  Presentation: { bg: Z.sa, text: Z.tx },
+  Proposal:     { bg: Z.sa, text: Z.tx },
+  Negotiation:  { bg: Z.sa, text: Z.tx },
+  Closed:       { bg: Z.sa, text: Z.tx },
+  "Follow-up":  { bg: Z.sa, text: Z.tm },
+  Draft:        { bg: Z.sa, text: Z.tm },
+  Sent:         { bg: Z.sa, text: Z.tx },
+  "Under Review": { bg: Z.sa, text: Z.tx },
+  "Approved/Signed": { bg: Z.sa, text: Z.tx },
+  Converted:    { bg: Z.ss, text: Z.su },
+  Declined:     { bg: Z.ds, text: Z.da },
+  Expired:      { bg: Z.ds, text: Z.da },
+  Assigned:     { bg: Z.sa, text: Z.tm },
+  "Needs Editing": { bg: Z.ws, text: Z.wa },
+  Edited:       { bg: Z.sa, text: Z.tx },
+  Approved:     { bg: Z.sa, text: Z.tx },
+  "On Page":    { bg: Z.sa, text: Z.tx },
+  "Sent to Web": { bg: Z.sa, text: Z.tx },
+  Scheduled:    { bg: Z.sa, text: Z.tm },
+  "In Progress": { bg: Z.sa, text: Z.tx },
+  Editing:      { bg: Z.sa, text: Z.tx },
+  Proofing:     { bg: Z.sa, text: Z.tx },
+  "Packaged for Publishing": { bg: Z.sa, text: Z.tx },
+  Lead:         { bg: Z.sa, text: Z.tm },
+  Active:       { bg: Z.sa, text: Z.tx },
+  Renewal:      { bg: Z.ws, text: Z.wa },
+  Lapsed:       { bg: Z.sa, text: Z.td },
+  Inactive:     { bg: Z.sa, text: Z.td },
+});
+
+export const SC = new Proxy({}, { get: (_, key) => getStatusColors()[key] });
+
+export const COND = "'IBM Plex Sans Condensed','DM Sans',sans-serif";
+export const DISPLAY = "'Playfair Display',Georgia,serif";
+export const BODY = "'Source Sans 3','DM Sans','Segoe UI',system-ui,sans-serif";
+
+export const FONT_URL = "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap";
+
+// Typography scale — font sizes
+export const FS = {
+  micro: 10,    // uppercase annotations, tiny labels
+  xs: 11,       // table headers, timestamps, section labels
+  sm: 12,       // meta text, badges, subtitle lines
+  base: 13,     // default body text, descriptions
+  md: 14,       // list item titles, table body, primary content
+  lg: 16,       // section headings inside cards
+  xl: 20,       // stat values, sub-page titles
+  title: 22,    // page titles (PageHeader)
+  xxl: 26,      // dashboard greeting, page-level display
+};
+
+// Typography scale — font weights
+export const FW = {
+  normal: 400,  // quiet text, placeholders
+  medium: 500,  // inactive tabs, light emphasis
+  semi: 600,    // list item titles, active body
+  bold: 700,    // buttons, active tabs, strong labels
+  heavy: 800,   // table headers, section titles, uppercase labels
+  black: 900,   // page titles, stat values, display type
+};
+
+// Layout tokens
+export const R = 5;       // border-radius (px) — card-level rounding
+export const Ri = 3;      // border-radius (px) — internal elements (buttons, badges, inputs)
+export const SP = {        // spacing scale
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 40,
+  cardPad: 20,             // internal card padding
+  sectionGap: 28,          // gap between major sections
+  pageGap: 32,             // gap between top-level page blocks
+};
+
+// Card/List tokens — universal card and list item rules
+export const CARD = {
+  pad: 14,                 // internal padding
+  gap: 8,                  // gap between floating cards
+  radius: 5,               // border-radius (matches R)
+  hoverAlpha: 0.08,        // hover background alpha
+  dividerAlpha: 0.06,      // internal divider alpha (matches My Day)
+  titleSize: 14,           // list item title font size
+  titleWeight: 600,        // list item title weight
+  metaSize: 12,            // subtitle/meta font size
+};
+export const TBL = {
+  headerSize: 11,          // th font size
+  headerWeight: 800,       // th font weight
+  bodySize: 14,            // td font size
+  cellPad: "10px 14px",    // td/th padding
+  hoverAlpha: 0.08,        // row hover background alpha
+  activeAlpha: 0.08,       // selected/active row background alpha
+  borderAlpha: 0.06,       // row divider opacity (matches My Day dividers)
+  radius: 5,               // container border-radius (matches R)
+};
