@@ -26,6 +26,18 @@ async function bunnyList(path) {
   return res.json();
 }
 
+// Recursively list all files under a path (follows subdirectories)
+async function bunnyListRecursive(path, maxDepth = 4) {
+  const items = await bunnyList(path);
+  const files = items.filter(i => !i.IsDirectory);
+  if (maxDepth <= 0) return files;
+  const dirs = items.filter(i => i.IsDirectory);
+  const subResults = await Promise.all(
+    dirs.map(d => bunnyListRecursive(path + "/" + d.ObjectName, maxDepth - 1).catch(() => []))
+  );
+  return files.concat(...subResults);
+}
+
 async function bunnyUpload(file, path, filename) {
   const res = await fetch(PROXY_URL, {
     method: "POST",
@@ -135,6 +147,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [thumbScale, setThumbScale] = useState(100);
+  const [showAll, setShowAll] = useState(true); // flat recursive view by default
+  const [loadProgress, setLoadProgress] = useState("");
   const searchTimer = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -144,26 +158,35 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search]);
 
-  // Load directory
-  const loadPath = useCallback(async (path) => {
+  // Load directory (flat or recursive)
+  const loadPath = useCallback(async (path, recursive) => {
     setLoading(true);
+    setLoadProgress(recursive ? "Scanning folders..." : "");
     try {
-      const data = await bunnyList(path);
-      setItems(data || []);
+      if (recursive) {
+        const allFiles = await bunnyListRecursive(path, 4);
+        setItems(allFiles || []);
+        setLoadProgress("");
+      } else {
+        const data = await bunnyList(path);
+        setItems(data || []);
+      }
     } catch (err) {
       console.error("Failed to list:", err);
       setItems([]);
+      setLoadProgress("");
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadPath(currentPath); }, [currentPath, loadPath]);
+  useEffect(() => { loadPath(currentPath, showAll); }, [currentPath, showAll, loadPath]);
 
   const navigate = (path) => {
     setCurrentPath(path);
     setSelected(null);
     setSelectedItems(new Set());
     setSearch("");
+    setShowAll(true); // default to flat view when switching pubs
   };
 
   // Filter and sort files (exclude directories for grid display)
@@ -291,19 +314,25 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         })}
       </div>
 
-      {/* Subfolder chips + sort + view + search */}
+      {/* View toggle + sort + search */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {/* Subfolder nav */}
-        {items.filter(i => i.IsDirectory).length > 0 && (
+        {/* Show All / Browse Folders toggle */}
+        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: 3 }}>
+          <button onClick={() => setShowAll(true)} style={{ padding: "4px 10px", background: showAll ? Z.ac + "12" : "transparent", border: "none", color: showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: showAll ? 700 : 500 }}>All Files</button>
+          <button onClick={() => setShowAll(false)} style={{ padding: "4px 10px", background: !showAll ? Z.ac + "12" : "transparent", border: "none", color: !showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: !showAll ? 700 : 500 }}>Folders</button>
+        </div>
+        {/* Subfolder nav — only in folder mode */}
+        {!showAll && items.filter(i => i.IsDirectory).length > 0 && (
           <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
             {currentPath.includes("/") && (
-              <button onClick={() => navigate(currentPath.split("/").slice(0, -1).join("/"))} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
+              <button onClick={() => { setShowAll(false); setCurrentPath(currentPath.split("/").slice(0, -1).join("/")); }} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
             )}
             {items.filter(i => i.IsDirectory).map(f => (
-              <button key={f.ObjectName} onClick={() => navigate(currentPath + "/" + f.ObjectName)} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
+              <button key={f.ObjectName} onClick={() => { setShowAll(false); setCurrentPath(currentPath + "/" + f.ObjectName); }} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
             ))}
           </div>
         )}
+        {loadProgress && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
           <option value="date">Newest</option>
           <option value="name">Name A-Z</option>
