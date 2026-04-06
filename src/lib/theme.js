@@ -59,6 +59,9 @@ const getInitTheme = () => {
 
 export let Z = getInitTheme() === "light" ? { ...LIGHT } : { ...DARK };
 
+// Convenience: check active theme mode without hard-coding hex values
+export const isDark = () => Z.bg === DARK.bg;
+
 export const getStatusColors = () => ({
   Discovery:    { bg: Z.sa, text: Z.tm },
   Presentation: { bg: Z.sa, text: Z.tx },
@@ -157,4 +160,47 @@ export const TBL = {
   activeAlpha: 0.08,       // selected/active row background alpha
   borderAlpha: 0.06,       // row divider opacity (matches My Day dividers)
   radius: 5,               // container border-radius (matches R)
+};
+
+// Input tokens — shared styling for text inputs, selects, textareas
+export const INPUT = {
+  pad: "9px 14px",         // standard input padding
+  padSm: "6px 8px",        // compact input padding (Site Settings, inline)
+  fontSize: 13,            // matches FS.base
+  radius: Ri,              // internal-level rounding
+};
+
+// Button tokens — shared button sizing
+export const BTN = {
+  pad: "9px 22px",         // default button padding
+  padSm: "7px 16px",       // small button padding
+  fontSize: 13,
+  fontWeight: 700,
+  radius: Ri,
+};
+
+// Modal tokens — overlay + dialog sizing
+export const MODAL = {
+  backdropBg: "rgba(0,0,0,0.7)",
+  backdropBlur: "blur(4px)",
+  defaultWidth: 540,
+  pad: "16px 24px",        // modal content padding
+  radius: R,
+};
+
+// Label tokens — uppercase section/field labels used everywhere
+export const LABEL = {
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+};
+
+// Feature accent colors — semantic colors beyond the base palette
+export const ACCENT = {
+  amber: "#D4890E",
+  indigo: "#6366f1",
+  green: "#16a34a",
+  blue: "#3b82f6",
+  grey: "#6B7280",
 };

@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
-import { Z, COND, DISPLAY, R, Ri, SP, FS, FW } from "../lib/theme";
-import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar } from "../components/ui";
-import { ACTION_TYPES } from "../constants";
+import { useState, useMemo, memo } from "react";
+import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT } from "../lib/theme";
+import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, glass as glassStyle } from "../components/ui";
+import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 
 const Dashboard = ({
   pubs, stories, clients, sales, issues, proposals, team,
@@ -11,8 +11,10 @@ const Dashboard = ({
   myPriorities, priorityHelpers,
 }) => {
   const today = new Date().toISOString().slice(0, 10);
-  const cn = id => clients?.find(c => c.id === id)?.name || "—";
-  const pn = id => pubs?.find(p => p.id === id)?.name || "";
+  const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c; }); return m; }, [clients]);
+  const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p; }); return m; }, [pubs]);
+  const cn = id => clientMap[id]?.name || "—";
+  const pn = id => pubMap[id]?.name || "";
   const actInf = (act) => { if (!act) return null; if (typeof act === "string") return { type: "task", label: act, icon: "✓", color: Z.tm }; return { ...ACTION_TYPES[act.type] || ACTION_TYPES.task, ...act }; };
   const actInfo = actInf;
   const actLabel = (s) => { const a = actInf(s?.nextAction); return a ? a.label : ""; };
@@ -63,7 +65,7 @@ const Dashboard = ({
   // ─── Focus Items ──────────────────────────────────────
   const focusItems = [];
   const nearestIssue = _issues.filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
-  if (nearestIssue) { const np = _pubs.find(p => p.id === nearestIssue.pubId); const ns = Math.floor((np?.pageCount || 24) * 0.4); const sold = _sales.filter(s => s.issueId === nearestIssue.id && s.status === "Closed").length; const ne = _stories.filter(s => s.publication === nearestIssue.pubId && ["Needs Editing", "Draft"].includes(s.status)).length; const os = Math.max(0, ns - sold); focusItems.push({ id: "fi-pub", title: `${np?.name} ${nearestIssue.label} — ${daysUntil(nearestIssue.date)}d to publish`, sub: `${os > 0 ? os + " open ad slots" : "Ads full"}${ne > 0 ? " · " + ne + " stories in editing" : ""}`, action: "Review", issueId: nearestIssue.id, dept: "production", priority: 1 }); }
+  if (nearestIssue) { const np = pubMap[nearestIssue.pubId]; const ns = Math.floor((np?.pageCount || 24) * 0.4); const sold = _sales.filter(s => s.issueId === nearestIssue.id && s.status === "Closed").length; const ne = _stories.filter(s => s.publication === nearestIssue.pubId && ["Needs Editing", "Draft"].includes(s.status)).length; const os = Math.max(0, ns - sold); focusItems.push({ id: "fi-pub", title: `${np?.name} ${nearestIssue.label} — ${daysUntil(nearestIssue.date)}d to publish`, sub: `${os > 0 ? os + " open ad slots" : "Ads full"}${ne > 0 ? " · " + ne + " stories in editing" : ""}`, action: "Review", issueId: nearestIssue.id, dept: "production", priority: 1 }); }
   const topDeal = _sales.filter(s => s.nextAction && !["Closed", "Follow-up"].includes(s.status)).sort((a, b) => (b.amount || 0) - (a.amount || 0))[0];
   if (topDeal) { const ai = actInf(topDeal.nextAction); focusItems.push({ id: "fi-deal", title: `${ai?.label || "Follow up"} — ${cn(topDeal.clientId)}`, sub: `${fmtCurrency(topDeal.amount)} deal value`, action: "Go to deal", page: "sales", dept: "sales", priority: 2 }); }
   const reviewStory = _stories.filter(s => s.status === "Edited" || s.status === "Needs Editing").sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"))[0];
@@ -74,7 +76,7 @@ const Dashboard = ({
 
   // Renewal alerts
   const renewalClients = useMemo(() => _clients.filter(c => c.status === "Renewal"), [clients]);
-  const urgentRenewals = renewalClients.filter(c => c.contractEndDate && c.contractEndDate <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+  const urgentRenewals = renewalClients.filter(c => c.contractEndDate && c.contractEndDate <= new Date(Date.now() + THRESHOLDS.renewalUrgentDays * MS_PER_DAY).toISOString().slice(0, 10));
   if (urgentRenewals.length > 0) focusItems.push({ id: "fi-renewals", title: `${urgentRenewals.length} renewal${urgentRenewals.length > 1 ? "s" : ""} expiring within 2 weeks`, sub: urgentRenewals.slice(0, 3).map(c => c.name).join(", "), action: "Renewals", page: "sales", dept: "sales", priority: 1 });
 
   // Salesperson check (needed before issueProgress → myGoals → myRevStats)
@@ -110,8 +112,13 @@ const Dashboard = ({
       }
     });
 
+    // Pre-compute next issue per pub for O(1) lookup
+    const nextIssueByPub = {};
+    _issues.filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).forEach(i => {
+      if (!nextIssueByPub[i.pubId]) nextIssueByPub[i.pubId] = i;
+    });
     return _pubs.map(pub => {
-      const ni = _issues.find(i => i.pubId === pub.id && i.date >= today);
+      const ni = nextIssueByPub[pub.id];
       if (!ni) return null;
       const avg = pubAvgs[pub.id] || { avgAds: 20, avgRev: 5000 };
       // Goal hierarchy: per-issue override > pub default > historical average
@@ -283,17 +290,12 @@ const Dashboard = ({
   const deptLabel = (d) => ({ sales: "Sales", editorial: "Editorial", production: "Production", admin: "Admin" }[d] || d);
 
   // ─── Glass card styles ──────────────────────────────────
-  const isDark = Z.bg === "#08090D";
-  const glass = {
-    background: isDark ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
-    backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-    border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
-    borderRadius: R, padding: "22px 24px",
-  };
+  const isDark = Z.bg === DARK.bg;
+  const glass = { ...glassStyle(), borderRadius: R, padding: "22px 24px" };
 
   // ─── Status badge helper for updates ────────────────────
   const statusBadge = (status) => {
-    const colors = { Approved: { bg: isDark ? "#1a3a1a" : "#dcfce7", tx: "#16a34a" }, Edited: { bg: isDark ? "#1a2a3a" : "#dbeafe", tx: "#2563eb" }, "On Page": { bg: isDark ? "#2a1a3a" : "#ede9fe", tx: "#7c3aed" }, "Needs Editing": { bg: isDark ? "#3a2a1a" : "#fef3c7", tx: "#d97706" }, Draft: { bg: isDark ? "#1a1a2a" : "#f3f4f6", tx: "#6b7280" } };
+    const colors = { Approved: { bg: isDark ? "#1a3a1a" : "#dcfce7", tx: ACCENT.green }, Edited: { bg: isDark ? "#1a2a3a" : "#dbeafe", tx: ACCENT.blue }, "On Page": { bg: isDark ? "#2a1a3a" : "#ede9fe", tx: ACCENT.indigo }, "Needs Editing": { bg: isDark ? "#3a2a1a" : "#fef3c7", tx: ACCENT.amber }, Draft: { bg: isDark ? "#1a1a2a" : "#f3f4f6", tx: ACCENT.grey } };
     const c = colors[status] || colors.Draft;
     return <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.bold, background: c.bg, color: c.tx, fontFamily: COND }}>{status}</span>;
   };
@@ -757,4 +759,4 @@ const Dashboard = ({
   </div></>;
 };
 
-export default Dashboard;
+export default memo(Dashboard);

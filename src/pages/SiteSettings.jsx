@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Z, COND, DISPLAY, FS, FW } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT } from "../lib/theme";
 import { Ic, Btn, Inp, TA } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
@@ -23,20 +23,20 @@ const toSlug = (s) => (s || "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").repla
 
 const Section = ({ title, children }) => (
   <div style={{ marginBottom: 24 }}>
-    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid " + Z.bd }}>{title}</div>
+    <div style={{ fontSize: FS.xs, fontWeight: LABEL.fontWeight, textTransform: LABEL.textTransform, letterSpacing: LABEL.letterSpacing, color: Z.tm, fontFamily: COND, marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid " + Z.bd }}>{title}</div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{children}</div>
   </div>
 );
 
 const Field = ({ label, children }) => (
   <div>
-    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>{label}</div>
+    <div style={{ fontSize: LABEL.fontSize, fontWeight: LABEL.fontWeight, textTransform: LABEL.textTransform, letterSpacing: LABEL.letterSpacing, color: Z.tm, fontFamily: COND, marginBottom: 3 }}>{label}</div>
     {children}
   </div>
 );
 
-const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND };
-const colorStyle = { ...inputStyle, width: 60, height: 32, padding: 2, cursor: "pointer" };
+const getInputStyle = () => ({ width: "100%", padding: INPUT.padSm, borderRadius: INPUT.radius, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND });
+const getColorStyle = () => ({ ...getInputStyle(), width: 60, height: 32, padding: 2, cursor: "pointer" });
 
 const Toggle = ({ checked, onChange, label }) => (
   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, fontFamily: COND, color: Z.tx }}>
@@ -75,7 +75,7 @@ const OrderableList = ({ items, onChange, placeholder, showSlug }) => {
         ))}
       </div>
       <div style={{ display: "flex", gap: 4 }}>
-        <input value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} placeholder={placeholder || "Add item..."} style={{ ...inputStyle, flex: 1 }} />
+        <input value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} placeholder={placeholder || "Add item..."} style={{ ...getInputStyle(), flex: 1 }} />
         <Btn sm onClick={add} disabled={!newItem.trim()}>Add</Btn>
       </div>
     </div>
@@ -101,7 +101,7 @@ const ImageField = ({ value, onChange, uploadPath, label }) => {
       <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
         {value && <img src={value} alt="" style={{ width: 48, height: 48, objectFit: "contain", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa }} />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-          <input value={value || ""} onChange={e => onChange(e.target.value)} placeholder="https://..." style={inputStyle} />
+          <input value={value || ""} onChange={e => onChange(e.target.value)} placeholder="https://..." style={getInputStyle()} />
           <button onClick={handleUpload} disabled={uploading} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
             {uploading ? "Uploading..." : "Upload"}
           </button>
@@ -257,54 +257,54 @@ export default function SiteSettings({ pubs }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="Primary Color">
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input type="color" value={draft.primary_color} onChange={e => update("primary_color", e.target.value)} style={colorStyle} />
-                    <input value={draft.primary_color} onChange={e => update("primary_color", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                    <input type="color" value={draft.primary_color} onChange={e => update("primary_color", e.target.value)} style={getColorStyle()} />
+                    <input value={draft.primary_color} onChange={e => update("primary_color", e.target.value)} style={{ ...getInputStyle(), flex: 1 }} />
                   </div>
                 </Field>
                 <Field label="Secondary Color">
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input type="color" value={draft.secondary_color} onChange={e => update("secondary_color", e.target.value)} style={colorStyle} />
-                    <input value={draft.secondary_color} onChange={e => update("secondary_color", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                    <input type="color" value={draft.secondary_color} onChange={e => update("secondary_color", e.target.value)} style={getColorStyle()} />
+                    <input value={draft.secondary_color} onChange={e => update("secondary_color", e.target.value)} style={{ ...getInputStyle(), flex: 1 }} />
                   </div>
                 </Field>
               </div>
               <Field label="Tagline">
-                <input value={draft.tagline} onChange={e => update("tagline", e.target.value)} placeholder="Your site tagline..." style={inputStyle} />
+                <input value={draft.tagline} onChange={e => update("tagline", e.target.value)} placeholder="Your site tagline..." style={getInputStyle()} />
               </Field>
             </Section>
 
             <Section title="Social & Contact">
               <Field label="Facebook URL">
-                <input value={draft.facebook_url} onChange={e => update("facebook_url", e.target.value)} placeholder="https://facebook.com/..." style={inputStyle} />
+                <input value={draft.facebook_url} onChange={e => update("facebook_url", e.target.value)} placeholder="https://facebook.com/..." style={getInputStyle()} />
               </Field>
               <Field label="Twitter / X URL">
-                <input value={draft.twitter_url} onChange={e => update("twitter_url", e.target.value)} placeholder="https://x.com/..." style={inputStyle} />
+                <input value={draft.twitter_url} onChange={e => update("twitter_url", e.target.value)} placeholder="https://x.com/..." style={getInputStyle()} />
               </Field>
               <Field label="Instagram URL">
-                <input value={draft.instagram_url} onChange={e => update("instagram_url", e.target.value)} placeholder="https://instagram.com/..." style={inputStyle} />
+                <input value={draft.instagram_url} onChange={e => update("instagram_url", e.target.value)} placeholder="https://instagram.com/..." style={getInputStyle()} />
               </Field>
               <Field label="Contact Email">
-                <input type="email" value={draft.contact_email} onChange={e => update("contact_email", e.target.value)} placeholder="editor@..." style={inputStyle} />
+                <input type="email" value={draft.contact_email} onChange={e => update("contact_email", e.target.value)} placeholder="editor@..." style={getInputStyle()} />
               </Field>
             </Section>
 
             <Section title="Weather">
               <Field label="City Name">
-                <input value={draft.weather_city} onChange={e => update("weather_city", e.target.value)} placeholder="e.g. Atascadero" style={inputStyle} />
+                <input value={draft.weather_city} onChange={e => update("weather_city", e.target.value)} placeholder="e.g. Atascadero" style={getInputStyle()} />
               </Field>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="Latitude">
-                  <input type="number" step="0.0001" value={draft.weather_lat} onChange={e => update("weather_lat", e.target.value)} placeholder="35.4894" style={inputStyle} />
+                  <input type="number" step="0.0001" value={draft.weather_lat} onChange={e => update("weather_lat", e.target.value)} placeholder="35.4894" style={getInputStyle()} />
                 </Field>
                 <Field label="Longitude">
-                  <input type="number" step="0.0001" value={draft.weather_lon} onChange={e => update("weather_lon", e.target.value)} placeholder="-120.6707" style={inputStyle} />
+                  <input type="number" step="0.0001" value={draft.weather_lon} onChange={e => update("weather_lon", e.target.value)} placeholder="-120.6707" style={getInputStyle()} />
                 </Field>
               </div>
             </Section>
 
             <Section title="Analytics">
               <Field label="Google Analytics Measurement ID">
-                <input value={draft.ga_measurement_id} onChange={e => update("ga_measurement_id", e.target.value)} placeholder="G-XXXXXXXXXX" style={inputStyle} />
+                <input value={draft.ga_measurement_id} onChange={e => update("ga_measurement_id", e.target.value)} placeholder="G-XXXXXXXXXX" style={getInputStyle()} />
               </Field>
             </Section>
           </div>
@@ -323,10 +323,10 @@ export default function SiteSettings({ pubs }) {
               </Field>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="Best Of Slug">
-                  <input value={draft.best_of_slug} onChange={e => update("best_of_slug", e.target.value)} placeholder="e.g. best-of-north-slo-county" style={inputStyle} />
+                  <input value={draft.best_of_slug} onChange={e => update("best_of_slug", e.target.value)} placeholder="e.g. best-of-north-slo-county" style={getInputStyle()} />
                 </Field>
                 <Field label="Best Of Label">
-                  <input value={draft.best_of_label} onChange={e => update("best_of_label", e.target.value)} placeholder="Best of North SLO County 2026" style={inputStyle} />
+                  <input value={draft.best_of_label} onChange={e => update("best_of_label", e.target.value)} placeholder="Best of North SLO County 2026" style={getInputStyle()} />
                 </Field>
               </div>
             </Section>
@@ -335,7 +335,7 @@ export default function SiteSettings({ pubs }) {
               <Toggle checked={draft.comments_enabled} onChange={v => update("comments_enabled", v)} label="Comments Enabled" />
               <Toggle checked={draft.issuu_enabled} onChange={v => update("issuu_enabled", v)} label="Issuu E-Edition Enabled" />
               <Field label="Breaking News Banner">
-                <input value={draft.breaking_news} onChange={e => update("breaking_news", e.target.value)} placeholder="Leave empty to hide. Text or JSON {text, url}" style={inputStyle} />
+                <input value={draft.breaking_news} onChange={e => update("breaking_news", e.target.value)} placeholder="Leave empty to hide. Text or JSON {text, url}" style={getInputStyle()} />
               </Field>
             </Section>
 

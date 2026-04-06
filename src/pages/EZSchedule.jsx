@@ -187,8 +187,8 @@ const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => 
   const [annualMonth, setAnnualMonth] = useState(0); // Month for annual
   const [adCloseDays, setAdCloseDays] = useState(2);
   const [edCloseDays, setEdCloseDays] = useState(3);
-  const [startDate, setStartDate] = useState("2025-01-01");
-  const [endDate, setEndDate] = useState("2026-12-31");
+  const [startDate, setStartDate] = useState(() => (new Date().getFullYear() - 1) + "-01-01");
+  const [endDate, setEndDate] = useState(() => new Date().getFullYear() + "-12-31");
 
   // Preview state
   const [previewIssues, setPreviewIssues] = useState([]);

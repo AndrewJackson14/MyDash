@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, CARD, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
@@ -453,4 +453,4 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
   </div>;
 };
 
-export default ServiceDesk;
+export default memo(ServiceDesk);

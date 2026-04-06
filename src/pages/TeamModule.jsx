@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Card, SB, Modal , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 
@@ -249,4 +249,4 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
   </div>;
 };
 
-export default TeamModule;
+export default memo(TeamModule);

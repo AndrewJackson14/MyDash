@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD } from "../../lib/theme";
 import { Btn, SB, glass } from "../../components/ui";
+import { THRESHOLDS, DAYS_PER_MONTH } from "../../constants";
 
 const fmtK = n => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0).toLocaleString();
 
@@ -32,8 +33,10 @@ export default function ClientSignals({
   const [expandedPanels, setExpandedPanels] = useState(new Set());
   const togglePanel = (key) => setExpandedPanels(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const today = new Date().toISOString().slice(0, 10);
-  const cn = id => clients?.find(c => c.id === id)?.name || "—";
-  const pn = id => pubs?.find(p => p.id === id)?.name || "";
+  const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c; }); return m; }, [clients]);
+  const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p; }); return m; }, [pubs]);
+  const cn = id => clientMap[id]?.name || "—";
+  const pn = id => pubMap[id]?.name || "";
 
   // IDs already in MyPriorities for this user
   const priorityClientIds = useMemo(() => {
@@ -87,21 +90,20 @@ export default function ClientSignals({
     return myLapsed.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
       const d = clientSalesMap[c.id];
-      if (!d || d.closed.length < 4) return false; // need at least 4 purchases to detect cycle
+      if (!d || d.closed.length < THRESHOLDS.churnMinPurchases) return false;
       const months = d.monthlyDates.map(dt => dt.slice(0, 7)).sort();
       const uniqueMonths = [...new Set(months)];
       if (uniqueMonths.length < 3) return false;
-      // Detect if they were buying at least quarterly
       const lastPurchaseMonth = uniqueMonths[uniqueMonths.length - 1];
-      const monthsAgo = Math.round((new Date() - new Date(lastPurchaseMonth + "-15")) / (30.44 * 86400000));
-      return monthsAgo >= 2 && monthsAgo <= 12 && d.totalSpend >= 2000;
+      const monthsAgo = Math.round((new Date() - new Date(lastPurchaseMonth + "-15")) / (DAYS_PER_MONTH * 86400000));
+      return monthsAgo >= THRESHOLDS.churnMinMonths && monthsAgo <= THRESHOLDS.churnMaxMonths && d.totalSpend >= THRESHOLDS.churnMinSpend;
     }).sort((a, b) => (clientSalesMap[b.id]?.totalSpend || 0) - (clientSalesMap[a.id]?.totalSpend || 0))
     .slice(0, 20)
     .map(c => {
       const d = clientSalesMap[c.id];
       const months = [...new Set(d.monthlyDates.map(dt => dt.slice(0, 7)))].sort();
       const lastMonth = months[months.length - 1];
-      const monthsAgo = Math.round((new Date() - new Date(lastMonth + "-15")) / (30.44 * 86400000));
+      const monthsAgo = Math.round((new Date() - new Date(lastMonth + "-15")) / (DAYS_PER_MONTH * 86400000));
       return { clientId: c.id, name: c.name, spend: d.totalSpend, detail: `Bought regularly, missed ${monthsAgo} cycles · ${fmtK(d.totalSpend)} lifetime`, signal: "churn" };
     });
   }, [myLapsed, clientSalesMap, priorityClientIds]);
@@ -116,7 +118,7 @@ export default function ClientSignals({
       if (!d) return false;
       const tyRev = d.closed.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.amount || 0), 0);
       const lyRev = d.closed.filter(s => s.date?.startsWith(lastYear)).reduce((s, x) => s + (x.amount || 0), 0);
-      return lyRev > 2000 && tyRev < lyRev * 0.6;
+      return lyRev > THRESHOLDS.declineMinRevenue && tyRev < lyRev * THRESHOLDS.declineDropPct;
     }).sort((a, b) => (clientSalesMap[b.id]?.totalSpend || 0) - (clientSalesMap[a.id]?.totalSpend || 0))
     .slice(0, 20)
     .map(c => {
@@ -132,12 +134,12 @@ export default function ClientSignals({
   const whaleSignals = useMemo(() => {
     return myLapsed.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
-      return (c.totalSpend || 0) >= 10000 && c.status === "Lapsed";
+      return (c.totalSpend || 0) >= THRESHOLDS.whaleMinSpend && c.status === "Lapsed";
     }).sort((a, b) => (b.totalSpend || 0) - (a.totalSpend || 0))
     .slice(0, 20)
     .map(c => {
       const d = clientSalesMap[c.id];
-      const monthsLapsed = d?.lastDate ? Math.round((new Date() - new Date(d.lastDate + "T12:00:00")) / (30.44 * 86400000)) : 99;
+      const monthsLapsed = d?.lastDate ? Math.round((new Date() - new Date(d.lastDate + "T12:00:00")) / (DAYS_PER_MONTH * 86400000)) : 99;
       const hasEmail = (c.contacts || []).some(ct => ct.email);
       return { clientId: c.id, name: c.name, spend: c.totalSpend, detail: `${fmtK(c.totalSpend)} · ${monthsLapsed}mo dark · ${d?.pubSet?.size || 0} pubs${hasEmail ? " · has email" : ""}`, signal: "whale" };
     });
@@ -146,10 +148,11 @@ export default function ClientSignals({
   // 4. Seasonal — bought same issue last year, not yet this year
   const seasonalSignals = useMemo(() => {
     const results = [];
+    const seen = new Set();
     const upcomingIssues = (issues || []).filter(i => {
       const daysOut = Math.ceil((new Date(i.date + "T12:00:00") - new Date()) / 86400000);
       return daysOut > 0 && daysOut <= 45 && i.adDeadline;
-    });
+    }).sort((a, b) => new Date(a.adDeadline) - new Date(b.adDeadline));
     upcomingIssues.forEach(issue => {
       const lastYearMonth = new Date(new Date(issue.date).setFullYear(new Date(issue.date).getFullYear() - 1)).toISOString().slice(0, 7);
       // Find clients who bought in this pub around this time last year
@@ -161,9 +164,10 @@ export default function ClientSignals({
       // Find those who haven't booked this year's issue
       const thisYearBooked = new Set(_sales.filter(s => s.issueId === issue.id && s.status === "Closed").map(s => s.clientId));
       uniqueBuyers.forEach(cId => {
-        if (thisYearBooked.has(cId) || priorityClientIds.has(cId)) return;
-        const c = clients?.find(x => x.id === cId);
+        if (seen.has(cId) || thisYearBooked.has(cId) || priorityClientIds.has(cId)) return;
+        const c = clientMap[cId];
         if (!c) return;
+        seen.add(cId);
         const pubName = pn(issue.pubId);
         const daysOut = Math.ceil((new Date(issue.adDeadline + "T12:00:00") - new Date()) / 86400000);
         results.push({ clientId: cId, name: c.name, spend: c.totalSpend || 0, detail: `Bought ${pubName} ${lastYearMonth.slice(0, 4)} · not booked '${today.slice(2, 4)} · ${daysOut}d to deadline`, signal: "seasonal" });
@@ -177,7 +181,7 @@ export default function ClientSignals({
     return myClients.filter(c => {
       if (priorityClientIds.has(c.id)) return false;
       const d = clientSalesMap[c.id];
-      return d && d.pubSet.size <= 2 && d.totalSpend >= 2000;
+      return d && d.pubSet.size <= THRESHOLDS.crossSellMaxPubs && d.totalSpend >= THRESHOLDS.crossSellMinSpend;
     }).sort((a, b) => (clientSalesMap[b.id]?.totalSpend || 0) - (clientSalesMap[a.id]?.totalSpend || 0))
     .slice(0, 20)
     .map(c => {
@@ -240,7 +244,7 @@ export default function ClientSignals({
       return daysOut > 0 && daysOut <= 21;
     }).map(i => {
       const soldCount = _sales.filter(s => s.issueId === i.id && s.status === "Closed").length;
-      const pub = pubs?.find(p => p.id === i.pubId);
+      const pub = pubMap[i.pubId];
       const avgAds = 20; // placeholder
       const fillPct = avgAds > 0 ? Math.round((soldCount / avgAds) * 100) : 0;
       const daysOut = Math.ceil((new Date(i.adDeadline + "T12:00:00") - new Date()) / 86400000);
@@ -323,7 +327,7 @@ export default function ClientSignals({
   // Pipeline value from MyPriorities clients
   const pipelineValue = useMemo(() => {
     return myPriorityItems.reduce((sum, p) => {
-      const c = clients?.find(x => x.id === p.clientId);
+      const c = clientMap[p.clientId];
       return sum + (c?.totalSpend || 0);
     }, 0);
   }, [myPriorityItems, clients]);
@@ -382,7 +386,7 @@ export default function ClientSignals({
       </div>
 
       {myPriorityItems.map(p => {
-        const c = clients?.find(x => x.id === p.clientId);
+        const c = clientMap[p.clientId];
         if (!c) return null;
         return <div key={p.id} style={{ ...glass(), borderRadius: Ri, padding: "8px 10px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

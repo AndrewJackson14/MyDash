@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
@@ -58,7 +58,7 @@ const SalesCRM = (props) => {
   const [emailMo, setEmailMo] = useState(false);
   const [calMo, setCalMo] = useState(false);
   const [calSaleId, setCalSaleId] = useState(null);
-  const [schEvent, setSchEvent] = useState({ title: "", date: "2026-03-23", time: "10:00", duration: 30, clientId: "", type: "call", notes: "" });
+  const [schEvent, setSchEvent] = useState(() => ({ title: "", date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), time: "10:00", duration: 30, clientId: "", type: "call", notes: "" }));
   const [emailTo, setEmailTo] = useState("");
   const [emailSubj, setEmailSubj] = useState("");
   const [emailBody, setEmailBody] = useState("");
@@ -79,13 +79,17 @@ const SalesCRM = (props) => {
   // Build lookup maps for O(1) name resolution
   const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c.name; }); return m; }, [clients]);
   const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p.name; }); return m; }, [pubs]);
+  const issueMap = useMemo(() => { const m = {}; (issues || []).forEach(i => { m[i.id] = i; }); return m; }, [issues]);
   const cn = id => clientMap[id] || "—";
   const pn = id => pubMap[id] || "—";
-  const issLabel = id => issues.find(i => i.id === id)?.label || "—";
-  const today = "2026-03-22"; const sevenDaysAgo = "2026-03-15"; const tomorrow = "2026-03-23";
+  const issLabel = id => issueMap[id]?.label || "—";
+  const today = new Date().toISOString().slice(0, 10);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const addNotif = (t) => { if (setNotifications) setNotifications(n => [...n, { id: "n" + Date.now(), text: t, time: new Date().toLocaleTimeString(), read: false }]); };
   const logActivity = (t, type, cId, cName) => setActivityLog(a => [{ id: "al" + Date.now(), text: t, time: new Date().toLocaleTimeString(), type, clientId: cId, clientName: cName }, ...a].slice(0, 50));
-  const dateColor = (d) => { if (!d) return Z.td; if (d < today) return Z.da; if (d === today) return Z.wa; if (d <= "2026-03-28") return Z.su; return Z.td; };
+  const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const dateColor = (d) => { if (!d) return Z.td; if (d < today) return Z.da; if (d === today) return Z.wa; if (d <= nextWeek) return Z.su; return Z.td; };
   const stageRevenue = (st) => sales.filter(s => s.status === st).reduce((sm, s) => sm + s.amount, 0);
   const navTo = (t, cId) => { setPrevTab(tab + (viewClientId ? `:${viewClientId}` : "")); setTab(t); setViewClientId(cId || null); };
   const goBack = () => { const [t, c] = (prevTab || "Pipeline").split(":"); setTab(t); setViewClientId(c || null); };
@@ -192,7 +196,7 @@ const SalesCRM = (props) => {
     switch (aType) {
       case "call":
       case "meeting":
-        setCalMo(true); setSchEvent({ title: `${aType === "meeting" ? "Meeting" : "Call"}: ${client?.name || ""}`, date: s.nextActionDate || "2026-03-23", time: "10:00", duration: 30, clientId: s.clientId, type: aType, notes: actLabel(s.nextAction) }); setCalSaleId(saleId);
+        setCalMo(true); setSchEvent({ title: `${aType === "meeting" ? "Meeting" : "Call"}: ${client?.name || ""}`, date: s.nextActionDate || tomorrow, time: "10:00", duration: 30, clientId: s.clientId, type: aType, notes: actLabel(s.nextAction) }); setCalSaleId(saleId);
         break;
       case "email":
       case "follow_up":
@@ -282,7 +286,7 @@ const SalesCRM = (props) => {
     if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-      lines: propLineItems.map(li => ({ ...li, issueDate: issues.find(i => i.id === li.issueId)?.date || null })),
+      lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
       total: pTotal, payPlan: propPayPlan, monthly: pMonthly,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
@@ -311,7 +315,7 @@ const SalesCRM = (props) => {
       if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-        lines: propLineItems.map(li => ({ ...li, issueDate: issues.find(i => i.id === li.issueId)?.date || null })),
+        lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
         total: pTotal, payPlan: propPayPlan, monthly: pMonthly,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
@@ -658,7 +662,7 @@ const SalesCRM = (props) => {
           <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{[3,6,12].map(m => <button key={m} onClick={() => selectIssueRange(pi, m)} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{m}mo</button>)}<button onClick={() => setPropPubs(pps => pps.map((p, i) => i !== pi ? p : { ...p, issues: [] }))} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Clear</button></div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{pI.map(iss => { const sel = pp.issues.some(x => x.issueId === iss.id); return <button key={iss.id} onClick={() => togglePropIssue(pi, iss.id)} style={{ padding: "4px 8px", borderRadius: R, border: `1px solid ${sel ? Z.go : Z.bd}`, background: sel ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: sel ? "#fff" : Z.tm }}>{iss.label}</button>; })}</div>{pp.issues.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return <div key={iss.issueId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 60px 24px", gap: 5, padding: "4px 6px", background: Z.sa, borderRadius: R }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{issLabel(iss.issueId)}</span><select value={iss.adSizeIdx} onChange={e => setIssueAdSize(pi, iss.issueId, +e.target.value)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: "3px", color: Z.tx, fontSize: FS.sm, outline: "none" }}>{(pub?.adSizes || []).map((a, ai) => <option key={ai} value={ai}>{a.name}</option>)}</select><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(ad?.[autoTier] || 0).toLocaleString()}</span><button onClick={() => applyAdSizeBelow(pi, iss.issueId, iss.adSizeIdx)} title="Apply below" style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, cursor: "pointer", fontSize: FS.sm, color: Z.tx, fontWeight: FW.heavy }}>↓</button></div>; })}</div>}</div>; })}</div>
         {propLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} insertions · {autoTermLabel}</span><span style={{ fontSize: 18, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>{monthSpan > 1 && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><input type="checkbox" checked={propPayPlan} onChange={e => setPropPayPlan(e.target.checked)} style={{ accentColor: Z.ac }} /><span style={{ fontSize: FS.sm, color: Z.tx }}>Payment: {monthSpan}mo × ${pMonthly.toLocaleString()}/mo</span></div>}</div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0} onClick={async () => { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: issues.find(i => i.id === li.issueId)?.date || null })), total: pTotal, payPlan: propPayPlan, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); }}>Save Draft</Btn><Btn disabled={propLineItems.length === 0} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0} onClick={async () => { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })), total: pTotal, payPlan: propPayPlan, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); }}>Save Draft</Btn><Btn disabled={propLineItems.length === 0} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 
@@ -709,4 +713,4 @@ const SalesCRM = (props) => {
   </div>;
 };
 
-export default SalesCRM;
+export default memo(SalesCRM);

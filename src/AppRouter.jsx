@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { DataProvider } from './hooks/useAppData';
 import App from './App';
-import LoginPage from './pages/LoginPage';
+
+// Lazy-load LoginPage (pulls in framer-motion — only needed before auth)
+const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 // Import local data generators for offline fallback
 import { buildLocalData } from './data/local';
@@ -15,9 +17,9 @@ export default function AppRouter() {
   useEffect(() => {
     if (!loading && !splashDone) {
       if (teamMember) {
-        // Authenticated — skip splash immediately (or after brief delay if first load)
-        const timer = setTimeout(() => setSplashDone(true), splashDone ? 0 : 800);
-        return () => clearTimeout(timer);
+        // Authenticated — go straight to app
+        setSplashDone(true);
+        return;
       }
       if (!isOnline) {
         // Offline — play full animation then auto-enter
@@ -27,7 +29,7 @@ export default function AppRouter() {
     }
   }, [loading, teamMember, isOnline, splashDone]);
 
-  // Show app after splash is done AND user is authenticated/offline
+  // Show app after auth resolved AND user is authenticated/offline
   if (splashDone && !loading && (teamMember || !isOnline)) {
     return (
       <DataProvider localData={buildLocalData()}>
@@ -36,6 +38,15 @@ export default function AppRouter() {
     );
   }
 
-  // Show LoginPage as the landing experience
-  return <LoginPage onSkip={() => setSplashDone(true)} />;
+  // Still checking auth — show minimal loading state (not the login page)
+  if (loading) {
+    return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#08090D" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 36, height: 36, borderRadius: 4, background: "#E8ECF2", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 17, color: "#08090D" }}>13</div>
+      </div>
+    </div>;
+  }
+
+  // Auth checked, no user — show LoginPage
+  return <Suspense fallback={null}><LoginPage onSkip={() => setSplashDone(true)} /></Suspense>;
 }

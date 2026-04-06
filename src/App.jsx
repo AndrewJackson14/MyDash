@@ -2,7 +2,7 @@
 // App.jsx — Application Shell
 // Persistent pages (display:none), role-based nav, back button
 // ============================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense, memo } from "react";
 import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
@@ -15,30 +15,36 @@ import {
   INIT_NOTIFICATIONS,
 } from "./data/seed";
 
+// Eagerly loaded (always needed on boot)
 import Dashboard from "./pages/Dashboard";
-import Publications from "./pages/Publications";
-import IssueSchedule from "./pages/IssueSchedule";
-import SalesCRM from "./pages/SalesCRM";
-import Contracts from "./pages/sales/Contracts";
-import CalendarPage from "./pages/CalendarPage";
-import StoriesModule from "./pages/StoriesModule";
-import EditorialDashboard from "./components/EditorialDashboard";
-import Flatplan from "./pages/Flatplan";
-import TeamModule from "./pages/TeamModule";
-import Analytics from "./pages/Analytics";
-import IntegrationsPage from "./pages/IntegrationsPage";
-import SiteSettings from "./pages/SiteSettings";
-import MediaLibrary from "./pages/MediaLibrary";
-import DataImport from "./pages/DataImport";
 import IssueDetail from "./pages/IssueDetail";
-import Billing from "./pages/Billing";
-import Circulation from "./pages/Circulation";
-import ServiceDesk from "./pages/ServiceDesk";
-import LegalNotices from "./pages/LegalNotices";
-import CreativeJobs from "./pages/CreativeJobs";
-import Permissions from "./pages/Permissions";
-import ProfilePanel from "./pages/ProfilePanel";
+
+// Lazy-loaded pages (split into separate chunks)
+const Publications = lazy(() => import("./pages/Publications"));
+const IssueSchedule = lazy(() => import("./pages/IssueSchedule"));
+const SalesCRM = lazy(() => import("./pages/SalesCRM"));
+const Contracts = lazy(() => import("./pages/sales/Contracts"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const StoriesModule = lazy(() => import("./pages/StoriesModule"));
+const EditorialDashboard = lazy(() => import("./components/EditorialDashboard"));
+const Flatplan = lazy(() => import("./pages/Flatplan"));
+const TeamModule = lazy(() => import("./pages/TeamModule"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const IntegrationsPage = lazy(() => import("./pages/IntegrationsPage"));
+const SiteSettings = lazy(() => import("./pages/SiteSettings"));
+const MediaLibrary = lazy(() => import("./pages/MediaLibrary"));
+const DataImport = lazy(() => import("./pages/DataImport"));
+const Billing = lazy(() => import("./pages/Billing"));
+const Circulation = lazy(() => import("./pages/Circulation"));
+const ServiceDesk = lazy(() => import("./pages/ServiceDesk"));
+const LegalNotices = lazy(() => import("./pages/LegalNotices"));
+const CreativeJobs = lazy(() => import("./pages/CreativeJobs"));
+const Permissions = lazy(() => import("./pages/Permissions"));
+const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
+
 import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
+
+const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
 export default function App() {
   const appData = useAppData();
@@ -143,25 +149,23 @@ export default function App() {
     }
   };
 
-  // ─── Lazy load module data on first navigation ──────────
+  // ─── Lazy load module data on first navigation (parallelized) ──────────
   useEffect(() => {
     if (!online) return;
+    const loads = [];
     if (pg === 'dashboard' || pg === 'sales') {
-      appData.loadPriorities?.();
+      loads.push(appData.loadPriorities?.());
     }
     if (pg === 'sales' || pg === 'contracts') {
-      appData.loadFullSales?.();
-      appData.loadClientDetails?.();
-      appData.loadProposals?.();
-      appData.loadCommissions?.();
-      appData.loadOutreach?.();
+      loads.push(appData.loadFullSales?.(), appData.loadClientDetails?.(), appData.loadProposals?.(), appData.loadCommissions?.(), appData.loadOutreach?.());
     }
-    if (pg === 'billing') appData.loadBilling?.();
-    if (pg === 'editorial' || pg === 'stories' || pg === 'flatplan') { appData.loadStories?.(); appData.loadFullSales?.(); }
-    if (pg === 'circulation') appData.loadCirculation?.();
-    if (pg === 'servicedesk') { appData.loadTickets?.(); appData.loadCirculation?.(); } // tickets page uses subscribers too
-    if (pg === 'legalnotices') appData.loadLegals?.();
-    if (pg === 'creativejobs') appData.loadCreative?.();
+    if (pg === 'billing') loads.push(appData.loadBilling?.());
+    if (pg === 'editorial' || pg === 'stories' || pg === 'flatplan') { loads.push(appData.loadStories?.(), appData.loadFullSales?.()); }
+    if (pg === 'circulation') loads.push(appData.loadCirculation?.());
+    if (pg === 'servicedesk') { loads.push(appData.loadTickets?.(), appData.loadCirculation?.()); }
+    if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
+    if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
+    if (loads.length > 0) Promise.all(loads.filter(Boolean));
   }, [pg, online]);
 
   const goBack = () => {
@@ -185,7 +189,8 @@ export default function App() {
   const activeLegal = (legalNotices || []).filter(n => !["published", "billed"].includes(n.status)).length;
   const activeJobs = (creativeJobs || []).filter(j => !["complete", "billed"].includes(j.status)).length;
   const storiesInEdit = (stories || []).filter(s => ["Draft", "Needs Editing"].includes(s.status)).length;
-  const subExpiring = (subscribers || []).filter(s => s.status === "active" && s.renewalDate && s.renewalDate <= new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().slice(0, 10) && s.renewalDate >= today).length;
+  const subExpiringCutoff = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const subExpiring = (subscribers || []).filter(s => s.status === "active" && s.renewalDate && s.renewalDate <= subExpiringCutoff && s.renewalDate >= today).length;
 
   // ─── Nav Config (with permission keys) ────────────────
   // Map nav IDs to module permission keys
@@ -387,7 +392,6 @@ export default function App() {
       </header>}
 
       {/* ── Page Content ──────────────────────────────────── */}
-      {console.log('>>> APP RENDER', { pg, online, loaded: appData.loaded, clientCount: clients?.length, salesCount: sales?.length })}
       <main data-main style={{ flex: 1, overflow: "auto", padding: pg === "dashboard" ? 0 : 28, background: "transparent" }}>
 
         {/* Dashboard — special handling for issue detail overlay */}
@@ -400,7 +404,8 @@ export default function App() {
           )}
         </div>
 
-        {/* All other pages — lazy-mounted on first visit, hidden when not active */}
+        {/* All other pages — lazy-mounted on first visit, hidden when not active, code-split */}
+        <Suspense fallback={<LazyFallback />}>
         {show("publications") && <div style={vis("publications")}><Publications pubs={pubs} setPubs={setPubs} issues={issues} setIssues={setIssues} sales={sales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={issues} setIssues={setIssues} sales={sales} /></div>}
         {show("stories") && <div style={vis("stories")}><StoriesModule stories={stories} setStories={setStories} pubs={pubs} issues={issues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} /></div>}
@@ -421,10 +426,11 @@ export default function App() {
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={clients} subscribers={subscribers} pubs={pubs} issues={issues} team={team} bus={bus} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={issues} team={team} bus={bus} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={creativeJobs} setCreativeJobs={setCreativeJobs} clients={clients} team={team} bus={bus} /></div>}
+        </Suspense>
       </main>
     </div>
 
     {/* Profile Panel */}
-    {showProfile && <ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} />}
+    {showProfile && <Suspense fallback={null}><ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} /></Suspense>}
   </div>;
 }

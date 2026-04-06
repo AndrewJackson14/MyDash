@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { COMPANY } from "../constants";
@@ -691,4 +691,4 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   </div>;
 };
 
-export default Billing;
+export default memo(Billing);

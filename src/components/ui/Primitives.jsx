@@ -2,12 +2,12 @@
 // Shared UI Primitives — MyDash Editorial Monochrome
 // R = 5px card radius, Ri = 3px internal radius, SP = spacing
 // ============================================================
-import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW } from "../../lib/theme";
+import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, isDark as _isDark } from "../../lib/theme";
 import Ic from "./Icons";
 
 export const ThemeToggle = ({ onToggle }) => {
-  const isDark = Z.bg === "#08090D";
-  return <button onClick={onToggle} title={isDark ? "Light mode" : "Dark mode"} style={{ background: Z.tx, color: Z.bg, border: "none", borderRadius: Ri, padding: "5px 12px", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 6 }}>{isDark ? "☀" : "🌙"}<span>{isDark ? "Light" : "Dark"}</span></button>;
+  const dk = _isDark();
+  return <button onClick={onToggle} title={dk ? "Light mode" : "Dark mode"} style={{ background: Z.tx, color: Z.bg, border: "none", borderRadius: Ri, padding: "5px 12px", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 6 }}>{dk ? "☀" : "🌙"}<span>{dk ? "Light" : "Dark"}</span></button>;
 };
 
 export const BackBtn = ({ onClick }) => <button onClick={onClick} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tx, fontSize: FS.base, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 4, padding: "4px 0", marginBottom: 4 }}><span style={{ fontSize: FS.lg }}>&larr;</span> Back</button>;
@@ -50,7 +50,7 @@ export const DataTable = ({ children, style, emptyMessage }) => {
 export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa, text: Z.tm }; return <span style={{ display: "inline-flex", alignItems: "center", padding: small ? "2px 8px" : "4px 12px", borderRadius: Ri, fontSize: small ? 10 : 11, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap", fontFamily: COND, letterSpacing: 0.3 }}>{status}</span>; };
 
 export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
-  const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: Ri, fontWeight: FW.bold, fontSize: sm ? 12 : 13, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? "7px 16px" : "9px 22px", opacity: disabled ? 0.4 : 1 };
+  const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 };
   const variants = {
     primary:   { background: Z.go, color: "#fff" },
     success:   { background: Z.go, color: "#fff" },
@@ -62,11 +62,13 @@ export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) =
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[v], ...style }}>{children}</button>;
 };
 
-export const Inp = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<input style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 14px", color: Z.tx, fontSize: FS.base, outline: "none" }} {...p} /></div>;
+const labelStyle = { fontSize: LABEL.fontSize, fontWeight: LABEL.fontWeight, color: Z.td, letterSpacing: LABEL.letterSpacing, textTransform: LABEL.textTransform, fontFamily: COND };
 
-export const Sel = ({ label, options, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<div style={{ position: "relative" }}><select style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 32px 9px 14px", color: Z.tx, fontSize: FS.base, outline: "none", width: "100%", cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }} {...p}>{options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}</select><div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: Z.tm, fontSize: FS.micro }}>▼</div></div></div>;
+export const Inp = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<input style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: INPUT.radius, padding: INPUT.pad, color: Z.tx, fontSize: INPUT.fontSize, outline: "none" }} {...p} /></div>;
 
-export const TA = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>{label}</label>}<textarea style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "11px 14px", color: Z.tx, fontSize: FS.base, outline: "none", resize: "vertical", minHeight: 80, fontFamily: "inherit" }} {...p} /></div>;
+export const Sel = ({ label, options, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<div style={{ position: "relative" }}><select style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: INPUT.radius, padding: "9px 32px 9px 14px", color: Z.tx, fontSize: INPUT.fontSize, outline: "none", width: "100%", cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" }} {...p}>{options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}</select><div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: Z.tm, fontSize: FS.micro }}>▼</div></div></div>;
+
+export const TA = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<textarea style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: INPUT.radius, padding: "11px 14px", color: Z.tx, fontSize: INPUT.fontSize, outline: "none", resize: "vertical", minHeight: 80, fontFamily: "inherit" }} {...p} /></div>;
 
 export const Card = ({ children, style }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad, ...style }}>{children}</div>;
 
@@ -74,9 +76,9 @@ export const SB = ({ value, onChange, placeholder }) => <div style={{ position: 
 
 export const TB = ({ tabs, active, onChange }) => <div style={{ display: "flex", gap: 16 }}>{tabs.map(t => <button key={t} onClick={() => onChange(t)} style={{ padding: "0 0 4px", borderRadius: 0, border: "none", borderBottom: active === t ? `2px solid ${Z.tx}` : "2px solid transparent", cursor: "pointer", fontSize: FS.base, fontWeight: active === t ? 700 : 600, fontFamily: COND, background: "transparent", color: active === t ? Z.tx : Z.td }}>{t}</button>)}</div>;
 
-export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, fontFamily: COND }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
+export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ ...labelStyle, marginBottom: 8 }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
 
-export const Modal = ({ open, onClose, title, children, width = 540, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)", outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
+export const Modal = ({ open, onClose, title, children, width = MODAL.defaultWidth, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: MODAL.backdropBg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: MODAL.backdropBlur, outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: MODAL.radius + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
 
 export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0))); return <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>{data.map((d, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>{[...keys].reverse().map(k => <div key={k} style={{ height: Math.max(2, (d[k] / mx) * (height - 30)), background: colors[k] || Z.tx, borderRadius: R }} />)}</div><span style={{ fontSize: FS.base, color: Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{d.month}</span></div>)}</div>; };
 
@@ -85,7 +87,6 @@ export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.m
 // ============================================================
 
 // Glass effect — reusable inline style mixin for frosted glass appearance
-const _isDark = () => Z.bg === "#08090D";
 export const glass = () => ({
   background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
   backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",

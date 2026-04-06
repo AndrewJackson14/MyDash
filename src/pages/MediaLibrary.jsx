@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, SB } from "../components/ui";
+import { supabase } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
@@ -113,7 +114,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       </div>
 
       {isImage(item.ObjectName) && (
-        <img src={url} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 4, background: Z.sa, border: "1px solid " + Z.bd }} />
+        <img src={url} alt="" loading="lazy" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 4, background: Z.sa, border: "1px solid " + Z.bd }} />
       )}
 
       <div>
@@ -147,12 +148,308 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
   );
 };
 
-// (Folder tree replaced by horizontal pub tabs in toolbar)
+// ══════════════════════════════════════════════════════════════════
+// UNUSED IMAGES SCANNER
+// Collects all CDN URLs referenced by stories + site settings,
+// then compares against all files in BunnyCDN to find orphans.
+// ══════════════════════════════════════════════════════════════════
+const CDN_PATTERN = /https?:\/\/cdn\.13stars\.media\/[^\s"'<>)]+/g;
+
+async function collectReferencedUrls() {
+  const urls = new Set();
+
+  // 1. Featured images from stories
+  const { data: featured } = await supabase
+    .from("stories")
+    .select("featured_image_url")
+    .not("featured_image_url", "is", null);
+  (featured || []).forEach(s => { if (s.featured_image_url) urls.add(s.featured_image_url); });
+
+  // 2. Inline images from story body HTML
+  const { data: bodies } = await supabase
+    .from("stories")
+    .select("body")
+    .not("body", "is", null);
+  (bodies || []).forEach(s => {
+    const matches = (s.body || "").match(CDN_PATTERN);
+    if (matches) matches.forEach(u => urls.add(u));
+  });
+
+  // 3. Site logos and favicons
+  const { data: sites } = await supabase
+    .from("sites")
+    .select("logo_url, favicon_url, settings");
+  (sites || []).forEach(s => {
+    if (s.logo_url) urls.add(s.logo_url);
+    if (s.favicon_url) urls.add(s.favicon_url);
+    if (s.settings?.logo_url) urls.add(s.settings.logo_url);
+  });
+
+  return urls;
+}
+
+// Streaming scanner: processes one pub folder at a time, comparing on the fly.
+// Only orphans are kept in memory — not the full 100K+ file list.
+async function scanForOrphans(referencedUrls, onProgress, onOrphanBatch, signal) {
+  const normalizedRefs = new Set();
+  referencedUrls.forEach(u => normalizedRefs.add(decodeURIComponent(u).toLowerCase().replace(/\/$/, "")));
+
+  let totalFiles = 0;
+  let referencedCount = 0;
+  let orphanCount = 0;
+  let orphanBytes = 0;
+
+  const folders = [...PUB_FOLDERS, { slug: "featured", label: "Featured" }];
+
+  for (const pf of folders) {
+    if (signal?.aborted) break;
+    onProgress?.({ message: `Scanning ${pf.label}...`, totalFiles, referencedCount, orphanCount, orphanBytes, currentPub: pf.label });
+
+    try {
+      await bunnyListProgressive(pf.slug, (batch) => {
+        if (signal?.aborted) return;
+        const batchOrphans = [];
+        batch.forEach(f => {
+          totalFiles++;
+          const url = (f.cdnUrl || `${CDN_BASE}/${f.fullPath}`).toLowerCase();
+          if (normalizedRefs.has(url)) {
+            referencedCount++;
+          } else {
+            batchOrphans.push(f);
+            orphanCount++;
+            orphanBytes += f.Length || 0;
+          }
+        });
+        if (batchOrphans.length > 0) onOrphanBatch?.(batchOrphans);
+        onProgress?.({ message: `Scanning ${pf.label}...`, totalFiles, referencedCount, orphanCount, orphanBytes, currentPub: pf.label });
+      }, signal);
+    } catch (e) { /* skip failed folder */ }
+  }
+
+  return { totalFiles, referencedCount, orphanCount, orphanBytes };
+}
+
+const UnusedImagesPanel = ({ onClose }) => {
+  const [phase, setPhase] = useState("idle"); // idle | scanning | done | deleting
+  const [progress, setProgress] = useState(null); // { message, totalFiles, referencedCount, orphanCount, orphanBytes, currentPub }
+  const [orphans, setOrphans] = useState([]);
+  const [selectedOrphans, setSelectedOrphans] = useState(new Set());
+  const [deleteProgress, setDeleteProgress] = useState("");
+  const [stats, setStats] = useState(null);
+  const [refsCount, setRefsCount] = useState(0);
+  const [orphanPage, setOrphanPage] = useState(120);
+  const abortRef = useRef(null);
+
+  const startScan = async () => {
+    setPhase("scanning");
+    setProgress({ message: "Loading referenced URLs from stories & sites...", totalFiles: 0, referencedCount: 0, orphanCount: 0, orphanBytes: 0 });
+    setOrphans([]);
+    setSelectedOrphans(new Set());
+    setStats(null);
+    setOrphanPage(120);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const referencedUrls = await collectReferencedUrls();
+      if (controller.signal.aborted) return;
+      setRefsCount(referencedUrls.size);
+
+      const result = await scanForOrphans(
+        referencedUrls,
+        (p) => { if (!controller.signal.aborted) setProgress(p); },
+        (batch) => { if (!controller.signal.aborted) setOrphans(prev => [...prev, ...batch]); },
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) return;
+      setStats({
+        total: result.totalFiles,
+        referenced: result.referencedCount,
+        orphaned: result.orphanCount,
+        orphanBytes: result.orphanBytes,
+      });
+      // Sort orphans by size (largest first) after scan completes
+      setOrphans(prev => [...prev].sort((a, b) => (b.Length || 0) - (a.Length || 0)));
+      setPhase("done");
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        console.error("Scan failed:", err);
+        setProgress({ message: "Scan failed: " + err.message, totalFiles: 0, referencedCount: 0, orphanCount: 0, orphanBytes: 0 });
+        setPhase("idle");
+      }
+    }
+  };
+
+  const cancelScan = () => { abortRef.current?.abort(); setPhase("idle"); setProgress(null); };
+
+  const toggleOrphan = (name) => setSelectedOrphans(prev => {
+    const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n;
+  });
+
+  const selectAll = () => setSelectedOrphans(new Set(orphans.map(f => f.ObjectName)));
+  const selectNone = () => setSelectedOrphans(new Set());
+
+  const deleteSelected = async () => {
+    const count = selectedOrphans.size;
+    if (!confirm(`Permanently delete ${count} unused image${count !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    setPhase("deleting");
+    let done = 0;
+    const toDelete = orphans.filter(f => selectedOrphans.has(f.ObjectName));
+    for (const item of toDelete) {
+      try {
+        const pathParts = (item.fullPath || "").split("/");
+        const filename = pathParts.pop();
+        const folder = pathParts.join("/");
+        await bunnyDelete(folder, filename);
+        done++;
+        setDeleteProgress(`Deleted ${done} of ${count}...`);
+      } catch (err) {
+        console.error("Delete failed:", item.ObjectName, err);
+      }
+    }
+    // Remove deleted from orphans list
+    setOrphans(prev => prev.filter(f => !selectedOrphans.has(f.ObjectName)));
+    setSelectedOrphans(new Set());
+    setStats(prev => prev ? { ...prev, orphaned: prev.orphaned - done, orphanBytes: prev.orphanBytes - toDelete.reduce((s, f) => s + (f.Length || 0), 0) } : prev);
+    setDeleteProgress("");
+    setPhase("done");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Find Unused Images</h2>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 13, fontFamily: COND, fontWeight: 600 }}>← Back to Library</button>
+      </div>
+
+      <div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
+        Scans all CDN files across every publication folder and compares them against images referenced in stories (featured images + inline body images) and site settings (logos, favicons). Files not referenced anywhere are flagged for review.
+      </div>
+
+      {/* Action bar */}
+      {phase === "idle" && (
+        <div><Btn onClick={startScan}>Scan All Publications</Btn></div>
+      )}
+      {phase === "scanning" && progress && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{progress.message}</div>
+            <button onClick={cancelScan} style={{ padding: "4px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Cancel</button>
+          </div>
+          {/* Live counters during scan */}
+          <div style={{ display: "flex", gap: 16, fontSize: 11, fontFamily: COND, color: Z.tm }}>
+            {refsCount > 0 && <span>Referenced URLs: <b style={{ color: Z.tx }}>{refsCount.toLocaleString()}</b></span>}
+            <span>Files scanned: <b style={{ color: Z.tx }}>{progress.totalFiles.toLocaleString()}</b></span>
+            <span>Referenced: <b style={{ color: Z.go }}>{progress.referencedCount.toLocaleString()}</b></span>
+            <span>Orphaned: <b style={{ color: progress.orphanCount > 0 ? Z.da : Z.tm }}>{progress.orphanCount.toLocaleString()}</b></span>
+            <span>Reclaimable: <b style={{ color: Z.wa }}>{fmtSize(progress.orphanBytes)}</b></span>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      {stats && phase !== "scanning" && (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {[
+            { label: "Total CDN Files", value: stats.total.toLocaleString() },
+            { label: "Referenced by Stories/Sites", value: stats.referenced.toLocaleString(), color: Z.go },
+            { label: "Unused / Orphaned", value: stats.orphaned.toLocaleString(), color: stats.orphaned > 0 ? Z.da : Z.go },
+            { label: "Reclaimable Space", value: fmtSize(stats.orphanBytes), color: stats.orphaned > 0 ? Z.wa : Z.tm },
+          ].map(s => (
+            <div key={s.label} style={{ padding: "12px 16px", borderRadius: R, border: "1px solid " + Z.bd, background: Z.sf, minWidth: 140 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: s.color || Z.tx, fontFamily: DISPLAY }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Orphan list */}
+      {phase === "done" && orphans.length === 0 && (
+        <div style={{ padding: 32, textAlign: "center", color: Z.go, fontSize: FS.md, fontWeight: FW.bold, fontFamily: COND }}>
+          All images are referenced by stories or site settings. Nothing to purge.
+        </div>
+      )}
+
+      {/* Show orphans as they stream in during scan, or after done */}
+      {(phase === "done" || (phase === "scanning" && orphans.length > 0)) && orphans.length > 0 && (
+        <>
+          {/* Bulk bar */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={selectedOrphans.size === orphans.length ? selectNone : selectAll} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+              {selectedOrphans.size === orphans.length ? "Deselect All" : "Select All"}
+            </button>
+            {selectedOrphans.size > 0 && (
+              <Btn sm v="danger" onClick={deleteSelected}>
+                Delete {selectedOrphans.size} Unused Image{selectedOrphans.size !== 1 ? "s" : ""}
+              </Btn>
+            )}
+            {deleteProgress && <span style={{ fontSize: 11, color: Z.wa, fontFamily: COND }}>{deleteProgress}</span>}
+            <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{selectedOrphans.size} of {orphans.length} selected</span>
+            <div style={{ flex: 1 }} />
+            <button onClick={startScan} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Re-scan</button>
+          </div>
+
+          {/* Grid of orphaned images (paginated) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+            {orphans.slice(0, orphanPage).map(item => {
+              const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
+              const isSel = selectedOrphans.has(item.ObjectName);
+              return (
+                <div key={item.fullPath || item.ObjectName} onClick={() => toggleOrphan(item.ObjectName)} style={{
+                  borderRadius: 4, border: `2px solid ${isSel ? Z.da : Z.bd}`,
+                  background: isSel ? Z.da + "08" : Z.sf, cursor: "pointer", overflow: "hidden", position: "relative",
+                }}>
+                  <div style={{
+                    position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: 3,
+                    border: "2px solid " + (isSel ? Z.da : "rgba(255,255,255,0.6)"), background: isSel ? Z.da : "rgba(0,0,0,0.3)",
+                    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1,
+                  }}>
+                    {isSel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  {isImage(item.ObjectName) ? (
+                    <div style={{ width: "100%", height: 100, background: Z.sa }}>
+                      <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    </div>
+                  ) : (
+                    <div style={{ width: "100%", height: 100, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
+                      {item.ObjectName.split(".").pop()?.toUpperCase() || "FILE"}
+                    </div>
+                  )}
+                  <div style={{ padding: "6px 8px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
+                    <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{fmtSize(item.Length)} · {item.fullPath?.split("/").slice(0, -1).join("/") || ""}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {orphans.length > orphanPage && (
+            <div style={{ padding: "12px 0", textAlign: "center" }}>
+              <button onClick={() => setOrphanPage(p => p + 120)} style={{ padding: "8px 24px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                Show More ({(orphans.length - orphanPage).toLocaleString()} remaining)
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {phase === "deleting" && (
+        <div style={{ padding: 32, textAlign: "center", color: Z.wa, fontSize: FS.md, fontFamily: COND }}>
+          {deleteProgress || "Deleting..."}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════════
 // MEDIA LIBRARY
 // ══════════════════════════════════════════════════════════════════
 export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
+  const [showUnused, setShowUnused] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState(pubFilter ? PUB_FOLDERS.find(p => pubFilter.includes(p.slug))?.slug || PUB_FOLDERS[0].slug : PUB_FOLDERS[0].slug);
@@ -165,7 +462,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [thumbScale, setThumbScale] = useState(100);
-  const [showAll, setShowAll] = useState(true); // flat progressive view by default
+  const [showAll, setShowAll] = useState(false); // folder-browse by default (avoids loading 100K+ files)
   const [loadProgress, setLoadProgress] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const abortRef = useRef(null);
@@ -222,7 +519,6 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
     setSelected(null);
     setSelectedItems(new Set());
     setSearch("");
-    setShowAll(true);
     setVisibleCount(60);
   };
 
@@ -298,13 +594,21 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   // Breadcrumb
   const pathParts = currentPath.split("/").filter(Boolean);
 
+  // Show unused images scanner
+  if (showUnused && !embedded) {
+    return <UnusedImagesPanel onClose={() => setShowUnused(false)} />;
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: embedded ? "100%" : undefined }}>
       {/* Header */}
       {!embedded && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
-          <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " \u00b7 " + loadProgress : ""}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " · " + loadProgress : ""}</span>
+            <button onClick={() => setShowUnused(true)} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.da + "40", background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Find Unused Images</button>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useMemo, useCallback, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
 
 // ============================================================
@@ -130,17 +130,17 @@ export function AuthProvider({ children }) {
   };
 
   // Permission checks
-  const hasPermission = (perm) => {
+  const hasPermission = useCallback((perm) => {
     if (!teamMember) return false;
     return teamMember.permissions?.includes('admin') || teamMember.permissions?.includes(perm);
-  };
+  }, [teamMember]);
 
-  const isAdmin = () => hasPermission('admin');
-  const canSell = () => hasPermission('sales') || hasPermission('clients');
-  const canEdit = () => hasPermission('editorial') || hasPermission('stories');
-  const canFlatplan = () => hasPermission('flatplan') || hasPermission('editorial');
+  const isAdmin = useCallback(() => hasPermission('admin'), [hasPermission]);
+  const canSell = useCallback(() => hasPermission('sales') || hasPermission('clients'), [hasPermission]);
+  const canEdit = useCallback(() => hasPermission('editorial') || hasPermission('stories'), [hasPermission]);
+  const canFlatplan = useCallback(() => hasPermission('flatplan') || hasPermission('editorial'), [hasPermission]);
 
-  const value = {
+  const value = useMemo(() => ({
     session,
     user,
     teamMember,
@@ -154,7 +154,7 @@ export function AuthProvider({ children }) {
     canEdit,
     canFlatplan,
     isOnline: isOnline(),
-  };
+  }), [session, user, teamMember, loading, hasPermission, isAdmin, canSell, canEdit, canFlatplan]);
 
   return (
     <AuthContext.Provider value={value}>

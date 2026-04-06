@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
 
 const DataContext = createContext(null);
@@ -1314,9 +1314,9 @@ export function DataProvider({ children, localData }) {
   }, [allSalesLoaded]);
 
   // ============================================================
-  // Context value
+  // Context value — memoized to prevent unnecessary re-renders
   // ============================================================
-  const value = {
+  const value = useMemo(() => ({
     // Original data + setters
     pubs, setPubs, issues, setIssues, stories, setStories, clients, setClients,
     sales, setSales, proposals, setProposals, team, setTeam, notifications, setNotifications,
@@ -1371,7 +1371,23 @@ export function DataProvider({ children, localData }) {
     insertPublication, updatePublication, insertAdSizes,
     insertIssuesBatch, deleteIssuesByPub,
     updateTeamMember,
-  };
+  }), [
+    // Data arrays (re-render consumers only when actual data changes)
+    pubs, issues, stories, clients, sales, proposals, team, notifications,
+    invoices, payments, subscribers, dropLocations, dropLocationPubs,
+    drivers, driverRoutes, routeStops, tickets, ticketComments,
+    legalNotices, legalNoticeIssues, creativeJobs, contracts, contractLines, salesSummary,
+    commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
+    outreachCampaigns, outreachEntries, myPriorities,
+    // Loaded flags
+    loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
+    billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
+    commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded,
+    // Callbacks are stable (useCallback) so they won't trigger re-renders
+    loadFullSales, loadClientDetails, loadProposals, loadStories, loadBilling,
+    loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
+    loadOutreach, loadPriorities, loadContracts, loadAllSales,
+  ]);
 
   return <DataContext.Provider value={value}>{loaded ? children : null}</DataContext.Provider>;
 }

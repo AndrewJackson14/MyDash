@@ -9,16 +9,22 @@ const daysLabel = (n) => { if (n === null) return "—"; if (n === 0) return "To
 
 const STATUS_ORDER = { Renewal: 0, Active: 1, Lead: 2, Lapsed: 3 };
 
+const PAGE_SIZE = 50;
+
 const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, onSelectClient }) => {
   const [statusFilter, setStatusFilter] = useState("active"); // active | renewal | lead | lapsed | all
   const [sortCol, setSortCol] = useState("spend");
   const [sortDir, setSortDir] = useState("desc");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const today = new Date().toISOString().slice(0, 10);
-  const pn = id => (pubs || []).find(p => p.id === id)?.name || "";
+  const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p.name; }); return m; }, [pubs]);
+  const pn = id => pubMap[id] || "";
 
   // Pre-compute per-client sales data
   const clientData = useMemo(() => {
+    const thisYearStart = new Date().getFullYear() + "-01-01";
+    const lastYearStart = (new Date().getFullYear() - 1) + "-01-01";
     const map = {};
     (sales || []).forEach(s => {
       if (s.status !== "Closed" && s.status !== "Follow-up") return;
@@ -29,8 +35,8 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
       d.count++;
       if (s.date > d.lastSale) d.lastSale = s.date;
       if (s.publication) d.pubSet.add(s.publication);
-      if (s.date >= "2026-01-01") d.thisYear += amt;
-      else if (s.date >= "2025-01-01") d.lastYear += amt;
+      if (s.date >= thisYearStart) d.thisYear += amt;
+      else if (s.date >= lastYearStart) d.lastYear += amt;
     });
     return map;
   }, [sales]);
@@ -143,7 +149,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 200).map(c => {
+              {filtered.slice(0, visibleCount).map(c => {
                 const d = clientData[c.id] || {};
                 const na = nextActions[c.id];
                 const lastDays = daysAgo(d.lastSale);
@@ -195,7 +201,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
             </tbody>
           </table>
         </div>
-        {filtered.length > 200 && <div style={{ padding: 10, textAlign: "center", fontSize: FS.sm, color: Z.td }}>Showing first 200 of {filtered.length}. Narrow your search.</div>}
+        {filtered.length > visibleCount && <div style={{ padding: 10, textAlign: "center" }}><button onClick={() => setVisibleCount(v => v + PAGE_SIZE)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, padding: "6px 16px", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, cursor: "pointer" }}>Show more ({filtered.length - visibleCount} remaining)</button></div>}
       </div>
     )}
   </div>;

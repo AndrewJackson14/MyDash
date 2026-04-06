@@ -2,7 +2,33 @@
 // Constants — enums, lookup tables, configuration
 // ============================================================
 
-export const FREQ_MAP = { Weekly:7, "Bi-Weekly":14, "Bi-Monthly":15.2, Monthly:30.44, Quarterly:91.3, "Semi-Annual":182.6, Annual:365 };
+// ─── Time ────────────────────────────────────────────────────
+export const MS_PER_DAY = 86400000;
+export const DAYS_PER_MONTH = 30.44;
+
+// ─── Date helpers ────────────────────────────────────────────
+export const getToday = () => new Date().toISOString().slice(0, 10);
+export const daysFromNow = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+export const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+export const thisYear = () => String(new Date().getFullYear());
+export const yearStart = (offset = 0) => (new Date().getFullYear() + offset) + "-01-01";
+
+// ─── Business thresholds ─────────────────────────────────────
+export const THRESHOLDS = {
+  churnMinSpend: 2000,         // Minimum lifetime spend to flag as churn risk
+  churnMinMonths: 2,           // Min months since last purchase
+  churnMaxMonths: 12,          // Max months since last purchase
+  churnMinPurchases: 4,        // Min purchases to detect buying cycle
+  declineDropPct: 0.6,         // YoY revenue must drop below 60% to flag
+  declineMinRevenue: 2000,     // Min last-year revenue to flag decline
+  whaleMinSpend: 10000,        // Min lifetime spend for "whale" designation
+  crossSellMinSpend: 2000,     // Min spend to suggest cross-sell
+  crossSellMaxPubs: 2,         // Max current pubs to suggest cross-sell
+  renewalUrgentDays: 14,       // Days before contract end = urgent
+  subExpiringDays: 30,         // Days ahead to flag expiring subscriptions
+};
+
+export const FREQ_MAP = { Weekly:7, "Bi-Weekly":14, "Bi-Monthly":15.2, Monthly:DAYS_PER_MONTH, Quarterly:91.3, "Semi-Annual":182.6, Annual:365 };
 
 export const COMPANY = { name: "13 Stars Media", tagline: "Making Communities Better Through Print.™", phone: "(805) 466-2585", sales: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 423-6740" } };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 
@@ -35,67 +35,60 @@ const Analytics = ({
   const _fpay = freelancerPayments || [];
   const _drivers = drivers || [];
 
-  const closedSales = sales.filter(s => s.status === "Closed");
+  const closedSales = useMemo(() => sales.filter(s => s.status === "Closed"), [sales]);
 
   // ─── Revenue Metrics ────────────────────────────────────
-  const monthRev = closedSales.filter(s => s.date?.startsWith(thisMonth)).reduce((s, x) => s + (x.amount || 0), 0);
-  const yearRev = closedSales.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.amount || 0), 0);
-  const totalRev = closedSales.reduce((s, x) => s + (x.amount || 0), 0);
-  const avgDeal = closedSales.length > 0 ? Math.round(totalRev / closedSales.length) : 0;
-  const activeDeals = sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
-  const pipVal = activeDeals.reduce((s, x) => s + (x.amount || 0), 0);
+  const { monthRev, yearRev, totalRev, avgDeal, pipVal } = useMemo(() => {
+    const mr = closedSales.filter(s => s.date?.startsWith(thisMonth)).reduce((s, x) => s + (x.amount || 0), 0);
+    const yr = closedSales.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.amount || 0), 0);
+    const tr = closedSales.reduce((s, x) => s + (x.amount || 0), 0);
+    const ad = closedSales.length > 0 ? Math.round(tr / closedSales.length) : 0;
+    const activeDeals = sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pv = activeDeals.reduce((s, x) => s + (x.amount || 0), 0);
+    return { monthRev: mr, yearRev: yr, totalRev: tr, avgDeal: ad, pipVal: pv };
+  }, [closedSales, sales]);
 
   // Collected payments
-  const monthCollected = _pay.filter(p => p.receivedAt?.startsWith(thisMonth)).reduce((s, p) => s + (p.amount || 0), 0);
-  const yearCollected = _pay.filter(p => p.receivedAt?.startsWith(thisYear)).reduce((s, p) => s + (p.amount || 0), 0);
+  const monthCollected = useMemo(() => _pay.filter(p => p.receivedAt?.startsWith(thisMonth)).reduce((s, p) => s + (p.amount || 0), 0), [_pay]);
+  const yearCollected = useMemo(() => _pay.filter(p => p.receivedAt?.startsWith(thisYear)).reduce((s, p) => s + (p.amount || 0), 0), [_pay]);
 
   // Outstanding / overdue
-  const outstanding = _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0);
-  const overdueAmt = _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0);
+  const outstanding = useMemo(() => _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
+  const overdueAmt = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
 
   // Revenue by stream
-  const legalRev = _legal.reduce((s, n) => s + (n.totalAmount || 0), 0);
-  const jobsRev = _jobs.reduce((s, j) => s + (j.finalAmount || j.quotedAmount || 0), 0);
-  const subRev = _subs.filter(s => s.status === "active").reduce((s, sub) => s + (sub.amountPaid || 0), 0);
+  const legalRev = useMemo(() => _legal.reduce((s, n) => s + (n.totalAmount || 0), 0), [_legal]);
+  const jobsRev = useMemo(() => _jobs.reduce((s, j) => s + (j.finalAmount || j.quotedAmount || 0), 0), [_jobs]);
+  const subRev = useMemo(() => _subs.filter(s => s.status === "active").reduce((s, sub) => s + (sub.amountPaid || 0), 0), [_subs]);
   const adRev = totalRev; // closed sales = ad revenue
 
   // ─── Per-Publication P&L ────────────────────────────────
-  const pubPL = pubs.map(pub => {
-    // Revenue
-    const pubAdRev = closedSales.filter(s => s.publication === pub.id).reduce((s, x) => s + (x.amount || 0), 0);
-    const pubLegalRev = _legal.filter(n => n.publicationId === pub.id).reduce((s, n) => s + (n.totalAmount || 0), 0);
-    const pubSubRev = _subs.filter(s => s.publicationId === pub.id && s.status === "active").reduce((s, sub) => s + (sub.amountPaid || 0), 0);
-    const pubTotalRev = pubAdRev + pubLegalRev + pubSubRev;
-
-    // Costs (estimated from available data)
-    const pubFreelanceCost = _fpay.filter(p => {
-      // Link via story → publication
-      const story = stories.find(s => s.id === p.storyId);
-      return story?.publication === pub.id;
-    }).reduce((s, p) => s + (p.amount || 0), 0);
-
-    // Approximate print cost: issues this year × estimated cost
-    const pubIssuesThisYear = issues.filter(i => i.pubId === pub.id && i.date?.startsWith(thisYear) && i.date <= today).length;
-    const estPrintCostPerIssue = pub.type === "Magazine" ? 2500 : 800;
-    const pubPrintCost = pubIssuesThisYear * estPrintCostPerIssue;
-
-    // Driver costs (from drop locations serving this pub)
-    const pubDropLocs = (dropLocationPubs || []).filter(dp => dp.publicationId === pub.id);
-    // Rough estimate: distribute total driver cost across pubs by drop location count
-    const totalDriverCost = _drivers.reduce((s, d) => s + (d.flatFee || 0), 0) * 4; // monthly estimate
+  const pubPL = useMemo(() => {
+    // Pre-compute lookup maps for O(1) access
+    const storyPubMap = {};
+    (stories || []).forEach(s => { storyPubMap[s.id] = s.publication; });
+    const salesByPub = {};
+    closedSales.forEach(s => { if (!salesByPub[s.publication]) salesByPub[s.publication] = []; salesByPub[s.publication].push(s); });
+    const totalDriverCost = _drivers.reduce((s, d) => s + (d.flatFee || 0), 0) * 4;
     const totalDropCount = (dropLocationPubs || []).length || 1;
-    const pubDriverCost = pubDropLocs.length > 0 ? Math.round((pubDropLocs.length / totalDropCount) * totalDriverCost) : 0;
 
-    const pubTotalCost = pubFreelanceCost + pubPrintCost + pubDriverCost;
-    const pubProfit = pubTotalRev - pubTotalCost;
-    const pubMargin = pubTotalRev > 0 ? Math.round((pubProfit / pubTotalRev) * 100) : 0;
-
-    return {
-      pub, adRev: pubAdRev, legalRev: pubLegalRev, subRev: pubSubRev, totalRev: pubTotalRev,
-      freelanceCost: pubFreelanceCost, printCost: pubPrintCost, driverCost: pubDriverCost,
-      totalCost: pubTotalCost, profit: pubProfit, margin: pubMargin,
-    };
-  }).sort((a, b) => b.totalRev - a.totalRev);
+    return pubs.map(pub => {
+      const pubAdRev = (salesByPub[pub.id] || []).reduce((s, x) => s + (x.amount || 0), 0);
+      const pubLegalRev = _legal.filter(n => n.publicationId === pub.id).reduce((s, n) => s + (n.totalAmount || 0), 0);
+      const pubSubRev = _subs.filter(s => s.publicationId === pub.id && s.status === "active").reduce((s, sub) => s + (sub.amountPaid || 0), 0);
+      const pubTotalRev = pubAdRev + pubLegalRev + pubSubRev;
+      const pubFreelanceCost = _fpay.filter(p => storyPubMap[p.storyId] === pub.id).reduce((s, p) => s + (p.amount || 0), 0);
+      const pubIssuesThisYear = issues.filter(i => i.pubId === pub.id && i.date?.startsWith(thisYear) && i.date <= today).length;
+      const estPrintCostPerIssue = pub.type === "Magazine" ? 2500 : 800;
+      const pubPrintCost = pubIssuesThisYear * estPrintCostPerIssue;
+      const pubDropLocs = (dropLocationPubs || []).filter(dp => dp.publicationId === pub.id);
+      const pubDriverCost = pubDropLocs.length > 0 ? Math.round((pubDropLocs.length / totalDropCount) * totalDriverCost) : 0;
+      const pubTotalCost = pubFreelanceCost + pubPrintCost + pubDriverCost;
+      const pubProfit = pubTotalRev - pubTotalCost;
+      const pubMargin = pubTotalRev > 0 ? Math.round((pubProfit / pubTotalRev) * 100) : 0;
+      return { pub, adRev: pubAdRev, legalRev: pubLegalRev, subRev: pubSubRev, totalRev: pubTotalRev, freelanceCost: pubFreelanceCost, printCost: pubPrintCost, driverCost: pubDriverCost, totalCost: pubTotalCost, profit: pubProfit, margin: pubMargin };
+    }).sort((a, b) => b.totalRev - a.totalRev);
+  }, [pubs, closedSales, stories, issues, _legal, _subs, _fpay, _drivers, dropLocationPubs]);
 
   const totalPL = {
     totalRev: pubPL.reduce((s, p) => s + p.totalRev, 0),
@@ -354,4 +347,4 @@ const Analytics = ({
   </div>;
 };
 
-export default Analytics;
+export default memo(Analytics);
