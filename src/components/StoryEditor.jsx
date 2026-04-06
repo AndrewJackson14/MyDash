@@ -122,6 +122,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [activity, setActivity] = useState([]);
   const [categories, setCategories] = useState([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
+  const [webApproved, setWebApproved] = useState(!!story.web_approved);
   const [fullContent, setFullContent] = useState(null); // loaded from DB
   const [contentLoading, setContentLoading] = useState(true);
   const saveTimer = useRef(null);
@@ -137,12 +138,13 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   useEffect(() => {
     if (!story.id) { setContentLoading(false); return; }
     supabase.from("stories")
-      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, slug, seo_title, seo_description, excerpt, featured_image_url, category_id")
+      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, slug, seo_title, seo_description, excerpt, featured_image_url, category_id")
       .eq("id", story.id).single()
       .then(({ data }) => {
         if (data) {
           setFullContent(data);
           setMeta(m => ({ ...m, ...data }));
+          if (data.web_approved) setWebApproved(true);
         }
         setContentLoading(false);
       });
@@ -158,8 +160,22 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
     const roles = ["Publisher", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
-    return team.filter(t => roles.some(r => (t.role || "").includes(r)) || t.stellarpress_roles);
+    return team.filter(t => !t.is_freelance && (roles.some(r => (t.role || "").includes(r)) || t.stellarpress_roles));
   }, [team]);
+
+  // ── Freelance contributors ─────────────────────────────────
+  const [freelancers, setFreelancers] = useState([]);
+  useEffect(() => {
+    supabase.from("team_members").select("id, name, role, is_freelance, specialty")
+      .eq("is_freelance", true).order("name")
+      .then(({ data }) => { if (data) setFreelancers(data); });
+  }, []);
+
+  const addFreelancer = async (name, specialty) => {
+    const newMember = { name, role: specialty, is_freelance: true, specialty, created_at: new Date().toISOString() };
+    const { data } = await supabase.from("team_members").insert(newMember).select().single();
+    if (data) setFreelancers(prev => [...prev, data]);
+  };
 
   // ── Smart issue filter: +/-30 days, grouped by pub ──────────
   const filteredIssues = useMemo(() => {
@@ -206,6 +222,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       saveTimer.current = setTimeout(() => autoSave(editor.getJSON(), editor.getText()), 2000);
     },
   }, [editorContent]); // re-create when content loads
+
+  // ── Sync content into editor when async load completes ──
+  useEffect(() => {
+    if (!editor || contentLoading) return;
+    const content = fullContent?.content_json || fullContent?.body || "";
+    if (content && editor.isEmpty) {
+      editor.commands.setContent(content);
+    }
+  }, [editor, contentLoading, fullContent]);
 
   // ── Load activity log ───────────────────────────────────────
   useEffect(() => {
@@ -406,14 +431,30 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             {isPublished && <div style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
           </div>
 
-          {/* Publish / Featured */}
+          {/* Web Approval + Publish / Featured */}
           <div style={{ background: Z.bg, borderRadius: 3, padding: 10, border: "1px solid " + Z.bd }}>
             {isPublished && !needsRepublish ? (
-              <div><div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND }}>{"\u2713"} Live on Web</div></div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>{"\u2713"} Live on Web</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn sm onClick={republishToWeb} style={{ flex: 1 }}>{"\u21bb"} Update Live</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: "#ef4444", borderColor: "#ef444440" }}>Unpublish</Btn>
+                </div>
+              </div>
             ) : needsRepublish ? (
-              <Btn sm onClick={republishToWeb} style={{ width: "100%", background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a" }}>{"\u21bb"} Republish (content updated)</Btn>
-            ) : (
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn sm onClick={republishToWeb} style={{ flex: 1, background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a" }}>{"\u21bb"} Republish</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: "#ef4444", borderColor: "#ef444440" }}>Unpublish</Btn>
+                </div>
+              </div>
+            ) : currentStage === "Ready" && !webApproved ? (
+              <Btn sm onClick={async () => { setWebApproved(true); await saveMeta("web_approved", true); }} style={{ width: "100%", background: "#3b82f620", color: "#3b82f6", border: "1px solid #3b82f640" }}>{"\u2713"} Approve for Web</Btn>
+            ) : webApproved || isPublished ? (
               <Btn sm onClick={handlePublishClick} style={{ width: "100%" }}><Ic.send size={11} /> Publish to Web</Btn>
+            ) : (
+              <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center", padding: 4 }}>Set status to Ready and approve before publishing</div>
             )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
               <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: "#d97706" }} />
@@ -432,16 +473,39 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           </div>
 
           {/* Publications */}
-          <ChipPicker label="Publications" options={pubs.map(p => ({ id: p.id, name: p.name, color: p.color }))} selected={selectedPubs} onChange={ids => { const pid = ids.length === 1 ? ids[0] : ids[0] || null; saveMeta("publication", pid); }} />
+          <ChipPicker label="Publications" options={pubs.map(p => ({ id: p.id, name: p.name, color: p.color }))} selected={selectedPubs} onChange={ids => { const newId = ids.find(id => !selectedPubs.includes(id)) || ids[0] || null; saveMeta("publication", newId); }} />
 
           {/* Author */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
             <select value={meta.author || ""} onChange={e => { if (e.target.value === "__custom") { const name = prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
-              <option value="">Select author\u2026</option>
-              {authors.map(a => <option key={a.id} value={a.name}>{a.name} \u2014 {a.role}</option>)}
-              <option value="__custom">Other (type name)\u2026</option>
+              <option value="">Select author...</option>
+              {authors.map(a => <option key={a.id} value={a.name}>{(a.name || "").replace(/[\u2013\u2014]/g, "-")} ({a.is_freelance ? "Freelance" : "Staff"}{a.role ? ", " + a.role : ""})</option>)}
+              {freelancers.map(f => <option key={f.id} value={f.name}>{f.name} (Freelance{f.specialty ? ", " + f.specialty : ""})</option>)}
+              <option value="__custom">Other (type name)...</option>
             </select>
+          </div>
+
+          {/* Freelance Contributors */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Freelancers</div>
+              <button onClick={() => {
+                const name = prompt("Freelancer name:");
+                if (!name) return;
+                const specialty = prompt("Specialty (Writer, Photographer, etc.):");
+                addFreelancer(name, specialty || "Writer");
+              }} style={{ fontSize: 10, fontWeight: 700, color: Z.ac, background: "none", border: "none", cursor: "pointer", fontFamily: COND }}>+ Add</button>
+            </div>
+            {freelancers.length > 0 && (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {freelancers.map(f => (
+                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 2, fontSize: 10, fontFamily: COND, background: Z.sa, color: Z.tx, border: "1px solid " + Z.bd }}>
+                    {f.name} <span style={{ color: Z.tm, fontSize: 9 }}>{f.specialty}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Category */}
