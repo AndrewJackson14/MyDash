@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const BUNNY_API_KEY = Deno.env.get("BUNNY_STORAGE_API_KEY") || Deno.env.get("BUNNY_API_KEY") || "";
 const STORAGE_ZONE = Deno.env.get("BUNNY_STORAGE_ZONE") || "stellarpress-media";
-const BUNNY_BASE = `https://storage.bunnycdn.com/${STORAGE_ZONE}`;
+const BUNNY_BASE = `https://ny.storage.bunnycdn.com/${STORAGE_ZONE}`;
 const CDN_BASE = "https://cdn.13stars.media";
 
 const corsHeaders = {
@@ -18,14 +18,16 @@ serve(async (req: Request) => {
   }
 
   const action = req.headers.get("x-action") || "list";
+
   const path = req.headers.get("x-path") || "";
   const filename = req.headers.get("x-filename") || "";
 
   try {
     // LIST — GET files/folders in a path
     if (action === "list") {
-      const url = `${BUNNY_BASE}/${path}${path && !path.endsWith("/") ? "/" : ""}`;
-      console.log("BunnyCDN LIST:", url, "zone:", STORAGE_ZONE, "keyLen:", BUNNY_API_KEY.length);
+      const listPath = path ? `${BUNNY_BASE}/${path}/` : `${BUNNY_BASE}/`;
+      const url = listPath;
+      console.log("BunnyCDN LIST v8:", url, "zone:", STORAGE_ZONE, "keyLen:", BUNNY_API_KEY.length, "keyStart:", BUNNY_API_KEY.slice(0, 12));
       const res = await fetch(url, {
         method: "GET",
         headers: { AccessKey: BUNNY_API_KEY, Accept: "application/json" },
