@@ -26,16 +26,34 @@ async function bunnyList(path) {
   return res.json();
 }
 
-// Recursively list all files under a path (follows subdirectories)
-async function bunnyListRecursive(path, maxDepth = 4) {
-  const items = await bunnyList(path);
-  const files = items.filter(i => !i.IsDirectory);
-  if (maxDepth <= 0) return files;
-  const dirs = items.filter(i => i.IsDirectory);
-  const subResults = await Promise.all(
-    dirs.map(d => bunnyListRecursive(path + "/" + d.ObjectName, maxDepth - 1).catch(() => []))
-  );
-  return files.concat(...subResults);
+// Progressively list files from subfolders (one folder at a time, newest first)
+async function bunnyListProgressive(path, onBatch, signal) {
+  const root = await bunnyList(path);
+  const rootFiles = root.filter(i => !i.IsDirectory);
+  if (rootFiles.length > 0) onBatch(rootFiles);
+
+  // Get subdirectories sorted newest first (descending by name for year/month dirs)
+  const dirs = root.filter(i => i.IsDirectory).sort((a, b) => b.ObjectName.localeCompare(a.ObjectName));
+
+  for (const dir of dirs) {
+    if (signal?.aborted) return;
+    try {
+      const subItems = await bunnyList(path + "/" + dir.ObjectName);
+      const subFiles = subItems.filter(i => !i.IsDirectory);
+      if (subFiles.length > 0) onBatch(subFiles);
+
+      // Go one level deeper (month dirs inside year dirs)
+      const subDirs = subItems.filter(i => i.IsDirectory).sort((a, b) => b.ObjectName.localeCompare(a.ObjectName));
+      for (const subDir of subDirs) {
+        if (signal?.aborted) return;
+        try {
+          const deepItems = await bunnyList(path + "/" + dir.ObjectName + "/" + subDir.ObjectName);
+          const deepFiles = deepItems.filter(i => !i.IsDirectory);
+          if (deepFiles.length > 0) onBatch(deepFiles);
+        } catch (e) { /* skip failed subfolder */ }
+      }
+    } catch (e) { /* skip failed folder */ }
+  }
 }
 
 async function bunnyUpload(file, path, filename) {
@@ -147,8 +165,10 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [thumbScale, setThumbScale] = useState(100);
-  const [showAll, setShowAll] = useState(true); // flat recursive view by default
+  const [showAll, setShowAll] = useState(true); // flat progressive view by default
   const [loadProgress, setLoadProgress] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const abortRef = useRef(null);
   const searchTimer = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -158,39 +178,56 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search]);
 
-  // Load directory (flat or recursive)
-  const loadPath = useCallback(async (path, recursive) => {
+  // Load directory (flat progressive or single folder)
+  const loadPath = useCallback(async (path, progressive) => {
+    // Abort any previous progressive scan
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
-    setLoadProgress(recursive ? "Scanning folders..." : "");
+    setItems([]);
+    setLoadProgress("");
     try {
-      if (recursive) {
-        const allFiles = await bunnyListRecursive(path, 4);
-        setItems(allFiles || []);
-        setLoadProgress("");
+      if (progressive) {
+        setLoadingMore(true);
+        let count = 0;
+        await bunnyListProgressive(path, (batch) => {
+          if (controller.signal.aborted) return;
+          count += batch.length;
+          setItems(prev => [...prev, ...batch]);
+          setLoadProgress(count + " files loaded...");
+        }, controller.signal);
+        setLoadingMore(false);
+        setLoadProgress(count + " files");
       } else {
         const data = await bunnyList(path);
         setItems(data || []);
       }
     } catch (err) {
-      console.error("Failed to list:", err);
-      setItems([]);
-      setLoadProgress("");
+      if (!controller.signal.aborted) {
+        console.error("Failed to list:", err);
+        setItems([]);
+      }
     }
-    setLoading(false);
+    if (!controller.signal.aborted) setLoading(false);
   }, []);
 
-  useEffect(() => { loadPath(currentPath, showAll); }, [currentPath, showAll, loadPath]);
+  useEffect(() => { loadPath(currentPath, showAll); return () => { if (abortRef.current) abortRef.current.abort(); }; }, [currentPath, showAll, loadPath]);
+
+  const [visibleCount, setVisibleCount] = useState(60);
 
   const navigate = (path) => {
     setCurrentPath(path);
     setSelected(null);
     setSelectedItems(new Set());
     setSearch("");
-    setShowAll(true); // default to flat view when switching pubs
+    setShowAll(true);
+    setVisibleCount(60);
   };
 
   // Filter and sort files (exclude directories for grid display)
-  const files = (() => {
+  const allFiles = (() => {
     let f = items.filter(i => !i.IsDirectory);
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
@@ -201,6 +238,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
     else if (sortBy === "size") f.sort((a, b) => (b.Length || 0) - (a.Length || 0));
     return f;
   })();
+  const files = allFiles.slice(0, visibleCount);
+  const hasMore = allFiles.length > visibleCount;
 
   // Upload
   const handleUpload = async (fileList) => {
@@ -265,7 +304,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       {!embedded && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
-          <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{files.length} files</span>
+          <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " \u00b7 " + loadProgress : ""}</span>
         </div>
       )}
 
@@ -365,8 +404,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       <div style={{ display: "flex", flex: 1, minHeight: 400, gap: 0 }}>
         {/* File grid/list */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>Loading...</div>}
-          {!loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files in this folder</div>}
+          {loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>Loading...</div>}
+          {!loading && !loadingMore && allFiles.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files in this folder</div>}
 
           {!loading && viewMode === "grid" && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${scaledMin}px, 1fr))`, gap: 8 }}>
@@ -440,6 +479,20 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Load More / status */}
+          {hasMore && (
+            <div style={{ padding: "16px 0", textAlign: "center" }}>
+              <button onClick={() => setVisibleCount(prev => prev + 60)} style={{ padding: "8px 24px", borderRadius: 4, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                Show More ({allFiles.length - visibleCount} remaining)
+              </button>
+            </div>
+          )}
+          {loadingMore && (
+            <div style={{ padding: "12px 0", textAlign: "center", fontSize: 11, color: Z.tm, fontFamily: COND }}>
+              {loadProgress || "Scanning folders..."}
             </div>
           )}
         </div>
