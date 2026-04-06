@@ -285,6 +285,54 @@ export default function ClientSignals({
     return counts;
   }, [churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals]);
 
+  // ═══ 30-DAY WINS — recent closed sales from clients that matched signal categories ═══
+  const recentWins = useMemo(() => {
+    const cutoff30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const recentClosed = (sales || []).filter(s => s.status === "Closed" && s.date >= cutoff30);
+
+    // Build a set of all signal client IDs by category
+    const signalClientMap = {};
+    const allSignalArrays = { churn: churnSignals, trending_down: trendingDownSignals, whale: whaleSignals, seasonal: seasonalSignals, crosssell: crossSellSignals, upsell: upsellSignals, competitor: competitorSignals, stale_lead: staleLeadSignals };
+    Object.entries(allSignalArrays).forEach(([key, arr]) => {
+      arr.forEach(s => { if (!signalClientMap[s.clientId]) signalClientMap[s.clientId] = []; signalClientMap[s.clientId].push(key); });
+    });
+
+    // Also check previously-lapsed clients who came back (any closed sale from lapsed/lead)
+    const lapsedIds = new Set(myLapsed.map(c => c.id));
+
+    const wins = { total: 0, revenue: 0, byCategory: {} };
+    recentClosed.forEach(s => {
+      const categories = signalClientMap[s.clientId] || [];
+      if (categories.length === 0 && lapsedIds.has(s.clientId)) categories.push("reactivation");
+      if (categories.length === 0) return;
+      wins.total++;
+      wins.revenue += s.amount || 0;
+      categories.forEach(cat => {
+        if (!wins.byCategory[cat]) wins.byCategory[cat] = { count: 0, revenue: 0 };
+        wins.byCategory[cat].count++;
+        wins.byCategory[cat].revenue += s.amount || 0;
+      });
+    });
+    return wins;
+  }, [sales, churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals, myLapsed]);
+
+  // Pipeline value from MyPriorities clients
+  const pipelineValue = useMemo(() => {
+    return myPriorityItems.reduce((sum, p) => {
+      const c = clients?.find(x => x.id === p.clientId);
+      return sum + (c?.totalSpend || 0);
+    }, 0);
+  }, [myPriorityItems, clients]);
+
+  // Conversion rate — priorities that have recent closed sales
+  const conversionRate = useMemo(() => {
+    if (myPriorityItems.length === 0) return 0;
+    const cutoff30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const recentClosedClientIds = new Set((sales || []).filter(s => s.status === "Closed" && s.date >= cutoff30).map(s => s.clientId));
+    const converted = myPriorityItems.filter(p => recentClosedClientIds.has(p.clientId)).length;
+    return Math.round((converted / myPriorityItems.length) * 100);
+  }, [myPriorityItems, sales]);
+
   const handleAdd = async (clientId, signal, detail) => {
     if (!currentUser?.id || !priorityHelpers?.addPriority) return;
     const result = await priorityHelpers.addPriority(currentUser.id, clientId, signal, detail);
@@ -297,6 +345,29 @@ export default function ClientSignals({
   };
 
   // ═══ RENDER ═══
+  const STAT_CARDS = [
+    { key: "churn", label: "Missed Cycle", color: SIGNAL_COLORS.churn, icon: "\u21ba" },
+    { key: "trending_down", label: "Trending Down", color: SIGNAL_COLORS.trending_down, icon: "\u2198" },
+    { key: "whale", label: "Whales", color: SIGNAL_COLORS.whale, icon: "\ud83d\udc0b" },
+    { key: "seasonal", label: "Seasonal", color: SIGNAL_COLORS.seasonal, icon: "\ud83c\udf43" },
+    { key: "crosssell", label: "Cross-sell", color: SIGNAL_COLORS.crosssell, icon: "\u2194" },
+    { key: "upsell", label: "Upsell", color: SIGNAL_COLORS.upsell, icon: "\u2191" },
+    { key: "competitor", label: "Competitor", color: SIGNAL_COLORS.competitor, icon: "\u2694" },
+    { key: "stale_lead", label: "Stale Leads", color: SIGNAL_COLORS.stale_lead, icon: "\u23f3" },
+    { key: "inventory", label: "Inventory", color: SIGNAL_COLORS.inventory, icon: "\ud83d\udce6" },
+  ];
+
+  const PANELS = [
+    { key: "churn", title: "Missed buying cycle", items: flatSignals.filter(s => s.signal === "churn"), color: SIGNAL_COLORS.churn },
+    { key: "trending_down", title: "Spend trending down", items: flatSignals.filter(s => s.signal === "trending_down"), color: SIGNAL_COLORS.trending_down },
+    { key: "whale", title: "Lapsed whales ($10K+)", items: flatSignals.filter(s => s.signal === "whale"), color: SIGNAL_COLORS.whale },
+    { key: "seasonal", title: "Seasonal \u2014 bought this issue last year", items: flatSignals.filter(s => s.signal === "seasonal"), color: SIGNAL_COLORS.seasonal },
+    { key: "crosssell", title: "Cross-sell \u2014 only 1\u20132 pubs", items: flatSignals.filter(s => s.signal === "crosssell"), color: SIGNAL_COLORS.crosssell },
+    { key: "upsell", title: "Upsell \u2014 same ad size", items: flatSignals.filter(s => s.signal === "upsell"), color: SIGNAL_COLORS.upsell },
+    { key: "competitor", title: "Competitor just bought", items: flatSignals.filter(s => s.signal === "competitor"), color: SIGNAL_COLORS.competitor },
+    { key: "stale_lead", title: "Stale leads", items: flatSignals.filter(s => s.signal === "stale_lead"), color: SIGNAL_COLORS.stale_lead },
+  ].filter(p => (signalFilter === "all" || signalFilter === p.key) && p.items.length > 0);
+
   return <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: 16 }}>
 
     {/* LEFT: MyPriorities */}
@@ -319,7 +390,7 @@ export default function ClientSignals({
               <svg width="8" height="8" viewBox="0 0 8 8"><line x1="1" y1="1" x2="7" y2="7" stroke={Z.da} strokeWidth="1.5"/><line x1="7" y1="1" x2="1" y2="7" stroke={Z.da} strokeWidth="1.5"/></svg>
             </div>
           </div>
-          <div style={{ fontSize: FS.sm, color: Z.tm, margin: "2px 0" }}>{p.signalDetail || `${fmtK(c.totalSpend)} · ${c.status}`}</div>
+          <div style={{ fontSize: FS.sm, color: Z.tm, margin: "2px 0" }}>{p.signalDetail || `${fmtK(c.totalSpend)} \u00b7 ${c.status}`}</div>
           <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
             <Btn sm style={{ padding: "2px 8px", fontSize: 11 }}>Email</Btn>
             <Btn sm v="ghost" style={{ padding: "2px 8px", fontSize: 11 }}>Call</Btn>
@@ -334,9 +405,62 @@ export default function ClientSignals({
       </div>}
     </div>
 
-    {/* RIGHT: Signal Panels with horizontal card grids */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Filter tabs with counts */}
+    {/* RIGHT: Stats + Wins + Signal Panels */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+      {/* ── Stats Card Row ────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 6 }}>
+        {STAT_CARDS.map(sc => {
+          const count = sc.key === "inventory" ? inventorySignals.length : (signalCounts[sc.key] || 0);
+          if (count === 0) return null;
+          return <button key={sc.key} onClick={() => setSignalFilter(signalFilter === sc.key ? "all" : sc.key)} style={{
+            ...glass(), borderRadius: Ri, padding: "8px 6px", textAlign: "center", cursor: "pointer",
+            border: signalFilter === sc.key ? `2px solid ${sc.color}` : `1px solid ${Z.bd}`,
+            background: signalFilter === sc.key ? sc.color + "12" : undefined,
+          }}>
+            <div style={{ fontSize: 18 }}>{sc.icon}</div>
+            <div style={{ fontSize: 20, fontWeight: FW.black, color: sc.color, fontFamily: DISPLAY, lineHeight: 1 }}>{count}</div>
+            <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.tm, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>{sc.label}</div>
+          </button>;
+        })}
+      </div>
+
+      {/* ── 30-Day Wins + Pipeline Bar ────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {/* Wins */}
+        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid #22c55e" }}>
+          <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>30-Day Wins</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 24, fontWeight: FW.black, color: "#22c55e", fontFamily: DISPLAY }}>{recentWins.total}</span>
+            <span style={{ fontSize: 12, fontWeight: FW.heavy, color: "#22c55e", fontFamily: COND }}>{fmtK(recentWins.revenue)}</span>
+          </div>
+          {Object.keys(recentWins.byCategory).length > 0 && (
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+              {Object.entries(recentWins.byCategory).map(([cat, data]) => (
+                <span key={cat} style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: (SIGNAL_COLORS[cat] || "#22c55e") + "18", color: SIGNAL_COLORS[cat] || "#22c55e", fontFamily: COND }}>
+                  {SIGNAL_META[cat]?.title || cat} {data.count}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pipeline */}
+        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid " + Z.ac }}>
+          <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Pipeline Value</div>
+          <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtK(pipelineValue)}</div>
+          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{myPriorityItems.length} active priorities</div>
+        </div>
+
+        {/* Conversion */}
+        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid #6366f1" }}>
+          <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Conversion Rate</div>
+          <div style={{ fontSize: 24, fontWeight: FW.black, color: "#6366f1", fontFamily: DISPLAY }}>{conversionRate}%</div>
+          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>priorities {"\u2192"} closed (30d)</div>
+        </div>
+      </div>
+
+      {/* ── Filter tabs ───────────────────────────────────── */}
       <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
         {SIGNAL_TYPES.map(st => {
           const count = signalCounts[st.key] || 0;
@@ -349,62 +473,60 @@ export default function ClientSignals({
         })}
       </div>
 
-      {/* Grouped panels — 3 items collapsed, click title to expand */}
-      {[
-        { key: "churn", title: "Missed buying cycle", items: flatSignals.filter(s => s.signal === "churn"), color: SIGNAL_COLORS.churn },
-        { key: "trending_down", title: "Spend trending down", items: flatSignals.filter(s => s.signal === "trending_down"), color: SIGNAL_COLORS.trending_down },
-        { key: "whale", title: "Lapsed whales ($10K+)", items: flatSignals.filter(s => s.signal === "whale"), color: SIGNAL_COLORS.whale },
-        { key: "seasonal", title: "Seasonal — bought this issue last year", items: flatSignals.filter(s => s.signal === "seasonal"), color: SIGNAL_COLORS.seasonal },
-        { key: "crosssell", title: "Cross-sell — only 1-2 pubs", items: flatSignals.filter(s => s.signal === "crosssell"), color: SIGNAL_COLORS.crosssell },
-        { key: "upsell", title: "Upsell — same ad size", items: flatSignals.filter(s => s.signal === "upsell"), color: SIGNAL_COLORS.upsell },
-        { key: "competitor", title: "Competitor just bought", items: flatSignals.filter(s => s.signal === "competitor"), color: SIGNAL_COLORS.competitor },
-        { key: "stale_lead", title: "Stale leads", items: flatSignals.filter(s => s.signal === "stale_lead"), color: SIGNAL_COLORS.stale_lead },
-      ].filter(p => (signalFilter === "all" || signalFilter === p.key) && p.items.length > 0)
-      .map(panel => {
-        const isOpen = expandedPanels.has(panel.key);
-        const visible = isOpen ? panel.items : panel.items.slice(0, 3);
-        const hasMore = panel.items.length > 3;
-        return <div key={panel.key} style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${panel.color}`, padding: "10px 12px" }}>
-        <div onClick={() => hasMore && togglePanel(panel.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: visible.length > 0 ? 8 : 0, cursor: hasMore ? "pointer" : "default", userSelect: "none" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: panel.color, fontFamily: COND }}>{panel.title}</span>
-            {hasMore && <span style={{ fontSize: 10, color: Z.td, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>▼</span>}
-          </div>
-          <span style={{ fontSize: FS.sm, color: Z.td }}>{panel.items.length}</span>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
-          {visible.map(item => <div key={item.clientId} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri, display: "flex", flexDirection: "column", gap: 3 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div onClick={() => onSelectClient?.(item.clientId)} style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.ac, cursor: "pointer", fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{item.name}</div>
-              {item.spend > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, flexShrink: 0, marginLeft: 6 }}>{fmtK(item.spend)}</span>}
+      {/* ── Signal Panels — two per row ───────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {PANELS.map(panel => {
+          const isOpen = expandedPanels.has(panel.key);
+          const visible = isOpen ? panel.items : panel.items.slice(0, 4);
+          const hasMore = panel.items.length > 4;
+          const winCount = recentWins.byCategory[panel.key]?.count || 0;
+          return <div key={panel.key} style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${panel.color}`, padding: "10px 12px" }}>
+            <div onClick={() => hasMore && togglePanel(panel.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: visible.length > 0 ? 8 : 0, cursor: hasMore ? "pointer" : "default", userSelect: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: panel.color, fontFamily: COND }}>{panel.title}</span>
+                {hasMore && <span style={{ fontSize: 10, color: Z.td, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>{"\u25bc"}</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {winCount > 0 && <span style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: "#dcfce7", color: "#16a34a", fontFamily: COND }}>{winCount} won</span>}
+                <span style={{ fontSize: FS.sm, color: Z.td }}>{panel.items.length}</span>
+              </div>
             </div>
-            <div style={{ fontSize: FS.sm, color: Z.tm, lineHeight: 1.3 }}>{item.detail}</div>
-            <button onClick={() => handleAdd(item.clientId, item.signal, item.detail)} style={{
-              marginTop: 2, padding: "3px 0", borderRadius: Ri, border: `1px solid ${Z.ac}30`,
-              background: "transparent", color: Z.ac, fontSize: FS.sm, fontWeight: FW.heavy,
-              cursor: "pointer", width: "100%",
-            }}>+ Add</button>
-          </div>)}
-        </div>
-        {hasMore && !isOpen && <div onClick={() => togglePanel(panel.key)} style={{ fontSize: FS.sm, color: Z.td, textAlign: "center", marginTop: 6, cursor: "pointer", fontWeight: FW.heavy }}>+ {panel.items.length - 3} more</div>}
-      </div>;
-      })}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {visible.map(item => <div key={item.clientId} style={{ padding: "6px 8px", background: Z.bg, borderRadius: Ri, display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div onClick={() => onSelectClient?.(item.clientId)} style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.ac, cursor: "pointer", fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{item.name}</div>
+                    {item.spend > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, flexShrink: 0, marginLeft: 6 }}>{fmtK(item.spend)}</span>}
+                  </div>
+                  <div style={{ fontSize: FS.sm, color: Z.tm, lineHeight: 1.3 }}>{item.detail}</div>
+                </div>
+                <button onClick={() => handleAdd(item.clientId, item.signal, item.detail)} style={{
+                  padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.ac}30`,
+                  background: "transparent", color: Z.ac, fontSize: FS.sm, fontWeight: FW.heavy,
+                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                }}>+ Add</button>
+              </div>)}
+            </div>
+            {hasMore && !isOpen && <div onClick={() => togglePanel(panel.key)} style={{ fontSize: FS.sm, color: Z.td, textAlign: "center", marginTop: 6, cursor: "pointer", fontWeight: FW.heavy }}>+ {panel.items.length - 4} more</div>}
+          </div>;
+        })}
 
-      {/* Inventory panel */}
-      {(signalFilter === "all" || signalFilter === "inventory") && inventorySignals.length > 0 && <div style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${SIGNAL_COLORS.inventory}`, padding: "10px 12px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: SIGNAL_COLORS.inventory, fontFamily: COND }}>Open inventory — deadline approaching</span>
-          <span style={{ fontSize: FS.sm, color: Z.td }}>{inventorySignals.length}</span>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
-          {inventorySignals.map(inv => <div key={inv.issueId} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri }}>
-            <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{inv.pubName} {inv.label}</div>
-            <div style={{ fontSize: FS.sm, color: Z.tm }}>{inv.fillPct}% sold · {inv.daysOut}d to deadline</div>
-          </div>)}
-        </div>
-      </div>}
+        {/* Inventory panel */}
+        {(signalFilter === "all" || signalFilter === "inventory") && inventorySignals.length > 0 && <div style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${SIGNAL_COLORS.inventory}`, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: SIGNAL_COLORS.inventory, fontFamily: COND }}>Open inventory {"\u2014"} deadline approaching</span>
+            <span style={{ fontSize: FS.sm, color: Z.td }}>{inventorySignals.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {inventorySignals.map(inv => <div key={inv.issueId} style={{ padding: "6px 8px", background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{inv.pubName} {inv.label}</div>
+              <div style={{ fontSize: FS.sm, color: Z.tm }}>{inv.fillPct}% sold {"\u00b7"} {inv.daysOut}d to deadline</div>
+            </div>)}
+          </div>
+        </div>}
+      </div>
 
-      {flatSignals.length === 0 && inventorySignals.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.su, fontSize: FS.md, fontWeight: FW.semi }}>{signalFilter === "all" ? "All clear — no actionable signals right now" : "No signals in this category"}</div>}
+      {flatSignals.length === 0 && inventorySignals.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.su, fontSize: FS.md, fontWeight: FW.semi }}>{signalFilter === "all" ? "All clear \u2014 no actionable signals right now" : "No signals in this category"}</div>}
     </div>
   </div>;
 }
