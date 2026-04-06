@@ -250,6 +250,8 @@ export default function App() {
   const vis = (pageId) => ({ display: pg === pageId ? "block" : "none" });
   const show = (pageId) => visited.has(pageId);
 
+  const isDark = Z.bg === DARK.bg;
+
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", height: "100vh", background: Z.bg, color: Z.tx, fontFamily: BODY }}>
     <link href={FONT_URL} rel="stylesheet" />
