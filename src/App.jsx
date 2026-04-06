@@ -22,7 +22,7 @@ import SalesCRM from "./pages/SalesCRM";
 import Contracts from "./pages/sales/Contracts";
 import CalendarPage from "./pages/CalendarPage";
 import StoriesModule from "./pages/StoriesModule";
-import Editorial from "./pages/Editorial";
+import EditorialDashboard from "./components/EditorialDashboard";
 import Flatplan from "./pages/Flatplan";
 import TeamModule from "./pages/TeamModule";
 import Analytics from "./pages/Analytics";
@@ -402,7 +402,7 @@ export default function App() {
         {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={clients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} invoices={invoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={clients} sales={sales} issues={issues} pubs={pubs} onNavigate={handleNav} /></div>}
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan jurisdiction={jurisdiction} pubs={pubs} issues={issues} setIssues={setIssues} sales={sales} setSales={setSales} updateSale={appData.updateSale} clients={clients} stories={stories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} /></div>}
-        {show("editorial") && <div style={vis("editorial")}><Editorial jurisdiction={jurisdiction} stories={stories} setStories={setStories} pubs={pubs} notifications={notifications} setNotifications={setNotifications} publishStory={appData.publishStory} unpublishStory={appData.unpublishStory} /></div>}
+        {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={stories} setStories={setStories} pubs={pubs} issues={issues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={sales} clients={clients} issues={issues} stories={stories} invoices={invoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
