@@ -141,6 +141,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [uploading, setUploading] = useState([]);
+  const [thumbScale, setThumbScale] = useState(100); // 100-150
+  const [lightboxAsset, setLightboxAsset] = useState(null);
   const perPage = 60;
   const dropRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -294,6 +296,13 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u25a6"}</button>
           <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u2630"}</button>
         </div>
+        {/* Thumb size slider */}
+        {viewMode === "grid" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>Size</span>
+            <input type="range" min={100} max={150} value={thumbScale} onChange={e => setThumbScale(Number(e.target.value))} style={{ width: 60, accentColor: Z.ac }} />
+          </div>
+        )}
       </div>
 
       {/* Bulk actions bar */}
@@ -315,14 +324,18 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
             <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files found</div>
           )}
 
-          {!loading && viewMode === "grid" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+          {!loading && viewMode === "grid" && (() => {
+            const baseMin = 140;
+            const scaledMin = Math.round(baseMin * thumbScale / 100);
+            const thumbH = Math.round(100 * thumbScale / 100);
+            return (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${scaledMin}px, 1fr))`, gap: 8 }}>
               {assets.map(a => {
                 const url = a.cdn_url || a.file_url;
                 const isSel = selectedIds.has(a.id);
                 const isActive = selected?.id === a.id;
                 return (
-                  <div key={a.id} onClick={() => setSelected(a)} style={{
+                  <div key={a.id} onClick={() => { if (selected?.id === a.id) { setLightboxAsset(a); } else { setSelected(a); } }} style={{
                     borderRadius: 4, border: `2px solid ${isActive ? Z.ac : isSel ? Z.ac + "60" : Z.bd}`,
                     background: Z.sf, cursor: "pointer", overflow: "hidden", transition: "border-color 0.15s", position: "relative",
                   }}>
@@ -336,24 +349,27 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
                     </div>
                     {/* Thumbnail */}
                     {isImage(a.mime_type) && url ? (
-                      <div style={{ width: "100%", height: 100, background: Z.sa }}>
+                      <div style={{ width: "100%", height: thumbH, background: Z.sa }}>
                         <img src={url} alt={a.alt_text || ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
                     ) : (
-                      <div style={{ width: "100%", height: 100, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
+                      <div style={{ width: "100%", height: thumbH, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
                         {a.mime_type || "File"}
                       </div>
                     )}
                     {/* Info */}
                     <div style={{ padding: "6px 8px" }}>
                       <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
-                      <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{fmtSize(a.file_size)}</div>
+                      <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>
+                        {fmtSize(a.file_size)}{a.width && a.height ? ` \u00b7 ${a.width}\u00d7${a.height}` : ""}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {!loading && viewMode === "list" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -373,7 +389,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
                 const isSel = selectedIds.has(a.id);
                 const isActive = selected?.id === a.id;
                 return (
-                  <div key={a.id} onClick={() => setSelected(a)} style={{
+                  <div key={a.id} onClick={() => { if (selected?.id === a.id) { setLightboxAsset(a); } else { setSelected(a); } }} style={{
                     display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 3, cursor: "pointer",
                     background: isActive ? Z.ac + "08" : "transparent", borderLeft: isSel ? "3px solid " + Z.ac : "3px solid transparent",
                   }}>
@@ -420,6 +436,39 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           />
         )}
       </div>
+
+      {/* Lightbox */}
+      {lightboxAsset && (() => {
+        const lbUrl = lightboxAsset.cdn_url || lightboxAsset.file_url;
+        return (
+          <div onClick={() => setLightboxAsset(null)} style={{
+            position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              width: "88vw", height: "88vh", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", position: "relative",
+            }}>
+              <button onClick={() => setLightboxAsset(null)} style={{
+                position: "absolute", top: 0, right: 0, background: "rgba(255,255,255,0.15)",
+                border: "none", color: "#fff", fontSize: 22, cursor: "pointer", width: 36, height: 36,
+                borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{"\u00d7"}</button>
+              {isImage(lightboxAsset.mime_type) && lbUrl ? (
+                <img src={lbUrl} alt={lightboxAsset.alt_text || ""} style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: 4 }} />
+              ) : (
+                <div style={{ color: "#fff", fontSize: 14, fontFamily: COND }}>{lightboxAsset.file_name}</div>
+              )}
+              <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightboxAsset.file_name}</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{fmtSize(lightboxAsset.file_size)}</span>
+                {lightboxAsset.width && lightboxAsset.height && <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{lightboxAsset.width}{"\u00d7"}{lightboxAsset.height}</span>}
+              </div>
+              {lightboxAsset.alt_text && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: COND, marginTop: 4, fontStyle: "italic" }}>{lightboxAsset.alt_text}</div>}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -141,7 +141,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   useEffect(() => {
     if (!story.id) { setContentLoading(false); return; }
     supabase.from("stories")
-      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, slug, seo_title, seo_description, excerpt, featured_image_url, category_id")
+      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id")
       .eq("id", story.id).single()
       .then(({ data }) => {
         if (data) {
@@ -464,7 +464,46 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
               <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: "#d97706" }} />
               <span style={{ fontWeight: 600 }}>{"\u2605"} Featured Article</span><span style={{ fontSize: 9, color: Z.tm }}>(hero)</span>
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
+              <input type="checkbox" checked={!!meta.is_premium} onChange={e => saveMeta("is_premium", e.target.checked)} style={{ accentColor: "#6366f1" }} />
+              <span style={{ fontWeight: 600 }}>{"\ud83d\udd12"} Premium</span><span style={{ fontSize: 9, color: Z.tm }}>(paywall)</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
+              <input type="checkbox" checked={!!meta.is_sponsored} onChange={e => saveMeta("is_sponsored", e.target.checked)} style={{ accentColor: "#d97706" }} />
+              <span style={{ fontWeight: 600 }}>Sponsored</span>
+            </label>
+            {meta.is_sponsored && (
+              <input value={meta.sponsor_name || ""} onChange={e => setMeta(m => ({ ...m, sponsor_name: e.target.value }))} onBlur={e => saveMeta("sponsor_name", e.target.value)} placeholder="Sponsor name..." style={{ width: "100%", padding: "4px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, marginTop: 2 }} />
+            )}
           </div>
+
+          {/* Schedule */}
+          {!isPublished && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Schedule Publish</div>
+              <input type="datetime-local" value={meta.scheduled_at ? new Date(meta.scheduled_at).toISOString().slice(0, 16) : ""} onChange={e => saveMeta("scheduled_at", e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
+              {meta.scheduled_at && <div style={{ fontSize: 10, color: "#6366f1", fontFamily: COND, marginTop: 3 }}>Scheduled: {fmtDate(meta.scheduled_at)}</div>}
+            </div>
+          )}
+
+          {/* View on site */}
+          {isPublished && meta.slug && selectedPubs[0] && (() => {
+            const site = (pubs || []).find(p => p.id === selectedPubs[0]);
+            const domain = site?.domain || site?.name?.toLowerCase().replace(/\s+/g, "-");
+            return domain ? (
+              <a href={"https://" + domain + "/" + meta.slug} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
+                View on {domain} {"\u2197"}
+              </a>
+            ) : null;
+          })()}
+
+          {/* View count */}
+          {meta.view_count > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: Z.sa, borderRadius: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Views</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: Z.tx, fontFamily: DISPLAY }}>{(meta.view_count || 0).toLocaleString()}</span>
+            </div>
+          )}
 
           {/* Featured image */}
           <div>
@@ -553,13 +592,40 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* SEO */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>SEO</div>
-            <Inp label="SEO Title" value={meta.seo_title || ""} onChange={v => setMeta(m => ({ ...m, seo_title: v }))} onBlur={() => saveMeta("seo_title", meta.seo_title)} />
-            <div style={{ marginTop: 6 }}><TA label="SEO Description" value={meta.seo_description || ""} onChange={v => setMeta(m => ({ ...m, seo_description: v }))} onBlur={() => saveMeta("seo_description", meta.seo_description)} rows={2} /></div>
+            <div>
+              <Inp label="SEO Title" value={meta.seo_title || ""} onChange={v => setMeta(m => ({ ...m, seo_title: v }))} onBlur={() => saveMeta("seo_title", meta.seo_title)} />
+              <div style={{ fontSize: 9, color: (meta.seo_title || "").length >= 50 && (meta.seo_title || "").length <= 60 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_title || "").length}/60</div>
+            </div>
+            <div style={{ marginTop: 4 }}>
+              <TA label="SEO Description" value={meta.seo_description || ""} onChange={v => setMeta(m => ({ ...m, seo_description: v }))} onBlur={() => saveMeta("seo_description", meta.seo_description)} rows={2} />
+              <div style={{ fontSize: 9, color: (meta.seo_description || "").length >= 150 && (meta.seo_description || "").length <= 160 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_description || "").length}/160</div>
+            </div>
             <Inp label="Slug" value={meta.slug || ""} onChange={v => setMeta(m => ({ ...m, slug: v }))} onBlur={() => saveMeta("slug", meta.slug)} />
+            {/* Google search preview */}
+            <div style={{ marginTop: 8, padding: 10, background: Z.bg, borderRadius: 3, border: "1px solid " + Z.bd }}>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Search Preview</div>
+              <div style={{ fontSize: 14, color: "#1a0dab", fontFamily: "arial, sans-serif", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.seo_title || meta.title || "Page Title"}</div>
+              <div style={{ fontSize: 11, color: "#006621", fontFamily: "arial, sans-serif", marginTop: 2 }}>{selectedPubs[0] && pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "") + ".com"}/{meta.slug || "article-slug"}</div>
+              <div style={{ fontSize: 11, color: "#545454", fontFamily: "arial, sans-serif", marginTop: 2, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.seo_description || meta.excerpt || "No description set"}</div>
+            </div>
           </div>
 
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}><TA label="Correction Note (visible to readers)" value={meta.correction_note || ""} onChange={v => setMeta(m => ({ ...m, correction_note: v }))} onBlur={() => saveMeta("correction_note", meta.correction_note)} rows={2} /></div>
           <TA label="Internal Notes" value={meta.notes || ""} onChange={v => setMeta(m => ({ ...m, notes: v }))} onBlur={() => saveMeta("notes", meta.notes)} rows={3} />
+
+          {/* Audit timestamps */}
+          <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Timeline</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10, fontFamily: COND, color: Z.tm }}>
+              {meta.created_at && <div>Created: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.created_at)}</span></div>}
+              {meta.submitted_at && <div>Submitted: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.submitted_at)}</span></div>}
+              {meta.edited_at && <div>Edited: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.edited_at)}</span></div>}
+              {meta.approved_for_web_at && <div>Web approved: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.approved_for_web_at)}</span></div>}
+              {meta.first_published_at && <div>First published: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.first_published_at)}</span></div>}
+              {meta.last_significant_edit_at && <div>Last major edit: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.last_significant_edit_at)}</span></div>}
+              {meta.edit_count > 0 && <div>Total edits: <span style={{ color: Z.tx, fontWeight: 600 }}>{meta.edit_count}</span></div>}
+            </div>
+          </div>
 
           {activity.length > 0 && <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>

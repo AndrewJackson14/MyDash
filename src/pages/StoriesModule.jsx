@@ -11,6 +11,11 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const [fAuthor, setFAuthor] = useState("all");
   const [fIssue, setFIssue] = useState("all");
   const [editingId, setEditingId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkAction, setBulkAction] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+
+  const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const pn = id => pubs.find(p => p.id === id)?.name || "—";
   const pubColor = id => pubs.find(p => p.id === id)?.color || Z.tm;
   const authors = [...new Set(stories.map(s => s.author).concat(STORY_AUTHORS))].sort();
@@ -30,6 +35,8 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
     return String(va).localeCompare(String(vb)) * dir;
   });
 
+  const selectAllFiltered = () => { if (selectedIds.size === fl.length) setSelectedIds(new Set()); else setSelectedIds(new Set(fl.map(s => s.id))); };
+
   const upd = (id, field, val) => setStories(st => st.map(s => s.id === id ? { ...s, [field]: val } : s));
   const addNew = () => {
     const id = "s" + Date.now();
@@ -40,6 +47,39 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const remove = (id) => setStories(st => st.filter(s => s.id !== id));
   const clearFilters = () => { setFPub("all"); setFStatus("all"); setFAuthor("all"); setFIssue("all"); setSr(""); };
   const hasFilters = fPub !== "all" || fStatus !== "all" || fAuthor !== "all" || fIssue !== "all" || sr !== "";
+
+  const duplicate = (story) => {
+    const id = "s" + Date.now();
+    const copy = { ...story, id, title: story.title + " (copy)", status: "Draft", sentToWeb: false, page: "", published_at: null, scheduled_at: null };
+    setStories(st => [copy, ...st]);
+  };
+
+  const executeBulk = (action) => {
+    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    if (action === "delete") {
+      if (!confirm(`Delete ${ids.length} stories permanently?`)) return;
+      setStories(st => st.filter(s => !selectedIds.has(s.id)));
+    } else if (action === "publish") {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Published", sentToWeb: true, published_at: s.published_at || new Date().toISOString() } : s));
+    } else if (action === "unpublish") {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Draft", sentToWeb: false } : s));
+    } else if (action === "review") {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Needs Editing" } : s));
+    } else if (action === "kill") {
+      if (!confirm(`Kill ${ids.length} stories?`)) return;
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Killed" } : s));
+    } else if (action === "featured_on") {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, is_featured: true } : s));
+    } else if (action === "featured_off") {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, is_featured: false } : s));
+    } else if (action === "category" && bulkCategory) {
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, category: bulkCategory } : s));
+    }
+    setSelectedIds(new Set());
+    setBulkAction("");
+    setBulkCategory("");
+  };
 
   const cellS = { verticalAlign: "middle" };
   const inpS = { background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: "100%", boxSizing: "border-box", padding: "2px 0" };
@@ -57,6 +97,31 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
       <TabPipe />
       <TB tabs={["All Status", ...STORY_STATUSES]} active={fStatus === "all" ? "All Status" : fStatus} onChange={v => setFStatus(v === "All Status" ? "all" : v)} />
     </TabRow>
+    {/* Bulk actions bar */}
+    {selectedIds.size > 0 && (
+      <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: Ri, border: "1px solid " + Z.ac + "20" }}>
+        <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.ac, fontFamily: COND }}>{selectedIds.size} selected</span>
+        <select value={bulkAction} onChange={e => setBulkAction(e.target.value)} style={{ padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
+          <option value="">Bulk action...</option>
+          <option value="publish">Publish</option>
+          <option value="unpublish">Unpublish (Draft)</option>
+          <option value="review">Set to Review</option>
+          <option value="kill">Kill</option>
+          <option value="featured_on">Mark Featured</option>
+          <option value="featured_off">Unmark Featured</option>
+          <option value="category">Change Category</option>
+          <option value="delete">Delete</option>
+        </select>
+        {bulkAction === "category" && (
+          <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
+            <option value="">Pick category...</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <Btn sm onClick={() => executeBulk(bulkAction)} disabled={!bulkAction || (bulkAction === "category" && !bulkCategory)}>Apply</Btn>
+        <button onClick={() => { setSelectedIds(new Set()); setBulkAction(""); }} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: FS.sm, fontFamily: COND, cursor: "pointer" }}>Clear</button>
+      </div>
+    )}
     {/* MINI FLATPLAN — shows when filtered to single issue */}
     {fPub !== "all" && fIssue !== "all" && (() => {
       const mfIssue = issues.find(i => i.id === fIssue);
@@ -79,13 +144,17 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
       </div>;
     })()}
     <DataTable>
-        <thead><tr>{["Title", "Author", "Publication", "Issue", "Section", "Status", "Web", "Page", "Due", "Words", "Imgs", ""].map(h => <th key={h} onClick={() => { if (!h) return; setStorySort(s => s.col === h ? { col: h, dir: s.dir === "asc" ? "desc" : "asc" } : { col: h, dir: "asc" }); }}>{h}{storySort.col === h && <span style={{ marginLeft: 3, fontSize: 9 }}>{storySort.dir === "asc" ? "▲" : "▼"}</span>}</th>)}</tr></thead>
+        <thead><tr>
+          <th style={{ width: 28, textAlign: "center" }}><div onClick={selectAllFiltered} style={{ width: 14, height: 14, borderRadius: 2, border: "2px solid " + Z.bd, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: selectedIds.size > 0 && selectedIds.size === fl.length ? Z.ac : "transparent" }}>{selectedIds.size > 0 && selectedIds.size === fl.length && <span style={{ color: "#fff", fontSize: 8 }}>{"✓"}</span>}</div></th>
+          {["Title", "Author", "Publication", "Issue", "Section", "Status", "Web", "Page", "Due", "Words", "Imgs", ""].map(h => <th key={h} onClick={() => { if (!h) return; setStorySort(s => s.col === h ? { col: h, dir: s.dir === "asc" ? "desc" : "asc" } : { col: h, dir: "asc" }); }}>{h}{storySort.col === h && <span style={{ marginLeft: 3, fontSize: 9 }}>{storySort.dir === "asc" ? "▲" : "▼"}</span>}</th>)}
+        </tr></thead>
         <tbody>
-          {fl.length === 0 && <tr><td colSpan={11} style={{ padding: 20, textAlign: "center", color: Z.td }}>No stories match filters</td></tr>}
+          {fl.length === 0 && <tr><td colSpan={13} style={{ padding: 20, textAlign: "center", color: Z.td }}>No stories match filters</td></tr>}
           {fl.map(s => {
             const isEd = editingId === s.id;
             const sPubIssues = issues.filter(i => i.pubId === s.publication && i.date >= "2026-03-01").slice(0, 24);
-            return <tr key={s.id} onClick={() => { if (!isEd) setEditingId(s.id); }} style={{ cursor: "pointer", ...(isEd ? { outline: `2px solid ${isDk ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`, outlineOffset: -1, background: isDk ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)" } : {}) }}>
+            return <tr key={s.id} onClick={() => { if (!isEd) setEditingId(s.id); }} style={{ cursor: "pointer", ...(isEd ? { outline: `2px solid ${isDk ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`, outlineOffset: -1, background: isDk ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)" } : {}), ...(selectedIds.has(s.id) ? { background: isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)" } : {}) }}>
+              <td style={{ ...cellS, textAlign: "center", width: 28 }}><div onClick={e => { e.stopPropagation(); toggleSelect(s.id); }} style={{ width: 14, height: 14, borderRadius: 2, border: "2px solid " + (selectedIds.has(s.id) ? Z.ac : Z.bd), display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: selectedIds.has(s.id) ? Z.ac : "transparent" }}>{selectedIds.has(s.id) && <span style={{ color: "#fff", fontSize: 8 }}>{"✓"}</span>}</div></td>
               <td style={cellS}>{isEd ? <input value={s.title} onChange={e => upd(s.id, "title", e.target.value)} placeholder="Story title..." autoFocus style={{ ...inpS, fontWeight: FW.bold }} /> : <span style={{ fontWeight: FW.bold, color: Z.tx }}>{s.title || <i style={{ color: Z.td }}>Untitled</i>}</span>}</td>
               <td style={cellS}>{isEd ? <select value={s.author} onChange={e => upd(s.id, "author", e.target.value)} style={selS}>{authors.map(a => <option key={a}>{a}</option>)}</select> : <span style={{ color: Z.tm }}>{s.author}</span>}</td>
               <td style={cellS}>{isEd ? <select value={s.publication} onChange={e => upd(s.id, "publication", e.target.value)} style={selS}>{pubs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select> : <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: Ri, background: pubColor(s.publication), flexShrink: 0 }} /><span style={{ color: Z.tm }}>{pn(s.publication)}</span></span>}</td>
@@ -97,7 +166,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
               <td style={cellS}>{isEd ? <input type="date" value={s.dueDate} onChange={e => upd(s.id, "dueDate", e.target.value)} style={inpS} /> : <span style={{ color: !s.dueDate ? Z.td : s.dueDate < "2026-03-22" ? Z.da : (s.dueDate === "2026-03-22" || s.dueDate === "2026-03-21") ? Z.wa : s.dueDate <= "2026-03-29" ? Z.su : Z.tm, fontSize: FS.xs, fontWeight: s.dueDate && s.dueDate <= "2026-03-22" ? 800 : 500 }}>{s.dueDate || "—"}</span>}</td>
               <td style={cellS}>{isEd ? <input type="number" value={s.wordCount} onChange={e => upd(s.id, "wordCount", +e.target.value)} style={{ ...inpS, width: 60 }} /> : <span style={{ color: Z.tm }}>{s.wordCount}</span>}</td>
               <td style={cellS}>{isEd ? <div style={{ textAlign: "center", color: Z.tx, fontSize: FS.xs, cursor: "pointer" }} onClick={e => { e.stopPropagation(); upd(s.id, "images", (s.images || 0) + 1); }}>+{s.images || 0}</div> : <span style={{ color: Z.tm }}>{s.images}</span>}</td>
-              <td style={cellS}>{isEd && <div style={{ display: "flex", gap: 4 }}><button onClick={e => { e.stopPropagation(); setEditingId(null); }} style={{ background: Z.go, border: "none", borderRadius: Ri, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }}>✓</button><button onClick={e => { e.stopPropagation(); if (window.confirm("Are you sure you want to delete this story?")) remove(s.id); }} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }}>✕</button></div>}</td>
+              <td style={cellS}>{isEd && <div style={{ display: "flex", gap: 3 }}><button onClick={e => { e.stopPropagation(); setEditingId(null); }} style={{ background: Z.go, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }} title="Save">{"✓"}</button><button onClick={e => { e.stopPropagation(); duplicate(s); }} style={{ background: Z.ac + "20", border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: Z.ac, fontSize: FS.xs, fontWeight: FW.bold }} title="Duplicate">{"⧉"}</button><button onClick={e => { e.stopPropagation(); if (window.confirm("Are you sure you want to delete this story?")) remove(s.id); }} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }} title="Delete">{"✕"}</button></div>}</td>
             </tr>;
           })}
         </tbody>
