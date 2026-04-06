@@ -27,33 +27,43 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Get initial session
+    // Listen for auth changes FIRST — this catches OAuth redirects
+    // and token refreshes before getSession resolves
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth event:', event, session?.user?.email);
+        setSession(session);
+        if (session?.user) {
+          setUser(session.user);
+          await fetchTeamMember(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setTeamMember(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    // Then check for existing session in storage
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       if (session?.user) {
+        setSession(session);
         setUser(session.user);
         fetchTeamMember(session.user.id);
       } else {
-        setLoading(false);
+        // No stored session — but give onAuthStateChange a moment
+        // to process any OAuth redirect tokens in the URL
+        setTimeout(() => {
+          setUser(currentUser => {
+            if (!currentUser) setLoading(false);
+            return currentUser;
+          });
+        }, 500);
       }
     }).catch((err) => {
       console.error('Auth session error:', err);
       setLoading(false);
     });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        if (session?.user) {
-          setUser(session.user);
-          await fetchTeamMember(session.user.id);
-        } else {
-          setUser(null);
-          setTeamMember(null);
-        }
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
