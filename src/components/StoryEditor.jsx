@@ -7,7 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { Z, SC, COND, DISPLAY } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabaseClient";
 
@@ -109,7 +109,7 @@ const PreflightModal = ({ open, onClose, onPublish, checks }) => {
 // ══════════════════════════════════════════════════════════════════
 // STORY EDITOR
 // ══════════════════════════════════════════════════════════════════
-const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus }) => {
+const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publishStory, unpublishStory }) => {
   const [meta, setMeta] = useState({ ...story });
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);

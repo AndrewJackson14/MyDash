@@ -166,7 +166,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, editorialPermissions, currentUser }) => {
+const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory }) => {
   const [tab, setTab] = useState("kanban");
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
@@ -309,6 +309,8 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
           issues={issues}
           team={team}
           bus={bus}
+          publishStory={publishStory}
+          unpublishStory={unpublishStory}
         />
       </div>
     );
