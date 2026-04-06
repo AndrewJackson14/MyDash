@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, SC, COND, DISPLAY } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import StoryEditor from "./StoryEditor";
 
