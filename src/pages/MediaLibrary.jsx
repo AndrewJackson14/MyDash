@@ -1,61 +1,89 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Z, COND, DISPLAY, FS, FW } from "../lib/theme";
-import { Ic, Btn, Inp, SB } from "../components/ui";
-import { supabase, isOnline } from "../lib/supabase";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Z, COND, DISPLAY, FS, FW, Ri } from "../lib/theme";
+import { Ic, Btn, SB } from "../components/ui";
+import { supabase } from "../lib/supabase";
+
+// ── Config ───────────────────────────────────────────────────────
+const CDN_BASE = "https://cdn.13stars.media";
+const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
 
 // ── Helpers ──────────────────────────────────────────────────────
 const fmtSize = (bytes) => {
-  if (!bytes) return "—";
+  if (!bytes) return "\u2014";
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / 1048576).toFixed(1) + " MB";
 };
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
-const isImage = (mime) => (mime || "").startsWith("image/");
+const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|ico)$/i.test(name || "");
+const sanitize = (name) => name.toLowerCase().replace(/[^a-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
-// ── Upload via Supabase Storage ─────────────────────────────────
-async function uploadToStorage(file, pubSlug) {
-  const ext = file.name?.split(".").pop()?.toLowerCase() || "jpg";
-  const now = new Date();
-  const prefix = pubSlug || "general";
-  const path = `${prefix}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-  const { data, error } = await supabase.storage.from("media_assets").upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw new Error(error.message);
-  const { data: urlData } = supabase.storage.from("media_assets").getPublicUrl(path);
-  return { storagePath: path, cdnUrl: urlData.publicUrl };
+// ── BunnyCDN API calls via proxy ─────────────────────────────────
+async function getAuthToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
+  return session.access_token;
 }
+
+async function bunnyList(path) {
+  const token = await getAuthToken();
+  const res = await fetch(PROXY_URL, {
+    headers: { Authorization: "Bearer " + token, "x-action": "list", "x-path": path || "" },
+  });
+  if (!res.ok) throw new Error("List failed: " + res.status);
+  return res.json();
+}
+
+async function bunnyUpload(file, path, filename) {
+  const token = await getAuthToken();
+  const res = await fetch(PROXY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": file.type || "application/octet-stream",
+      "x-action": "upload",
+      "x-path": path,
+      "x-filename": filename,
+    },
+    body: file,
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Upload failed"); }
+  return res.json();
+}
+
+async function bunnyDelete(path, filename) {
+  const token = await getAuthToken();
+  const res = await fetch(PROXY_URL, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token, "x-action": "delete", "x-path": path, "x-filename": filename },
+  });
+  if (!res.ok) throw new Error("Delete failed: " + res.status);
+}
+
+// ── Publication folder mapping ──────────────────────────────────
+const PUB_FOLDERS = [
+  { slug: "malibu-times", label: "Malibu Times" },
+  { slug: "paso-robles-press", label: "Paso Robles Press" },
+  { slug: "atascadero-news", label: "Atascadero News" },
+  { slug: "paso-robles-magazine", label: "Paso Robles Magazine" },
+  { slug: "atascadero-news-magazine", label: "Atascadero News Magazine" },
+  { slug: "santa-ynez-valley-star", label: "Santa Ynez Valley Star" },
+  { slug: "general", label: "General / Shared" },
+];
 
 // ══════════════════════════════════════════════════════════════════
 // DETAIL PANEL
 // ══════════════════════════════════════════════════════════════════
-const DetailPanel = ({ asset, onClose, onUpdate, onDelete, onSelect, selectMode }) => {
-  const [altText, setAltText] = useState(asset.alt_text || "");
-  const [caption, setCaption] = useState(asset.caption || "");
-  const [fileName, setFileName] = useState(asset.file_name || "");
-  const [saving, setSaving] = useState(false);
+const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMode }) => {
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    setAltText(asset.alt_text || "");
-    setCaption(asset.caption || "");
-    setFileName(asset.file_name || "");
-  }, [asset.id]);
-
-  const save = async () => {
-    setSaving(true);
-    const updates = { alt_text: altText, caption, file_name: fileName, updated_at: new Date().toISOString() };
-    const { error } = await supabase.from("media_assets").update(updates).eq("id", asset.id);
-    if (!error) onUpdate(asset.id, updates);
-    setSaving(false);
-  };
+  const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
 
   const copyUrl = () => {
-    navigator.clipboard.writeText(asset.cdn_url);
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const url = asset.cdn_url || asset.file_url;
   const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND };
 
   return (
@@ -65,58 +93,34 @@ const DetailPanel = ({ asset, onClose, onUpdate, onDelete, onSelect, selectMode 
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 16 }}>{"\u00d7"}</button>
       </div>
 
-      {/* Preview */}
-      {isImage(asset.mime_type) && url && (
-        <img src={url} alt={altText} style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 4, background: Z.sa, border: "1px solid " + Z.bd }} />
-      )}
-      {!isImage(asset.mime_type) && (
-        <div style={{ width: "100%", height: 80, display: "flex", alignItems: "center", justifyContent: "center", background: Z.sa, borderRadius: 4, color: Z.tm, fontSize: 11, fontFamily: COND }}>
-          {asset.mime_type || "File"}
-        </div>
+      {isImage(item.ObjectName) && (
+        <img src={url} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 4, background: Z.sa, border: "1px solid " + Z.bd }} />
       )}
 
-      {/* File name */}
       <div>
         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Filename</div>
-        <input value={fileName} onChange={e => setFileName(e.target.value)} style={inputStyle} />
+        <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, wordBreak: "break-all" }}>{item.ObjectName}</div>
       </div>
 
-      {/* Alt text */}
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Alt Text</div>
-        <textarea value={altText} onChange={e => setAltText(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="Describe the image for accessibility..." />
-      </div>
-
-      {/* Caption */}
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Caption</div>
-        <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} placeholder="Photo credit or description..." />
-      </div>
-
-      {/* Read-only info */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11, fontFamily: COND }}>
-        <div><span style={{ color: Z.tm }}>Size: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtSize(asset.file_size)}</span></div>
-        <div><span style={{ color: Z.tm }}>Type: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{asset.mime_type || "—"}</span></div>
-        {asset.width && <div><span style={{ color: Z.tm }}>Dims: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{asset.width}x{asset.height}</span></div>}
-        <div><span style={{ color: Z.tm }}>Date: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(asset.created_at)}</span></div>
+        <div><span style={{ color: Z.tm }}>Size: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtSize(item.Length)}</span></div>
+        <div><span style={{ color: Z.tm }}>Date: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(item.DateCreated)}</span></div>
+        {item.ContentType && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: Z.tm }}>Type: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{item.ContentType}</span></div>}
       </div>
 
-      {/* URL with copy */}
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>URL</div>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>CDN URL</div>
         <div style={{ display: "flex", gap: 4 }}>
-          <input value={url || ""} readOnly style={{ ...inputStyle, flex: 1, fontSize: 10, color: Z.tm }} />
-          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? (Z.su || "#22c55e") : Z.tx, fontSize: 10, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <input value={url} readOnly style={{ ...inputStyle, flex: 1, fontSize: 10, color: Z.tm }} />
+          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? "#22c55e" : Z.tx, fontSize: 10, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             {copied ? "\u2713 Copied" : "Copy"}
           </button>
         </div>
       </div>
 
-      {/* Actions */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-        <Btn sm onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Btn>
-        {selectMode && <Btn sm onClick={() => onSelect(asset)} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
-        <button onClick={() => { if (confirm("Delete this file permanently?")) onDelete(asset.id); }} style={{ padding: "6px 10px", borderRadius: 3, border: "1px solid #ef444440", background: "transparent", color: "#ef4444", fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+        {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
+        <button onClick={() => { if (confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: 3, border: "1px solid #ef444440", background: "transparent", color: "#ef4444", fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
           Delete
         </button>
       </div>
@@ -125,130 +129,192 @@ const DetailPanel = ({ asset, onClose, onUpdate, onDelete, onSelect, selectMode 
 };
 
 // ══════════════════════════════════════════════════════════════════
-// MEDIA LIBRARY (standalone page + embeddable)
+// FOLDER TREE
+// ══════════════════════════════════════════════════════════════════
+const FolderTree = ({ currentPath, onNavigate, items }) => {
+  const folders = (items || []).filter(i => i.IsDirectory);
+  return (
+    <div style={{ width: 200, flexShrink: 0, borderRight: "1px solid " + Z.bd, overflowY: "auto", padding: "8px 0" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, padding: "4px 12px", marginBottom: 4 }}>Publications</div>
+      {PUB_FOLDERS.map(pf => {
+        const isActive = currentPath === pf.slug || currentPath.startsWith(pf.slug + "/");
+        return (
+          <button key={pf.slug} onClick={() => onNavigate(pf.slug)} style={{
+            display: "block", width: "100%", textAlign: "left", padding: "5px 12px", border: "none",
+            background: isActive ? Z.ac + "10" : "transparent", color: isActive ? Z.ac : Z.tx,
+            fontSize: 11, fontWeight: isActive ? 700 : 500, fontFamily: COND, cursor: "pointer",
+            borderLeft: isActive ? "3px solid " + Z.ac : "3px solid transparent",
+          }}>{pf.label}</button>
+        );
+      })}
+
+      {/* Sub-folders in current path */}
+      {folders.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, padding: "8px 12px 4px", marginTop: 8, borderTop: "1px solid " + Z.bd }}>Folders</div>
+          {folders.map(f => (
+            <button key={f.ObjectName} onClick={() => onNavigate(currentPath + "/" + f.ObjectName)} style={{
+              display: "block", width: "100%", textAlign: "left", padding: "4px 12px 4px 20px", border: "none",
+              background: "transparent", color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer",
+            }}>{"\ud83d\udcc1"} {f.ObjectName}</button>
+          ))}
+        </>
+      )}
+
+      {/* Breadcrumb back */}
+      {currentPath.includes("/") && (
+        <button onClick={() => onNavigate(currentPath.split("/").slice(0, -1).join("/"))} style={{
+          display: "block", width: "100%", textAlign: "left", padding: "6px 12px", border: "none",
+          background: "transparent", color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer", marginTop: 8,
+          borderTop: "1px solid " + Z.bd,
+        }}>{"\u2190"} Up one level</button>
+      )}
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════
+// MEDIA LIBRARY
 // ══════════════════════════════════════════════════════════════════
 export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
-  const [assets, setAssets] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPath, setCurrentPath] = useState(pubFilter ? PUB_FOLDERS.find(p => pubFilter.includes(p.slug))?.slug || PUB_FOLDERS[0].slug : PUB_FOLDERS[0].slug);
   const [search, setSearch] = useState("");
-  const [filterPub, setFilterPub] = useState(pubFilter || "all");
-  const [filterType, setFilterType] = useState("all");
-  const [sortBy, setSortBy] = useState("created_at");
-  const [sortDir, setSortDir] = useState("desc");
+  const [sortBy, setSortBy] = useState("date");
   const [viewMode, setViewMode] = useState("grid");
   const [selected, setSelected] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [page, setPage] = useState(0);
-  const [total, setTotal] = useState(0);
+  const [selectedItems, setSelectedItems] = useState(new Set());
   const [uploading, setUploading] = useState([]);
-  const [thumbScale, setThumbScale] = useState(100); // 100-150
-  const [lightboxAsset, setLightboxAsset] = useState(null);
-  const perPage = 60;
-  const dropRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [thumbScale, setThumbScale] = useState(100);
   const searchTimer = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounce search
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => setDebouncedSearch(search), 300);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search]);
 
-  // Load assets
-  const loadAssets = useCallback(async () => {
-    if (!isOnline()) { setLoading(false); return; }
+  // Load directory
+  const loadPath = useCallback(async (path) => {
     setLoading(true);
-    let q = supabase.from("media_assets").select("*", { count: "exact" });
-    if (filterPub !== "all") q = q.eq("publication_id", filterPub);
-    if (filterType === "image") q = q.like("mime_type", "image/%");
-    else if (filterType === "pdf") q = q.eq("mime_type", "application/pdf");
-    else if (filterType === "video") q = q.like("mime_type", "video/%");
-    if (debouncedSearch) q = q.or(`file_name.ilike.%${debouncedSearch}%,alt_text.ilike.%${debouncedSearch}%`);
-    q = q.order(sortBy, { ascending: sortDir === "asc" }).range(page * perPage, (page + 1) * perPage - 1);
-    const { data, count } = await q;
-    if (data) { setAssets(data); setTotal(count || 0); }
+    try {
+      const data = await bunnyList(path);
+      setItems(data || []);
+    } catch (err) {
+      console.error("Failed to list:", err);
+      setItems([]);
+    }
     setLoading(false);
-  }, [filterPub, filterType, debouncedSearch, sortBy, sortDir, page]);
+  }, []);
 
-  useEffect(() => { loadAssets(); }, [loadAssets]);
-  useEffect(() => { setPage(0); }, [filterPub, filterType, debouncedSearch, sortBy, sortDir]);
+  useEffect(() => { loadPath(currentPath); }, [currentPath, loadPath]);
 
-  // Upload handler
-  const handleUpload = async (files) => {
-    const pubSlug = filterPub !== "all" ? (pubs || []).find(p => p.id === filterPub)?.name?.toLowerCase().replace(/\s+/g, "-") : "general";
-    const newUploads = Array.from(files).map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, progress: 0 }));
+  const navigate = (path) => {
+    setCurrentPath(path);
+    setSelected(null);
+    setSelectedItems(new Set());
+    setSearch("");
+  };
+
+  // Filter and sort files (exclude directories for grid display)
+  const files = (() => {
+    let f = items.filter(i => !i.IsDirectory);
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      f = f.filter(i => i.ObjectName.toLowerCase().includes(q));
+    }
+    if (sortBy === "date") f.sort((a, b) => new Date(b.DateCreated) - new Date(a.DateCreated));
+    else if (sortBy === "name") f.sort((a, b) => a.ObjectName.localeCompare(b.ObjectName));
+    else if (sortBy === "size") f.sort((a, b) => (b.Length || 0) - (a.Length || 0));
+    return f;
+  })();
+
+  // Upload
+  const handleUpload = async (fileList) => {
+    const now = new Date();
+    const monthPath = `${currentPath}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const newUploads = Array.from(fileList).map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, done: false, error: null }));
     setUploading(prev => [...prev, ...newUploads]);
 
     for (const u of newUploads) {
       try {
-        const { storagePath, cdnUrl } = await uploadToStorage(u.file, pubSlug);
-        const row = {
-          file_name: u.file.name,
-          cdn_url: cdnUrl,
-          file_url: cdnUrl,
-          storage_path: storagePath,
-          mime_type: u.file.type,
-          file_size: u.file.size,
-          publication_id: filterPub !== "all" ? filterPub : null,
-          alt_text: "",
-        };
-        const { data } = await supabase.from("media_assets").insert(row).select().single();
-        if (data) setAssets(prev => [data, ...prev]);
-        setUploading(prev => prev.filter(x => x.id !== u.id));
+        const safeName = sanitize(u.file.name);
+        const uniqueName = Date.now().toString(36) + "-" + safeName;
+        const result = await bunnyUpload(u.file, monthPath, uniqueName);
+        setUploading(prev => prev.map(x => x.id === u.id ? { ...x, done: true, cdnUrl: result.cdnUrl } : x));
+        // Refresh listing
+        loadPath(currentPath);
       } catch (err) {
-        console.error("Upload failed:", err);
         setUploading(prev => prev.map(x => x.id === u.id ? { ...x, error: err.message } : x));
       }
     }
+    // Clear completed uploads after 3s
+    setTimeout(() => setUploading(prev => prev.filter(u => !u.done)), 3000);
   };
 
-  // Drag and drop
+  // Delete
+  const handleDelete = async (item) => {
+    const pathParts = (item.fullPath || "").split("/");
+    const filename = pathParts.pop();
+    const folder = pathParts.join("/");
+    await bunnyDelete(folder, filename);
+    setItems(prev => prev.filter(i => i.ObjectName !== item.ObjectName));
+    if (selected?.ObjectName === item.ObjectName) setSelected(null);
+  };
+
+  // Bulk delete
+  const bulkDelete = async () => {
+    if (!confirm(`Delete ${selectedItems.size} files permanently?`)) return;
+    const toDelete = files.filter(f => selectedItems.has(f.ObjectName));
+    for (const item of toDelete) {
+      try { await handleDelete(item); } catch (err) { console.error("Delete failed:", item.ObjectName, err); }
+    }
+    setSelectedItems(new Set());
+  };
+
+  const toggleSelect = (name) => setSelectedItems(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+
+  // Drag/drop
   const onDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const onDragLeave = () => setDragOver(false);
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files); };
 
-  // Detail panel actions
-  const handleUpdate = (id, updates) => setAssets(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
-  const handleDelete = async (id) => {
-    await supabase.from("media_assets").delete().eq("id", id);
-    setAssets(prev => prev.filter(a => a.id !== id));
-    if (selected?.id === id) setSelected(null);
-    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-  };
+  const baseMin = 140;
+  const scaledMin = Math.round(baseMin * thumbScale / 100);
+  const thumbH = Math.round(100 * thumbScale / 100);
 
-  // Bulk actions
-  const bulkDelete = async () => {
-    if (!confirm(`Delete ${selectedIds.size} files permanently?`)) return;
-    const ids = [...selectedIds];
-    await supabase.from("media_assets").delete().in("id", ids);
-    setAssets(prev => prev.filter(a => !selectedIds.has(a.id)));
-    setSelectedIds(new Set());
-    if (selected && selectedIds.has(selected.id)) setSelected(null);
-  };
-
-  const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const selectAll = () => { if (selectedIds.size === assets.length) setSelectedIds(new Set()); else setSelectedIds(new Set(assets.map(a => a.id))); };
-
-  const totalPages = Math.ceil(total / perPage);
-  const pn = (id) => (pubs || []).find(p => p.id === id)?.name || "";
+  // Breadcrumb
+  const pathParts = currentPath.split("/").filter(Boolean);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: embedded ? "100%" : undefined }}>
       {/* Header */}
       {!embedded && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
-          <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{total.toLocaleString()} files</span>
+          <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{files.length} files</span>
         </div>
       )}
 
+      {/* Breadcrumb */}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: COND }}>
+        {pathParts.map((part, i) => (
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {i > 0 && <span style={{ color: Z.tm }}>/</span>}
+            <button onClick={() => navigate(pathParts.slice(0, i + 1).join("/"))} style={{ background: "none", border: "none", color: i === pathParts.length - 1 ? Z.tx : Z.ac, fontWeight: i === pathParts.length - 1 ? 700 : 500, cursor: "pointer", fontFamily: COND, fontSize: 11 }}>{part}</button>
+          </span>
+        ))}
+      </div>
+
       {/* Upload zone */}
-      <div ref={dropRef} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} style={{
+      <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = "image/*,application/pdf,video/*"; inp.onchange = (e) => handleUpload(e.target.files); inp.click(); }} style={{
         border: `2px dashed ${dragOver ? Z.ac : Z.bd}`, borderRadius: 6, padding: dragOver ? "20px" : "12px 16px",
         background: dragOver ? Z.ac + "08" : Z.sa, textAlign: "center", cursor: "pointer", transition: "all 0.2s",
-      }} onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = "image/*,application/pdf,video/*"; inp.onchange = (e) => handleUpload(e.target.files); inp.click(); }}>
+      }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: dragOver ? Z.ac : Z.tm, fontFamily: COND }}>
           {dragOver ? "Drop files here" : "Drag & drop files or click to upload"}
         </div>
@@ -258,45 +324,25 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       {uploading.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {uploading.map(u => (
-            <div key={u.id} style={{ padding: "4px 10px", borderRadius: 3, background: u.error ? "#fef2f2" : Z.sa, border: "1px solid " + (u.error ? "#ef444430" : Z.bd), fontSize: 10, fontFamily: COND, color: u.error ? "#ef4444" : Z.tm }}>
-              {u.name} {u.error ? "- " + u.error : "uploading..."}
+            <div key={u.id} style={{ padding: "4px 10px", borderRadius: 3, background: u.error ? "#fef2f2" : u.done ? "#f0fdf4" : Z.sa, border: "1px solid " + (u.error ? "#ef444430" : u.done ? "#22c55e30" : Z.bd), fontSize: 10, fontFamily: COND, color: u.error ? "#ef4444" : u.done ? "#22c55e" : Z.tm }}>
+              {u.name} {u.error ? "\u2014 " + u.error : u.done ? "\u2713 Done" : "uploading..."}
             </div>
           ))}
         </div>
       )}
 
-      {/* Toolbar: search + filters + sort + view toggle */}
+      {/* Toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <SB value={search} onChange={setSearch} placeholder="Search files..." />
-        </div>
-        {/* Pub filter */}
-        <select value={filterPub} onChange={e => setFilterPub(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
-          <option value="all">All Publications</option>
-          {(pubs || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        <div style={{ flex: 1, minWidth: 180 }}><SB value={search} onChange={setSearch} placeholder="Search files..." /></div>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
+          <option value="date">Newest</option>
+          <option value="name">Name A-Z</option>
+          <option value="size">Largest</option>
         </select>
-        {/* Type filter */}
-        <select value={filterType} onChange={e => setFilterType(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
-          <option value="all">All Types</option>
-          <option value="image">Images</option>
-          <option value="pdf">PDFs</option>
-          <option value="video">Video</option>
-        </select>
-        {/* Sort */}
-        <select value={sortBy + ":" + sortDir} onChange={e => { const [s, d] = e.target.value.split(":"); setSortBy(s); setSortDir(d); }} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
-          <option value="created_at:desc">Newest</option>
-          <option value="created_at:asc">Oldest</option>
-          <option value="file_name:asc">Name A-Z</option>
-          <option value="file_name:desc">Name Z-A</option>
-          <option value="file_size:desc">Largest</option>
-          <option value="file_size:asc">Smallest</option>
-        </select>
-        {/* View toggle */}
         <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: 3 }}>
           <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u25a6"}</button>
           <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u2630"}</button>
         </div>
-        {/* Thumb size slider */}
         {viewMode === "grid" && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>Size</span>
@@ -305,121 +351,97 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         )}
       </div>
 
-      {/* Bulk actions bar */}
-      {selectedIds.size > 0 && (
+      {/* Bulk bar */}
+      {selectedItems.size > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: 3, border: "1px solid " + Z.ac + "20" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedIds.size} selected</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
           <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: 3, border: "1px solid #ef444430", background: "transparent", color: "#ef4444", fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
-          <button onClick={() => setSelectedIds(new Set())} style={{ padding: "3px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
+          <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
         </div>
       )}
 
-      {/* Content area */}
+      {/* Main content: folder tree + grid + detail */}
       <div style={{ display: "flex", flex: 1, minHeight: 400, gap: 0 }}>
-        {/* Grid / List */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* Folder tree */}
+        <FolderTree currentPath={currentPath} onNavigate={navigate} items={items} />
+
+        {/* File grid/list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 12px" }}>
           {loading && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>Loading...</div>}
+          {!loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files in this folder</div>}
 
-          {!loading && assets.length === 0 && (
-            <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files found</div>
-          )}
-
-          {!loading && viewMode === "grid" && (() => {
-            const baseMin = 140;
-            const scaledMin = Math.round(baseMin * thumbScale / 100);
-            const thumbH = Math.round(100 * thumbScale / 100);
-            return (
+          {!loading && viewMode === "grid" && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${scaledMin}px, 1fr))`, gap: 8 }}>
-              {assets.map(a => {
-                const url = a.cdn_url || a.file_url;
-                const isSel = selectedIds.has(a.id);
-                const isActive = selected?.id === a.id;
+              {files.map(item => {
+                const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
+                const isSel = selectedItems.has(item.ObjectName);
+                const isActive = selected?.ObjectName === item.ObjectName;
                 return (
-                  <div key={a.id} onClick={() => { if (selected?.id === a.id) { setLightboxAsset(a); } else { setSelected(a); } }} style={{
+                  <div key={item.ObjectName} onClick={() => { if (selected?.ObjectName === item.ObjectName) setLightbox(item); else setSelected(item); }} style={{
                     borderRadius: 4, border: `2px solid ${isActive ? Z.ac : isSel ? Z.ac + "60" : Z.bd}`,
-                    background: Z.sf, cursor: "pointer", overflow: "hidden", transition: "border-color 0.15s", position: "relative",
+                    background: Z.sf, cursor: "pointer", overflow: "hidden", position: "relative",
                   }}>
-                    {/* Checkbox */}
-                    <div onClick={(e) => { e.stopPropagation(); toggleSelect(a.id); }} style={{
+                    <div onClick={(e) => { e.stopPropagation(); toggleSelect(item.ObjectName); }} style={{
                       position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: 3,
                       border: "2px solid " + (isSel ? Z.ac : "rgba(255,255,255,0.6)"), background: isSel ? Z.ac : "rgba(0,0,0,0.3)",
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 1,
                     }}>
                       {isSel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>{"\u2713"}</span>}
                     </div>
-                    {/* Thumbnail */}
-                    {isImage(a.mime_type) && url ? (
+                    {isImage(item.ObjectName) ? (
                       <div style={{ width: "100%", height: thumbH, background: Z.sa }}>
-                        <img src={url} alt={a.alt_text || ""} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
                     ) : (
                       <div style={{ width: "100%", height: thumbH, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
-                        {a.mime_type || "File"}
+                        {item.ObjectName.split(".").pop()?.toUpperCase() || "FILE"}
                       </div>
                     )}
-                    {/* Info */}
                     <div style={{ padding: "6px 8px" }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</div>
-                      <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>
-                        {fmtSize(a.file_size)}{a.width && a.height ? ` \u00b7 ${a.width}\u00d7${a.height}` : ""}
-                      </div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
+                      <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{fmtSize(item.Length)} {"\u00b7"} {fmtDate(item.DateCreated)}</div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-            );
-          })()}
-
-          {!loading && viewMode === "list" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {/* Select all header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, borderBottom: "1px solid " + Z.bd }}>
-                <div onClick={selectAll} style={{ width: 16, height: 16, borderRadius: 3, border: "2px solid " + Z.bd, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: selectedIds.size === assets.length && assets.length > 0 ? Z.ac : "transparent" }}>
-                  {selectedIds.size === assets.length && assets.length > 0 && <span style={{ color: "#fff", fontSize: 9 }}>{"\u2713"}</span>}
-                </div>
-                <span style={{ width: 40 }}>Thumb</span>
-                <span style={{ flex: 1 }}>Filename</span>
-                <span style={{ width: 70, textAlign: "right" }}>Size</span>
-                <span style={{ width: 80 }}>Type</span>
-                <span style={{ width: 90 }}>Date</span>
-              </div>
-              {assets.map(a => {
-                const url = a.cdn_url || a.file_url;
-                const isSel = selectedIds.has(a.id);
-                const isActive = selected?.id === a.id;
-                return (
-                  <div key={a.id} onClick={() => { if (selected?.id === a.id) { setLightboxAsset(a); } else { setSelected(a); } }} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 3, cursor: "pointer",
-                    background: isActive ? Z.ac + "08" : "transparent", borderLeft: isSel ? "3px solid " + Z.ac : "3px solid transparent",
-                  }}>
-                    <div onClick={(e) => { e.stopPropagation(); toggleSelect(a.id); }} style={{
-                      width: 16, height: 16, borderRadius: 3, border: "2px solid " + (isSel ? Z.ac : Z.bd), flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? Z.ac : "transparent",
-                    }}>
-                      {isSel && <span style={{ color: "#fff", fontSize: 9 }}>{"\u2713"}</span>}
-                    </div>
-                    {isImage(a.mime_type) && url ? (
-                      <img src={url} alt="" loading="lazy" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} />
-                    ) : (
-                      <div style={{ width: 36, height: 36, borderRadius: 3, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: Z.tm, flexShrink: 0 }}>{a.mime_type?.split("/")[1] || "?"}</div>
-                    )}
-                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.file_name}</span>
-                    <span style={{ width: 70, fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "right" }}>{fmtSize(a.file_size)}</span>
-                    <span style={{ width: 80, fontSize: 10, color: Z.tm, fontFamily: COND }}>{a.mime_type?.split("/")[1] || "—"}</span>
-                    <span style={{ width: 90, fontSize: 10, color: Z.tm, fontFamily: COND }}>{fmtDate(a.created_at)}</span>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "12px 0" }}>
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: "transparent", color: page === 0 ? Z.bd : Z.tx, fontSize: 11, fontFamily: COND, cursor: page === 0 ? "default" : "pointer" }}>{"\u2190"} Prev</button>
-              <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>Page {page + 1} of {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: "transparent", color: page >= totalPages - 1 ? Z.bd : Z.tx, fontSize: 11, fontFamily: COND, cursor: page >= totalPages - 1 ? "default" : "pointer" }}>Next {"\u2192"}</button>
+          {!loading && viewMode === "list" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, borderBottom: "1px solid " + Z.bd }}>
+                <span style={{ width: 20 }}></span>
+                <span style={{ width: 36 }}>Thumb</span>
+                <span style={{ flex: 1 }}>Filename</span>
+                <span style={{ width: 70, textAlign: "right" }}>Size</span>
+                <span style={{ width: 90 }}>Date</span>
+              </div>
+              {files.map(item => {
+                const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
+                const isSel = selectedItems.has(item.ObjectName);
+                const isActive = selected?.ObjectName === item.ObjectName;
+                return (
+                  <div key={item.ObjectName} onClick={() => { if (selected?.ObjectName === item.ObjectName) setLightbox(item); else setSelected(item); }} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 3, cursor: "pointer",
+                    background: isActive ? Z.ac + "08" : "transparent",
+                  }}>
+                    <div onClick={(e) => { e.stopPropagation(); toggleSelect(item.ObjectName); }} style={{
+                      width: 16, height: 16, borderRadius: 3, border: "2px solid " + (isSel ? Z.ac : Z.bd), flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? Z.ac : "transparent",
+                    }}>
+                      {isSel && <span style={{ color: "#fff", fontSize: 9 }}>{"\u2713"}</span>}
+                    </div>
+                    {isImage(item.ObjectName) ? (
+                      <img src={url} alt="" loading="lazy" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 36, height: 36, borderRadius: 3, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: Z.tm, flexShrink: 0 }}>{item.ObjectName.split(".").pop()?.toUpperCase()}</div>
+                    )}
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</span>
+                    <span style={{ width: 70, fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "right" }}>{fmtSize(item.Length)}</span>
+                    <span style={{ width: 90, fontSize: 10, color: Z.tm, fontFamily: COND }}>{fmtDate(item.DateCreated)}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -427,21 +449,21 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         {/* Detail panel */}
         {selected && (
           <DetailPanel
-            asset={selected}
+            item={selected}
+            currentPath={currentPath}
             onClose={() => setSelected(null)}
-            onUpdate={handleUpdate}
             onDelete={handleDelete}
-            onSelect={onSelect}
+            onSelect={onSelect ? (data) => { onSelect(data); } : undefined}
             selectMode={!!onSelect}
           />
         )}
       </div>
 
       {/* Lightbox */}
-      {lightboxAsset && (() => {
-        const lbUrl = lightboxAsset.cdn_url || lightboxAsset.file_url;
+      {lightbox && (() => {
+        const lbUrl = lightbox.cdnUrl || `${CDN_BASE}/${lightbox.fullPath}`;
         return (
-          <div onClick={() => setLightboxAsset(null)} style={{
+          <div onClick={() => setLightbox(null)} style={{
             position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.85)",
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
           }}>
@@ -449,22 +471,20 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
               width: "88vw", height: "88vh", display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center", position: "relative",
             }}>
-              <button onClick={() => setLightboxAsset(null)} style={{
+              <button onClick={() => setLightbox(null)} style={{
                 position: "absolute", top: 0, right: 0, background: "rgba(255,255,255,0.15)",
                 border: "none", color: "#fff", fontSize: 22, cursor: "pointer", width: 36, height: 36,
                 borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center",
               }}>{"\u00d7"}</button>
-              {isImage(lightboxAsset.mime_type) && lbUrl ? (
-                <img src={lbUrl} alt={lightboxAsset.alt_text || ""} style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: 4 }} />
+              {isImage(lightbox.ObjectName) ? (
+                <img src={lbUrl} alt="" style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: 4 }} />
               ) : (
-                <div style={{ color: "#fff", fontSize: 14, fontFamily: COND }}>{lightboxAsset.file_name}</div>
+                <div style={{ color: "#fff", fontSize: 14, fontFamily: COND }}>{lightbox.ObjectName}</div>
               )}
               <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightboxAsset.file_name}</span>
-                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{fmtSize(lightboxAsset.file_size)}</span>
-                {lightboxAsset.width && lightboxAsset.height && <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{lightboxAsset.width}{"\u00d7"}{lightboxAsset.height}</span>}
+                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightbox.ObjectName}</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{fmtSize(lightbox.Length)}</span>
               </div>
-              {lightboxAsset.alt_text && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontFamily: COND, marginTop: 4, fontStyle: "italic" }}>{lightboxAsset.alt_text}</div>}
             </div>
           </div>
         );

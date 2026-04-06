@@ -7,11 +7,10 @@ export default function MediaModal({ open, onClose, onSelect, pubs, pubFilter })
 
   const handleSelect = (asset) => {
     onSelect({
-      id: asset.id,
-      url: asset.cdn_url || asset.file_url,
-      alt: asset.alt_text || "",
-      caption: asset.caption || "",
-      fileName: asset.file_name,
+      url: asset.url,
+      alt: "",
+      caption: "",
+      fileName: asset.fileName,
     });
     onClose();
   };
