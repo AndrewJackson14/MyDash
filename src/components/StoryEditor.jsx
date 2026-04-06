@@ -9,7 +9,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Z, SC, COND, DISPLAY } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabase";
 
 // ── Constants ────────────────────────────────────────────────────
 const WORKFLOW_STAGES = ["Draft", "Assigned", "Editing", "Ready"];
