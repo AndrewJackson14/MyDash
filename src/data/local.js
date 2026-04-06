@@ -1,5 +1,5 @@
 import {
-  INIT_PUBS, INIT_CLIENTS, INIT_STORIES, INIT_TEAM,
+  INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
   buildAllIssues, generateSampleSales, generateSampleProposals,
   INIT_NOTIFICATIONS,
 } from './seed';
@@ -13,7 +13,7 @@ export function buildLocalData() {
   return {
     pubs,
     issues,
-    stories: INIT_STORIES,
+    stories: [],
     clients,
     sales,
     proposals,

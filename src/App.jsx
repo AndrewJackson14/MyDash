@@ -10,7 +10,7 @@ import { isOnline } from "./lib/supabase";
 import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn } from "./components/ui";
 import {
-  INIT_PUBS, INIT_CLIENTS, INIT_STORIES, INIT_TEAM,
+  INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
   buildAllIssues, generateSampleSales, generateSampleProposals,
   INIT_NOTIFICATIONS,
 } from "./data/seed";
@@ -60,7 +60,7 @@ export default function App() {
   // ─── Data State ─────────────────────────────────────────
   const [_pubs, _setPubs] = useState(INIT_PUBS);
   const [_issues, _setIssues] = useState(() => buildAllIssues(INIT_PUBS));
-  const [_stories, _setStories] = useState(INIT_STORIES);
+  const [_stories, _setStories] = useState([]);
   const [_clients, _setClients] = useState(INIT_CLIENTS);
   const [_sales, _setSales] = useState(() => generateSampleSales(INIT_PUBS, buildAllIssues(INIT_PUBS), INIT_CLIENTS));
   const [_proposals, _setProposals] = useState(() => generateSampleProposals(INIT_PUBS, buildAllIssues(INIT_PUBS), INIT_CLIENTS));

@@ -94,22 +94,7 @@ export const INIT_CLIENTS = [
   {id:"c25",name:"Ravine Waterpark",status:"Lead",totalSpend:0,contacts:[{name:"Steve Watkins",email:"steve@ravinewaterpark.com",phone:"(805) 555-2425",role:"Business Owner"}],comms:[]},
 ];
 
-// ─── Stories ────────────────────────────────────────────────
-
-export const INIT_STORIES = [
-  { id: "s1", title: "Spring Wine Guide", author: "Sarah Chen", status: "Approved", publication: "pub-prm", assignedTo: "Hayley Mattson", dueDate: "2026-03-15", images: 12, wordCount: 3000, category: "Wine" },
-  { id: "s2", title: "Downtown Revitalization", author: "Marcus Rivera", status: "Edited", publication: "pub-prm", assignedTo: "Nicholas Mattson", dueDate: "2026-03-20", images: 8, wordCount: 2400, category: "Business" },
-  { id: "s3", title: "Chef Profiles: Farm to Table", author: "Lisa Nguyen", status: "Needs Editing", publication: "pub-prm", assignedTo: "Hayley Mattson", dueDate: "2026-03-28", images: 6, wordCount: 1800, category: "Food" },
-  { id: "s4", title: "SLO County Art Walk", author: "Jennifer Park", status: "Draft", publication: "pub-prm", assignedTo: "Nicholas Mattson", dueDate: "2026-04-01", images: 10, wordCount: 2000, category: "Culture" },
-  { id: "s5", title: "Colony Days Preview", author: "Staff Writer", status: "Edited", publication: "pub-anm", assignedTo: "Hayley Mattson", dueDate: "2026-04-01", images: 10, wordCount: 1800, category: "Community" },
-  { id: "s6", title: "New Brewery Spotlight", author: "Tom Bradley", status: "Needs Editing", publication: "pub-anm", assignedTo: "Nicholas Mattson", dueDate: "2026-03-25", images: 5, wordCount: 1200, category: "Food" },
-  { id: "s7", title: "Chalk Hill Trail Guide", author: "Marcus Rivera", status: "Draft", publication: "pub-anm", assignedTo: "Hayley Mattson", dueDate: "2026-04-05", images: 8, wordCount: 1600, category: "Outdoors" },
-  { id: "s8", title: "Pioneer Day Preview", author: "Staff Writer", status: "Edited", publication: "pub-prp", assignedTo: "Hayley Mattson", dueDate: "2026-03-25", images: 5, wordCount: 1400, category: "Events" },
-  { id: "s9", title: "City Council Recap", author: "Marcus Rivera", status: "On Page", publication: "pub-prp", assignedTo: "Nicholas Mattson", dueDate: "2026-03-18", images: 2, wordCount: 900, category: "News" },
-  { id: "s10", title: "High School Sports Roundup", author: "Tom Bradley", status: "Needs Editing", publication: "pub-prp", assignedTo: "Nicholas Mattson", dueDate: "2026-03-26", images: 6, wordCount: 1100, category: "Sports" },
-  { id: "s11", title: "Water District Update", author: "Sarah Chen", status: "Draft", publication: "pub-prp", assignedTo: "Hayley Mattson", dueDate: "2026-03-29", images: 1, wordCount: 800, category: "News" },
-  { id: "s12", title: "Zoo Expansion Plans", author: "Jennifer Park", status: "Edited", publication: "pub-atn", assignedTo: "Nicholas Mattson", dueDate: "2026-03-24", images: 7, wordCount: 1500, category: "Community" },
-];
+// ─── Stories (loaded from Supabase, no hardcoded seed) ──────
 
 // ─── Team ───────────────────────────────────────────────────
 
