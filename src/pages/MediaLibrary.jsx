@@ -291,7 +291,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         })}
       </div>
 
-      {/* Subfolder chips + search + sort + view */}
+      {/* Subfolder chips + sort + view + search */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Subfolder nav */}
         {items.filter(i => i.IsDirectory).length > 0 && (
@@ -304,7 +304,6 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
             ))}
           </div>
         )}
-        <div style={{ flex: 1, minWidth: 150 }}><SB value={search} onChange={setSearch} placeholder="Search files..." /></div>
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
           <option value="date">Newest</option>
           <option value="name">Name A-Z</option>
@@ -320,6 +319,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
             <input type="range" min={100} max={150} value={thumbScale} onChange={e => setThumbScale(Number(e.target.value))} style={{ width: 60, accentColor: Z.ac }} />
           </div>
         )}
+        <div style={{ flex: 1 }} />
+        <div style={{ minWidth: 180 }}><SB value={search} onChange={setSearch} placeholder="Search files..." /></div>
       </div>
 
       {/* Bulk bar */}
