@@ -267,30 +267,22 @@ export function DataProvider({ children, localData }) {
   }, [proposalsLoaded]);
 
   // Stories — loaded when Editorial or Flatplan needs them
-  // Fetches newest first, paginated to bypass the 1,000-row PostgREST limit
+  // Paginates through all stories to bypass the 1,000-row PostgREST limit
   const [storiesLoaded, setStoriesLoaded] = useState(false);
   const loadStories = useCallback(async () => {
     if (storiesLoaded || !isOnline()) return;
-    const cutoff = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
     let allStories = [];
     let page = 0;
     const pageSize = 1000;
     while (true) {
       const { data } = await supabase.from('stories').select('*')
-        .gte('due_date', cutoff)
-        .order('due_date', { ascending: false })
+        .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
       if (!data || data.length === 0) break;
       allStories = allStories.concat(data);
       if (data.length < pageSize) break;
       page++;
     }
-    // Also fetch stories with no due_date (drafts, etc.)
-    const { data: noDue } = await supabase.from('stories').select('*')
-      .is('due_date', null)
-      .order('created_at', { ascending: false })
-      .limit(500);
-    if (noDue) allStories = allStories.concat(noDue);
     if (allStories.length > 0) setStories(allStories.map(s => ({ id: s.id, title: s.title, author: s.author, status: s.status, publication: s.publication_id, assignedTo: s.assigned_to || '', dueDate: s.due_date, images: s.images, wordCount: s.word_count, category: s.category, issueId: s.issue_id || '' })));
     setStoriesLoaded(true);
   }, [storiesLoaded]);
