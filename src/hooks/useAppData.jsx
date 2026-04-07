@@ -46,6 +46,10 @@ export function DataProvider({ children, localData }) {
   const [outreachCampaigns, setOutreachCampaigns] = useState([]);
   const [outreachEntries, setOutreachEntries] = useState([]);
   const [myPriorities, setMyPriorities] = useState([]);
+  // Subscription management tables
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionPayments, setSubscriptionPayments] = useState([]);
+  const [mailingLists, setMailingLists] = useState([]);
 
   const [loaded, setLoaded] = useState(!isOnline());
 
@@ -283,6 +287,10 @@ export function DataProvider({ children, localData }) {
       if (data.length < pageSize) break;
       page++;
     }
+    // DEBUG: log publication_id distribution to diagnose filter mismatches
+    const pubCounts = {};
+    allStories.forEach(s => { pubCounts[s.publication_id || '(null)'] = (pubCounts[s.publication_id || '(null)'] || 0) + 1; });
+    console.log('Stories loaded:', allStories.length, 'by publication_id:', pubCounts);
     if (allStories.length > 0) setStories(allStories.map(s => ({ id: s.id, title: s.title, author: s.author, status: s.status, publication: s.publication_id, assignedTo: s.assigned_to || '', dueDate: s.due_date, images: s.images, wordCount: s.word_count, category: s.category, issueId: s.issue_id || '' })));
     setStoriesLoaded(true);
   }, [storiesLoaded]);
@@ -320,23 +328,39 @@ export function DataProvider({ children, localData }) {
     setBillingLoaded(true);
   }, [billingLoaded]);
 
-  // Circulation module (subscribers, drop locations, drivers, routes)
+  // Circulation module (subscribers, subscriptions, drop locations, drivers, routes)
   const [circulationLoaded, setCirculationLoaded] = useState(false);
   const loadCirculation = useCallback(async () => {
     if (circulationLoaded || !isOnline()) return;
-    const [subRes, dropRes, dropPubRes, driverRes, routeRes, stopRes] = await Promise.all([
-      supabase.from('subscribers').select('*').order('last_name'),
+    const [subRes, subscriptionsRes, mailListRes, dropRes, dropPubRes, driverRes, routeRes, stopRes] = await Promise.all([
+      fetchAllRows('subscribers', 'last_name'),
+      fetchAllRows('subscriptions', 'created_at', false),
+      supabase.from('mailing_lists').select('*').order('generated_at', { ascending: false }).limit(100),
       supabase.from('drop_locations').select('*').order('name'),
       supabase.from('drop_location_pubs').select('*'),
       supabase.from('drivers').select('*').order('name'),
       supabase.from('driver_routes').select('*').order('name'),
       supabase.from('route_stops').select('*').order('sort_order'),
     ]);
-    if (subRes.data) setSubscribers(subRes.data.map(s => ({
+    if (subRes.length > 0) setSubscribers(subRes.map(s => ({
       id: s.id, type: s.type, status: s.status, firstName: s.first_name, lastName: s.last_name, email: s.email, phone: s.phone,
-      addressLine1: s.address_line1, addressLine2: s.address_line2, city: s.city, state: s.state, zip: s.zip,
+      companyName: s.company_name || '', addressLine1: s.address_line1, addressLine2: s.address_line2, city: s.city, state: s.state, zip: s.zip,
       publicationId: s.publication_id, startDate: s.start_date, expiryDate: s.expiry_date,
-      renewalDate: s.renewal_date, amountPaid: Number(s.amount_paid), source: s.source, notes: s.notes, createdAt: s.created_at,
+      renewalDate: s.renewal_date, amountPaid: Number(s.amount_paid), source: s.source, notes: s.notes,
+      stripeCustomerId: s.stripe_customer_id, createdAt: s.created_at,
+    })));
+    if (subscriptionsRes.length > 0) setSubscriptions(subscriptionsRes.map(s => ({
+      id: s.id, subscriberId: s.subscriber_id, publicationId: s.publication_id, tier: s.tier,
+      status: s.status, startDate: s.start_date, endDate: s.end_date, autoRenew: s.auto_renew,
+      amountPaid: Number(s.amount_paid), paymentMethod: s.payment_method, copies: s.copies,
+      notes: s.notes, priceDescription: s.price_description,
+      pausedAt: s.paused_at, cancelledAt: s.cancelled_at, createdAt: s.created_at,
+    })));
+    if (mailListRes.data) setMailingLists(mailListRes.data.map(m => ({
+      id: m.id, publicationId: m.publication_id, issueId: m.issue_id, generatedAt: m.generated_at,
+      recordCount: m.record_count, csvUrl: m.csv_url, xlsxUrl: m.xlsx_url,
+      sentToPrinter: m.sent_to_printer, sentToFulfillment: m.sent_to_fulfillment,
+      generatedBy: m.generated_by, notes: m.notes,
     })));
     if (dropRes.data) setDropLocations(dropRes.data.map(d => ({
       id: d.id, name: d.name, locationType: d.location_type, address: d.address, city: d.city, state: d.state, zip: d.zip,
@@ -1375,6 +1399,9 @@ export function DataProvider({ children, localData }) {
     // Phase 2 write helpers
     insertInvoice, updateInvoice, insertPayment,
     insertSubscriber, updateSubscriber,
+    // Subscription management
+    subscriptions, setSubscriptions, subscriptionPayments, setSubscriptionPayments,
+    mailingLists, setMailingLists,
     insertTicket, updateTicket, insertTicketComment,
     insertLegalNotice, updateLegalNotice,
     insertCreativeJob, updateCreativeJob,
@@ -1391,6 +1418,7 @@ export function DataProvider({ children, localData }) {
     legalNotices, legalNoticeIssues, creativeJobs, contracts, contractLines, salesSummary,
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
+    subscriptions, subscriptionPayments, mailingLists,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
