@@ -41,11 +41,12 @@ const fmtSize = (bytes) => {
   return (bytes / 1048576).toFixed(1) + " MB";
 };
 
-const slugFromDate = (dateStr) => {
+const slugFromDate = (dateStr, pubSlug) => {
   if (!dateStr) return "";
   const d = new Date(dateStr + "T12:00:00");
   const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
-  return `${months[d.getMonth()]}-${d.getDate()}-${d.getFullYear()}`;
+  const datePart = `${months[d.getMonth()]}-${d.getDate()}-${d.getFullYear()}`;
+  return pubSlug ? `${pubSlug}-${datePart}` : datePart;
 };
 
 const titleFromPubAndDate = (pubName, dateStr) => {
@@ -497,17 +498,17 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const [compQuality, setCompQuality] = useState(0.72);
   const [compTargetMB, setCompTargetMB] = useState(15);
 
+  const pubSlug = PUB_SLUG_MAP[pubId] || pubId.replace(/^pub-/, "");
+
   // Auto-generate title and slug when pubId or date changes
   useEffect(() => {
     if (isEdit) return;
     const pub = pubs.find(p => p.id === pubId);
     if (pub && publishDate) {
       setTitle(titleFromPubAndDate(pub.name, publishDate));
-      setSlug(slugFromDate(publishDate));
+      setSlug(slugFromDate(publishDate, pubSlug));
     }
-  }, [pubId, publishDate, isEdit, pubs]);
-
-  const pubSlug = PUB_SLUG_MAP[pubId] || pubId.replace(/^pub-/, "");
+  }, [pubId, publishDate, isEdit, pubs, pubSlug]);
 
   // ── Handle file selected (shows compression step) ────────
   const handleFileSelected = (file) => {
@@ -534,7 +535,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
       let detectedPages = 0;
 
       // Ensure unique slug
-      let finalSlug = slug || slugFromDate(publishDate);
+      let finalSlug = slug || slugFromDate(publishDate, pubSlug);
       const existing = editions.filter(e => e.publicationId === pubId && e.slug === finalSlug && e.id !== edition?.id);
       if (existing.length > 0) finalSlug = finalSlug + "-" + Date.now().toString(36);
       setSlug(finalSlug);
