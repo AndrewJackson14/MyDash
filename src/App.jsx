@@ -260,7 +260,6 @@ export default function App() {
     { id: "schedule", label: "Schedule", icon: Ic.story },
     { id: "analytics", label: "Analytics", icon: Ic.barChart },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
-    { id: "permissions", label: "Permissions", icon: Ic.lock },
     { id: "dataimport", label: "Data Import", icon: Ic.up },
   ].filter(n => n.section || hasModule(n.id));
 
@@ -445,7 +444,7 @@ export default function App() {
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
-        {show("team") && <div style={vis("team")}><TeamModule team={team} setTeam={setTeam} sales={sales} stories={stories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} pubs={pubs} clients={clients} /></div>}
+        {show("team") && <div style={vis("team")}><TeamModule team={team} setTeam={setTeam} sales={sales} stories={stories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} pubs={pubs} clients={clients} updateTeamMember={appData.updateTeamMember} /></div>}
         {show("circulation") && <div style={vis("circulation")}><Circulation pubs={pubs} issues={issues} subscribers={subscribers} setSubscribers={setSubscribers} subscriptions={appData.subscriptions || []} setSubscriptions={appData.setSubscriptions} subscriptionPayments={appData.subscriptionPayments || []} mailingLists={appData.mailingLists || []} setMailingLists={appData.setMailingLists} dropLocations={dropLocations} setDropLocations={setDropLocations} dropLocationPubs={dropLocationPubs} setDropLocationPubs={setDropLocationPubs} drivers={drivers} setDrivers={setDrivers} driverRoutes={driverRoutes} setDriverRoutes={setDriverRoutes} routeStops={routeStops} setRouteStops={setRouteStops} bus={bus} team={team} currentUser={currentUser} /></div>}
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={clients} subscribers={subscribers} pubs={pubs} issues={issues} team={team} bus={bus} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={issues} team={team} bus={bus} /></div>}

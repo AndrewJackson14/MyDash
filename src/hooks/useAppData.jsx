@@ -64,6 +64,17 @@ export function DataProvider({ children, localData }) {
     return () => clearTimeout(timer);
   }, [loaded]);
 
+  // Realtime: listen for new ad inquiries
+  useEffect(() => {
+    if (!isOnline()) return;
+    const channel = supabase.channel('ad_inquiries_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ad_inquiries' }, (payload) => {
+        setAdInquiries(prev => [payload.new, ...prev]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   // Helper to fetch all rows from a table (bypasses 1000-row PostgREST limit)
   const fetchAllRows = useCallback(async (table, orderCol, ascending = true) => {
     let allRows = [];
@@ -139,7 +150,7 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], isHidden: t.is_hidden || false, isFreelance: t.is_freelance, rateType: t.rate_type, rateAmount: Number(t.rate_amount || 0), specialties: t.specialties || [], commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isFreelance: t.is_freelance, rateType: t.rate_type, rateAmount: Number(t.rate_amount || 0), specialties: t.specialties || [], commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -1321,6 +1332,7 @@ export function DataProvider({ children, localData }) {
       if (changes.modulePermissions !== undefined) db.module_permissions = changes.modulePermissions;
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
+      if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
       if (Object.keys(db).length) await supabase.from('team_members').update(db).eq('id', id);
     }
   }, []);

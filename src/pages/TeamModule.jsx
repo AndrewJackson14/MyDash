@@ -1,7 +1,9 @@
-import { useState, memo } from "react";
+import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, Card, SB, Modal , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow } from "../components/ui";
+import { supabase, isOnline } from "../lib/supabase";
 
+// ── Constants ────────────────────────────────────────────────
 const DEPARTMENTS = [
   { key: "leadership", label: "Leadership", roles: ["Publisher", "Editor-in-Chief"] },
   { key: "sales", label: "Sales", roles: ["Sales Manager", "Salesperson"] },
@@ -11,217 +13,442 @@ const DEPARTMENTS = [
 ];
 const getDept = (role) => DEPARTMENTS.find(d => d.roles.includes(role))?.label || "Other";
 const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
-const ALERT_TYPES = ["Story status change", "Sale confirmed", "Issue published", "New comment", "Proposal signed", "Flatplan updated"];
+
 const ini = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
-const iniColor = () => Z.bd;
 const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients }) => {
+// ── Permission modules ───────────────────────────────────────
+const MODULES = [
+  { key: "dashboard", label: "Dashboard", icon: "\ud83d\udcca" },
+  { key: "sales", label: "Sales Pipeline", icon: "\ud83d\udcb0" },
+  { key: "clients", label: "Client Profiles", icon: "\ud83d\udc64" },
+  { key: "proposals", label: "Proposals", icon: "\ud83d\udccb" },
+  { key: "commissions", label: "Commissions", icon: "\ud83d\udcb5" },
+  { key: "stories", label: "Stories / Editorial", icon: "\u270f\ufe0f" },
+  { key: "flatplan", label: "Flatplan / Layout", icon: "\ud83d\udcd0" },
+  { key: "publications", label: "Publications / Schedule", icon: "\ud83d\udcf0" },
+  { key: "billing", label: "Billing / Invoices", icon: "\ud83e\uddfe" },
+  { key: "circulation", label: "Circulation / Subscribers", icon: "\ud83d\udcec" },
+  { key: "service_desk", label: "Service Desk", icon: "\ud83c\udfa7" },
+  { key: "legal_notices", label: "Legal Notices", icon: "\u2696\ufe0f" },
+  { key: "creative_jobs", label: "Creative Jobs", icon: "\ud83c\udfa8" },
+  { key: "calendar", label: "Calendar", icon: "\ud83d\udcc5" },
+  { key: "analytics", label: "Analytics", icon: "\ud83d\udcc8" },
+  { key: "team", label: "Team Management", icon: "\ud83d\udc65" },
+  { key: "permissions", label: "Permissions", icon: "\ud83d\udd12" },
+  { key: "integrations", label: "Integrations / Settings", icon: "\u2699\ufe0f" },
+];
+
+const ROLE_DEFAULTS = {
+  Publisher: MODULES.map(m => m.key),
+  "Editor-in-Chief": ["dashboard", "stories", "flatplan", "publications", "calendar", "analytics", "team", "circulation"],
+  Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
+  "Sales Manager": ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar", "analytics"],
+  "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
+  "Writer/Reporter": ["dashboard", "stories", "calendar"],
+  "Stringer": ["dashboard", "stories", "calendar"],
+  "Copy Editor": ["dashboard", "stories", "flatplan", "calendar"],
+  "Layout Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
+  "Ad Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
+  "Graphic Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
+  "Office Manager": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
+  "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
+};
+
+// ── Alert definitions ────────────────────────────────────────
+const ALERT_EVENTS = [
+  { key: "ad_inquiry", label: "New ad inquiry", category: "Revenue" },
+  { key: "invoice_overdue", label: "Invoice overdue", category: "Revenue" },
+  { key: "payment_received", label: "Payment received", category: "Revenue" },
+  { key: "contract_expiring", label: "Contract expiring (30d)", category: "Revenue" },
+  { key: "story_assigned", label: "Story assigned to you", category: "Content" },
+  { key: "story_status_changed", label: "Story status changed", category: "Content" },
+  { key: "story_published", label: "Story published to web", category: "Content" },
+  { key: "edition_uploaded", label: "Edition uploaded", category: "Content" },
+  { key: "new_ticket", label: "New service desk ticket", category: "Operations" },
+  { key: "ticket_assigned", label: "Ticket assigned to you", category: "Operations" },
+  { key: "subscriber_expiring", label: "Subscriber expiring (7d)", category: "Operations" },
+  { key: "legal_deadline", label: "Legal notice deadline", category: "Operations" },
+  { key: "team_member_added", label: "New team member added", category: "System" },
+  { key: "permission_change", label: "Permission changes", category: "System" },
+];
+
+// off / in_app / email / both
+const ALERT_ROLE_DEFAULTS = {
+  Publisher:             { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
+  "Editor-in-Chief":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "both", story_published: "both", edition_uploaded: "in_app", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "both", team_member_added: "in_app", permission_change: "off" },
+  "Writer/Reporter":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
+  Salesperson:          { ad_inquiry: "both", invoice_overdue: "email", payment_received: "in_app", contract_expiring: "both", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
+  "Office Manager":     { ad_inquiry: "in_app", invoice_overdue: "both", payment_received: "both", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "both", legal_deadline: "in_app", team_member_added: "off", permission_change: "off" },
+};
+
+const getAlertDefaults = (role) => {
+  return ALERT_ROLE_DEFAULTS[role] || ALERT_ROLE_DEFAULTS["Writer/Reporter"] || {};
+};
+
+const ALERT_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "in_app", label: "In-App" },
+  { value: "email", label: "Email" },
+  { value: "both", label: "Both" },
+];
+
+// ══════════════════════════════════════════════════════════════
+// TEAM MEMBER MODAL
+// ══════════════════════════════════════════════════════════════
+const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit }) => {
+  if (!open || !member) return null;
+  const [tab, setTab] = useState("Profile");
+  const [saving, setSaving] = useState(null);
+  const isDk = Z.bg === "#08090D";
+
+  // Alert preferences (stored as JSONB on team_members)
+  const alertPrefs = member.alertPreferences || getAlertDefaults(member.role);
+
+  const setAlertPref = async (eventKey, value) => {
+    const updated = { ...alertPrefs, [eventKey]: value };
+    setSaving(eventKey);
+    if (updateTeamMember) await updateTeamMember(member.id, { alertPreferences: updated });
+    setSaving(null);
+  };
+
+  const resetAlertDefaults = async () => {
+    const defaults = getAlertDefaults(member.role);
+    setSaving("_reset");
+    if (updateTeamMember) await updateTeamMember(member.id, { alertPreferences: defaults });
+    setSaving(null);
+  };
+
+  // Module permissions
+  const perms = member.modulePermissions || [];
+  const toggleModule = async (moduleKey) => {
+    const updated = perms.includes(moduleKey) ? perms.filter(k => k !== moduleKey) : [...perms, moduleKey];
+    setSaving("perm_" + moduleKey);
+    if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: updated });
+    setSaving(null);
+  };
+  const resetPermDefaults = async () => {
+    const defaults = ROLE_DEFAULTS[member.role] || ["dashboard", "calendar"];
+    setSaving("perm_reset");
+    if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: defaults });
+    setSaving(null);
+  };
+
+  return <Modal open={open} onClose={onClose} title={member.name} width={640}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(member.name)}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{member.name}</div>
+          <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>{member.email}{member.phone ? ` \u00b7 ${member.phone}` : ""}</div>
+        </div>
+        <Btn sm v="secondary" onClick={() => { onClose(); onEdit(member); }}>Edit</Btn>
+      </div>
+
+      {/* Tabs */}
+      <TabRow><TB tabs={["Profile", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
+
+      {/* Profile tab */}
+      {tab === "Profile" && (<>
+        {metrics.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 10 }}>
+            {metrics.map(m => (
+              <div key={m.label} style={{ textAlign: "center", padding: 12, background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+                <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{m.value}</div>
+                <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Assigned Publications</div>
+          {(member.pubs || []).includes("all")
+            ? <span style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>All publications</span>
+            : <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {(member.pubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: pub.color, background: pub.color + "18", padding: "2px 8px", borderRadius: Ri }}>{pub.name}</span> : null; })}
+            </div>}
+        </div>
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Google Account</div>
+          <span style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>Not connected</span>
+        </div>
+      </>)}
+
+      {/* Permissions tab */}
+      {tab === "Permissions" && (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Toggle modules this member can access</div>
+          <Btn sm v="ghost" onClick={resetPermDefaults} disabled={saving === "perm_reset"}>Reset to Role Defaults</Btn>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+          {MODULES.map(m => {
+            const has = perms.includes(m.key);
+            const isSaving = saving === "perm_" + m.key;
+            return <button key={m.key} onClick={() => toggleModule(m.key)} style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: Ri,
+              border: `1px solid ${has ? Z.go + "40" : Z.bd}`, background: has ? Z.go + "10" : "transparent",
+              cursor: "pointer", opacity: isSaving ? 0.5 : 1, transition: "all 0.15s",
+            }}>
+              <span style={{ fontSize: FS.sm }}>{m.icon}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: has ? FW.bold : FW.normal, color: has ? Z.tx : Z.tm, fontFamily: COND, flex: 1, textAlign: "left" }}>{m.label.split(" / ")[0]}</span>
+              <span style={{ fontSize: FS.sm, color: has ? Z.go : "transparent" }}>{"\u2713"}</span>
+            </button>;
+          })}
+        </div>
+      </>)}
+
+      {/* Alerts tab */}
+      {tab === "Alerts" && (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Configure how this member receives notifications</div>
+          <Btn sm v="ghost" onClick={resetAlertDefaults} disabled={saving === "_reset"}>Reset to Role Defaults</Btn>
+        </div>
+        {["Revenue", "Content", "Operations", "System"].map(cat => {
+          const events = ALERT_EVENTS.filter(e => e.category === cat);
+          return <div key={cat}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, marginTop: 4 }}>{cat}</div>
+            {events.map(ev => {
+              const val = alertPrefs[ev.key] || "off";
+              return <div key={ev.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}20` }}>
+                <span style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND }}>{ev.label}</span>
+                <div style={{ display: "flex", gap: 2 }}>
+                  {ALERT_OPTIONS.map(opt => (
+                    <button key={opt.value} onClick={() => setAlertPref(ev.key, opt.value)} style={{
+                      padding: "3px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: val === opt.value ? FW.bold : FW.normal,
+                      border: `1px solid ${val === opt.value ? Z.ac : Z.bd}`,
+                      background: val === opt.value ? Z.ac + "18" : "transparent",
+                      color: val === opt.value ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
+                      opacity: saving === ev.key ? 0.5 : 1,
+                    }}>{opt.label}</button>
+                  ))}
+                </div>
+              </div>;
+            })}
+          </div>;
+        })}
+      </>)}
+    </div>
+  </Modal>;
+};
+
+// ══════════════════════════════════════════════════════════════
+// TEAM PAGE
+// ══════════════════════════════════════════════════════════════
+const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember }) => {
   const [sr, setSr] = useState("");
+  const [tab, setTab] = useState("Team");
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [viewId, setViewId] = useState(null);
-  const [form, setForm] = useState({ name: "", role: "Writer/Reporter", email: "", phone: "", alerts: [], assignedPubs: ["all"], permissions: [] });
+  const [memberModal, setMemberModal] = useState(null); // clicked member
+  const [form, setForm] = useState({ name: "", role: "Writer/Reporter", email: "", phone: "", assignedPubs: ["all"] });
+  const [saving, setSaving] = useState(null);
 
-  const _sales = sales || [];
-  const _stories = stories || [];
-  const _tickets = tickets || [];
-  const _subs = subscribers || [];
-  const _legal = legalNotices || [];
-  const _jobs = creativeJobs || [];
-  const cn = id => (clients || []).find(c => c.id === id)?.name || "—";
-  const pn = id => (pubs || []).find(p => p.id === id)?.name || "";
-  const today = new Date().toISOString().slice(0, 10);
+  const _sales = sales || []; const _stories = stories || []; const _tickets = tickets || [];
+  const _subs = subscribers || []; const _legal = legalNotices || []; const _jobs = creativeJobs || [];
+  const isDk = Z.bg === "#08090D";
 
-  const openNew = () => { setEditId(null); setForm({ name: "", role: "Writer/Reporter", email: "", phone: "", alerts: [], assignedPubs: ["all"], permissions: [] }); setModal(true); };
-  const openEdit = (t) => { setEditId(t.id); setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", alerts: t.alerts || [], assignedPubs: t.pubs || ["all"], permissions: t.permissions || [] }); setModal(true); };
+  const openNew = () => { setEditId(null); setForm({ name: "", role: "Writer/Reporter", email: "", phone: "", assignedPubs: ["all"] }); setModal(true); };
+  const openEdit = (t) => { setEditId(t.id); setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }); setModal(true); };
 
-  const save = () => {
+  const save = async () => {
     if (!form.name || !form.email) return;
     if (editId) {
-      setTeam(prev => (prev || []).map(t => t.id === editId ? { ...t, ...form, pubs: form.assignedPubs } : t));
+      if (updateTeamMember) {
+        await updateTeamMember(editId, { name: form.name, role: form.role, email: form.email, phone: form.phone, assignedPubs: form.assignedPubs });
+      } else {
+        setTeam(prev => (prev || []).map(t => t.id === editId ? { ...t, ...form, pubs: form.assignedPubs } : t));
+      }
     } else {
-      setTeam(prev => [...(prev || []), { ...form, id: "tm-" + Date.now(), pubs: form.assignedPubs }]);
+      const newMember = { name: form.name, role: form.role, email: form.email, phone: form.phone || "", assigned_pubs: form.assignedPubs, module_permissions: ROLE_DEFAULTS[form.role] || ["dashboard", "calendar"], alert_preferences: getAlertDefaults(form.role) };
+      if (isOnline()) {
+        const { data } = await supabase.from("team_members").insert(newMember).select().single();
+        if (data) setTeam(prev => [...(prev || []), { ...data, id: data.id, pubs: data.assigned_pubs, modulePermissions: data.module_permissions, alertPreferences: data.alert_preferences }]);
+      } else {
+        setTeam(prev => [...(prev || []), { ...form, id: "tm-" + Date.now(), pubs: form.assignedPubs }]);
+      }
     }
     setModal(false);
   };
-
-  const toggleAlert = (alert) => setForm(f => ({ ...f, alerts: f.alerts.includes(alert) ? f.alerts.filter(a => a !== alert) : [...f.alerts, alert] }));
 
   const filtered = (team || []).filter(t => {
     if (t.isHidden || t.is_hidden) return false;
     if (!sr) return true;
     const q = sr.toLowerCase();
-    return t.name.toLowerCase().includes(q) || t.role.toLowerCase().includes(q) || t.email.toLowerCase().includes(q);
+    return (t.name || "").toLowerCase().includes(q) || (t.role || "").toLowerCase().includes(q) || (t.email || "").toLowerCase().includes(q);
   });
 
   const byDept = {};
   filtered.forEach(t => { const dept = getDept(t.role); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
 
-  // ─── Performance metrics per member ─────────────────────
   const getMetrics = (t) => {
     const role = t.role;
     if (["Sales Manager", "Salesperson"].includes(role)) {
-      const myDeals = _sales.filter(s => s.clientId && !["Follow-up"].includes(s.status));
       const closed = _sales.filter(s => s.status === "Closed");
       const revenue = closed.reduce((s, x) => s + (x.amount || 0), 0);
       const active = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).length;
-      const avgDeal = closed.length > 0 ? Math.round(revenue / closed.length) : 0;
-      return [
-        { label: "Closed Deals", value: closed.length },
-        { label: "Revenue", value: fmtCurrency(revenue) },
-        { label: "Active Pipeline", value: active },
-        { label: "Avg Deal", value: fmtCurrency(avgDeal) },
-      ];
+      return [{ label: "Closed Deals", value: closed.length }, { label: "Revenue", value: fmtCurrency(revenue) }, { label: "Active Pipeline", value: active }];
     }
     if (["Writer/Reporter", "Stringer"].includes(role)) {
-      const myStories = _stories.filter(s => s.author === t.name);
-      const completed = myStories.filter(s => ["Approved", "On Page", "Sent to Web"].includes(s.status)).length;
-      const onTime = myStories.filter(s => s.dueDate && s.status !== "Draft" && (["Approved", "On Page", "Sent to Web", "Edited"].includes(s.status))).length;
-      const total = myStories.length;
-      return [
-        { label: "Stories Assigned", value: total },
-        { label: "Completed", value: completed },
-        { label: "In Progress", value: total - completed },
-        { label: "Avg Words", value: total > 0 ? Math.round(myStories.reduce((s, x) => s + (x.wordCount || 0), 0) / total) : 0 },
-      ];
+      const my = _stories.filter(s => s.author === t.name);
+      const done = my.filter(s => ["Approved", "On Page", "Sent to Web"].includes(s.status)).length;
+      return [{ label: "Stories", value: my.length }, { label: "Completed", value: done }, { label: "In Progress", value: my.length - done }];
     }
     if (["Editor", "Managing Editor", "Copy Editor", "Editor-in-Chief"].includes(role)) {
       const edited = _stories.filter(s => ["Edited", "Approved", "On Page", "Sent to Web"].includes(s.status)).length;
-      const needsEdit = _stories.filter(s => s.status === "Needs Editing").length;
-      return [
-        { label: "Stories Edited", value: edited },
-        { label: "Awaiting Edit", value: needsEdit },
-        { label: "Total Stories", value: _stories.length },
-      ];
+      const needs = _stories.filter(s => s.status === "Needs Editing").length;
+      return [{ label: "Edited", value: edited }, { label: "Awaiting Edit", value: needs }];
     }
-    if (["Graphic Designer", "Photo Editor"].includes(role)) {
-      const ads = _sales.filter(s => s.status === "Closed").length;
+    if (["Graphic Designer", "Photo Editor", "Ad Designer", "Layout Designer"].includes(role)) {
       const jobs = _jobs.filter(j => j.assignedTo === t.id);
-      const completed = jobs.filter(j => ["complete", "billed"].includes(j.status)).length;
-      return [
-        { label: "Ads in System", value: ads },
-        { label: "Creative Jobs", value: jobs.length },
-        { label: "Jobs Completed", value: completed },
-      ];
+      return [{ label: "Creative Jobs", value: jobs.length }, { label: "Completed", value: jobs.filter(j => ["complete", "billed"].includes(j.status)).length }];
     }
-    if (role === "Office Manager") {
+    if (["Office Manager", "Office Administrator"].includes(role)) {
       const resolved = _tickets.filter(tk => tk.status === "resolved").length;
       const open = _tickets.filter(tk => ["open", "in_progress"].includes(tk.status)).length;
-      const activeSubs = _subs.filter(s => s.status === "active").length;
-      const legalActive = _legal.filter(n => !["published", "billed"].includes(n.status)).length;
-      return [
-        { label: "Tickets Resolved", value: resolved },
-        { label: "Open Tickets", value: open },
-        { label: "Active Subscribers", value: activeSubs },
-        { label: "Legal Notices Active", value: legalActive },
-      ];
+      return [{ label: "Tickets Resolved", value: resolved }, { label: "Open", value: open }, { label: "Subscribers", value: _subs.filter(s => s.status === "active").length }];
     }
     return [];
   };
 
-  // ─── Profile View ───────────────────────────────────────
-  const viewMember = (team || []).find(t => t.id === viewId);
-  if (viewMember) {
-    const metrics = getMetrics(viewMember);
-    return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <button onClick={() => setViewId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: FS.base, fontWeight: FW.bold, textAlign: "left", fontFamily: COND, padding: 0 }}>← Back to Team</button>
+  const visibleTeam = (team || []).filter(t => !t.isHidden && !t.is_hidden);
 
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <div style={{ width: 64, height: 64, borderRadius: R, background: iniColor(viewMember.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(viewMember.name)}</div>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewMember.name}</h2>
-          <div style={{ fontSize: FS.md, color: Z.ac, fontWeight: FW.semi, marginTop: 2 }}>{viewMember.role}</div>
-          <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{viewMember.email}{viewMember.phone ? ` · ${viewMember.phone}` : ""}</div>
-        </div>
-        <Btn sm onClick={() => openEdit(viewMember)}>Edit Profile</Btn>
-      </div>
+  // ── Permissions tab helpers ─────────────────────────────
+  const togglePerm = async (member, moduleKey) => {
+    const current = member.modulePermissions || [];
+    const updated = current.includes(moduleKey) ? current.filter(k => k !== moduleKey) : [...current, moduleKey];
+    setSaving(member.id + moduleKey);
+    if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: updated });
+    setSaving(null);
+  };
+  const resetPerms = async (member) => {
+    const defaults = ROLE_DEFAULTS[member.role] || ["dashboard", "calendar"];
+    setSaving(member.id + "_reset");
+    if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: defaults });
+    setSaving(null);
+  };
 
-      {/* Performance metrics */}
-      {metrics.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 14 }}>
-        {metrics.map(m => <GlassCard key={m.label} style={{ textAlign: "center", padding: 16 }}>
-          <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{m.value}</div>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>{m.label}</div>
-        </GlassCard>)}
-      </div>}
-
-      {/* Publications */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Assigned Publications</div>
-        {(viewMember.pubs || []).includes("all")
-          ? <div style={{ fontSize: FS.base, color: Z.ac, fontWeight: FW.semi }}>All publications</div>
-          : <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {(viewMember.pubs || []).map(pid => {
-              const pub = (pubs || []).find(p => p.id === pid);
-              return pub ? <span key={pid} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: pub.color, background: pub.color + "18", padding: "3px 8px", borderRadius: Ri }}>{pub.name}</span> : null;
-            })}
-          </div>}
-      </GlassCard>
-
-      {/* Permissions */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Permissions</div>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {(viewMember.permissions || []).map(p => <span key={p} style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.ac, background: Z.as, padding: "3px 8px", borderRadius: Ri, textTransform: "uppercase" }}>{p}</span>)}
-          {(viewMember.permissions || []).length === 0 && <span style={{ fontSize: FS.sm, color: Z.td }}>No permissions assigned</span>}
-        </div>
-      </GlassCard>
-
-      {/* Alert preferences */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Alert Preferences</div>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {(viewMember.alerts || []).map(a => <span key={a} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tm, background: Z.sa, padding: "3px 8px", borderRadius: Ri }}>{a}</span>)}
-          {(viewMember.alerts || []).length === 0 && <span style={{ fontSize: FS.sm, color: Z.td }}>No alerts configured</span>}
-        </div>
-      </GlassCard>
-    </div>;
-  }
-
-  // ─── Grid View ──────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <PageHeader title="My Team" />
+      <PageHeader title="My Team" count={filtered.length} />
       <div style={{ display: "flex", gap: 8 }}>
         <SB value={sr} onChange={setSr} placeholder="Search team..." />
         <Btn sm onClick={openNew}><Ic.plus size={13} /> Add Member</Btn>
       </div>
     </div>
 
-    <div style={{ fontSize: FS.sm, color: Z.td }}>{filtered.length} team member{filtered.length !== 1 ? "s" : ""}</div>
+    <TabRow><TB tabs={["Team", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
 
-    {DEPARTMENTS.filter(d => byDept[d.label]?.length > 0).map(dept => <div key={dept.key} style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", padding: "4px 0 8px" }}>{dept.label} ({byDept[dept.label].length})</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
-        {byDept[dept.label].map(t => {
-          const metrics = getMetrics(t);
-          return <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }} onClick={() => setViewId(t.id)}
-            onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
-            onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: R, background: iniColor(t.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(t.name)}</div>
-              <div>
-                <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
-                <div style={{ fontSize: FS.xs, color: Z.ac, fontWeight: FW.semi }}>{t.role}</div>
-                <div style={{ fontSize: FS.xs, color: Z.tm }}>{t.email}</div>
+    {/* ═══ TEAM TAB ════════════════════════════════════════ */}
+    {tab === "Team" && (<>
+      {DEPARTMENTS.filter(d => byDept[d.label]?.length > 0).map(dept => <div key={dept.key} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", padding: "4px 0 8px" }}>{dept.label} ({byDept[dept.label].length})</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+          {byDept[dept.label].map(t => {
+            const metrics = getMetrics(t);
+            return <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
+              onClick={() => setMemberModal(t)}
+              onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
+              onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(t.name)}</div>
+                <div>
+                  <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.ac, fontWeight: FW.semi }}>{t.role}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{t.email}</div>
+                </div>
               </div>
-            </div>
-            {metrics.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 2)}, 1fr)`, gap: 6 }}>
-              {metrics.slice(0, 2).map(m => <div key={m.label}>
-                <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{m.value}</div>
-                <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
-              </div>)}
-            </div>}
-            {(t.permissions || []).length > 0 && <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 8 }}>
-              {(t.permissions || []).slice(0, 3).map(p => <span key={p} style={{ fontSize: 8, fontWeight: FW.bold, color: Z.ac, background: Z.as, padding: "1px 5px", borderRadius: R, textTransform: "uppercase" }}>{p}</span>)}
-            </div>}
-          </GlassCard>;
-        })}
-      </div>
-    </div>)}
+              {metrics.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 2)}, 1fr)`, gap: 6 }}>
+                {metrics.slice(0, 2).map(m => <div key={m.label}>
+                  <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{m.value}</div>
+                  <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
+                </div>)}
+              </div>}
+            </GlassCard>;
+          })}
+        </div>
+      </div>)}
+      {filtered.length === 0 && <GlassCard><div style={{ padding: 16, textAlign: "center", color: Z.td }}>No team members found</div></GlassCard>}
+    </>)}
 
-    {filtered.length === 0 && <GlassCard><div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base }}>No team members found</div></GlassCard>}
+    {/* ═══ PERMISSIONS TAB ═════════════════════════════════ */}
+    {tab === "Permissions" && (
+      <GlassCard noPad style={{ overflow: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
+          <thead>
+            <tr>
+              <th style={{ position: "sticky", left: 0, zIndex: 2, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              {MODULES.map(m => <th key={m.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 50 }}><div style={{ fontSize: FS.sm, marginBottom: 2 }}>{m.icon}</div>{m.label.split(" / ")[0].split(" ")[0]}</th>)}
+              <th style={{ padding: "10px 14px", textAlign: "center", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", borderBottom: `1px solid ${Z.bd}` }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleTeam.map(member => {
+              const perms = member.modulePermissions || [];
+              return <tr key={member.id}>
+                <td style={{ position: "sticky", left: 0, zIndex: 1, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                  <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
+                  <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
+                </td>
+                {MODULES.map(m => {
+                  const has = perms.includes(m.key);
+                  const isSaving = saving === member.id + m.key;
+                  return <td key={m.key} onClick={() => togglePerm(member, m.key)} style={{ padding: "10px 6px", textAlign: "center", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, cursor: "pointer" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: Ri, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", background: has ? Z.go + "20" : "transparent", border: `1.5px solid ${has ? Z.go : isDk ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: has ? Z.go : "transparent", fontSize: FS.sm, fontWeight: FW.black, transition: "all 0.15s", opacity: isSaving ? 0.4 : 1 }}>{has ? "\u2713" : ""}</div>
+                  </td>;
+                })}
+                <td style={{ padding: "10px 14px", textAlign: "center", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                  <Btn sm v="ghost" onClick={() => resetPerms(member)} disabled={saving === member.id + "_reset"}>Reset</Btn>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </GlassCard>
+    )}
+
+    {/* ═══ ALERTS TAB ══════════════════════════════════════ */}
+    {tab === "Alerts" && (
+      <GlassCard noPad style={{ overflow: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
+          <thead>
+            <tr>
+              <th style={{ position: "sticky", left: 0, zIndex: 2, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              {ALERT_EVENTS.map(ev => <th key={ev.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 8, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 65 }}>{ev.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleTeam.map(member => {
+              const prefs = member.alertPreferences || getAlertDefaults(member.role);
+              return <tr key={member.id}>
+                <td style={{ position: "sticky", left: 0, zIndex: 1, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                  <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
+                  <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
+                </td>
+                {ALERT_EVENTS.map(ev => {
+                  const val = prefs[ev.key] || "off";
+                  const colors = { off: Z.td, in_app: Z.ac, email: Z.wa, both: Z.go };
+                  const labels = { off: "\u2014", in_app: "App", email: "\u2709", both: "\u2713" };
+                  return <td key={ev.key} style={{ padding: "6px 4px", textAlign: "center", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, cursor: "pointer" }}
+                    onClick={async () => {
+                      const order = ["off", "in_app", "email", "both"];
+                      const next = order[(order.indexOf(val) + 1) % order.length];
+                      const updated = { ...prefs, [ev.key]: next };
+                      if (updateTeamMember) await updateTeamMember(member.id, { alertPreferences: updated });
+                    }}>
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: colors[val], fontFamily: COND }}>{labels[val]}</span>
+                  </td>;
+                })}
+              </tr>;
+            })}
+          </tbody>
+        </table>
+        <div style={{ padding: "8px 14px", fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+          Click to cycle: Off → In-App → Email → Both
+        </div>
+      </GlassCard>
+    )}
 
     {/* Edit/Add Modal */}
     <Modal open={modal} onClose={() => setModal(false)} title={editId ? "Edit Team Member" : "Add Team Member"} width={500}>
@@ -234,18 +461,23 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
           <Inp label="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           <Inp label="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
         </div>
-        <div>
-          <label style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Alert Preferences</label>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
-            {ALERT_TYPES.map(a => <button key={a} onClick={() => toggleAlert(a)} style={{ padding: "6px 12px", borderRadius: Ri, border: `1px solid ${Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`, background: "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: form.alerts.includes(a) ? 700 : 400, color: Z.tx }}>{a}</button>)}
-          </div>
-        </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <Btn v="secondary" onClick={() => setModal(false)}>Cancel</Btn>
           <Btn onClick={save} disabled={!form.name || !form.email}>{editId ? "Save" : "Add"}</Btn>
         </div>
       </div>
     </Modal>
+
+    {/* Member Detail Modal */}
+    <MemberModal
+      open={!!memberModal}
+      onClose={() => setMemberModal(null)}
+      member={memberModal}
+      pubs={pubs}
+      updateTeamMember={updateTeamMember}
+      metrics={memberModal ? getMetrics(memberModal) : []}
+      onEdit={openEdit}
+    />
   </div>;
 };
 
