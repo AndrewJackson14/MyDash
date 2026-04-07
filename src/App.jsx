@@ -41,6 +41,7 @@ const LegalNotices = lazy(() => import("./pages/LegalNotices"));
 const CreativeJobs = lazy(() => import("./pages/CreativeJobs"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
+const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 
 import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
@@ -236,6 +237,7 @@ export default function App() {
   const NAV = [
     { id: "dashboard", label: "My Dash", icon: Ic.dash },
     { id: "calendar", label: "Calendar", icon: Ic.cal },
+    { id: "mail", label: "Mail", icon: Ic.mail },
     { id: "_revenue", section: true, label: "Revenue" },
     { id: "sales", label: "Sales", icon: Ic.sale, badge: (salesActive || 0) + (newInquiries || 0) || null, badgeColor: newInquiries > 0 ? Z.ac : null },
     { id: "contracts", label: "Contracts", icon: Ic.sign },
@@ -437,6 +439,7 @@ export default function App() {
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={stories} setStories={setStories} pubs={pubs} issues={issues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={sales} clients={clients} issues={issues} stories={stories} invoices={invoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
+        {show("mail") && <div style={vis("mail")}><Mail /></div>}
         {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} setPubs={setPubs} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
