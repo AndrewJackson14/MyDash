@@ -130,6 +130,7 @@ export function DataProvider({ children, localData }) {
             id: p.id, name: p.name, color: p.color, type: p.type,
             pageCount: p.page_count, width: Number(p.width), height: Number(p.height),
             frequency: p.frequency, circ: p.circulation,
+            hasWebsite: !!p.has_website, websiteUrl: p.website_url || '',
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
             adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
@@ -139,7 +140,7 @@ export function DataProvider({ children, localData }) {
         }
 
         if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], isHidden: t.is_hidden || false, isFreelance: t.is_freelance, rateType: t.rate_type, rateAmount: Number(t.rate_amount || 0), specialties: t.specialties || [], commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
-        if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.text, time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.route })));
+        if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
           id: c.id, name: c.name, status: c.status, totalSpend: Number(c.total_spend),
@@ -748,7 +749,7 @@ export function DataProvider({ children, localData }) {
   const addNotification = useCallback(async (text, route) => {
     const notif = { id: 'n' + Date.now(), text, time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: false, route };
     setNotifications(n => [notif, ...n]);
-    if (isOnline()) await supabase.from('notifications').insert({ text, route });
+    if (isOnline()) await supabase.from('notifications').insert({ title: text, link: route, type: 'system' });
   }, []);
 
   const updateNotification = useCallback(async (id, changes) => {
@@ -1224,6 +1225,7 @@ export function DataProvider({ children, localData }) {
       pub_day_of_week: pub.pubDayOfWeek, press_day_pattern: pub.pressDayPattern || '',
       ad_close_offset_days: pub.adCloseOffsetDays || 2, ed_close_offset_days: pub.edCloseOffsetDays || 3,
       press_dates_of_month: pub.pressDatesOfMonth || [],
+      has_website: pub.hasWebsite || false, website_url: pub.websiteUrl || '',
     };
     if (isOnline()) {
       const { data, error } = await supabase.from('publications').upsert(dbPub).select().single();
@@ -1252,6 +1254,8 @@ export function DataProvider({ children, localData }) {
       if (changes.edCloseOffsetDays !== undefined) db.ed_close_offset_days = changes.edCloseOffsetDays;
       if (changes.pressDayPattern !== undefined) db.press_day_pattern = changes.pressDayPattern;
       if (changes.pressDatesOfMonth !== undefined) db.press_dates_of_month = changes.pressDatesOfMonth;
+      if (changes.hasWebsite !== undefined) db.has_website = changes.hasWebsite;
+      if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
     }
   }, []);

@@ -114,7 +114,7 @@ const ImageField = ({ value, onChange, uploadPath, label }) => {
 // ══════════════════════════════════════════════════════════════════
 // SITE SETTINGS PAGE
 // ══════════════════════════════════════════════════════════════════
-export default function SiteSettings({ pubs }) {
+export default function SiteSettings({ pubs, setPubs }) {
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -158,6 +158,13 @@ export default function SiteSettings({ pubs }) {
     issuu_enabled: site.settings?.issuu_enabled ?? false,
     breaking_news: site.settings?.breaking_news || "",
     ga_measurement_id: site.settings?.ga_measurement_id || "",
+    // Advertise page options
+    adv_ad_types: site.settings?.advertise_options?.ad_types || ["Digital Display", "Print", "Sponsorship", "Newsletter", "Social Media"],
+    adv_zones: site.settings?.advertise_options?.zones || ["Leaderboard", "Sidebar", "In-Article", "Banner"],
+    adv_budget_ranges: site.settings?.advertise_options?.budget_ranges || ["Under $250/mo", "$250–$500/mo", "$500–$1,000/mo", "$1,000+/mo"],
+    adv_how_heard: site.settings?.advertise_options?.how_heard || ["Search Engine", "Social Media", "Referral", "Print Edition", "Other"],
+    adv_intro_text: site.settings?.advertise_options?.intro_text || "",
+    adv_enabled: site.settings?.advertise_options?.enabled ?? true,
   });
 
   const selectSite = (id) => {
@@ -190,6 +197,14 @@ export default function SiteSettings({ pubs }) {
       issuu_enabled: draft.issuu_enabled,
       breaking_news: draft.breaking_news,
       ga_measurement_id: draft.ga_measurement_id,
+      advertise_options: {
+        ad_types: draft.adv_ad_types,
+        zones: draft.adv_zones,
+        budget_ranges: draft.adv_budget_ranges,
+        how_heard: draft.adv_how_heard,
+        intro_text: draft.adv_intro_text,
+        enabled: draft.adv_enabled,
+      },
     };
 
     // Merge settings jsonb (preserve keys we don't manage)
@@ -215,14 +230,16 @@ export default function SiteSettings({ pubs }) {
 
   const site = sites.find(s => s.id === selectedId);
 
+  const websitePubs = (pubs || []).filter(p => p.hasWebsite);
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading sites...</div>;
-  if (sites.length === 0) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>No active sites found</div>;
+  if (sites.length === 0 && websitePubs.length === 0) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>No publications with websites. Enable "Has Website" in Publications to get started.</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Site Settings</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>MyWebsites</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {site?.domain && (
             <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
@@ -336,6 +353,25 @@ export default function SiteSettings({ pubs }) {
               <Toggle checked={draft.issuu_enabled} onChange={v => update("issuu_enabled", v)} label="Issuu E-Edition Enabled" />
               <Field label="Breaking News Banner">
                 <input value={draft.breaking_news} onChange={e => update("breaking_news", e.target.value)} placeholder="Leave empty to hide. Text or JSON {text, url}" style={getInputStyle()} />
+              </Field>
+            </Section>
+
+            <Section title="Advertise Page">
+              <Toggle checked={draft.adv_enabled} onChange={v => update("adv_enabled", v)} label="Advertise Page Enabled" />
+              <Field label="Intro Text">
+                <textarea value={draft.adv_intro_text} onChange={e => update("adv_intro_text", e.target.value)} placeholder="Reach our engaged local audience..." rows={3} style={{ ...getInputStyle(), resize: "vertical" }} />
+              </Field>
+              <Field label="Ad Types">
+                <OrderableList items={draft.adv_ad_types} onChange={v => update("adv_ad_types", v)} placeholder="Add ad type (e.g. Print)..." />
+              </Field>
+              <Field label="Ad Zones / Placements">
+                <OrderableList items={draft.adv_zones} onChange={v => update("adv_zones", v)} placeholder="Add zone (e.g. Sidebar)..." />
+              </Field>
+              <Field label="Budget Ranges">
+                <OrderableList items={draft.adv_budget_ranges} onChange={v => update("adv_budget_ranges", v)} placeholder="Add range (e.g. $500–$1,000/mo)..." />
+              </Field>
+              <Field label="How Did You Hear Options">
+                <OrderableList items={draft.adv_how_heard} onChange={v => update("adv_how_heard", v)} placeholder="Add option (e.g. Referral)..." />
               </Field>
             </Section>
 

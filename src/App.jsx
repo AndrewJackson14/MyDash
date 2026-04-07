@@ -422,7 +422,7 @@ export default function App() {
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={sales} clients={clients} issues={issues} stories={stories} invoices={invoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
         {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
-        {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} /></div>}
+        {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} setPubs={setPubs} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
