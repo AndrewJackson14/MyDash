@@ -13,28 +13,17 @@ import { supabase } from "../lib/supabase";
 import MediaModal from "./MediaModal";
 
 // ── Constants ────────────────────────────────────────────────────
-const WORKFLOW_STAGES = ["Draft", "Assigned", "Editing", "Ready"];
-const PRINT_STAGES = [
-  { key: "none", label: "Not Assigned" }, { key: "ready", label: "Ready for Print" },
-  { key: "on_page", label: "On Page" }, { key: "proofread", label: "Proofread" },
-  { key: "approved", label: "Approved" }, { key: "sent_to_press", label: "Sent to Press" },
-];
-const STAGE_TO_STATUS = { "Draft": "Draft", "Assigned": "Needs Editing", "Editing": "Edited", "Ready": "Approved" };
-const STATUS_TO_STAGE = {}; Object.entries(STAGE_TO_STATUS).forEach(([k, v]) => { STATUS_TO_STAGE[v] = k; });
+const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "On Page", "Approved"];
+const STAGE_TO_STATUS = { "Draft": "Draft", "Edit": "Needs Editing", "Ready": "Approved", "On Page": "On Page", "Approved": "Approved" };
+const STATUS_TO_STAGE = {}; Object.entries(STAGE_TO_STATUS).forEach(([k, v]) => { if (!STATUS_TO_STAGE[v]) STATUS_TO_STAGE[v] = k; });
+STATUS_TO_STAGE["Edited"] = "Edit";
+STATUS_TO_STAGE["Needs Editing"] = "Edit";
+STATUS_TO_STAGE["On Page"] = "On Page";
 const STORY_TYPES = [
   { key: "article", label: "Article" }, { key: "column", label: "Column" },
   { key: "letter", label: "Letter to Editor" }, { key: "obituary", label: "Obituary" },
   { key: "legal_notice", label: "Legal Notice" }, { key: "calendar_event", label: "Calendar Event" },
   { key: "press_release", label: "Press Release" }, { key: "opinion", label: "Opinion" },
-];
-const SOURCES = [
-  { key: "staff", label: "Staff" }, { key: "freelance", label: "Freelance" },
-  { key: "syndicated", label: "Syndicated" }, { key: "press_release", label: "Press Release" },
-  { key: "community", label: "Community" }, { key: "ai_assisted", label: "AI Assisted" },
-];
-const PRIORITIES = [
-  { key: "low", label: "Low" }, { key: "normal", label: "Normal" },
-  { key: "high", label: "High" }, { key: "urgent", label: "Urgent" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -81,12 +70,13 @@ const ChipPicker = ({ label, options, selected, onChange }) => (
 );
 
 // ── Preflight Checklist Modal ────────────────────────────────────
-const PreflightModal = ({ open, onClose, onPublish, checks }) => {
+const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onScheduleChange }) => {
   const allPassed = checks.every(c => c.pass);
+  const isScheduled = !!scheduledAt;
+  const fmtScheduled = scheduledAt ? new Date(scheduledAt).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
   return (
     <Modal open={open} onClose={onClose} title="Publish Preflight Check">
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 380 }}>
-        <p style={{ fontSize: 12, color: Z.tm, fontFamily: COND, margin: 0 }}>This story will be published to the website immediately.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {checks.map((c, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 2, background: c.pass ? (Z.su || "#22c55e") + "10" : "#ef444410", border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : "#ef444430") }}>
@@ -95,10 +85,17 @@ const PreflightModal = ({ open, onClose, onPublish, checks }) => {
             </div>
           ))}
         </div>
+        <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Publish Date & Time</div>
+          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
+          <div style={{ fontSize: 11, fontWeight: 600, color: isScheduled ? "#6366f1" : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
+            {isScheduled ? `Scheduled: ${fmtScheduled}` : "Immediately upon publish"}
+          </div>
+        </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
           <Btn sm v="secondary" onClick={onClose}>Cancel</Btn>
           <Btn sm onClick={onPublish} disabled={!allPassed} style={!allPassed ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
-            <Ic.send size={11} /> Publish Now
+            <Ic.send size={11} /> {isScheduled ? "Schedule" : "Publish Now"}
           </Btn>
         </div>
         {!allPassed && <p style={{ fontSize: 10, color: "#ef4444", fontFamily: COND, margin: 0, textAlign: "right" }}>Fix required items before publishing</p>}
@@ -423,13 +420,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             </div>
           )}
 
-          {/* Unified workflow */}
+          {/* Unified workflow — Draft → Edit → Ready → On Page → Approved (✓) */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Workflow</div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Status</div>
             <div style={{ display: "flex", gap: 0 }}>
               {WORKFLOW_STAGES.map((stage, i) => {
                 const cur = currentStage === stage, past = WORKFLOW_STAGES.indexOf(currentStage) > i;
-                return <button key={stage} onClick={() => saveMeta("status", STAGE_TO_STATUS[stage])} style={{ flex: 1, padding: "6px 4px", fontSize: 10, fontWeight: cur ? 800 : 600, border: "1px solid " + (cur ? Z.ac : Z.bd), borderRight: i < 3 ? "none" : undefined, borderRadius: i === 0 ? "3px 0 0 3px" : i === 3 ? "0 3px 3px 0" : 0, background: cur ? Z.ac + "18" : past ? (Z.su || "#22c55e") + "10" : "transparent", color: cur ? Z.ac : past ? (Z.su || "#22c55e") : Z.tm, cursor: "pointer", fontFamily: COND }}>{stage}</button>;
+                const isLast = i === WORKFLOW_STAGES.length - 1;
+                const label = isLast ? "\u2713" : stage;
+                return <button key={stage} onClick={() => saveMeta("status", STAGE_TO_STATUS[stage])} title={stage} style={{ flex: isLast ? 0 : 1, minWidth: isLast ? 36 : undefined, padding: "6px 4px", fontSize: 10, fontWeight: cur ? 800 : 600, border: "1px solid " + (cur ? (Z.su || "#22c55e") : Z.bd), borderRight: i < WORKFLOW_STAGES.length - 1 ? "none" : undefined, borderRadius: i === 0 ? "3px 0 0 3px" : isLast ? "0 3px 3px 0" : 0, background: cur ? (isLast ? (Z.su || "#22c55e") + "22" : Z.ac + "18") : past ? (Z.su || "#22c55e") + "10" : "transparent", color: cur ? (isLast ? (Z.su || "#22c55e") : Z.ac) : past ? (Z.su || "#22c55e") : Z.tm, cursor: "pointer", fontFamily: COND }}>{label}</button>;
               })}
             </div>
             {isPublished && <div style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
@@ -477,12 +476,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             )}
           </div>
 
-          {/* Schedule */}
-          {!isPublished && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Schedule Publish</div>
-              <input type="datetime-local" value={meta.scheduled_at ? new Date(meta.scheduled_at).toISOString().slice(0, 16) : ""} onChange={e => saveMeta("scheduled_at", e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
-              {meta.scheduled_at && <div style={{ fontSize: 10, color: "#6366f1", fontFamily: COND, marginTop: 3 }}>Scheduled: {fmtDate(meta.scheduled_at)}</div>}
+          {/* Scheduled indicator (set via preflight) */}
+          {!isPublished && meta.scheduled_at && (
+            <div style={{ fontSize: 10, color: "#6366f1", fontFamily: COND, padding: "6px 8px", background: "#6366f110", borderRadius: 2, border: "1px solid #6366f130" }}>
+              Scheduled: {fmtDate(meta.scheduled_at)}
             </div>
           )}
 
@@ -525,8 +522,14 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             )}
           </div>
 
-          {/* Publications */}
-          <ChipPicker label="Publications" options={pubs.map(p => ({ id: p.id, name: p.name, color: p.color }))} selected={selectedPubs} onChange={ids => { const newId = ids.find(id => !selectedPubs.includes(id)) || ids[0] || null; saveMeta("publication", newId); }} />
+          {/* Publication */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication</div>
+            <select value={selectedPubs[0] || ""} onChange={e => saveMeta("publication", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+              <option value="">Select publication...</option>
+              {pubs.filter(p => p.type !== "Special Publication").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
 
           {/* Author */}
           <div>
@@ -565,28 +568,22 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Category</div>
             <select value={meta.category_id || ""} onChange={e => { const cat = categories.find(c => c.id === e.target.value); saveMeta("category_id", e.target.value); if (cat) { saveMeta("category", cat.name); saveMeta("category_slug", cat.slug); } }} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
-              <option value="">Select category\u2026</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}{selectedPubs.length > 1 ? " (" + pn(c.publication_id, pubs) + ")" : ""}</option>)}
+              <option value="">Select category</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Priority</div><select value={meta.priority || "normal"} onChange={e => saveMeta("priority", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}</select></div>
             <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Type</div><select value={meta.story_type || "article"} onChange={e => saveMeta("story_type", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{STORY_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Source</div><select value={meta.source || ""} onChange={e => saveMeta("source", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">{"\u2014"}</option>{SOURCES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
             <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">Unassigned</option>{team.map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
           </div>
 
           <Inp label="Due Date" type="date" value={meta.due_date || ""} onChange={v => saveMeta("due_date", v)} />
 
-          {/* Print */}
+          {/* Print Issue */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Print</div>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Issue</div><select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{pn(i.pub_id || i.publicationId, pubs)} {"\u203a"} {i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select></div>
-            <div style={{ marginTop: 6 }}><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Status</div><select value={meta.print_status || "none"} onChange={e => saveMeta("print_status", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{PRINT_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Issue</div>
+            <select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{pn(i.pub_id || i.publicationId, pubs)} {"\u203a"} {i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select>
           </div>
 
           {/* SEO */}
@@ -613,6 +610,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}><TA label="Correction Note (visible to readers)" value={meta.correction_note || ""} onChange={v => setMeta(m => ({ ...m, correction_note: v }))} onBlur={() => saveMeta("correction_note", meta.correction_note)} rows={2} /></div>
           <TA label="Internal Notes" value={meta.notes || ""} onChange={v => setMeta(m => ({ ...m, notes: v }))} onBlur={() => saveMeta("notes", meta.notes)} rows={3} />
 
+          {/* Delete story */}
+          <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+            <Btn sm v="danger" style={{ width: "100%" }} onClick={async () => {
+              if (!confirm("Are you sure you want to delete this story? This cannot be undone.")) return;
+              const { error } = await supabase.from("stories").delete().eq("id", story.id);
+              if (!error) { onUpdate(story.id, { _deleted: true }); onClose(); }
+            }}>Delete Story</Btn>
+          </div>
+
           {/* Audit timestamps */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Timeline</div>
@@ -635,7 +641,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       </div>
 
       {/* Modals */}
-      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} />
+      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} scheduledAt={meta.scheduled_at} onScheduleChange={v => { saveMeta("scheduled_at", v); setMeta(m => ({ ...m, scheduled_at: v })); }} />
 
       <Modal open={linkModalOpen} onClose={() => setLinkModalOpen(false)} title="Insert Link"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}><Inp label="URL" value={linkUrl} onChange={setLinkUrl} placeholder="https://\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>{editor?.isActive("link") && <Btn sm v="secondary" onClick={() => { editor.chain().focus().unsetLink().run(); setLinkModalOpen(false); }}>Remove Link</Btn>}<Btn sm onClick={insertLink}>Insert Link</Btn></div></div></Modal>
 

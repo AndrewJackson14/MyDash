@@ -162,7 +162,7 @@ export default function App() {
     }
     if (pg === 'billing') loads.push(appData.loadBilling?.());
     if (pg === 'editorial' || pg === 'stories' || pg === 'flatplan') { loads.push(appData.loadStories?.(), appData.loadFullSales?.()); }
-    if (pg === 'circulation') loads.push(appData.loadCirculation?.());
+    if (pg === 'circulation') loads.push(appData.loadCirculation?.(true));
     if (pg === 'servicedesk') { loads.push(appData.loadTickets?.(), appData.loadCirculation?.()); }
     if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
@@ -222,25 +222,25 @@ export default function App() {
     { id: "_revenue", section: true, label: "Revenue" },
     { id: "sales", label: "Sales", icon: Ic.sale, badge: salesActive || null },
     { id: "contracts", label: "Contracts", icon: Ic.sign },
-    { id: "billing", label: "Billing", icon: Ic.chart, badge: overdueInvoices || null, badgeColor: overdueInvoices > 0 ? Z.da : null },
+    { id: "billing", label: "Billing", icon: Ic.invoice, badge: overdueInvoices || null, badgeColor: overdueInvoices > 0 ? Z.da : null },
     { id: "_content", section: true, label: "Content" },
     { id: "stories", label: "Stories", icon: Ic.story, badge: storiesInEdit || null },
     { id: "editorial", label: "Editorial", icon: Ic.list },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "editions", label: "Editions", icon: Ic.pub },
+    { id: "sitesettings", label: "MyWebsites", icon: Ic.globe },
+    { id: "medialibrary", label: "Media Library", icon: Ic.flat },
     { id: "_operations", section: true, label: "Operations" },
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.chat, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
     { id: "legalnotices", label: "Legal Notices", icon: Ic.gavel, badge: activeLegal || null },
-    { id: "creativejobs", label: "Creative Services", icon: Ic.handshake, badge: activeJobs || null },
+    { id: "creativejobs", label: "Creative Services", icon: Ic.paintbrush, badge: activeJobs || null },
     { id: "_system", section: true, label: "System" },
     { id: "calendar", label: "Calendar", icon: Ic.cal },
     { id: "team", label: "Team", icon: Ic.user },
     { id: "publications", label: "Publications", icon: Ic.pub },
     { id: "schedule", label: "Schedule", icon: Ic.story },
-    { id: "analytics", label: "Analytics", icon: Ic.lineGraph },
-    { id: "medialibrary", label: "Media Library", icon: Ic.flat },
-    { id: "sitesettings", label: "Site Settings", icon: Ic.globe },
+    { id: "analytics", label: "Analytics", icon: Ic.barChart },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
     { id: "permissions", label: "Permissions", icon: Ic.lock },
     { id: "dataimport", label: "Data Import", icon: Ic.up },
@@ -413,7 +413,7 @@ export default function App() {
         {show("publications") && <div style={vis("publications")}><Publications pubs={pubs} setPubs={setPubs} issues={issues} setIssues={setIssues} sales={sales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={issues} setIssues={setIssues} sales={sales} /></div>}
         {show("stories") && <div style={vis("stories")}><StoriesModule stories={stories} setStories={setStories} pubs={pubs} issues={issues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} /></div>}
-        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={clients} setClients={setClients} sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} /></div>}
+        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={clients} setClients={setClients} sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} /></div>}
         {show("contracts") && <div style={vis("contracts")}><Contracts contracts={appData.contracts || []} clients={clients} pubs={pubs} sales={sales} team={team} onNavigate={handleNav} loadContracts={appData.loadContracts} contractsLoaded={appData.contractsLoaded} /></div>}
         {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={clients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} invoices={invoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={clients} sales={sales} issues={issues} pubs={pubs} onNavigate={handleNav} /></div>}

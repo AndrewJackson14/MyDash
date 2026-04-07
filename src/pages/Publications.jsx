@@ -14,7 +14,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const [showEZSchedule, setShowEZSchedule] = useState(false);
   const [showAddPub, setShowAddPub] = useState(false);
   const [goToWizard, setGoToWizard] = useState(false);
-  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: "#4B8BF5" });
+  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: "#4B8BF5", hasWebsite: false, websiteUrl: "" });
 
   const openPub = (p) => { setSel(p); setEditPub(JSON.parse(JSON.stringify(p))); setEditMode(false); setRateModal(true); };
   const savePub = async () => {
@@ -84,6 +84,13 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <Inp label="Trim Width (in)" type="number" value={newPub.width} onChange={e => setNewPub(p => ({ ...p, width: +e.target.value }))} />
           <Inp label="Trim Height (in)" type="number" value={newPub.height} onChange={e => setNewPub(p => ({ ...p, height: +e.target.value }))} />
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx }}>
+          <div onClick={() => setNewPub(p => ({ ...p, hasWebsite: !p.hasWebsite }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: newPub.hasWebsite ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 2, left: newPub.hasWebsite ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+          </div>
+          <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
+        </label>
+        {newPub.hasWebsite && <Inp label="Website URL" value={newPub.websiteUrl} onChange={e => setNewPub(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="e.g. pasoroblespress.com" />}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
           <Btn v="secondary" onClick={() => { setGoToWizard(true); handleAddPub(); }}>Save & Open MyWizard</Btn>
           <Btn onClick={handleAddPub} disabled={!newPub.name}>Save Publication</Btn>
@@ -126,6 +133,13 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
             </div>
           </div>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx, marginTop: 4 }}>
+          <div onClick={() => setEditPub(p => ({ ...p, hasWebsite: !p.hasWebsite }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: editPub.hasWebsite ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 2, left: editPub.hasWebsite ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+          </div>
+          <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
+        </label>
+        {editPub.hasWebsite && <Inp label="Website URL" value={editPub.websiteUrl || ""} onChange={e => setEditPub(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="e.g. pasoroblespress.com" />}
       </div>
       : <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: FS.base, color: Z.tm, alignItems: "center" }}>
         <div style={{ width: 12, height: 12, borderRadius: Ri, background: sel.color, flexShrink: 0 }} />

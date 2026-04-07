@@ -18,7 +18,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const pn = id => pubs.find(p => p.id === id)?.name || "—";
   const pubColor = id => pubs.find(p => p.id === id)?.color || Z.tm;
-  const authors = [...new Set(stories.map(s => s.author).concat(STORY_AUTHORS))].sort();
+  const authors = [...new Set(stories.map(s => s.author || "").filter(Boolean).concat(STORY_AUTHORS))].sort();
   const _today = new Date().toISOString().slice(0, 10);
   const _tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const _nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -26,7 +26,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const pubIssues = fPub !== "all" ? issues.filter(i => i.pubId === fPub && i.date >= threeMonthsAgo).slice(0, 24) : [];
   const categories = ["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel"];
   const fl = stories.filter(s =>
-    (sr === "" || s.title.toLowerCase().includes(sr.toLowerCase()) || s.author.toLowerCase().includes(sr.toLowerCase())) &&
+    (sr === "" || (s.title || "").toLowerCase().includes(sr.toLowerCase()) || (s.author || "").toLowerCase().includes(sr.toLowerCase())) &&
     (fPub === "all" ? true : fPub === "none" ? !s.publication : s.publication === fPub) &&
     (fStatus === "all" || s.status === fStatus) &&
     (fAuthor === "all" || s.author === fAuthor) &&

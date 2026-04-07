@@ -52,6 +52,8 @@ export function DataProvider({ children, localData }) {
   const [mailingLists, setMailingLists] = useState([]);
   // Editions (issuu_editions)
   const [editions, setEditions] = useState([]);
+  // Ad inquiries (inbound from StellarPress)
+  const [adInquiries, setAdInquiries] = useState([]);
 
   const [loaded, setLoaded] = useState(!isOnline());
 
@@ -332,8 +334,8 @@ export function DataProvider({ children, localData }) {
 
   // Circulation module (subscribers, subscriptions, drop locations, drivers, routes)
   const [circulationLoaded, setCirculationLoaded] = useState(false);
-  const loadCirculation = useCallback(async () => {
-    if (circulationLoaded || !isOnline()) return;
+  const loadCirculation = useCallback(async (force) => {
+    if ((circulationLoaded && !force) || !isOnline()) return;
     const [subRes, subscriptionsRes, mailListRes, dropRes, dropPubRes, driverRes, routeRes, stopRes] = await Promise.all([
       fetchAllRows('subscribers', 'last_name'),
       fetchAllRows('subscriptions', 'created_at', false),
@@ -388,6 +390,20 @@ export function DataProvider({ children, localData }) {
     })));
     setEditionsLoaded(true);
   }, [editionsLoaded]);
+
+  // Ad Inquiries (inbound from StellarPress)
+  const [inquiriesLoaded, setInquiriesLoaded] = useState(false);
+  const loadInquiries = useCallback(async () => {
+    if (inquiriesLoaded || !isOnline()) return;
+    const { data } = await supabase.from('ad_inquiries').select('*').order('created_at', { ascending: false });
+    if (data) setAdInquiries(data);
+    setInquiriesLoaded(true);
+  }, [inquiriesLoaded]);
+
+  const updateInquiry = useCallback(async (id, updates) => {
+    setAdInquiries(prev => prev.map(inq => inq.id === id ? { ...inq, ...updates } : inq));
+    if (isOnline()) await supabase.from('ad_inquiries').update(updates).eq('id', id);
+  }, []);
 
   // Service Desk
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
@@ -1419,6 +1435,8 @@ export function DataProvider({ children, localData }) {
     mailingLists, setMailingLists,
     // Editions
     editions, setEditions, loadEditions, editionsLoaded,
+    // Ad Inquiries
+    adInquiries, setAdInquiries, loadInquiries, inquiriesLoaded, updateInquiry,
     insertTicket, updateTicket, insertTicketComment,
     insertLegalNotice, updateLegalNotice,
     insertCreativeJob, updateCreativeJob,
@@ -1435,15 +1453,15 @@ export function DataProvider({ children, localData }) {
     legalNotices, legalNoticeIssues, creativeJobs, contracts, contractLines, salesSummary,
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
-    subscriptions, subscriptionPayments, mailingLists, editions,
+    subscriptions, subscriptionPayments, mailingLists, editions, adInquiries,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
-    commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded,
+    commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
     loadFullSales, loadClientDetails, loadProposals, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
-    loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions,
+    loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
   ]);
 
   return <DataContext.Provider value={value}>{loaded ? children : null}</DataContext.Provider>;
