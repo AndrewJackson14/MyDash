@@ -50,6 +50,8 @@ export function DataProvider({ children, localData }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionPayments, setSubscriptionPayments] = useState([]);
   const [mailingLists, setMailingLists] = useState([]);
+  // Editions (issuu_editions)
+  const [editions, setEditions] = useState([]);
 
   const [loaded, setLoaded] = useState(!isOnline());
 
@@ -373,6 +375,19 @@ export function DataProvider({ children, localData }) {
     if (stopRes.data) setRouteStops(stopRes.data.map(s => ({ id: s.id, routeId: s.route_id, dropLocationId: s.drop_location_id, stopOrder: s.stop_order })));
     setCirculationLoaded(true);
   }, [circulationLoaded]);
+
+  // Editions (issuu_editions)
+  const [editionsLoaded, setEditionsLoaded] = useState(false);
+  const loadEditions = useCallback(async () => {
+    if (editionsLoaded || !isOnline()) return;
+    const { data } = await supabase.from('issuu_editions').select('*').order('publish_date', { ascending: false });
+    if (data) setEditions(data.map(e => ({
+      id: e.id, publicationId: e.publication_id, title: e.title, slug: e.slug,
+      pdfUrl: e.pdf_url, coverImageUrl: e.cover_image_url, publishDate: e.publish_date,
+      pageCount: e.page_count, embedUrl: e.embed_url, isFeatured: e.is_featured,
+    })));
+    setEditionsLoaded(true);
+  }, [editionsLoaded]);
 
   // Service Desk
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
@@ -1402,6 +1417,8 @@ export function DataProvider({ children, localData }) {
     // Subscription management
     subscriptions, setSubscriptions, subscriptionPayments, setSubscriptionPayments,
     mailingLists, setMailingLists,
+    // Editions
+    editions, setEditions, loadEditions, editionsLoaded,
     insertTicket, updateTicket, insertTicketComment,
     insertLegalNotice, updateLegalNotice,
     insertCreativeJob, updateCreativeJob,
@@ -1418,15 +1435,15 @@ export function DataProvider({ children, localData }) {
     legalNotices, legalNoticeIssues, creativeJobs, contracts, contractLines, salesSummary,
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
-    subscriptions, subscriptionPayments, mailingLists,
+    subscriptions, subscriptionPayments, mailingLists, editions,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
-    commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded,
+    commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
     loadFullSales, loadClientDetails, loadProposals, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
-    loadOutreach, loadPriorities, loadContracts, loadAllSales,
+    loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions,
   ]);
 
   return <DataContext.Provider value={value}>{loaded ? children : null}</DataContext.Provider>;

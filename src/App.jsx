@@ -40,6 +40,7 @@ const ServiceDesk = lazy(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazy(() => import("./pages/LegalNotices"));
 const CreativeJobs = lazy(() => import("./pages/CreativeJobs"));
 const Permissions = lazy(() => import("./pages/Permissions"));
+const EditionManager = lazy(() => import("./pages/EditionManager"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 
 import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
@@ -165,6 +166,7 @@ export default function App() {
     if (pg === 'servicedesk') { loads.push(appData.loadTickets?.(), appData.loadCirculation?.()); }
     if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
+    if (pg === 'editions') loads.push(appData.loadEditions?.());
     if (loads.length > 0) Promise.all(loads.filter(Boolean));
   }, [pg, online]);
 
@@ -203,6 +205,7 @@ export default function App() {
     schedule: 'publications', analytics: 'analytics', integrations: 'integrations',
     permissions: 'permissions', dataimport: 'integrations',
     medialibrary: 'stories',
+    editions: 'publications',
     sitesettings: 'publications',
   };
 
@@ -224,6 +227,7 @@ export default function App() {
     { id: "stories", label: "Stories", icon: Ic.story, badge: storiesInEdit || null },
     { id: "editorial", label: "Editorial", icon: Ic.list },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
+    { id: "editions", label: "Editions", icon: Ic.pub },
     { id: "_operations", section: true, label: "Operations" },
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.chat, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
@@ -417,6 +421,7 @@ export default function App() {
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={stories} setStories={setStories} pubs={pubs} issues={issues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={sales} clients={clients} issues={issues} stories={stories} invoices={invoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={creativeJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
+        {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
