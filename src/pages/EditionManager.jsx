@@ -87,18 +87,41 @@ function bunnyUploadWithProgress(file, path, filename, onProgress) {
 }
 
 // ── Initialize pdf.js ────────────────────────────────────────
+let _pdfjsReady = null;
 async function getPdfjs() {
+  if (_pdfjsReady) return _pdfjsReady;
   const pdfjsLib = await import("pdfjs-dist");
   const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
   pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default;
+  _pdfjsReady = pdfjsLib;
   return pdfjsLib;
+}
+
+// Open a PDF document with full rendering support (cMaps, standard fonts)
+async function openPdf(data) {
+  const pdfjsLib = await getPdfjs();
+  const cMapUrl = await import("pdfjs-dist/cmaps/78-H.bcmap?url").then(m => {
+    // Derive the cmaps directory URL from one known file
+    const url = m.default;
+    return url.substring(0, url.lastIndexOf("/") + 1);
+  });
+  const standardFontDataUrl = await import("pdfjs-dist/standard_fonts/FoxitFixed.pfb?url").then(m => {
+    const url = m.default;
+    return url.substring(0, url.lastIndexOf("/") + 1);
+  });
+  return pdfjsLib.getDocument({
+    data,
+    cMapUrl,
+    cMapPacked: true,
+    standardFontDataUrl,
+    isEvalSupported: false,
+  }).promise;
 }
 
 // ── Render PDF page 1 from File → cover JPEG + page count ───
 async function renderPdfCoverFromFile(file) {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjsLib = await getPdfjs();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await openPdf(new Uint8Array(arrayBuffer));
   const page = await pdf.getPage(1);
   const scale = 1.5;
   const viewport = page.getViewport({ scale });
@@ -122,8 +145,7 @@ async function renderPdfCoverFromFile(file) {
 // ══════════════════════════════════════════════════════════════
 async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onProgress }) {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjsLib = await getPdfjs();
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+  const pdf = await openPdf(new Uint8Array(arrayBuffer));
   const numPages = pdf.numPages;
 
   // Canvas → JPEG ArrayBuffer helper
@@ -486,7 +508,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const [compressedSize, setCompressedSize] = useState(0);
 
   // Compression settings
-  const [compPreset, setCompPreset] = useState("medium");
+  const [compPreset, setCompPreset] = useState("none");
   const [compDpi, setCompDpi] = useState(150);
   const [compQuality, setCompQuality] = useState(0.72);
   const [compTargetMB, setCompTargetMB] = useState(15);
@@ -559,9 +581,8 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
       } else {
         // No compression — just detect page count
         setCompressionStatus("Reading PDF...");
-        const pdfjsLib = await getPdfjs();
         const ab = await pdfFile.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        const pdf = await openPdf(new Uint8Array(ab));
         detectedPages = pdf.numPages;
         setPageCount(pdf.numPages);
         setCompressedSize(pdfFile.size);
