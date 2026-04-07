@@ -117,7 +117,7 @@ async function renderPdfCoverFromFile(file) {
 // ══════════════════════════════════════════════════════════════
 // PDF COMPRESSION ENGINE
 // Re-renders each page via pdf.js → canvas → JPEG, then
-// assembles a new PDF with jsPDF. Supports DPI, JPEG quality,
+// assembles a new PDF with pdf-lib. Supports DPI, JPEG quality,
 // and optional target file size (iterative quality reduction).
 // ══════════════════════════════════════════════════════════════
 async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onProgress }) {
@@ -125,14 +125,17 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
   const pdfjsLib = await getPdfjs();
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
   const numPages = pdf.numPages;
-  const { jsPDF } = await import("jspdf");
 
-  // Render all pages to JPEG blobs at the given DPI & quality
+  // Canvas → JPEG ArrayBuffer helper
+  const canvasToJpegBuffer = (canvas, q) => new Promise((resolve) => {
+    canvas.toBlob((blob) => blob.arrayBuffer().then(resolve), "image/jpeg", q);
+  });
+
+  // Render all pages to JPEG buffers at the given DPI & quality
   const renderPages = async (q) => {
     const pages = [];
     for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
-      // pdf.js default is 72 DPI at scale=1; scale = targetDPI / 72
       const scale = dpi / 72;
       const viewport = page.getViewport({ scale });
 
@@ -142,13 +145,11 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
       const ctx = canvas.getContext("2d");
       await page.render({ canvasContext: ctx, viewport }).promise;
 
-      // Get page dimensions in points (1/72 inch) for the output PDF
+      // Original page dimensions in points for the output PDF
       const origViewport = page.getViewport({ scale: 1 });
-      const widthPt = origViewport.width;
-      const heightPt = origViewport.height;
 
-      const dataUrl = canvas.toDataURL("image/jpeg", q);
-      pages.push({ dataUrl, widthPt, heightPt });
+      const jpegBuffer = await canvasToJpegBuffer(canvas, q);
+      pages.push({ jpegBuffer, widthPt: origViewport.width, heightPt: origViewport.height });
 
       // Clean up canvas memory
       canvas.width = 1;
@@ -159,33 +160,26 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
     return pages;
   };
 
-  // Assemble pages into a new PDF with jsPDF
-  const assemblePdf = (pages) => {
-    const first = pages[0];
-    // jsPDF uses mm; 1 pt = 0.352778 mm
-    const ptToMm = 0.352778;
-    const doc = new jsPDF({
-      orientation: first.widthPt > first.heightPt ? "landscape" : "portrait",
-      unit: "mm",
-      format: [first.widthPt * ptToMm, first.heightPt * ptToMm],
-    });
+  // Assemble pages into a new PDF with pdf-lib
+  const assemblePdf = async (pages) => {
+    const { PDFDocument } = await import("pdf-lib");
+    const doc = await PDFDocument.create();
 
-    pages.forEach((pg, i) => {
-      if (i > 0) {
-        doc.addPage([pg.widthPt * ptToMm, pg.heightPt * ptToMm],
-          pg.widthPt > pg.heightPt ? "landscape" : "portrait");
-      }
-      doc.addImage(pg.dataUrl, "JPEG", 0, 0, pg.widthPt * ptToMm, pg.heightPt * ptToMm);
-    });
+    for (const pg of pages) {
+      const jpgImage = await doc.embedJpg(pg.jpegBuffer);
+      const page = doc.addPage([pg.widthPt, pg.heightPt]);
+      page.drawImage(jpgImage, { x: 0, y: 0, width: pg.widthPt, height: pg.heightPt });
+    }
 
-    return doc.output("blob");
+    const pdfBytes = await doc.save();
+    return new Blob([pdfBytes], { type: "application/pdf" });
   };
 
   // First pass at requested quality
   if (onProgress) onProgress({ phase: "start", total: numPages });
   let pages = await renderPages(quality);
   if (onProgress) onProgress({ phase: "assemble" });
-  let blob = assemblePdf(pages);
+  let blob = await assemblePdf(pages);
 
   // If target size is set and we're over it, iteratively reduce quality
   if (targetMB > 0) {
@@ -196,12 +190,11 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
 
     while (blob.size > targetBytes && currentQuality > 0.25 && attempts < maxAttempts) {
       attempts++;
-      // Reduce quality proportionally to overshoot
       const ratio = targetBytes / blob.size;
       currentQuality = Math.max(0.25, currentQuality * Math.sqrt(ratio));
       if (onProgress) onProgress({ phase: "retry", attempt: attempts, quality: currentQuality, currentSize: blob.size, targetSize: targetBytes });
       pages = await renderPages(currentQuality);
-      blob = assemblePdf(pages);
+      blob = await assemblePdf(pages);
     }
   }
 
