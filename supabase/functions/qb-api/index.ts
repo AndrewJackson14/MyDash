@@ -5,7 +5,7 @@ const CLIENT_ID = Deno.env.get("QB_CLIENT_ID") || "";
 const CLIENT_SECRET = Deno.env.get("QB_CLIENT_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const TOKEN_URL = "https://oauth2.platform.intuit.com/oauth2/v1/tokens/bearer";
+const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const QB_BASE = "https://quickbooks.api.intuit.com/v3/company";
 const MINOR_VERSION = "65";
 

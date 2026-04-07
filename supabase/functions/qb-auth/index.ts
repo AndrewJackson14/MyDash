@@ -9,7 +9,7 @@ const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/qb-auth?action=callback`;
 
 // Intuit OAuth2 endpoints (production)
 const AUTH_BASE = "https://appcenter.intuit.com/connect/oauth2";
-const TOKEN_URL = "https://oauth2.platform.intuit.com/oauth2/v1/tokens/bearer";
+const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 
 const SCOPES = "com.intuit.quickbooks.accounting com.intuit.quickbooks.payment";
 
@@ -132,7 +132,12 @@ serve(async (req: Request) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "realm_id" });
 
-      return new Response(`<html><body><script>window.opener?.postMessage({type:'qb-auth-success',company:'${companyName}',realmId:'${realmId}'},'*');window.close();</script>Connected to ${companyName}! You can close this window.</body></html>`, {
+      const safeCompany = companyName.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+      return new Response(`<html><body><script>
+try { localStorage.setItem('qb-auth-result', JSON.stringify({type:'qb-auth-success',company:'${safeCompany}',realmId:'${realmId}',ts:Date.now()})); } catch(e) {}
+try { window.opener?.postMessage({type:'qb-auth-success',company:'${safeCompany}',realmId:'${realmId}'},'*'); } catch(e) {}
+setTimeout(function(){ window.close(); }, 500);
+</script>Connected to ${safeCompany}! This window will close automatically.</body></html>`, {
         headers: { "Content-Type": "text/html" },
       });
     }

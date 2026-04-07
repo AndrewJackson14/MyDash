@@ -131,7 +131,12 @@ serve(async (req: Request) => {
       }, { onConflict: "user_id" });
 
       // Close popup and notify opener
-      return new Response(`<html><body><script>window.opener?.postMessage({type:'google-auth-success',email:'${email}'},'*');window.close();</script>Connected! You can close this window.</body></html>`, {
+      const safeEmail = email.replace(/'/g, "\\'");
+      return new Response(`<html><body><script>
+try { localStorage.setItem('google-auth-result', JSON.stringify({type:'google-auth-success',email:'${safeEmail}',ts:Date.now()})); } catch(e) {}
+try { window.opener?.postMessage({type:'google-auth-success',email:'${safeEmail}'},'*'); } catch(e) {}
+setTimeout(function(){ window.close(); }, 500);
+</script>Connected! This window will close automatically.</body></html>`, {
         headers: { "Content-Type": "text/html" },
       });
     }

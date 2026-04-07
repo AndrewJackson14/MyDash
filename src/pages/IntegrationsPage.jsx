@@ -58,14 +58,33 @@ const IntegrationsPage = ({ pubs }) => {
     })();
   }, []);
 
-  // ─── Listen for OAuth popup callbacks ──────────────────
+  // ─── Listen for OAuth popup callbacks (postMessage + localStorage fallback) ──
   useEffect(() => {
     const handler = (e) => {
       if (e.data?.type === "qb-auth-success") { setQbStatus("connected"); setQbCompany(e.data.company || ""); }
       if (e.data?.type === "google-auth-success") { setGoogleStatus("connected"); setGoogleEmail(e.data.email || ""); }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+
+    // Poll localStorage as fallback (popup may lose opener reference after OAuth redirect)
+    const poll = setInterval(() => {
+      try {
+        const qbResult = localStorage.getItem("qb-auth-result");
+        if (qbResult) {
+          const data = JSON.parse(qbResult);
+          if (Date.now() - data.ts < 30000) { setQbStatus("connected"); setQbCompany(data.company || ""); }
+          localStorage.removeItem("qb-auth-result");
+        }
+        const gResult = localStorage.getItem("google-auth-result");
+        if (gResult) {
+          const data = JSON.parse(gResult);
+          if (Date.now() - data.ts < 30000) { setGoogleStatus("connected"); setGoogleEmail(data.email || ""); }
+          localStorage.removeItem("google-auth-result");
+        }
+      } catch { /* ok */ }
+    }, 1000);
+
+    return () => { window.removeEventListener("message", handler); clearInterval(poll); };
   }, []);
 
   // ─── Connect handlers ─────────────────────────────────
