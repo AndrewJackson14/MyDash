@@ -88,7 +88,8 @@ function bunnyUploadWithProgress(file, path, filename, onProgress) {
 // ── Initialize pdf.js ────────────────────────────────────────
 async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const workerModule = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default;
   return pdfjsLib;
 }
 
