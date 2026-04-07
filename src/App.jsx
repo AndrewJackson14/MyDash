@@ -132,6 +132,7 @@ export default function App() {
   const [lastFlatplanPub, setLastFlatplanPub] = useState(null);
   const [, forceRender] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState({});
+  const [deepLink, setDeepLink] = useState(null);
 
   const toggleSection = (key) => setCollapsedSections(s => ({ ...s, [key]: !s[key] }));
 
@@ -143,6 +144,20 @@ export default function App() {
   };
 
   const handleNav = (newPg) => {
+    // Parse path-style routes from notifications (e.g. "/sales?tab=inquiries&id=xxx")
+    if (newPg && newPg.startsWith("/")) {
+      const url = new URL(newPg, "https://x");
+      const pageName = url.pathname.replace("/", "");
+      const params = Object.fromEntries(url.searchParams);
+      setDeepLink(params);
+      if (pageName !== pg) {
+        setPgHistory(h => [...h, pg]);
+        setPg(pageName);
+        setIssueDetailId(null);
+      }
+      return;
+    }
+    setDeepLink(null);
     if (newPg !== pg) {
       setPgHistory(h => [...h, pg]);
       setPg(newPg);
@@ -158,7 +173,7 @@ export default function App() {
       loads.push(appData.loadPriorities?.());
     }
     if (pg === 'sales' || pg === 'contracts') {
-      loads.push(appData.loadFullSales?.(), appData.loadClientDetails?.(), appData.loadProposals?.(), appData.loadCommissions?.(), appData.loadOutreach?.());
+      loads.push(appData.loadFullSales?.(), appData.loadClientDetails?.(), appData.loadProposals?.(), appData.loadCommissions?.(), appData.loadOutreach?.(), appData.loadInquiries?.());
     }
     if (pg === 'billing') loads.push(appData.loadBilling?.());
     if (pg === 'editorial' || pg === 'stories' || pg === 'flatplan') { loads.push(appData.loadStories?.(), appData.loadFullSales?.()); }
@@ -185,6 +200,7 @@ export default function App() {
   // ─── Badge Counts ───────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
   const salesActive = (sales || []).filter(s => !["Closed", "Follow-up"].includes(s.status)).length;
+  const newInquiries = (appData.adInquiries || []).filter(i => i.status === "new").length;
   const overdueInvoices = (invoices || []).filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length;
   const openTickets = (tickets || []).filter(t => ["open", "in_progress", "escalated"].includes(t.status)).length;
   const escalatedTickets = (tickets || []).filter(t => t.status === "escalated").length;
@@ -219,8 +235,9 @@ export default function App() {
 
   const NAV = [
     { id: "dashboard", label: "My Dash", icon: Ic.dash },
+    { id: "calendar", label: "Calendar", icon: Ic.cal },
     { id: "_revenue", section: true, label: "Revenue" },
-    { id: "sales", label: "Sales", icon: Ic.sale, badge: salesActive || null },
+    { id: "sales", label: "Sales", icon: Ic.sale, badge: (salesActive || 0) + (newInquiries || 0) || null, badgeColor: newInquiries > 0 ? Z.ac : null },
     { id: "contracts", label: "Contracts", icon: Ic.sign },
     { id: "billing", label: "Billing", icon: Ic.invoice, badge: overdueInvoices || null, badgeColor: overdueInvoices > 0 ? Z.da : null },
     { id: "_content", section: true, label: "Content" },
@@ -236,7 +253,6 @@ export default function App() {
     { id: "legalnotices", label: "Legal Notices", icon: Ic.gavel, badge: activeLegal || null },
     { id: "creativejobs", label: "Creative Services", icon: Ic.paintbrush, badge: activeJobs || null },
     { id: "_system", section: true, label: "System" },
-    { id: "calendar", label: "Calendar", icon: Ic.cal },
     { id: "team", label: "Team", icon: Ic.user },
     { id: "publications", label: "Publications", icon: Ic.pub },
     { id: "schedule", label: "Schedule", icon: Ic.story },
@@ -413,7 +429,7 @@ export default function App() {
         {show("publications") && <div style={vis("publications")}><Publications pubs={pubs} setPubs={setPubs} issues={issues} setIssues={setIssues} sales={sales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={issues} setIssues={setIssues} sales={sales} /></div>}
         {show("stories") && <div style={vis("stories")}><StoriesModule stories={stories} setStories={setStories} pubs={pubs} issues={issues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} /></div>}
-        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={clients} setClients={setClients} sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} /></div>}
+        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={clients} setClients={setClients} sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} deepLink={deepLink} /></div>}
         {show("contracts") && <div style={vis("contracts")}><Contracts contracts={appData.contracts || []} clients={clients} pubs={pubs} sales={sales} team={team} onNavigate={handleNav} loadContracts={appData.loadContracts} contractsLoaded={appData.contractsLoaded} /></div>}
         {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={clients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} invoices={invoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={clients} sales={sales} issues={issues} pubs={pubs} onNavigate={handleNav} /></div>}
