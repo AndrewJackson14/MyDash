@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Card, TB, Stat, Modal , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, Card, TB, Stat, Modal, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { SITES } from "../constants";
+import { supabase } from "../lib/supabase";
+
+const AUTH_BASE = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1";
 
 // ─── Integration status helpers ─────────────────────────────
 const STATUS = { connected: { label: "Connected", color: Z.su }, disconnected: { label: "Not Connected", color: Z.da }, configured: { label: "Configured", color: Z.wa }, syncing: { label: "Syncing...", color: Z.pu } };
@@ -13,53 +16,89 @@ const StatusDot = ({ status }) => {
   </div>;
 };
 
+async function getAuthHeader() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ? `Bearer ${session.access_token}` : "";
+}
+
 // ─── Module ─────────────────────────────────────────────────
 const IntegrationsPage = ({ pubs }) => {
   const [tab, setTab] = useState("Overview");
-  const [qbModal, setQbModal] = useState(false);
-  const [wpModal, setWpModal] = useState(false);
-  const [gcModal, setGcModal] = useState(false);
 
-  // ─── QuickBooks Config ──────────────────────────────────
-  const [qbConfig, setQbConfig] = useState({
-    clientId: "", clientSecret: "", companyId: "", redirectUri: "",
-    status: "disconnected", lastSync: null,
-    syncInvoices: true, syncPayments: true, syncExpenses: false,
-  });
+  // ─── QuickBooks Status ─────────────────────────────────
+  const [qbStatus, setQbStatus] = useState("disconnected");
+  const [qbCompany, setQbCompany] = useState("");
+
+  // ─── Google Status ─────────────────────────────────────
+  const [googleStatus, setGoogleStatus] = useState("disconnected");
+  const [googleEmail, setGoogleEmail] = useState("");
 
   // ─── StellarPress Config ─────────────────────────────────
   const spConnected = SITES.length > 0;
-
-  // ─── Google Calendar Config ─────────────────────────────
-  const [gcConfig, setGcConfig] = useState({
-    clientId: "", apiKey: "", calendarId: "",
-    status: "disconnected", lastSync: null,
-    syncEvents: true, syncDeadlines: true,
-  });
 
   // ─── Supabase Status ────────────────────────────────────
   const sbUrl = typeof import.meta !== "undefined" ? import.meta.env?.VITE_SUPABASE_URL : null;
   const sbConnected = !!sbUrl;
 
-  // ─── Handlers ───────────────────────────────────────────
-  const testQbConnection = () => {
-    if (!qbConfig.clientId || !qbConfig.clientSecret) return;
-    setQbConfig(c => ({ ...c, status: "syncing" }));
-    // Simulate connection test
-    setTimeout(() => setQbConfig(c => ({ ...c, status: "configured", lastSync: new Date().toISOString() })), 1500);
+  // ─── Load connection statuses ──────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const auth = await getAuthHeader();
+        if (!auth) return;
+        // QB status
+        const qbRes = await fetch(`${AUTH_BASE}/qb-auth?action=status`, { headers: { Authorization: auth } });
+        const qbData = await qbRes.json();
+        if (qbData.connected) { setQbStatus("connected"); setQbCompany(qbData.companyName || ""); }
+        // Google status
+        const gRes = await fetch(`${AUTH_BASE}/gmail-auth?action=status`, { headers: { Authorization: auth } });
+        const gData = await gRes.json();
+        if (gData.connected) { setGoogleStatus("connected"); setGoogleEmail(gData.email || ""); }
+      } catch { /* ok */ }
+    })();
+  }, []);
+
+  // ─── Listen for OAuth popup callbacks ──────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === "qb-auth-success") { setQbStatus("connected"); setQbCompany(e.data.company || ""); }
+      if (e.data?.type === "google-auth-success") { setGoogleStatus("connected"); setGoogleEmail(e.data.email || ""); }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // ─── Connect handlers ─────────────────────────────────
+  const connectQB = async () => {
+    const auth = await getAuthHeader();
+    const res = await fetch(`${AUTH_BASE}/qb-auth?action=start`, { headers: { Authorization: auth } });
+    const { url } = await res.json();
+    window.open(url, "qb-auth", "width=600,height=700,left=200,top=100");
   };
 
+  const disconnectQB = async () => {
+    const auth = await getAuthHeader();
+    await fetch(`${AUTH_BASE}/qb-auth?action=disconnect`, { method: "POST", headers: { Authorization: auth, "x-action": "disconnect" } });
+    setQbStatus("disconnected"); setQbCompany("");
+  };
 
-  const testGcConnection = () => {
-    if (!gcConfig.clientId) return;
-    setGcConfig(c => ({ ...c, status: "syncing" }));
-    setTimeout(() => setGcConfig(c => ({ ...c, status: "configured", lastSync: new Date().toISOString() })), 1200);
+  const connectGoogle = async () => {
+    const auth = await getAuthHeader();
+    const res = await fetch(`${AUTH_BASE}/gmail-auth?action=start`, { headers: { Authorization: auth } });
+    const { url } = await res.json();
+    window.open(url, "google-auth", "width=500,height=700,left=200,top=100");
+  };
+
+  const disconnectGoogle = async () => {
+    const auth = await getAuthHeader();
+    await fetch(`${AUTH_BASE}/gmail-auth?action=disconnect`, { method: "POST", headers: { Authorization: auth, "x-action": "disconnect" } });
+    setGoogleStatus("disconnected"); setGoogleEmail("");
   };
 
   const connectedCount = [
-    qbConfig.status !== "disconnected" ? 1 : 0,
+    qbStatus === "connected" ? 1 : 0,
+    googleStatus === "connected" ? 1 : 0,
     spConnected ? 1 : 0,
-    gcConfig.status !== "disconnected" ? 1 : 0,
     sbConnected ? 1 : 0,
   ].reduce((s, x) => s + x, 0);
 
@@ -67,41 +106,46 @@ const IntegrationsPage = ({ pubs }) => {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="My Integrations" />
 
-    <TabRow><TB tabs={["Overview", "QuickBooks", "StellarPress", "Calendar", "Database"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={["Overview", "QuickBooks", "Google Workspace", "StellarPress", "Database"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
         <Stat label="Connected" value={connectedCount} sub="of 4 integrations" />
-        <Stat label="QuickBooks" value={qbConfig.status === "disconnected" ? "—" : "✓"} sub={STATUS[qbConfig.status]?.label} color={STATUS[qbConfig.status]?.color} />
-        <Stat label="StellarPress" value={spConnected ? "✓" : "—"} sub={`${SITES.length} sites`} color={spConnected ? Z.su : Z.da} />
+        <Stat label="QuickBooks" value={qbStatus === "connected" ? "\u2713" : "\u2014"} sub={qbStatus === "connected" ? qbCompany : "Not connected"} color={qbStatus === "connected" ? Z.su : Z.da} />
+        <Stat label="Google" value={googleStatus === "connected" ? "\u2713" : "\u2014"} sub={googleStatus === "connected" ? googleEmail : "Not connected"} color={googleStatus === "connected" ? Z.su : Z.da} />
         <Stat label="Database" value={sbConnected ? "Online" : "Offline"} sub={sbConnected ? "Supabase connected" : "Running locally"} color={sbConnected ? Z.su : Z.wa} />
       </div>
 
-      {/* Integration cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-
         {/* QuickBooks */}
-        <GlassCard style={{ borderLeft: `3px solid ${STATUS[qbConfig.status]?.color || Z.da}` }}>
+        <GlassCard style={{ borderLeft: `3px solid ${qbStatus === "connected" ? Z.su : Z.da}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>QuickBooks Online</div>
-              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Invoicing, payments, merchant services</div>
+              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Invoicing & payment sync</div>
             </div>
-            <StatusDot status={qbConfig.status} />
+            <StatusDot status={qbStatus} />
           </div>
           <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>
-            {qbConfig.status === "disconnected"
-              ? "Connect QuickBooks to send invoices, process card payments, and sync financial data."
-              : `Last sync: ${qbConfig.lastSync ? new Date(qbConfig.lastSync).toLocaleString() : "Never"}`}
+            {qbStatus === "connected" ? `Connected to ${qbCompany}` : "Connect QuickBooks to push invoices and payments from Billing."}
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <Btn sm onClick={() => { setTab("QuickBooks"); }}>{qbConfig.status === "disconnected" ? "Configure" : "Settings"}</Btn>
-            {qbConfig.status !== "disconnected" && <Btn sm v="secondary" onClick={testQbConnection}>Test Connection</Btn>}
+          <Btn sm onClick={() => setTab("QuickBooks")}>{qbStatus === "connected" ? "Manage" : "Connect"}</Btn>
+        </GlassCard>
+
+        {/* Google Workspace */}
+        <GlassCard style={{ borderLeft: `3px solid ${googleStatus === "connected" ? Z.su : Z.da}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>Google Workspace</div>
+              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Gmail & Calendar</div>
+            </div>
+            <StatusDot status={googleStatus} />
           </div>
-          <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 8 }}>
-            Capabilities: Invoice sync · Card processing · Payment recording · Expense tracking
+          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>
+            {googleStatus === "connected" ? `Connected as ${googleEmail}` : "Connect your Google account for Mail and Calendar."}
           </div>
+          <Btn sm onClick={() => setTab("Google Workspace")}>{googleStatus === "connected" ? "Manage" : "Connect"}</Btn>
         </GlassCard>
 
         {/* StellarPress */}
@@ -113,30 +157,8 @@ const IntegrationsPage = ({ pubs }) => {
             </div>
             <StatusDot status={spConnected ? "connected" : "disconnected"} />
           </div>
-          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>
-            Publish stories directly from MyDash Editorial to StellarPress public sites via shared Supabase database.
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <Btn sm onClick={() => setTab("StellarPress")}>Details</Btn>
-          </div>
-          <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
-            {SITES.map(s => <span key={s.id} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.su, background: Z.ss, padding: "2px 6px", borderRadius: Ri }}>{s.name.split(" ").map(w => w[0]).join("")}</span>)}
-          </div>
-        </GlassCard>
-
-        {/* Google Calendar */}
-        <GlassCard style={{ borderLeft: `3px solid ${STATUS[gcConfig.status]?.color || Z.da}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-            <div>
-              <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>Google Calendar</div>
-              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Team scheduling & deadlines</div>
-            </div>
-            <StatusDot status={gcConfig.status} />
-          </div>
-          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>
-            Sync calendar events, ad deadlines, and editorial deadlines with Google Calendar.
-          </div>
-          <Btn sm onClick={() => setTab("Calendar")}>{gcConfig.status === "disconnected" ? "Configure" : "Settings"}</Btn>
+          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>Publish stories directly to StellarPress via shared Supabase database.</div>
+          <Btn sm onClick={() => setTab("StellarPress")}>Details</Btn>
         </GlassCard>
 
         {/* Supabase */}
@@ -148,10 +170,8 @@ const IntegrationsPage = ({ pubs }) => {
             </div>
             <StatusDot status={sbConnected ? "connected" : "disconnected"} />
           </div>
-          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>
-            {sbConnected ? "Connected to Supabase. All data persists to the cloud database." : "Running in offline mode. Data is stored locally in browser memory and will not persist."}
-          </div>
-          <Btn sm onClick={() => setTab("Database")}>{sbConnected ? "Details" : "Configure"}</Btn>
+          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 10 }}>{sbConnected ? "Connected to Supabase cloud database." : "Running in offline mode."}</div>
+          <Btn sm onClick={() => setTab("Database")}>Details</Btn>
         </GlassCard>
       </div>
     </>}
@@ -162,62 +182,125 @@ const IntegrationsPage = ({ pubs }) => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: FW.heavy, color: Z.tx }}>QuickBooks Online</div>
-            <div style={{ fontSize: FS.sm, color: Z.tm }}>Connect your QuickBooks account to enable invoice sync and payment processing</div>
+            <div style={{ fontSize: FS.sm, color: Z.tm }}>One-way sync: push invoices and payments from MyDash Billing to QuickBooks</div>
           </div>
-          <StatusDot status={qbConfig.status} />
+          <StatusDot status={qbStatus} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>API Credentials</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Inp label="Client ID" value={qbConfig.clientId} onChange={e => setQbConfig(c => ({ ...c, clientId: e.target.value }))} placeholder="Enter QuickBooks Client ID" />
-              <Inp label="Client Secret" type="password" value={qbConfig.clientSecret} onChange={e => setQbConfig(c => ({ ...c, clientSecret: e.target.value }))} placeholder="Enter Client Secret" />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-              <Inp label="Company ID" value={qbConfig.companyId} onChange={e => setQbConfig(c => ({ ...c, companyId: e.target.value }))} placeholder="Your QuickBooks Company ID" />
-              <Inp label="Redirect URI" value={qbConfig.redirectUri} onChange={e => setQbConfig(c => ({ ...c, redirectUri: e.target.value }))} placeholder="https://mydash.13stars.media/auth/qb" />
-            </div>
-          </div>
-
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Sync Settings</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { key: "syncInvoices", label: "Sync Invoices", desc: "Send invoices from MyDash Billing to QuickBooks for delivery and tracking" },
-                { key: "syncPayments", label: "Sync Payments", desc: "Record payments in QuickBooks when received through MyDash" },
-                { key: "syncExpenses", label: "Pull Expenses (Read-Only)", desc: "Display QuickBooks expense data in MyDash P&L reports" },
-              ].map(opt => <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderRadius: R, cursor: "pointer", background: "transparent" }}>
-                <input type="checkbox" checked={qbConfig[opt.key]} onChange={e => setQbConfig(c => ({ ...c, [opt.key]: e.target.checked }))} style={{ marginTop: 2 }} />
+        {qbStatus === "connected" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: R, background: Z.go + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{"\u2713"}</div>
                 <div>
-                  <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{opt.label}</div>
-                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{opt.desc}</div>
+                  <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{qbCompany || "QuickBooks Company"}</div>
+                  <div style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.semi, fontFamily: COND }}>Connected</div>
                 </div>
-              </label>)}
+              </div>
+            </div>
+
+            <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>What Gets Synced</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { label: "Invoices", desc: "When you create an invoice in Billing, it gets pushed to QuickBooks" },
+                  { label: "Payments", desc: "When a payment is recorded in MyDash, it's synced to QuickBooks" },
+                  { label: "Customers", desc: "Client records are auto-created in QuickBooks when needed" },
+                ].map(item => (
+                  <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px", borderRadius: Ri, background: Z.sa }}>
+                    <span style={{ color: Z.go, fontSize: FS.sm, fontWeight: FW.bold }}>{"\u2713"}</span>
+                    <div>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{item.label}</div>
+                      <div style={{ fontSize: FS.xs, color: Z.tm }}>{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Btn sm v="danger" onClick={disconnectQB}>Disconnect QuickBooks</Btn>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: 40, textAlign: "center", background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>{"\ud83d\udcb1"}</div>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, marginBottom: 8 }}>Connect QuickBooks Online</div>
+              <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 20, maxWidth: 400, margin: "0 auto 20px" }}>
+                Sign in with your Intuit account to enable one-way sync of invoices and payments from MyDash Billing to QuickBooks.
+              </div>
+              <Btn onClick={connectQB}>Connect to QuickBooks</Btn>
+            </div>
+
+            <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>How It Works</div>
+              <div style={{ fontSize: FS.base, color: Z.tm, lineHeight: 1.6 }}>
+                MyDash pushes data to QuickBooks — never the other way. When you create an invoice in Billing, it creates a matching invoice in QuickBooks. When a payment is recorded, QuickBooks is updated. Client records are auto-matched or created as needed. Your bookkeeper sees everything in QuickBooks without manual data entry.
+              </div>
             </div>
           </div>
+        )}
+      </GlassCard>
+    </>}
 
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>How It Works</div>
-            <div style={{ fontSize: FS.base, color: Z.tm, lineHeight: 1.6 }}>
-              MyDash acts as the command center. When you create an invoice in My Billing and click "Send," MyDash creates the invoice in QuickBooks via API, and QuickBooks delivers it to the client. When a card payment is processed through MyDash, QuickBooks handles the merchant services transaction and MyDash records the result. Expense data flows one-way from QuickBooks into MyDash for the P&L reports — MyDash never creates expenses.
-            </div>
+    {/* ════════ GOOGLE WORKSPACE TAB ════════ */}
+    {tab === "Google Workspace" && <>
+      <GlassCard>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: FW.heavy, color: Z.tx }}>Google Workspace</div>
+            <div style={{ fontSize: FS.sm, color: Z.tm }}>Gmail, Calendar, and Contacts — connected via your Google account</div>
           </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={testQbConnection} disabled={!qbConfig.clientId || !qbConfig.clientSecret}>
-              {qbConfig.status === "syncing" ? "Testing..." : qbConfig.status === "disconnected" ? "Connect to QuickBooks" : "Reconnect"}
-            </Btn>
-            {qbConfig.status !== "disconnected" && <Btn v="ghost" onClick={() => setQbConfig(c => ({ ...c, status: "disconnected", lastSync: null }))}>Disconnect</Btn>}
-          </div>
+          <StatusDot status={googleStatus} />
         </div>
+
+        {googleStatus === "connected" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 48, height: 48, borderRadius: R, background: Z.go + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{"\u2713"}</div>
+                <div>
+                  <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{googleEmail}</div>
+                  <div style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.semi, fontFamily: COND }}>Connected</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Connected Services</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { label: "Gmail", desc: "Read, compose, and manage email from the Mail page", icon: "\u2709" },
+                  { label: "Google Calendar", desc: "Sync events and deadlines (Calendar revamp coming soon)", icon: "\ud83d\udcc5" },
+                ].map(item => (
+                  <div key={item.label} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px", borderRadius: Ri, background: Z.sa }}>
+                    <span style={{ fontSize: FS.md }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{item.label}</div>
+                      <div style={{ fontSize: FS.xs, color: Z.tm }}>{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Btn sm v="danger" onClick={disconnectGoogle}>Disconnect Google Account</Btn>
+          </div>
+        ) : (
+          <div style={{ padding: 40, textAlign: "center", background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+            <Ic.mail size={48} color={Z.tm} />
+            <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, marginTop: 12, marginBottom: 8 }}>Connect Google Workspace</div>
+            <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 20, maxWidth: 400, margin: "0 auto 20px" }}>
+              Sign in with your Google account to enable Gmail and Calendar integration in MyDash.
+            </div>
+            <Btn onClick={connectGoogle}>Connect Google Account</Btn>
+          </div>
+        )}
       </GlassCard>
     </>}
 
     {/* ════════ STELLARPRESS TAB ════════ */}
     {tab === "StellarPress" && <>
       <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>StellarPress is connected via the shared Supabase database. Stories published in MyDash Editorial are instantly available on StellarPress public sites.</div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {SITES.map(site => <GlassCard key={site.id} style={{ borderLeft: `3px solid ${Z.su}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -229,60 +312,6 @@ const IntegrationsPage = ({ pubs }) => {
           </div>
         </GlassCard>)}
       </div>
-
-      <GlassCard style={{ background: Z.bg }}>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>StellarPress Publishing Workflow</div>
-        <div style={{ fontSize: FS.base, color: Z.tm, lineHeight: 1.6 }}>
-          When a story reaches "Approved" status in the editorial workflow, an editor can publish it to the web through the "Publish to Web" button. This sets the story status to "Published," generates a URL slug, and populates the category, excerpt, and SEO fields. The story immediately appears on the corresponding StellarPress public site — no API calls needed, since both MyDash and StellarPress share the same Supabase database.
-        </div>
-      </GlassCard>
-    </>}
-
-    {/* ════════ CALENDAR TAB ════════ */}
-    {tab === "Calendar" && <>
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: FW.heavy, color: Z.tx }}>Google Calendar</div>
-            <div style={{ fontSize: FS.sm, color: Z.tm }}>Sync MyDash events and deadlines with Google Calendar</div>
-          </div>
-          <StatusDot status={gcConfig.status} />
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>API Credentials</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Inp label="Client ID" value={gcConfig.clientId} onChange={e => setGcConfig(c => ({ ...c, clientId: e.target.value }))} placeholder="Google OAuth Client ID" />
-              <Inp label="API Key" value={gcConfig.apiKey} onChange={e => setGcConfig(c => ({ ...c, apiKey: e.target.value }))} placeholder="Google API Key" />
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <Inp label="Calendar ID" value={gcConfig.calendarId} onChange={e => setGcConfig(c => ({ ...c, calendarId: e.target.value }))} placeholder="primary or calendar@group.calendar.google.com" />
-            </div>
-          </div>
-
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Sync Options</div>
-            {[
-              { key: "syncEvents", label: "Sync Calendar Events", desc: "Push MyDash calendar events (calls, meetings, tasks) to Google Calendar" },
-              { key: "syncDeadlines", label: "Sync Deadlines", desc: "Push ad deadlines and editorial deadlines as all-day events" },
-            ].map(opt => <label key={opt.key} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", borderRadius: R, cursor: "pointer", background: "transparent" }}>
-              <input type="checkbox" checked={gcConfig[opt.key]} onChange={e => setGcConfig(c => ({ ...c, [opt.key]: e.target.checked }))} style={{ marginTop: 2 }} />
-              <div>
-                <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{opt.label}</div>
-                <div style={{ fontSize: FS.xs, color: Z.tm }}>{opt.desc}</div>
-              </div>
-            </label>)}
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={testGcConnection} disabled={!gcConfig.clientId}>
-              {gcConfig.status === "syncing" ? "Testing..." : gcConfig.status === "disconnected" ? "Connect" : "Reconnect"}
-            </Btn>
-            {gcConfig.status !== "disconnected" && <Btn v="ghost" onClick={() => setGcConfig(c => ({ ...c, status: "disconnected", lastSync: null }))}>Disconnect</Btn>}
-          </div>
-        </div>
-      </GlassCard>
     </>}
 
     {/* ════════ DATABASE TAB ════════ */}
@@ -291,49 +320,19 @@ const IntegrationsPage = ({ pubs }) => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: FW.heavy, color: Z.tx }}>Supabase Database</div>
-            <div style={{ fontSize: FS.sm, color: Z.tm }}>PostgreSQL database with real-time subscriptions and row-level security</div>
+            <div style={{ fontSize: FS.sm, color: Z.tm }}>PostgreSQL with real-time subscriptions and row-level security</div>
           </div>
           <StatusDot status={sbConnected ? "connected" : "disconnected"} />
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Connection</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Status</div>
-                <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: sbConnected ? Z.su : Z.wa, marginTop: 2 }}>{sbConnected ? "Connected" : "Offline Mode"}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>URL</div>
-                <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2, wordBreak: "break-all" }}>{sbUrl || "Not configured — set VITE_SUPABASE_URL in .env"}</div>
-              </div>
+        <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Status</div>
+              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: sbConnected ? Z.su : Z.wa, marginTop: 2 }}>{sbConnected ? "Connected" : "Offline Mode"}</div>
             </div>
-          </div>
-
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Configuration</div>
-            <div style={{ fontSize: FS.base, color: Z.tm, lineHeight: 1.6 }}>
-              To connect to Supabase, create a <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: R }}>.env</code> file in the project root with:
-            </div>
-            <pre style={{ background: Z.sa, padding: 16, borderRadius: R, fontSize: FS.sm, color: Z.ac, marginTop: 8, lineHeight: 1.5, overflow: "auto" }}>{`VITE_SUPABASE_URL=https://your-project.supabase.co\nVITE_SUPABASE_ANON_KEY=your-anon-key-here`}</pre>
-            <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 8 }}>
-              Then run the schema migrations in <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: R }}>supabase/migrations/</code> in order (001 through 004) in the Supabase SQL editor.
-            </div>
-          </div>
-
-          <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Schema Status</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {[
-                { label: "001 — Initial Schema", tables: "publications, issues, team, clients, sales, proposals, stories, calendar, flatplan" },
-                { label: "002 — Seed Data", tables: "Sample publications, clients, stories" },
-                { label: "003 — Realistic Seed", tables: "Production-realistic sample data" },
-                { label: "004 — Phase 2 Expansion", tables: "invoices, payments, subscribers, tickets, legal_notices, creative_jobs, + 14 more" },
-              ].map(m => <div key={m.label} style={{ padding: 10, ...glass(), borderRadius: R, border: `1px solid ${Z.bd}` }}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{m.label}</div>
-                <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 2 }}>{m.tables}</div>
-              </div>)}
+            <div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>URL</div>
+              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2, wordBreak: "break-all" }}>{sbUrl || "Not configured"}</div>
             </div>
           </div>
         </div>
