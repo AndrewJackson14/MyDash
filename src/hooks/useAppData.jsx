@@ -291,10 +291,6 @@ export function DataProvider({ children, localData }) {
       if (data.length < pageSize) break;
       page++;
     }
-    // DEBUG: log publication_id distribution to diagnose filter mismatches
-    const pubCounts = {};
-    allStories.forEach(s => { pubCounts[s.publication_id || '(null)'] = (pubCounts[s.publication_id || '(null)'] || 0) + 1; });
-    console.log('Stories loaded:', allStories.length, 'by publication_id:', pubCounts);
     if (allStories.length > 0) setStories(allStories.map(s => ({ id: s.id, title: s.title, author: s.author, status: s.status, publication: s.publication_id, assignedTo: s.assigned_to || '', dueDate: s.due_date, images: s.images, wordCount: s.word_count, category: s.category, issueId: s.issue_id || '' })));
     setStoriesLoaded(true);
   }, [storiesLoaded]);
