@@ -1,6 +1,7 @@
 // ============================================================
 // EditionManager.jsx — Upload & manage print editions (PDF)
 // Stores in issuu_editions, uploads to BunnyCDN, auto-generates covers
+// Client-side PDF compression via pdf.js re-render + jsPDF assembly
 // ============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
@@ -22,8 +23,23 @@ const PUB_SLUG_MAP = {
   "pub-the-malibu-times": "malibu-times",
 };
 
+// ── Compression presets ─────────────────────────────────────
+const COMPRESSION_PRESETS = {
+  none:       { label: "None (Original)",  dpi: 0,   quality: 0,    targetMB: 0,  desc: "Upload the original PDF without compression" },
+  light:      { label: "Light",            dpi: 200, quality: 0.85, targetMB: 30, desc: "Minimal quality loss, good for archival" },
+  medium:     { label: "Medium",           dpi: 150, quality: 0.72, targetMB: 15, desc: "Good balance of quality and file size" },
+  aggressive: { label: "Aggressive",       dpi: 120, quality: 0.55, targetMB: 8,  desc: "Maximum compression, some quality loss" },
+  custom:     { label: "Custom",           dpi: 150, quality: 0.75, targetMB: 0,  desc: "Set your own DPI, quality, and target size" },
+};
+
 // ── Helpers ──────────────────────────────────────────────────
 const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+const fmtSize = (bytes) => {
+  if (!bytes) return "—";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1048576).toFixed(1) + " MB";
+};
 
 const slugFromDate = (dateStr) => {
   if (!dateStr) return "";
@@ -69,12 +85,18 @@ function bunnyUploadWithProgress(file, path, filename, onProgress) {
   });
 }
 
-// ── Render PDF page 1 to JPEG blob ──────────────────────────
-async function renderPdfCover(pdfUrl) {
+// ── Initialize pdf.js ────────────────────────────────────────
+async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  return pdfjsLib;
+}
 
-  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+// ── Render PDF page 1 from File → cover JPEG + page count ───
+async function renderPdfCoverFromFile(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await getPdfjs();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const page = await pdf.getPage(1);
   const scale = 1.5;
   const viewport = page.getViewport({ scale });
@@ -90,26 +112,99 @@ async function renderPdfCover(pdfUrl) {
   });
 }
 
-// ── Render PDF page 1 from File object ──────────────────────
-async function renderPdfCoverFromFile(file) {
+// ══════════════════════════════════════════════════════════════
+// PDF COMPRESSION ENGINE
+// Re-renders each page via pdf.js → canvas → JPEG, then
+// assembles a new PDF with jsPDF. Supports DPI, JPEG quality,
+// and optional target file size (iterative quality reduction).
+// ══════════════════════════════════════════════════════════════
+async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onProgress }) {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  const pdfjsLib = await getPdfjs();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+  const numPages = pdf.numPages;
+  const { jsPDF } = await import("jspdf");
 
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
-  const scale = 1.5;
-  const viewport = page.getViewport({ scale });
+  // Render all pages to JPEG blobs at the given DPI & quality
+  const renderPages = async (q) => {
+    const pages = [];
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      // pdf.js default is 72 DPI at scale=1; scale = targetDPI / 72
+      const scale = dpi / 72;
+      const viewport = page.getViewport({ scale });
 
-  const canvas = document.createElement("canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext("2d");
-  await page.render({ canvasContext: ctx, viewport }).promise;
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve({ blob, numPages: pdf.numPages }), "image/jpeg", 0.85);
-  });
+      // Get page dimensions in points (1/72 inch) for the output PDF
+      const origViewport = page.getViewport({ scale: 1 });
+      const widthPt = origViewport.width;
+      const heightPt = origViewport.height;
+
+      const dataUrl = canvas.toDataURL("image/jpeg", q);
+      pages.push({ dataUrl, widthPt, heightPt });
+
+      // Clean up canvas memory
+      canvas.width = 1;
+      canvas.height = 1;
+
+      if (onProgress) onProgress({ phase: "render", page: i, total: numPages, quality: q });
+    }
+    return pages;
+  };
+
+  // Assemble pages into a new PDF with jsPDF
+  const assemblePdf = (pages) => {
+    const first = pages[0];
+    // jsPDF uses mm; 1 pt = 0.352778 mm
+    const ptToMm = 0.352778;
+    const doc = new jsPDF({
+      orientation: first.widthPt > first.heightPt ? "landscape" : "portrait",
+      unit: "mm",
+      format: [first.widthPt * ptToMm, first.heightPt * ptToMm],
+    });
+
+    pages.forEach((pg, i) => {
+      if (i > 0) {
+        doc.addPage([pg.widthPt * ptToMm, pg.heightPt * ptToMm],
+          pg.widthPt > pg.heightPt ? "landscape" : "portrait");
+      }
+      doc.addImage(pg.dataUrl, "JPEG", 0, 0, pg.widthPt * ptToMm, pg.heightPt * ptToMm);
+    });
+
+    return doc.output("blob");
+  };
+
+  // First pass at requested quality
+  if (onProgress) onProgress({ phase: "start", total: numPages });
+  let pages = await renderPages(quality);
+  if (onProgress) onProgress({ phase: "assemble" });
+  let blob = assemblePdf(pages);
+
+  // If target size is set and we're over it, iteratively reduce quality
+  if (targetMB > 0) {
+    const targetBytes = targetMB * 1048576;
+    let currentQuality = quality;
+    let attempts = 0;
+    const maxAttempts = 4;
+
+    while (blob.size > targetBytes && currentQuality > 0.25 && attempts < maxAttempts) {
+      attempts++;
+      // Reduce quality proportionally to overshoot
+      const ratio = targetBytes / blob.size;
+      currentQuality = Math.max(0.25, currentQuality * Math.sqrt(ratio));
+      if (onProgress) onProgress({ phase: "retry", attempt: attempts, quality: currentQuality, currentSize: blob.size, targetSize: targetBytes });
+      pages = await renderPages(currentQuality);
+      blob = assemblePdf(pages);
+    }
+  }
+
+  if (onProgress) onProgress({ phase: "done", finalSize: blob.size, originalSize: file.size });
+  return { blob, numPages };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -143,7 +238,6 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
   const toggleFeatured = async (ed) => {
     if (!supabase) return;
     const newVal = !ed.isFeatured;
-    // If featuring, unfeature all others for this publication
     if (newVal) {
       await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", ed.publicationId);
       setEditions(prev => prev.map(e => e.publicationId === ed.publicationId ? { ...e, isFeatured: false } : e));
@@ -266,6 +360,107 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
+// COMPRESSION SETTINGS PANEL
+// ══════════════════════════════════════════════════════════════
+const CompressionSettings = ({ preset, setPreset, dpi, setDpi, quality, setQuality, targetMB, setTargetMB, originalSize }) => {
+  const presetKeys = Object.keys(COMPRESSION_PRESETS);
+
+  const handlePresetChange = (key) => {
+    setPreset(key);
+    if (key !== "custom" && key !== "none") {
+      const p = COMPRESSION_PRESETS[key];
+      setDpi(p.dpi);
+      setQuality(p.quality);
+      setTargetMB(p.targetMB);
+    }
+  };
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14, background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
+      PDF Compression
+    </div>
+
+    {/* Preset buttons */}
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {presetKeys.map(key => {
+        const p = COMPRESSION_PRESETS[key];
+        const active = preset === key;
+        return <button key={key} onClick={() => handlePresetChange(key)} style={{
+          padding: "5px 12px", borderRadius: Ri, border: `1px solid ${active ? Z.ac : Z.bd}`,
+          background: active ? Z.ac + "22" : "transparent", color: active ? Z.ac : Z.tm,
+          fontSize: FS.sm, fontWeight: active ? FW.bold : FW.medium, fontFamily: COND,
+          cursor: "pointer", transition: "all 0.15s",
+        }}>{p.label}</button>;
+      })}
+    </div>
+
+    {/* Description */}
+    <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+      {COMPRESSION_PRESETS[preset].desc}
+    </div>
+
+    {/* Custom controls */}
+    {preset === "custom" && (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+        {/* DPI slider */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>DPI (Resolution)</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{dpi}</span>
+          </div>
+          <input type="range" min={72} max={300} step={1} value={dpi} onChange={e => setDpi(Number(e.target.value))}
+            style={{ width: "100%", accentColor: Z.ac }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
+            <span>72 (small)</span><span>150 (web)</span><span>300 (print)</span>
+          </div>
+        </div>
+
+        {/* Quality slider */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>JPEG Quality</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{Math.round(quality * 100)}%</span>
+          </div>
+          <input type="range" min={25} max={95} step={1} value={Math.round(quality * 100)} onChange={e => setQuality(Number(e.target.value) / 100)}
+            style={{ width: "100%", accentColor: Z.ac }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
+            <span>25% (aggressive)</span><span>60%</span><span>95% (near-lossless)</span>
+          </div>
+        </div>
+
+        {/* Target size */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Target Size (MB)</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+              {targetMB > 0 ? `${targetMB} MB` : "No limit"}
+            </span>
+          </div>
+          <input type="range" min={0} max={80} step={1} value={targetMB} onChange={e => setTargetMB(Number(e.target.value))}
+            style={{ width: "100%", accentColor: Z.ac }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
+            <span>No limit</span><span>40 MB</span><span>80 MB</span>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Size estimate for non-none presets */}
+    {preset !== "none" && originalSize > 0 && (
+      <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, borderTop: `1px solid ${Z.bd}`, paddingTop: 8 }}>
+        Original: <b style={{ color: Z.tx }}>{fmtSize(originalSize)}</b>
+        {COMPRESSION_PRESETS[preset].targetMB > 0 && preset !== "custom" && (
+          <span> → Target: <b style={{ color: Z.go }}>{COMPRESSION_PRESETS[preset].targetMB} MB</b></span>
+        )}
+        {preset === "custom" && targetMB > 0 && (
+          <span> → Target: <b style={{ color: Z.go }}>{targetMB} MB</b></span>
+        )}
+      </div>
+    )}
+  </div>;
+};
+
+// ══════════════════════════════════════════════════════════════
 // EDITION UPLOAD / EDIT MODAL
 // ══════════════════════════════════════════════════════════════
 const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
@@ -284,13 +479,22 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const [coverImageUrl, setCoverImageUrl] = useState(edition?.coverImageUrl || "");
   const [embedUrl] = useState(edition?.embedUrl || "");
 
-  // Upload state
+  // Upload & compression state
   const [step, setStep] = useState(isEdit ? "metadata" : "upload");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [coverProgress, setCoverProgress] = useState("");
+  const [compressionStatus, setCompressionStatus] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [pdfFile, setPdfFile] = useState(null);
+  const [originalSize, setOriginalSize] = useState(0);
+  const [compressedSize, setCompressedSize] = useState(0);
+
+  // Compression settings
+  const [compPreset, setCompPreset] = useState("medium");
+  const [compDpi, setCompDpi] = useState(150);
+  const [compQuality, setCompQuality] = useState(0.72);
+  const [compTargetMB, setCompTargetMB] = useState(15);
 
   // Auto-generate title and slug when pubId or date changes
   useEffect(() => {
@@ -304,59 +508,105 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
   const pubSlug = PUB_SLUG_MAP[pubId] || pubId.replace(/^pub-/, "");
 
-  // ── Handle PDF file selection ────────────────────────────
-  const handlePdfFile = async (file) => {
+  // ── Handle file selected (shows compression step) ────────
+  const handleFileSelected = (file) => {
     if (!file || !file.name.toLowerCase().endsWith(".pdf")) {
       setError("Please select a PDF file.");
       return;
     }
     setError("");
     setPdfFile(file);
-    setStep("uploading");
+    setOriginalSize(file.size);
+    setStep("compress");
+  };
+
+  // ── Process & upload (compress if needed, then upload) ────
+  const processAndUpload = async () => {
+    if (!pdfFile) return;
+    setError("");
+    setStep("processing");
     setUploadProgress(0);
+    setCompressionStatus("");
 
     try {
+      let fileToUpload = pdfFile;
+      let detectedPages = 0;
+
       // Ensure unique slug
       let finalSlug = slug || slugFromDate(publishDate);
       const existing = editions.filter(e => e.publicationId === pubId && e.slug === finalSlug && e.id !== edition?.id);
       if (existing.length > 0) finalSlug = finalSlug + "-" + Date.now().toString(36);
       setSlug(finalSlug);
 
+      // Compress if not "none"
+      if (compPreset !== "none") {
+        setCompressionStatus("Compressing PDF...");
+        const { blob, numPages } = await compressPdf(pdfFile, {
+          dpi: compDpi,
+          quality: compQuality,
+          targetMB: compTargetMB,
+          onProgress: (p) => {
+            if (p.phase === "render") {
+              setCompressionStatus(`Compressing page ${p.page} of ${p.total}...`);
+            } else if (p.phase === "assemble") {
+              setCompressionStatus("Assembling compressed PDF...");
+            } else if (p.phase === "retry") {
+              setCompressionStatus(`Reducing quality to ${Math.round(p.quality * 100)}% (${fmtSize(p.currentSize)} → ${fmtSize(p.targetSize)})...`);
+            } else if (p.phase === "done") {
+              setCompressedSize(p.finalSize);
+            }
+          },
+        });
+        detectedPages = numPages;
+        setPageCount(numPages);
+        fileToUpload = new File([blob], pdfFile.name, { type: "application/pdf" });
+        setCompressionStatus(`Compressed: ${fmtSize(pdfFile.size)} → ${fmtSize(blob.size)} (${Math.round((1 - blob.size / pdfFile.size) * 100)}% reduction)`);
+      } else {
+        // No compression — just detect page count
+        setCompressionStatus("Reading PDF...");
+        const pdfjsLib = await getPdfjs();
+        const ab = await pdfFile.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        detectedPages = pdf.numPages;
+        setPageCount(pdf.numPages);
+        setCompressedSize(pdfFile.size);
+        setCompressionStatus("");
+      }
+
+      // Upload PDF
+      setCompressionStatus(prev => prev ? prev + " Uploading..." : "Uploading PDF...");
       const path = `${pubSlug}/editions`;
       const pdfFilename = `${finalSlug}.pdf`;
 
-      // Upload PDF with progress
-      await bunnyUploadWithProgress(file, path, pdfFilename, setUploadProgress);
+      await bunnyUploadWithProgress(fileToUpload, path, pdfFilename, setUploadProgress);
       const cdnUrl = `${CDN_BASE}/${path}/${pdfFilename}`;
       setPdfUrl(cdnUrl);
       setUploadProgress(100);
 
-      // Auto-generate cover
-      setCoverProgress("Generating cover from page 1...");
-      const { blob: coverBlob, numPages } = await renderPdfCoverFromFile(file);
-      setPageCount(numPages);
+      // Auto-generate cover from original file (higher quality)
+      setCompressionStatus("Generating cover from page 1...");
+      const { blob: coverBlob } = await renderPdfCoverFromFile(pdfFile);
 
-      setCoverProgress("Uploading cover image...");
+      setCompressionStatus("Uploading cover image...");
       const coverFilename = `${finalSlug}-cover.jpg`;
       await bunnyUploadWithProgress(
         new File([coverBlob], coverFilename, { type: "image/jpeg" }),
         path, coverFilename, () => {}
       );
-      const coverUrl = `${CDN_BASE}/${path}/${coverFilename}`;
-      setCoverImageUrl(coverUrl);
-      setCoverProgress("");
+      setCoverImageUrl(`${CDN_BASE}/${path}/${coverFilename}`);
+      setCompressionStatus("");
 
       setStep("metadata");
     } catch (err) {
-      setError(err.message || "Upload failed");
-      setStep("upload");
+      setError(err.message || "Processing failed");
+      setStep("compress");
     }
   };
 
   // ── Drag & drop handlers ─────────────────────────────────
   const onDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const onDragLeave = () => setDragOver(false);
-  const onDrop = (e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) handlePdfFile(e.dataTransfer.files[0]); };
+  const onDrop = (e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) handleFileSelected(e.dataTransfer.files[0]); };
 
   // ── Manual cover override ────────────────────────────────
   const handleCoverOverride = async (file) => {
@@ -365,9 +615,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
     try {
       const path = `${pubSlug}/editions`;
       const coverFilename = `${slug || "cover"}-cover.jpg`;
-      await bunnyUploadWithProgress(
-        file, path, coverFilename, () => {}
-      );
+      await bunnyUploadWithProgress(file, path, coverFilename, () => {});
       setCoverImageUrl(`${CDN_BASE}/${path}/${coverFilename}`);
       setCoverProgress("");
     } catch (err) {
@@ -384,7 +632,6 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
     setError("");
 
     try {
-      // If featuring, unfeature others first
       if (isFeatured) {
         await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
       }
@@ -433,10 +680,10 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
   const pubOptions = pubs.map(p => ({ value: p.id, label: p.name }));
 
-  return <Modal open={open} onClose={onClose} title={isEdit ? "Edit Edition" : "Upload New Edition"} width={600}>
+  return <Modal open={open} onClose={onClose} title={isEdit ? "Edit Edition" : "Upload New Edition"} width={620}>
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* Step: Upload PDF */}
+      {/* Step 1: Select PDF */}
       {step === "upload" && (
         <div
           onDragOver={onDragOver}
@@ -454,7 +701,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
           }}
         >
           <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }}
-            onChange={(e) => { if (e.target.files[0]) handlePdfFile(e.target.files[0]); }} />
+            onChange={(e) => { if (e.target.files[0]) handleFileSelected(e.target.files[0]); }} />
           <Ic.up size={32} color={Z.tm} />
           <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, marginTop: 12, fontFamily: DISPLAY }}>
             Drop PDF here or click to browse
@@ -465,30 +712,64 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         </div>
       )}
 
-      {/* Step: Uploading */}
-      {step === "uploading" && (
+      {/* Step 2: Compression settings */}
+      {step === "compress" && pdfFile && (<>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          <Ic.story size={20} color={Z.ac} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{pdfFile.name}</div>
+            <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{fmtSize(pdfFile.size)}</div>
+          </div>
+          <Btn sm v="ghost" onClick={() => { setPdfFile(null); setOriginalSize(0); setStep("upload"); }}>Change</Btn>
+        </div>
+
+        <CompressionSettings
+          preset={compPreset} setPreset={setCompPreset}
+          dpi={compDpi} setDpi={setCompDpi}
+          quality={compQuality} setQuality={setCompQuality}
+          targetMB={compTargetMB} setTargetMB={setCompTargetMB}
+          originalSize={originalSize}
+        />
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="secondary" sm onClick={onClose}>Cancel</Btn>
+          <Btn sm onClick={processAndUpload}>
+            {compPreset === "none" ? "Upload Original" : "Compress & Upload"}
+          </Btn>
+        </div>
+      </>)}
+
+      {/* Step 3: Processing (compression + upload) */}
+      {step === "processing" && (
         <GlassCard>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>
-              {coverProgress || `Uploading PDF... ${uploadProgress}%`}
+              {compressionStatus || `Uploading PDF... ${uploadProgress}%`}
             </div>
             <div style={{ height: 6, background: Z.bd, borderRadius: Ri, overflow: "hidden" }}>
               <div style={{
                 height: "100%", borderRadius: Ri, background: Z.go,
-                width: coverProgress ? "100%" : `${uploadProgress}%`,
+                width: uploadProgress > 0 && !compressionStatus.includes("Compressing") ? `${uploadProgress}%` : "100%",
                 transition: "width 0.3s",
+                animation: compressionStatus.includes("Compressing") || compressionStatus.includes("Assembling") || compressionStatus.includes("Reducing")
+                  ? "pulse 1.5s ease-in-out infinite" : "none",
+                opacity: compressionStatus.includes("Compressing") || compressionStatus.includes("Assembling") ? 0.6 : 1,
               }} />
             </div>
             {pdfFile && (
               <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
-                {pdfFile.name} — {(pdfFile.size / 1048576).toFixed(1)} MB
+                {pdfFile.name} — {fmtSize(pdfFile.size)}
+                {compressedSize > 0 && compressedSize !== pdfFile.size && (
+                  <span> → <b style={{ color: Z.go }}>{fmtSize(compressedSize)}</b> ({Math.round((1 - compressedSize / pdfFile.size) * 100)}% smaller)</span>
+                )}
               </div>
             )}
           </div>
+          <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }`}</style>
         </GlassCard>
       )}
 
-      {/* Step: Metadata */}
+      {/* Step 4: Metadata */}
       {step === "metadata" && (<>
         {/* Cover preview + upload status */}
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -513,11 +794,17 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
             {pdfUrl && (
               <div style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.bold, fontFamily: COND }}>
                 ✓ PDF uploaded{pageCount > 0 && ` — ${pageCount} pages`}
+                {compressedSize > 0 && ` — ${fmtSize(compressedSize)}`}
               </div>
             )}
             {coverImageUrl && (
               <div style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.bold, fontFamily: COND }}>
                 ✓ Cover image generated
+              </div>
+            )}
+            {compressedSize > 0 && originalSize > 0 && compressedSize < originalSize && (
+              <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                Compressed from {fmtSize(originalSize)} ({Math.round((1 - compressedSize / originalSize) * 100)}% reduction)
               </div>
             )}
             {coverProgress && (
@@ -528,7 +815,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
                 <label style={{ fontSize: FS.sm, color: Z.ac, cursor: "pointer", fontFamily: COND, fontWeight: FW.bold, textDecoration: "underline" }}>
                   Replace PDF
                   <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }}
-                    onChange={(e) => { if (e.target.files[0]) { setStep("upload"); handlePdfFile(e.target.files[0]); } }} />
+                    onChange={(e) => { if (e.target.files[0]) handleFileSelected(e.target.files[0]); }} />
                 </label>
               </div>
             )}
