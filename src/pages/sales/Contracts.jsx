@@ -4,7 +4,7 @@ import { Ic, Btn, Inp, Sel, Badge, GlassCard, PageHeader, TabRow, TB, TabPipe, D
 
 const STATUS_COLORS = { active: Z.su || "#22C55E", completed: Z.tm, cancelled: Z.da };
 
-const Contracts = ({ contracts, clients, pubs, sales, team, onNavigate, loadContracts, contractsLoaded }) => {
+const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded }) => {
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [viewId, setViewId] = useState(null);
@@ -34,9 +34,13 @@ const Contracts = ({ contracts, clients, pubs, sales, team, onNavigate, loadCont
     return m;
   }, [sales]);
 
-  // Filter contracts
+  // Filter contracts — jurisdiction-aware
   const filtered = useMemo(() => {
     let list = contracts || [];
+    // Salesperson: only show contracts assigned to them
+    if (jurisdiction?.isSalesperson && currentUser?.id) {
+      list = list.filter(c => c.assignedTo === currentUser.id);
+    }
     if (tab === "Active") list = list.filter(c => c.status === "active");
     else if (tab === "Completed") list = list.filter(c => c.status === "completed");
     else if (tab === "Cancelled") list = list.filter(c => c.status === "cancelled");
@@ -45,7 +49,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, onNavigate, loadCont
       list = list.filter(c => c.name.toLowerCase().includes(q) || cn(c.clientId).toLowerCase().includes(q));
     }
     return list.sort((a, b) => b.totalValue - a.totalValue);
-  }, [contracts, tab, sr, clientMap]);
+  }, [contracts, tab, sr, clientMap, jurisdiction, currentUser]);
 
   // View contract detail
   const viewContract = (contracts || []).find(c => c.id === viewId);
