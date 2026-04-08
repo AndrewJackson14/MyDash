@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA } from "../components/ui";
+import MediaModal from "../components/MediaModal";
 import { supabase, isOnline } from "../lib/supabase";
 
 // ── Upload via Edge Function ─────────────────────────────────────
@@ -129,6 +130,9 @@ export default function SiteSettings({ pubs, setPubs }) {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [houseAds, setHouseAds] = useState({}); // { [zone_slug]: [{ id?, zone_id?, creative_url, click_url, alt_text }] }
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [mediaTarget, setMediaTarget] = useState(null); // { zone, idx } — which ad slot is picking
+  const [adUploading, setAdUploading] = useState(null); // "zone:idx" while uploading
 
   // Load sites
   useEffect(() => {
@@ -431,14 +435,41 @@ export default function SiteSettings({ pubs, setPubs }) {
                       </div>
                       <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{ads.length}/2</span>
                     </div>
-                    {ads.map((ad, i) => (
+                    {ads.map((ad, i) => {
+                      const uploadKey = loc.slug + ":" + i;
+                      const handleAdUpload = async () => {
+                        const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+                        inp.onchange = async (e) => {
+                          const f = e.target.files[0]; if (!f) return;
+                          setAdUploading(uploadKey);
+                          try {
+                            const url = await uploadImage(f, "house-ads/" + (site?.slug || "general"));
+                            updateAd(i, "creative_url", url);
+                          } catch (err) { alert("Upload failed: " + err.message); }
+                          setAdUploading(null);
+                        };
+                        inp.click();
+                      };
+                      return (
                       <div key={i} style={{ padding: 8, border: "1px solid " + Z.bd, borderRadius: 4, background: Z.sa, marginBottom: 6 }}>
                         <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                          {ad.creative_url && <img src={ad.creative_url} alt="" style={{ width: 60, height: 40, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd, flexShrink: 0 }} />}
+                          {ad.creative_url ? (
+                            <img src={ad.creative_url} alt="" style={{ width: 80, height: 54, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd, flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: 80, height: 54, borderRadius: 3, border: "1px dashed " + Z.bd, background: Z.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: Z.td, fontFamily: COND }}>No image</div>
+                          )}
                           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                             <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Image URL</div>
-                              <input value={ad.creative_url || ""} onChange={e => updateAd(i, "creative_url", e.target.value)} placeholder="https://..." style={getInputStyle()} />
+                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Creative</div>
+                              <div style={{ display: "flex", gap: 4 }}>
+                                <button onClick={handleAdUpload} disabled={adUploading === uploadKey} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                                  {adUploading === uploadKey ? "Uploading..." : "Upload"}
+                                </button>
+                                <button onClick={() => { setMediaTarget({ zone: loc.slug, idx: i }); setMediaOpen(true); }} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                                  Media Library
+                                </button>
+                                {ad.creative_url && <button onClick={() => updateAd(i, "creative_url", "")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600 }}>Clear</button>}
+                              </div>
                             </div>
                             <div>
                               <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Click URL</div>
@@ -454,7 +485,8 @@ export default function SiteSettings({ pubs, setPubs }) {
                           <button onClick={() => removeAd(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 700 }}>Remove</button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                     {ads.length < 2 && (
                       <button onClick={addAd} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>+ Add House Ad</button>
                     )}
@@ -597,6 +629,27 @@ export default function SiteSettings({ pubs, setPubs }) {
           </div>
         </div>
       )}
+
+      {/* Media Library Modal for House Ad image selection */}
+      <MediaModal
+        open={mediaOpen}
+        onClose={() => { setMediaOpen(false); setMediaTarget(null); }}
+        onSelect={(asset) => {
+          if (mediaTarget) {
+            setHouseAds(prev => {
+              const updated = { ...prev };
+              const arr = [...(updated[mediaTarget.zone] || [])];
+              arr[mediaTarget.idx] = { ...arr[mediaTarget.idx], creative_url: asset.url };
+              updated[mediaTarget.zone] = arr;
+              return updated;
+            });
+            setSaved(false);
+          }
+          setMediaOpen(false);
+          setMediaTarget(null);
+        }}
+        pubs={pubs}
+      />
     </div>
   );
 }
