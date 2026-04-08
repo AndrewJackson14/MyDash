@@ -4,11 +4,11 @@ import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, Pill, glass as glassStyle
 import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 
 const Dashboard = ({
-  pubs, stories, clients, sales, issues, proposals, team,
+  pubs, stories, setStories, clients, sales, issues, proposals, team,
   invoices, payments, subscribers, dropLocations, dropLocationPubs,
   tickets, legalNotices, creativeJobs,
   onNavigate, setIssueDetailId, userName, currentUser, salespersonPubAssignments, jurisdiction,
-  myPriorities, priorityHelpers,
+  myPriorities, priorityHelpers, outreachCampaigns, outreachEntries,
 }) => {
   const today = new Date().toISOString().slice(0, 10);
   const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c; }); return m; }, [clients]);
@@ -700,116 +700,237 @@ const Dashboard = ({
         </div>
       </div>
     </>
-    : /* ═══ PUBLISHER LAYOUT ═══ */
-    <div style={{ display: "grid", gridTemplateColumns: "5fr 3fr", gap: 16 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={glass}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>My Day</span>
-            <div style={{ display: "flex", gap: 3 }}>
-              {[{ value: "all", label: "All", icon: Ic.list }, { value: "sales", label: "Sales", icon: Ic.sale }, { value: "editorial", label: "Editorial", icon: Ic.edit }, { value: "production", label: "Production", icon: Ic.flat }, { value: "admin", label: "Admin", icon: Ic.lock }].map(o => <Pill key={o.value} label={o.label} icon={o.icon} active={dayFilter === o.value} onClick={() => setDayFilter(o.value)} />)}
-            </div>
-          </div>
-          {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).map((fi, idx, arr) => <div key={fi.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none" }}>
-            <Badge status={deptLabel(fi.dept)} small />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, lineHeight: 1.35 }}>{fi.title}</div>
-              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>{fi.sub}</div>
-            </div>
-            <Btn sm onClick={() => { if (fi.issueId && setIssueDetailId) setIssueDetailId(fi.issueId); else if (fi.page) onNavigate(fi.page); }}>{fi.action}</Btn>
-          </div>)}
-          {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.md, fontWeight: FW.semi }}>All clear — nothing urgent today</div>}
-        </div>
-        <div style={glass}>
-          
-          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 16 }}>Upcoming Issues</div>
-          {issueProgress.length === 0 ? <div style={{ fontSize: FS.base, color: Z.td, padding: 16, textAlign: "center" }}>No upcoming issues</div> :
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {issueProgress.slice(0, 8).map((ip, idx, arr) => {
-              const urgency = ip.daysOut <= 3 ? Z.da : ip.daysOut <= 7 ? Z.wa : Z.tm;
-              return <div key={ip.issue.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(ip.issue.id); }} style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 42px", gap: 8, alignItems: "center", padding: "10px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none", cursor: "pointer" }}>
-                <div>
-                  <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND }}>{ip.pub.name}</div>
-                  <div style={{ fontSize: FS.sm, color: Z.td }}>{ip.issue.label} · <span style={{ color: urgency, fontWeight: FW.bold }}>{ip.daysOut <= 0 ? "Today" : ip.daysOut + "d"}</span></div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{ip.soldAds}</div>
-                  <div style={{ fontSize: FS.micro, color: Z.td }}>/ {ip.avgAds} avg</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>${Math.round(ip.issueRev / 1000)}K</div>
-                  <div style={{ fontSize: FS.micro, color: Z.td }}>/ ${Math.round(ip.goal / 1000)}K {ip.goalSource === "issue" ? "goal" : ip.goalSource === "pub" ? "goal" : "avg"}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 18, border: `3px solid ${ip.revPct >= 80 ? Z.go : ip.revPct >= 50 ? Z.wa : Z.da}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, color: ip.revPct >= 80 ? Z.go : ip.revPct >= 50 ? Z.wa : Z.da }}>{ip.revPct}%</div>
-                </div>
-              </div>;
-            })}
-          </div>}
-          {issueProgress.length > 8 && <div style={{ fontSize: FS.sm, color: Z.td, textAlign: "center", marginTop: 8 }}>+ {issueProgress.length - 8} more</div>}
-        </div>
+    : /* ═══ PUBLISHER'S COMMAND CENTER — 3-COLUMN LAYOUT ═══ */
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
 
-        {/* MY GOALS — shows for salespeople with pub assignments */}
-        {isSalesperson && myGoals.length > 0 && <div style={glass}>
-          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 16 }}>My Goals</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {myGoals.slice(0, 6).map((g, idx, arr) => (
-              <div key={g.issue.id} style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 42px", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none" }}>
-                <div>
-                  <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND }}>{g.pub.name}</div>
-                  <div style={{ fontSize: FS.sm, color: Z.td }}>{g.issue.label} · {Math.round(g.myPct * 100)}% assigned</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>${Math.round(g.mySales / 1000)}K</div>
-                  <div style={{ fontSize: FS.micro, color: Z.td }}>sold</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tm }}>${Math.round(g.myGoal / 1000)}K</div>
-                  <div style={{ fontSize: FS.micro, color: Z.td }}>goal</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 18, border: `3px solid ${g.myRevPct >= 80 ? Z.go : g.myRevPct >= 50 ? Z.wa : Z.da}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, color: g.myRevPct >= 80 ? Z.go : g.myRevPct >= 50 ? Z.wa : Z.da }}>{g.myRevPct}%</div>
-                </div>
+      {/* ════ LEFT COLUMN ════ */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* MY DAY */}
+        {showInFocus(["editorial", "sales", "admin"]) && <div style={glass}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>My Day</span>
+          </div>
+          <div style={{ display: "flex", gap: 3, marginBottom: 12, flexWrap: "wrap" }}>
+            {[{ value: "all", label: "All", icon: Ic.list }, { value: "sales", label: "Sales", icon: Ic.sale }, { value: "editorial", label: "Editorial", icon: Ic.edit }, { value: "production", label: "Production", icon: Ic.flat }, { value: "admin", label: "Admin", icon: Ic.lock }].map(o => <Pill key={o.value} label={o.label} icon={o.icon} active={dayFilter === o.value} onClick={() => setDayFilter(o.value)} />)}
+          </div>
+          <div style={{ maxHeight: 300, overflowY: "auto" }}>
+            {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).map((fi, idx, arr) => <div key={fi.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${Z.bd}15` : "none" }}>
+              <span style={{ width: 6, height: 6, borderRadius: 3, marginTop: 6, flexShrink: 0, background: fi.priority <= 1 ? Z.da : fi.priority <= 2 ? Z.wa : Z.ac }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, lineHeight: 1.35 }}>{fi.title}</div>
+                {fi.sub && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>{fi.sub}</div>}
               </div>
-            ))}
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, background: Z.sa, padding: "2px 6px", borderRadius: Ri, textTransform: "capitalize", fontFamily: COND, flexShrink: 0 }}>{fi.dept}</span>
+            </div>)}
+            {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>All clear</div>}
+          </div>
+        </div>}
+
+        {/* SUBSCRIPTION HEALTH */}
+        {showInFocus(["admin", "financials"]) && <div style={glass}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Subscription Health</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { label: "Active", value: _subs.filter(s => s.status === "active").length, sub: "+8", color: Z.go },
+              { label: "Expiring 30d", value: expiringNext30, color: expiringNext30 > 10 ? Z.da : Z.wa },
+              { label: "Churned", value: _subs.filter(s => s.status === "cancelled").length, sub: `(${(_subs.length > 0 ? (_subs.filter(s => s.status === "cancelled").length / _subs.length * 100).toFixed(1) : 0)}%)`, color: Z.da },
+              { label: "New This Month", value: _subs.filter(s => s.createdAt?.startsWith(thisMonth)).length, color: Z.go },
+            ].map(s => <div key={s.label} onClick={() => onNavigate?.("circulation")} style={{ padding: "12px 14px", background: Z.bg, borderRadius: Ri, textAlign: "center", cursor: "pointer" }}>
+              <div style={{ fontSize: 22, fontWeight: FW.black, color: s.color, fontFamily: DISPLAY }}>{s.value}</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", fontFamily: COND }}>{s.label} {s.sub && <span style={{ color: s.color }}>{s.sub}</span>}</div>
+            </div>)}
           </div>
         </div>}
       </div>
 
-      {/* RIGHT: My Direction — frosted glass */}
-      <div style={{ ...glass, alignSelf: "start" }}>
-        
-        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 16 }}>My Direction</div>
-        {needsDir.length > 0 && <div style={{ position: "relative" }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10, fontFamily: COND }}>Needs attention</div>
-          {needsDir.map((t, idx, arr) => <div key={t.id} onClick={() => openMemberPanel(t)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none", cursor: "pointer" }}>
-            <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.td, width: 16, flexShrink: 0, fontFamily: DISPLAY }}>{idx + 1}</div>
-            <div style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", flexShrink: 0, borderRadius: R, fontFamily: COND }}>{ini(t.name)}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{t.name}</div>
-              <div style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.semi, marginTop: 1 }}>{t.status}</div>
-              {t.oldestDetail && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>{t.oldestDetail}</div>}
-            </div>
-            <Btn sm onClick={e => { e.stopPropagation(); openMemberPanel(t); }}>Direct</Btn>
-          </div>)}
+      {/* ════ CENTER COLUMN ════ */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* EDITORIAL PIPELINE */}
+        {showInFocus(["editorial"]) && <div style={glass}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Editorial Pipeline</span>
+            <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{_stories.length} stories</span>
+          </div>
+          {(() => {
+            const stages = [
+              { key: "Draft", label: "Draft", color: Z.wa, statuses: ["Draft"] },
+              { key: "NeedsEditing", label: "Needs editing", color: Z.da, statuses: ["Needs Editing"] },
+              { key: "Edited", label: "Edited", color: ACCENT.blue, statuses: ["Edited"] },
+              { key: "Approved", label: "Approved", color: Z.go, statuses: ["Approved"] },
+              { key: "ReadyForPrint", label: "Ready for print", color: ACCENT.indigo, statuses: ["On Page", "Packaged for Publishing"] },
+              { key: "OnPage", label: "On page", color: Z.ac, statuses: ["Sent to Web", "Published"] },
+            ];
+            const total = Math.max(1, _stories.length);
+            const stuckDays = 3;
+            return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {stages.map(st => {
+                const count = _stories.filter(s => st.statuses.includes(s.status)).length;
+                const stuckCount = st.key === "NeedsEditing" || st.key === "Draft" ? _stories.filter(s => st.statuses.includes(s.status) && s.createdAt && (Date.now() - new Date(s.createdAt).getTime()) > stuckDays * 86400000).length : 0;
+                return <div key={st.key}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{st.label}</span>
+                      {stuckCount > 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.da, background: Z.da + "18", padding: "1px 5px", borderRadius: Ri }}>{stuckCount} stuck</span>}
+                      {st.key === "Approved" && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.go, background: Z.go + "18", padding: "1px 4px", borderRadius: Ri }}>web</span>}
+                      {st.key === "Approved" && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: ACCENT.indigo, background: ACCENT.indigo + "18", padding: "1px 4px", borderRadius: Ri }}>print</span>}
+                    </div>
+                    <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>{count}</span>
+                  </div>
+                  <div style={{ height: 4, background: Z.bd, borderRadius: 2, marginTop: 4 }}>
+                    <div style={{ height: 4, borderRadius: 2, background: st.color, width: `${(count / total) * 100}%`, transition: "width 0.3s" }} />
+                  </div>
+                </div>;
+              })}
+            </div>;
+          })()}
         </div>}
 
-        {/* On Track — collapsed by default */}
-        {onTrack.length > 0 && <div style={{ marginTop: 20 }}>
-          <button onClick={() => setShowOnTrack(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: COND }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase" }}>On track · {onTrack.length}</span>
-            <span style={{ fontSize: FS.micro, color: Z.td, transition: "transform 0.2s", transform: showOnTrack ? "rotate(0)" : "rotate(-90deg)" }}>▼</span>
-          </button>
-          {showOnTrack && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            {onTrack.map(t => <div key={t.id} onClick={() => openMemberPanel(t)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 5px", border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, borderRadius: R, cursor: "pointer", fontFamily: COND }} title={t.status}>
-              <div style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.bold, color: Z.td, background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", flexShrink: 0, borderRadius: Ri }}>{ini(t.name)}</div>
-              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm }}>{t.name}</span>
-            </div>)}
-          </div>}
+        {/* WEB PUBLISHING QUEUE */}
+        {showInFocus(["editorial", "websites"]) && (() => {
+          const readyStories = _stories.filter(s => s.status === "Approved" && s.sentToWeb !== true);
+          return readyStories.length > 0 ? <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Web Publishing Queue</span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go, background: Z.go + "18", padding: "2px 8px", borderRadius: Ri }}>{readyStories.length} ready</span>
+            </div>
+            <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {readyStories.slice(0, 6).map(s => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "8px 10px", background: Z.bg, borderRadius: Ri }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, lineHeight: 1.3 }}>{s.title}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>By {s.author || "Staff"} \u00B7 {s.category || "News"}</div>
+                </div>
+                <Btn sm onClick={() => { setStories?.(st => st.map(x => x.id === s.id ? { ...x, sentToWeb: true, status: "Published" } : x)); }}>Publish</Btn>
+              </div>)}
+            </div>
+            {readyStories.length > 1 && <Btn sm v="secondary" style={{ marginTop: 8, width: "100%" }} onClick={() => { readyStories.forEach(s => { setStories?.(st => st.map(x => x.id === s.id ? { ...x, sentToWeb: true, status: "Published" } : x)); }); }}>Publish all ready</Btn>}
+          </div> : null;
+        })()}
+
+        {/* WEBSITE PERFORMANCE */}
+        {showInFocus(["websites"]) && <div style={glass}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Website Performance</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <span style={{ fontSize: FS.sm, color: Z.tm }}>Page views today</span>
+            <div><span style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>—</span></div>
+          </div>
+          <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "center", padding: 12 }}>Website analytics coming soon</div>
+        </div>}
+      </div>
+
+      {/* ════ RIGHT COLUMN ════ */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* TEAM DIRECTION */}
+        {showInFocus(["editorial", "sales", "admin"]) && <div style={glass}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Team Direction</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(team || []).filter(t => t.isActive !== false && !t.isHidden && t.role !== "Publisher").slice(0, 8).map(t => {
+              const isSales = ["Sales Manager", "Salesperson"].includes(t.role);
+              const isEditor = ["Editor", "Managing Editor", "Editor-in-Chief", "Writer/Reporter"].includes(t.role);
+              const isAdmin = ["Office Manager", "Office Administrator"].includes(t.role);
+              const myClientIds = new Set(_clients.filter(c => c.repId === t.id).map(c => c.id));
+              const overdue = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && s.nextActionDate && s.nextActionDate < today && s.nextAction).length : 0;
+              const pipeline = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)).reduce((s, x) => s + (x.amount || 0), 0) : 0;
+              const editCount = isEditor ? _stories.filter(s => ["Needs Editing", "Edited"].includes(s.status)).length : 0;
+              const openTix = isAdmin ? _tickets.filter(tk => tk.status === "open").length : 0;
+              const subTasks = isAdmin ? expiringNext30 : 0;
+              const statusColor = overdue > 2 ? Z.da : overdue > 0 ? Z.wa : Z.go;
+              const statusLabel = overdue > 2 ? `${overdue} overdue` : overdue > 0 ? `${overdue} late` : "On track";
+              const hue = Math.abs([...(t.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
+              const metric = isSales ? `Sales \u00B7 ${overdue} overdue tasks \u00B7 Pipeline ${fmtCurrency(pipeline)}` : isEditor ? `Editor \u00B7 ${editCount} stories awaiting edit` : isAdmin ? `Admin \u00B7 ${openTix} open tickets \u00B7 ${subTasks} sub tasks` : `${t.role}`;
+              return <div key={t.id} onClick={() => openMemberPanel(t)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${Z.bd}10`, cursor: "pointer" }}>
+                <div style={{ width: 32, height: 32, borderRadius: R, background: `hsl(${hue}, 40%, 38%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(t.name)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{metric}</div>
+                </div>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: statusColor, background: statusColor + "15", padding: "2px 6px", borderRadius: Ri, whiteSpace: "nowrap" }}>{statusLabel}</span>
+              </div>;
+            })}
+          </div>
+        </div>}
+
+        {/* MY PRIORITIES — side by side per salesperson */}
+        {showInFocus(["sales"]) && (() => {
+          const salespeople = (team || []).filter(t => ["Sales Manager", "Salesperson"].includes(t.role) && t.isActive !== false && !t.isHidden);
+          if (salespeople.length === 0) return null;
+          return <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>MyPriorities</div>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(salespeople.length, 2)}, 1fr)`, gap: 12 }}>
+              {salespeople.slice(0, 2).map(sp => {
+                const spPriorities = (myPriorities || []).filter(p => p.salespersonId === sp.id);
+                const priorityClients = spPriorities.slice(0, 5).map(p => { const c = clientMap[p.clientId]; return c ? { ...p, name: c.name, spend: c.totalSpend || 0 } : null; }).filter(Boolean);
+                return <div key={sp.id}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, marginBottom: 6, textTransform: "uppercase" }}>{sp.name.split(" ")[0]}</div>
+                  {priorityClients.map(p => <div key={p.clientId} onClick={() => onNavigate?.("sales")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}08` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {p.isHighlighted && <Ic.star size={10} color={Z.wa} />}
+                      <span style={{ fontSize: FS.xs, color: Z.tx }}>{p.name}</span>
+                    </div>
+                    <span style={{ fontSize: FS.micro, color: Z.td }}>{p.signalType || ""}</span>
+                  </div>)}
+                  {priorityClients.length < 5 && <div onClick={() => onNavigate?.("sales")} style={{ fontSize: FS.xs, color: Z.ac, cursor: "pointer", padding: "3px 0" }}>+ Add from signals</div>}
+                </div>;
+              })}
+            </div>
+          </div>;
+        })()}
+
+        {/* OUTREACH CAMPAIGNS */}
+        {showInFocus(["sales"]) && (() => {
+          const campaigns = outreachCampaigns || [];
+          const entries = outreachEntries || [];
+          if (campaigns.length === 0) return null;
+          const totalClients = entries.length;
+          const contacted = entries.filter(e => e.contacted).length;
+          const wonBack = entries.filter(e => e.wonBack).length;
+          const recovered = entries.filter(e => e.wonBack).reduce((s, e) => s + (e.revenue || 0), 0);
+          return <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Outreach Campaigns</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm }}>{campaigns.filter(c => c.status === "active").length} active</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
+              {[["Total", totalClients], ["Contacted", contacted], ["Won Back", wonBack], ["Recovered", fmtCurrency(recovered)]].map(([l, v]) => <div key={l} style={{ textAlign: "center", padding: "6px 4px", background: Z.bg, borderRadius: Ri }}>
+                <div style={{ fontSize: FS.md, fontWeight: FW.black, color: l === "Recovered" ? Z.go : Z.tx }}>{v}</div>
+                <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", fontFamily: COND }}>{l}</div>
+              </div>)}
+            </div>
+            {campaigns.filter(c => c.status === "active").slice(0, 2).map(c => {
+              const cEntries = entries.filter(e => e.campaignId === c.id);
+              const cContacted = cEntries.filter(e => e.contacted).length;
+              const cWon = cEntries.filter(e => e.wonBack).length;
+              const cRev = cEntries.filter(e => e.wonBack).reduce((s, e) => s + (e.revenue || 0), 0);
+              const pct = cEntries.length > 0 ? Math.round((cContacted / cEntries.length) * 100) : 0;
+              return <div key={c.id} onClick={() => onNavigate?.("sales")} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 6, cursor: "pointer" }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{c.name}</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 4 }}>{(team || []).find(t => t.id === c.assignedTo)?.name || ""} \u00B7 {cEntries.length} clients</div>
+                <div style={{ height: 4, background: Z.bd, borderRadius: 2, marginBottom: 4 }}>
+                  <div style={{ height: 4, borderRadius: 2, background: Z.ac, width: `${pct}%` }} />
+                </div>
+                <div style={{ display: "flex", gap: 8, fontSize: FS.xs, color: Z.tm }}><span>{cContacted} contacted</span><span>{cWon} won back</span><span style={{ color: Z.go }}>{fmtCurrency(cRev)}</span></div>
+              </div>;
+            })}
+          </div>;
+        })()}
+
+        {/* SIGNAL SUMMARY */}
+        {showInFocus(["sales"]) && <div style={glass}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Signal Summary</div>
+          {[
+            { label: "Renewals expiring <14d", color: Z.wa, clients: _clients.filter(c => c.contractEndDate && daysUntil(c.contractEndDate) <= 14 && daysUntil(c.contractEndDate) >= 0).slice(0, 3) },
+            { label: "Lapsed whales ($10K+)", color: Z.da, clients: _clients.filter(c => c.status === "Lapsed" && (c.totalSpend || 0) >= 10000).slice(0, 3) },
+            { label: "Churn risk", color: Z.da, clients: _clients.filter(c => c.status === "Active" && c.lastAdDate && daysUntil(c.lastAdDate) < -90).slice(0, 3) },
+            { label: "Cross-sell (1-2 pubs)", color: Z.go, clients: (() => { const pubCounts = {}; _sales.filter(s => s.status === "Closed").forEach(s => { pubCounts[s.clientId] = (pubCounts[s.clientId] || new Set()).add(s.publication); }); return _clients.filter(c => pubCounts[c.id] && pubCounts[c.id].size <= 2 && pubCounts[c.id].size >= 1 && (c.totalSpend || 0) > 1000).slice(0, 3); })() },
+          ].map(sig => <div key={sig.label} onClick={() => onNavigate?.("sales")} style={{ padding: "6px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}10` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: sig.color }} />
+              <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{sig.label}</span>
+            </div>
+            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2, paddingLeft: 14 }}>{sig.clients.map(c => c.name).join(", ") || "None"}</div>
+          </div>)}
         </div>}
       </div>
     </div>}
-
     </div>{/* end padded content wrapper */}
 
     {/* BRIEFING MODAL */}
