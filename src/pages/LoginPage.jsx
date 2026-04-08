@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { Z, DISPLAY, COND, BODY, R, Ri, FS, FW, INV } from '../lib/theme';
+import { DARK, DISPLAY, COND, BODY, R, Ri, FS, FW, INV } from '../lib/theme';
+const Z = DARK; // LoginPage always renders dark regardless of user theme
 
 export default function LoginPage({ onSkip }) {
   const { signInWithGoogle, signInWithEmail, isOnline } = useAuth();
