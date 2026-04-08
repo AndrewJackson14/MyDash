@@ -19,26 +19,27 @@ import {
 import Dashboard from "./pages/Dashboard";
 import IssueDetail from "./pages/IssueDetail";
 
-// Lazy-loaded pages (split into separate chunks)
-const Publications = lazy(() => import("./pages/Publications"));
-const IssueSchedule = lazy(() => import("./pages/IssueSchedule"));
-const SalesCRM = lazy(() => import("./pages/SalesCRM"));
-const Contracts = lazy(() => import("./pages/sales/Contracts"));
-const CalendarPage = lazy(() => import("./pages/CalendarPage"));
-const StoriesModule = lazy(() => import("./pages/StoriesModule"));
-const EditorialDashboard = lazy(() => import("./components/EditorialDashboard"));
-const Flatplan = lazy(() => import("./pages/Flatplan"));
-const TeamModule = lazy(() => import("./pages/TeamModule"));
-const Analytics = lazy(() => import("./pages/Analytics"));
-const IntegrationsPage = lazy(() => import("./pages/IntegrationsPage"));
-const SiteSettings = lazy(() => import("./pages/SiteSettings"));
-const MediaLibrary = lazy(() => import("./pages/MediaLibrary"));
-const DataImport = lazy(() => import("./pages/DataImport"));
-const Billing = lazy(() => import("./pages/Billing"));
-const Circulation = lazy(() => import("./pages/Circulation"));
-const ServiceDesk = lazy(() => import("./pages/ServiceDesk"));
-const LegalNotices = lazy(() => import("./pages/LegalNotices"));
-const CreativeJobs = lazy(() => import("./pages/CreativeJobs"));
+// Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
+const lazyLoad = (fn) => lazy(() => fn().catch(() => { window.location.reload(); return fn(); }));
+const Publications = lazyLoad(() => import("./pages/Publications"));
+const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
+const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
+const Contracts = lazyLoad(() => import("./pages/sales/Contracts"));
+const CalendarPage = lazyLoad(() => import("./pages/CalendarPage"));
+const StoriesModule = lazyLoad(() => import("./pages/StoriesModule"));
+const EditorialDashboard = lazyLoad(() => import("./components/EditorialDashboard"));
+const Flatplan = lazyLoad(() => import("./pages/Flatplan"));
+const TeamModule = lazyLoad(() => import("./pages/TeamModule"));
+const Analytics = lazyLoad(() => import("./pages/Analytics"));
+const IntegrationsPage = lazyLoad(() => import("./pages/IntegrationsPage"));
+const SiteSettings = lazyLoad(() => import("./pages/SiteSettings"));
+const MediaLibrary = lazyLoad(() => import("./pages/MediaLibrary"));
+const DataImport = lazyLoad(() => import("./pages/DataImport"));
+const Billing = lazyLoad(() => import("./pages/Billing"));
+const Circulation = lazyLoad(() => import("./pages/Circulation"));
+const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
+const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
+const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
