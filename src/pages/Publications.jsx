@@ -176,6 +176,13 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ color: Z.td, fontSize: FS.base }}>$</span>
             <input type="number" value={sel.defaultRevenueGoal || ""} onChange={e => { const v = Number(e.target.value) || 0; setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultRevenueGoal: v } : p)); setSel(s => ({ ...s, defaultRevenueGoal: v })); if (updatePubGoal) updatePubGoal(sel.id, v); }} style={{ width: 100, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "8px 10px", color: Z.tx, fontSize: FS.md, fontWeight: FW.heavy, textAlign: "right", outline: "none" }} />
+            <Btn sm v="secondary" onClick={() => {
+              const goal = sel.defaultRevenueGoal || 0;
+              if (!goal) return;
+              const futureIssues = (issues || []).filter(i => i.pubId === sel.id && i.date >= new Date().toISOString().slice(0, 10));
+              setIssues(ii => ii.map(i => futureIssues.some(fi => fi.id === i.id) ? { ...i, revenueGoal: goal } : i));
+              futureIssues.forEach(i => { if (updateIssueGoal) updateIssueGoal(i.id, goal); });
+            }}>Apply to All Future Issues</Btn>
           </div>
         </div>
         {/* Per-issue goals for upcoming issues */}
