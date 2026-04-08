@@ -18,6 +18,13 @@ async function uploadImage(file, path) {
   return (await res.json()).url;
 }
 
+// ── Ad Locations ────────────────────────────────────────────────
+const AD_LOCATIONS = [
+  { slug: "leaderboard", name: "Leaderboard", width: 728, height: 90 },
+  { slug: "sidebar", name: "Sidebar", width: 300, height: 250 },
+  { slug: "in-article", name: "In-Article", width: 300, height: 250 },
+];
+
 // ── Helpers ──────────────────────────────────────────────────────
 const toSlug = (s) => (s || "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/^-|-$/g, "");
 
@@ -121,6 +128,7 @@ export default function SiteSettings({ pubs, setPubs }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [houseAds, setHouseAds] = useState({}); // { [zone_slug]: [{ id?, zone_id?, creative_url, click_url, alt_text }] }
 
   // Load sites
   useEffect(() => {
@@ -131,6 +139,7 @@ export default function SiteSettings({ pubs, setPubs }) {
           setSites(data);
           setSelectedId(data[0].id);
           setDraft(buildDraft(data[0]));
+          loadHouseAds(data[0].id);
         }
         setLoading(false);
       });
@@ -165,11 +174,37 @@ export default function SiteSettings({ pubs, setPubs }) {
     adv_how_heard: site.settings?.advertise_options?.how_heard || ["Search Engine", "Social Media", "Referral", "Print Edition", "Other"],
     adv_intro_text: site.settings?.advertise_options?.intro_text || "",
     adv_enabled: site.settings?.advertise_options?.enabled ?? true,
+    // Subscription options
+    sub_enabled: site.settings?.subscription_options?.enabled ?? true,
+    sub_intro_text: site.settings?.subscription_options?.intro_text || "",
+    sub_tiers: site.settings?.subscription_options?.tiers || [],
   });
+
+  const loadHouseAds = async (siteId) => {
+    const { data: zones } = await supabase.from("ad_zones").select("id, slug").eq("publication_id", siteId).eq("is_active", true);
+    if (!zones?.length) { setHouseAds({}); return; }
+    const zoneMap = {};
+    zones.forEach(z => { zoneMap[z.slug] = { zone_id: z.id, placements: [] }; });
+    const { data: placements } = await supabase.from("ad_placements").select("id, ad_zone_id, creative_url, click_url, alt_text").in("ad_zone_id", zones.map(z => z.id)).eq("is_active", true).order("created_at");
+    if (placements) {
+      placements.forEach(p => {
+        const zone = zones.find(z => z.id === p.ad_zone_id);
+        if (zone && zoneMap[zone.slug]) zoneMap[zone.slug].placements.push(p);
+      });
+    }
+    const result = {};
+    AD_LOCATIONS.forEach(loc => {
+      result[loc.slug] = zoneMap[loc.slug]?.placements?.map(p => ({
+        id: p.id, zone_id: zoneMap[loc.slug].zone_id,
+        creative_url: p.creative_url || "", click_url: p.click_url || "", alt_text: p.alt_text || "",
+      })) || [];
+    });
+    setHouseAds(result);
+  };
 
   const selectSite = (id) => {
     const site = sites.find(s => s.id === id);
-    if (site) { setSelectedId(id); setDraft(buildDraft(site)); setSaved(false); }
+    if (site) { setSelectedId(id); setDraft(buildDraft(site)); setSaved(false); loadHouseAds(id); }
   };
 
   const update = (key, value) => { setDraft(d => ({ ...d, [key]: value })); setSaved(false); };
@@ -205,6 +240,11 @@ export default function SiteSettings({ pubs, setPubs }) {
         intro_text: draft.adv_intro_text,
         enabled: draft.adv_enabled,
       },
+      subscription_options: {
+        enabled: draft.sub_enabled,
+        intro_text: draft.sub_intro_text,
+        tiers: draft.sub_tiers,
+      },
     };
 
     // Merge settings jsonb (preserve keys we don't manage)
@@ -220,13 +260,42 @@ export default function SiteSettings({ pubs, setPubs }) {
 
     if (!error) {
       setSites(prev => prev.map(s => s.id === selectedId ? { ...s, logo_url: draft.logo_url, favicon_url: draft.favicon_url, settings: merged } : s));
+
+      // Save house ads
+      for (const loc of AD_LOCATIONS) {
+        const ads = houseAds[loc.slug] || [];
+        // Ensure zone exists
+        let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
+        if (!zone) {
+          const { data: newZone } = await supabase.from("ad_zones").insert({ publication_id: selectedId, name: loc.name, slug: loc.slug, zone_type: "display", is_active: true }).select("id").single();
+          zone = newZone;
+        }
+        if (!zone) continue;
+        // Get existing placements for this zone
+        const { data: existing } = await supabase.from("ad_placements").select("id").eq("ad_zone_id", zone.id).eq("is_active", true);
+        const existingIds = (existing || []).map(e => e.id);
+        const keepIds = ads.filter(a => a.id).map(a => a.id);
+        // Deactivate removed placements
+        const removeIds = existingIds.filter(id => !keepIds.includes(id));
+        if (removeIds.length) await supabase.from("ad_placements").update({ is_active: false }).in("id", removeIds);
+        // Upsert placements
+        for (const ad of ads) {
+          if (ad.id) {
+            await supabase.from("ad_placements").update({ creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text }).eq("id", ad.id);
+          } else if (ad.creative_url) {
+            await supabase.from("ad_placements").insert({ ad_zone_id: zone.id, creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text, start_date: new Date().toISOString().split("T")[0], end_date: "2027-12-31", is_active: true });
+          }
+        }
+      }
+      await loadHouseAds(selectedId);
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } else {
       alert("Save failed: " + error.message);
     }
     setSaving(false);
-  }, [selectedId, draft, sites]);
+  }, [selectedId, draft, sites, houseAds]);
 
   const site = sites.find(s => s.id === selectedId);
 
@@ -324,6 +393,75 @@ export default function SiteSettings({ pubs, setPubs }) {
                 <input value={draft.ga_measurement_id} onChange={e => update("ga_measurement_id", e.target.value)} placeholder="G-XXXXXXXXXX" style={getInputStyle()} />
               </Field>
             </Section>
+
+            <Section title="House Ads">
+              {AD_LOCATIONS.map(loc => {
+                const ads = houseAds[loc.slug] || [];
+                const updateAd = (idx, key, value) => {
+                  setHouseAds(prev => {
+                    const updated = { ...prev };
+                    const arr = [...(updated[loc.slug] || [])];
+                    arr[idx] = { ...arr[idx], [key]: value };
+                    updated[loc.slug] = arr;
+                    return updated;
+                  });
+                  setSaved(false);
+                };
+                const removeAd = (idx) => {
+                  setHouseAds(prev => {
+                    const updated = { ...prev };
+                    updated[loc.slug] = (updated[loc.slug] || []).filter((_, i) => i !== idx);
+                    return updated;
+                  });
+                  setSaved(false);
+                };
+                const addAd = () => {
+                  if (ads.length >= 2) return;
+                  setHouseAds(prev => ({
+                    ...prev,
+                    [loc.slug]: [...(prev[loc.slug] || []), { creative_url: "", click_url: "", alt_text: "" }],
+                  }));
+                  setSaved(false);
+                };
+                return (
+                  <div key={loc.slug} style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>
+                        {loc.name} <span style={{ fontWeight: 400, color: Z.tm }}>({loc.width}×{loc.height})</span>
+                      </div>
+                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{ads.length}/2</span>
+                    </div>
+                    {ads.map((ad, i) => (
+                      <div key={i} style={{ padding: 8, border: "1px solid " + Z.bd, borderRadius: 4, background: Z.sa, marginBottom: 6 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          {ad.creative_url && <img src={ad.creative_url} alt="" style={{ width: 60, height: 40, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd, flexShrink: 0 }} />}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Image URL</div>
+                              <input value={ad.creative_url || ""} onChange={e => updateAd(i, "creative_url", e.target.value)} placeholder="https://..." style={getInputStyle()} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Click URL</div>
+                              <input value={ad.click_url || ""} onChange={e => updateAd(i, "click_url", e.target.value)} placeholder="https://..." style={getInputStyle()} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Alt Text</div>
+                              <input value={ad.alt_text || ""} onChange={e => updateAd(i, "alt_text", e.target.value)} placeholder="Ad description..." style={getInputStyle()} />
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", marginTop: 4 }}>
+                          <button onClick={() => removeAd(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 700 }}>Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                    {ads.length < 2 && (
+                      <button onClick={addAd} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>+ Add House Ad</button>
+                    )}
+                  </div>
+                );
+              })}
+            </Section>
           </div>
 
           {/* RIGHT COLUMN */}
@@ -372,6 +510,62 @@ export default function SiteSettings({ pubs, setPubs }) {
               </Field>
               <Field label="How Did You Hear Options">
                 <OrderableList items={draft.adv_how_heard} onChange={v => update("adv_how_heard", v)} placeholder="Add option (e.g. Referral)..." />
+              </Field>
+            </Section>
+
+            <Section title="Subscriptions">
+              <Toggle checked={draft.sub_enabled} onChange={v => update("sub_enabled", v)} label="Subscribe Page Enabled" />
+              <Field label="Intro Text">
+                <textarea value={draft.sub_intro_text} onChange={e => update("sub_intro_text", e.target.value)} placeholder="Subscribe to support local journalism..." rows={3} style={{ ...getInputStyle(), resize: "vertical" }} />
+              </Field>
+              <Field label="Subscription Tiers">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(draft.sub_tiers || []).map((tier, i) => (
+                    <div key={i} style={{ padding: 10, border: "1px solid " + Z.bd, borderRadius: 4, background: Z.sa }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Name</div>
+                          <input value={tier.name || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], name: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="Print — Annual" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Type</div>
+                          <select value={tier.type || "digital"} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], type: e.target.value, requires_address: e.target.value !== "digital" }; update("sub_tiers", t); }} style={getInputStyle()}>
+                            <option value="digital">Digital</option>
+                            <option value="print">Print</option>
+                            <option value="print_digital">Print + Digital</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Price (cents)</div>
+                          <input type="number" value={tier.price ?? 0} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], price: Number(e.target.value) }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="9900" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Interval</div>
+                          <select value={tier.interval || "year"} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], interval: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()}>
+                            <option value="month">Monthly</option>
+                            <option value="year">Annual</option>
+                            <option value="one_time">One-time</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Stripe Price ID</div>
+                          <input value={tier.stripe_price_id || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], stripe_price_id: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="price_xxx" />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Description</div>
+                        <input value={tier.description || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], description: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="Weekly print edition delivered to your door" />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <Toggle checked={tier.requires_address ?? false} onChange={v => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], requires_address: v }; update("sub_tiers", t); }} label="Requires Address" />
+                        <button onClick={() => { const t = draft.sub_tiers.filter((_, idx) => idx !== i); update("sub_tiers", t); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 12, fontFamily: COND, fontWeight: 700 }}>Remove</button>
+                      </div>
+                    </div>
+                  ))}
+                  <Btn sm onClick={() => update("sub_tiers", [...(draft.sub_tiers || []), { id: "tier-" + Date.now(), name: "", type: "digital", interval: "year", price: 0, stripe_price_id: "", description: "", requires_address: false }])}>+ Add Tier</Btn>
+                </div>
               </Field>
             </Section>
 
