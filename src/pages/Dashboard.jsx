@@ -33,6 +33,7 @@ const Dashboard = ({
   const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   const [dayFilter, setDayFilter] = useState("all");
+  const [focusMode, setFocusMode] = useState("all");
   const [selMember, setSelMember] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [memberNote, setMemberNote] = useState("");
@@ -55,6 +56,59 @@ const Dashboard = ({
   const overdue = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv, today]);
   const collectedToday = useMemo(() => _pay.filter(p => p.receivedAt?.startsWith(today)).reduce((s, p) => s + (p.amount || 0), 0), [_pay, today]);
   const uninvoiced = useMemo(() => { const invSaleIds = new Set(); _inv.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); })); return _sales.filter(s => s.status === "Closed" && !invSaleIds.has(s.id)).reduce((s, x) => s + (x.amount || 0), 0); }, [_sales, _inv]);
+  // ─── Phase 1: Revenue Command Bar computations ─────────
+  const thisMonth = today.slice(0, 7);
+  const thisYear = today.slice(0, 4);
+  const adRevMTD = useMemo(() => _sales.filter(s => s.status === "Closed" && s.date?.startsWith(thisMonth)).reduce((s, x) => s + (x.amount || 0), 0), [_sales, thisMonth]);
+  const subRevYTD = useMemo(() => (_pay || []).filter(p => p.receivedAt?.startsWith(thisYear)).reduce((s, p) => s + (p.amount || 0), 0), [_pay, thisYear]);
+  const outstandingAR = useMemo(() => _inv.filter(i => ["overdue", "sent"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
+  const overdueInvCount = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length, [_inv, today]);
+  const pipelineValue = useMemo(() => _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
+  const pipelineCount = useMemo(() => _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).length, [_sales]);
+  const uninvoicedContracts = useMemo(() => {
+    const invSaleIds = new Set(); _inv.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); }));
+    const cutoff30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    return _sales.filter(s => s.status === "Closed" && !invSaleIds.has(s.id) && s.date && s.date <= cutoff30).reduce((s, x) => s + (x.amount || 0), 0);
+  }, [_sales, _inv]);
+
+  // Phase 1: Deadline Alerts (within 48 hours)
+  const deadlineAlerts = useMemo(() => {
+    const cutoff48h = new Date(Date.now() + 48 * 3600000).toISOString().slice(0, 10);
+    const alerts = [];
+    (_issues || []).forEach(iss => {
+      if (iss.adDeadline && iss.adDeadline >= today && iss.adDeadline <= cutoff48h) {
+        const d = daysUntil(iss.adDeadline);
+        alerts.push({ id: "ad-" + iss.id, type: "ad", label: `Ad Deadline \u2014 ${pn(iss.pubId)} ${iss.label}`, date: iss.adDeadline, days: d, color: d <= 1 ? Z.da : Z.wa });
+      }
+      if (iss.edDeadline && iss.edDeadline >= today && iss.edDeadline <= cutoff48h) {
+        const d = daysUntil(iss.edDeadline);
+        const editingCount = _stories.filter(s => s.publication === iss.pubId && ["Needs Editing", "Draft"].includes(s.status)).length;
+        alerts.push({ id: "ed-" + iss.id, type: "ed", label: `Ed Deadline \u2014 ${pn(iss.pubId)} ${iss.label}${editingCount > 0 ? ` (${editingCount} still editing)` : ""}`, date: iss.edDeadline, days: d, color: d <= 1 ? Z.da : Z.wa });
+      }
+    });
+    return alerts.sort((a, b) => a.date.localeCompare(b.date));
+  }, [_issues, _stories, today]);
+
+  // Phase 1: Issue Countdown with revenue data
+  const issueCountdown = useMemo(() => {
+    return (_issues || []).filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10).map(iss => {
+      const issSales = _sales.filter(s => s.issueId === iss.id && s.status === "Closed");
+      const rev = issSales.reduce((s, x) => s + (x.amount || 0), 0);
+      const goal = iss.revenueGoal || (pubMap[iss.pubId]?.defaultRevenueGoal || 0);
+      const pctVal = goal > 0 ? Math.min(100, Math.round((rev / goal) * 100)) : 0;
+      const d = daysUntil(iss.date);
+      return { ...iss, rev, goal, pct: pctVal, daysOut: d, adSold: issSales.length };
+    });
+  }, [_issues, _sales, today, pubMap]);
+
+  // Phase 1: Focus toggle visibility
+  const FOCUS_TAGS = {
+    adRevMTD: ["sales", "financials"], subRevYTD: ["financials", "admin"],
+    outstandingAR: ["financials"], pipelineValue: ["sales"],
+    uninvoicedContracts: ["financials", "sales"],
+  };
+  const showInFocus = (tags) => focusMode === "all" || (tags || []).includes(focusMode);
+
   const openTickets = _tickets.filter(t => t.status === "open").length;
   const escalatedTickets = _tickets.filter(t => t.status === "escalated").length;
   const activeLegal = _legal.filter(n => !["published", "billed"].includes(n.status)).length;
@@ -433,27 +487,85 @@ const Dashboard = ({
         </div>
       </div>}
     </> :
-    /* ═══ PUBLISHER/NON-SALES VIEW ═══ */
+    /* ═══ PUBLISHER'S COMMAND CENTER ═══ */
     <>
-    {/* UPDATES ROW — 5 frosted glass cards */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+    {/* REVENUE COMMAND BAR — 5 stat cards */}
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${[
+      showInFocus(["sales", "financials"]),
+      showInFocus(["financials", "admin"]),
+      showInFocus(["financials"]),
+      showInFocus(["sales"]),
+      showInFocus(["financials", "sales"]),
+    ].filter(Boolean).length}, 1fr)`, gap: 10 }}>
       {[
-        { label: "Sales", items: (() => { const ac = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)); return ac.length > 0 ? [{ text: `${ac.length} active deals · ${fmtCurrency(ac.reduce((s, x) => s + (x.amount || 0), 0))}` }] : []; })() },
-        { label: "Editorial", items: _stories.filter(s => ["Edited", "Approved", "On Page"].includes(s.status)).slice(0, 4).map(s => ({ text: `"${s.title}"`, status: s.status })) },
-        { label: "Production", items: _issues.filter(i => i.date >= today && daysUntil(i.date) <= 7).slice(0, 4).map(i => ({ text: `${pn(i.pubId)} ${i.label} — ${daysUntil(i.date)}d` })) },
-        { label: "Billing", items: (() => { const it = []; if (collectedToday > 0) it.push({ text: `${fmtCurrency(collectedToday)} collected today` }); if (uninvoiced > 0) it.push({ text: `${fmtCurrency(uninvoiced)} uninvoiced`, alert: true }); return it; })() },
-        { label: "Office", items: (() => { const it = []; if (openTickets > 0) it.push({ text: `${openTickets} open ticket${openTickets > 1 ? "s" : ""}` }); if (escalatedTickets > 0) it.push({ text: `${escalatedTickets} escalated`, alert: true }); if (activeLegal > 0) it.push({ text: `${activeLegal} legal notice${activeLegal > 1 ? "s" : ""} active` }); return it; })() },
-      ].map(col => <div key={col.label} style={{ ...glass, padding: "18px 20px" }}>
-        
-        <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 12, fontFamily: COND }}>{col.label}</div>
-        {col.items.length === 0 ? <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>No updates</div>
-          : col.items.map((a, i) => <div key={i} style={{ fontSize: FS.base, color: a.alert ? Z.da : Z.tx, fontWeight: a.alert ? 600 : 400, padding: "4px 0", lineHeight: 1.5, display: "flex", gap: 8, alignItems: "center" }}>
-            {a.alert && <span style={{ color: Z.da, fontSize: FS.xs, flexShrink: 0 }}>●</span>}
-            <span style={{ flex: 1 }}>{a.text}</span>
-            {a.status && statusBadge(a.status)}
-          </div>)}
-      </div>)}
+        { key: "adRevMTD", label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), meta: `${_sales.filter(s => s.status === "Closed" && s.date?.startsWith(thisMonth)).length} deals closed`, color: Z.go, tags: ["sales", "financials"], page: "sales" },
+        { key: "subRevYTD", label: "Subscription Revenue YTD", value: fmtCurrency(subRevYTD), meta: `${_subs.filter(s => s.status === "active").length} active subs`, color: Z.go, tags: ["financials", "admin"], page: "circulation" },
+        { key: "outstandingAR", label: "Outstanding AR", value: fmtCurrency(outstandingAR), meta: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "None overdue", color: overdueInvCount > 0 ? Z.da : Z.go, tags: ["financials"], page: "billing" },
+        { key: "pipelineValue", label: "Pipeline Value", value: fmtCurrency(pipelineValue), meta: `${pipelineCount} active deals`, color: Z.wa, tags: ["sales"], page: "sales" },
+        { key: "uninvoicedContracts", label: "Uninvoiced Contracts", value: fmtCurrency(uninvoicedContracts), meta: "Published or next 30d", color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], page: "billing" },
+      ].filter(c => showInFocus(c.tags)).map(c => (
+        <div key={c.key} onClick={() => onNavigate?.(c.page)} style={{ ...glass, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${c.color}` }}>
+          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{c.label}</div>
+          <div style={{ fontSize: 22, fontWeight: FW.black, color: c.color, fontFamily: DISPLAY, marginTop: 4 }}>{c.value}</div>
+          <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{c.meta}</div>
+        </div>
+      ))}
     </div>
+
+    {/* FOCUS TOGGLE STRIP */}
+    <div style={{ display: "flex", justifyContent: "center", gap: 4, padding: "4px 0", borderBottom: `0.5px solid ${Z.bd}30` }}>
+      {[
+        { key: "all", label: "All", icon: Ic.list },
+        { key: "editorial", label: "Editorial", icon: Ic.edit },
+        { key: "sales", label: "Sales", icon: Ic.sale },
+        { key: "financials", label: "Financials", icon: Ic.invoice },
+        { key: "websites", label: "Websites", icon: Ic.globe },
+        { key: "admin", label: "Administrative", icon: Ic.lock },
+      ].map(f => <Pill key={f.key} label={f.label} icon={f.icon} active={focusMode === f.key} onClick={() => setFocusMode(f.key)} />)}
+    </div>
+
+    {/* DEADLINE ALERTS — auto-hides when empty */}
+    {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {deadlineAlerts.map(a => (
+        <div key={a.id} onClick={() => onNavigate?.("schedule")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+          <Ic.clock size={14} color={a.color} />
+          <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
+          <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
+        </div>
+      ))}
+    </div>}
+
+    {/* ISSUE COUNTDOWN with revenue rings */}
+    {showInFocus(["editorial", "sales"]) && issueCountdown.length > 0 && <div style={{ ...glass, padding: "18px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Issue Countdown</span>
+        <Btn sm v="ghost" onClick={() => onNavigate?.("schedule")}>View Schedule</Btn>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {issueCountdown.slice(0, 8).map(iss => {
+          const ringColor = iss.pct >= 80 ? Z.go : iss.pct >= 50 ? Z.wa : Z.da;
+          const daysColor = iss.daysOut <= 3 ? Z.da : iss.daysOut <= 7 ? Z.wa : Z.td;
+          const r = 14; const stroke = 3; const circ = 2 * Math.PI * r; const offset = circ - (iss.pct / 100) * circ;
+          return <div key={iss.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(iss.id); }} style={{ display: "grid", gridTemplateColumns: "40px 1fr 60px 60px 40px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
+            {/* Mini revenue ring */}
+            <div style={{ position: "relative", width: 34, height: 34 }}>
+              <svg width="34" height="34" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="17" cy="17" r={r} fill="none" stroke={Z.bd} strokeWidth={stroke} />
+                <circle cx="17" cy="17" r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
+              </svg>
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.black, color: ringColor }}>{iss.pct}%</div>
+            </div>
+            <div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads \u00B7 {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
+            </div>
+            <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
+            <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date}</div>
+            <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
+          </div>;
+        })}
+      </div>
+    </div>}
     </>}
 
     {/* TWO COLUMNS — role-specific */}
