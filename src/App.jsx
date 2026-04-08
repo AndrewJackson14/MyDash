@@ -40,6 +40,7 @@ const Circulation = lazyLoad(() => import("./pages/Circulation"));
 const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
+const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
@@ -255,6 +256,7 @@ export default function App() {
     { id: "editorial", label: "Editorial", icon: Ic.list },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "editions", label: "Editions", icon: Ic.pub },
+    { id: "newsletters", label: "Newsletters", icon: Ic.mail },
     { id: "sitesettings", label: "MyWebsites", icon: Ic.globe },
     { id: "medialibrary", label: "Media Library", icon: Ic.flat },
     { id: "_operations", section: true, label: "Operations" },
@@ -448,6 +450,7 @@ export default function App() {
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail /></div>}
         {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
+        {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage pubs={pubs} currentUser={currentUser} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} setPubs={setPubs} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
