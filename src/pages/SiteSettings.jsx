@@ -443,8 +443,17 @@ export default function SiteSettings({ pubs, setPubs }) {
                           const f = e.target.files[0]; if (!f) return;
                           setAdUploading(uploadKey);
                           try {
-                            const url = await uploadImage(f, "house-ads/" + (site?.slug || "general"));
-                            updateAd(i, "creative_url", url);
+                            const uploadPath = "house-ads/" + (site?.slug || "general");
+                            const ext = f.name?.split(".").pop()?.toLowerCase() || "jpg";
+                            const fname = Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
+                            const res = await fetch("https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage", {
+                              method: "POST",
+                              headers: { "Content-Type": f.type || "image/jpeg", "x-action": "upload", "x-path": uploadPath, "x-filename": fname },
+                              body: f,
+                            });
+                            if (!res.ok) throw new Error("Upload failed: " + res.status);
+                            const result = await res.json();
+                            updateAd(i, "creative_url", result.cdnUrl || `https://cdn.13stars.media/${uploadPath}/${fname}`);
                           } catch (err) { alert("Upload failed: " + err.message); }
                           setAdUploading(null);
                         };
