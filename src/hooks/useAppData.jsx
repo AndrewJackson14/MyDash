@@ -611,7 +611,10 @@ export function DataProvider({ children, localData }) {
     const autoExcerpt = excerpt || (body ? body.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim().slice(0, 200) + '…' : '');
     const isScheduled = scheduledAt && new Date(scheduledAt) > new Date();
     const status = isScheduled ? 'Scheduled' : 'Published';
-    const publishedAt = isScheduled ? null : new Date().toISOString();
+    // Only set published_at on first publish — preserve original date on re-publish
+    const existing = stories.find(s => s.id === id);
+    const alreadyPublished = existing?.publishedAt || existing?.published_at;
+    const publishedAt = isScheduled ? null : (alreadyPublished || new Date().toISOString());
 
     const changes = {
       status, slug, body, excerpt: autoExcerpt,
@@ -627,7 +630,7 @@ export function DataProvider({ children, localData }) {
       await supabase.from('stories').update(changes).eq('id', id);
     }
     return { slug, status };
-  }, []);
+  }, [stories]);
 
   const unpublishStory = useCallback(async (id) => {
     setStories(st => st.map(s => s.id === id ? { ...s, status: 'Approved', sentToWeb: false } : s));
