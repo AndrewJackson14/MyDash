@@ -644,12 +644,14 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const handleSave = async () => {
     if (!pubId || !title || !slug) { setError("Publication, title, and slug are required."); return; }
     if (!pdfUrl && !isEdit) { setError("Please upload a PDF first."); return; }
+    if (!supabase) { setError("Not connected to database"); return; }
     setSaving(true);
     setError("");
 
     try {
       if (isFeatured) {
-        await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
+        const { error: featErr } = await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
+        if (featErr) console.warn("Featured toggle error:", featErr);
       }
 
       const row = {
@@ -657,24 +659,24 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         title,
         slug,
         pdf_url: pdfUrl,
-        cover_image_url: coverImageUrl,
+        cover_image_url: coverImageUrl || null,
         publish_date: publishDate,
-        page_count: pageCount,
+        page_count: pageCount || 0,
         embed_url: embedUrl || null,
         is_featured: isFeatured,
       };
 
-      let savedRow;
+      let result;
       if (isEdit) {
-        const { data, error: err } = await supabase.from("issuu_editions").update(row).eq("id", edition.id).select().single();
-        if (err) throw err;
-        savedRow = data;
+        result = await supabase.from("issuu_editions").update(row).eq("id", edition.id).select().single();
       } else {
-        const { data, error: err } = await supabase.from("issuu_editions").insert(row).select().single();
-        if (err) throw err;
-        savedRow = data;
+        result = await supabase.from("issuu_editions").insert(row).select().single();
       }
 
+      if (result.error) throw result.error;
+      if (!result.data) throw new Error("Save returned no data — check database permissions");
+
+      const savedRow = result.data;
       onSave({
         id: savedRow.id,
         publicationId: savedRow.publication_id,
@@ -688,7 +690,8 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         isFeatured: savedRow.is_featured,
       });
     } catch (err) {
-      setError(err.message || "Save failed");
+      console.error("Edition save error:", err);
+      setError(typeof err === "object" && err.message ? err.message : String(err));
     } finally {
       setSaving(false);
     }

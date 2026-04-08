@@ -51,6 +51,25 @@ serve(async (req: Request) => {
       });
     }
 
+    // GET — proxy a file download (for CORS support)
+    if (action === "get") {
+      const filePath = path || "";
+      const url = `${BUNNY_BASE}/${filePath}`;
+      const res = await fetch(url, {
+        headers: { AccessKey: BUNNY_API_KEY },
+      });
+      if (!res.ok) {
+        return new Response(JSON.stringify({ error: `Fetch failed: ${res.status}` }), {
+          status: res.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const contentType = res.headers.get("Content-Type") || "application/octet-stream";
+      return new Response(res.body, {
+        headers: { ...corsHeaders, "Content-Type": contentType },
+      });
+    }
+
     // UPLOAD — PUT a file
     if (action === "upload") {
       const body = await req.arrayBuffer();

@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, memo } from "react";
+import { useState, useRef, useMemo, memo, useEffect, useCallback } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { COMPANY } from "../constants";
@@ -48,6 +48,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [viewInvId, setViewInvId] = useState(null);
   const [sortCol, setSortCol] = useState("issue_date");
   const [sortDir, setSortDir] = useState("desc");
+  const [uninvRange, setUninvRange] = useState("30days");
 
   // New invoice form
   const [invForm, setInvForm] = useState({
@@ -59,6 +60,17 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [payForm, setPayForm] = useState({
     invoiceId: "", amount: 0, method: "card", lastFour: "", notes: "",
   });
+
+  // ─── Listen for invoice.create events from other modules ──
+  const openNewInvoiceRef = useRef(null);
+  useEffect(() => {
+    if (!bus) return;
+    const handler = ({ clientId }) => {
+      if (openNewInvoiceRef.current) openNewInvoiceRef.current(clientId);
+    };
+    bus.on("invoice.create", handler);
+    return () => bus.off("invoice.create", handler);
+  }, [bus]);
 
   // ─── Helpers ────────────────────────────────────────────
   const cn = (cid) => clients.find(c => c.id === cid)?.name || "Unknown";
@@ -86,16 +98,30 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     return sales.filter(s => s.status === "Closed" && !invoicedSaleIds.has(s.id));
   }, [sales, processedInvoices]);
 
+  // Date-filtered uninvoiced sales for the Overview display
+  const filteredUninvoiced = useMemo(() => {
+    if (uninvRange === "all") return uninvoicedSales;
+    const now = new Date();
+    let cutoff;
+    if (uninvRange === "30days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 30); }
+    else if (uninvRange === "60days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 60); }
+    else if (uninvRange === "90days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 90); }
+    else if (uninvRange === "quarter") { cutoff = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0); }
+    else if (uninvRange === "year") { cutoff = new Date(now.getFullYear(), 11, 31); }
+    const cut = cutoff.toISOString().slice(0, 10);
+    return uninvoicedSales.filter(s => s.date && s.date <= cut);
+  }, [uninvoicedSales, uninvRange]);
+
   // Pre-aggregated uninvoiced by client (for the Overview display)
   const uninvoicedByClient = useMemo(() => {
     const map = {};
-    uninvoicedSales.forEach(s => {
+    filteredUninvoiced.forEach(s => {
       if (!map[s.clientId]) map[s.clientId] = { clientId: s.clientId, total: 0, count: 0 };
       map[s.clientId].total += s.amount || 0;
       map[s.clientId].count++;
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [uninvoicedSales]);
+  }, [filteredUninvoiced]);
 
   // Aging buckets
   const agingBuckets = { current: 0, "30": 0, "60": 0, "90": 0, "90+": 0 };
@@ -109,7 +135,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   });
 
   // ─── Invoice Generation ─────────────────────────────────
-  const openNewInvoice = (clientId) => {
+  const openNewInvoice = useCallback((clientId) => {
     const clientSales = uninvoicedSales.filter(s => !clientId || s.clientId === clientId);
     const cid = clientId || clientSales[0]?.clientId || clients[0]?.id || "";
     const cSales = uninvoicedSales.filter(s => s.clientId === cid);
@@ -136,7 +162,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       notes: "", monthlyAmount: 0, planMonths: 0,
     });
     setInvModal(true);
-  };
+  }, [uninvoicedSales, clients, issues, pubs]);
+  openNewInvoiceRef.current = openNewInvoice;
 
   const toggleLine = (idx) => {
     setInvForm(f => ({
@@ -400,13 +427,23 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
-              {fmtCurrency(uninvoicedSales.reduce((s, x) => s + (x.amount || 0), 0))}
+              {fmtCurrency(filteredUninvoiced.reduce((s, x) => s + (x.amount || 0), 0))}
             </div>
             <div style={{ fontSize: FS.sm, color: Z.tm }}>
-              {uninvoicedSales.length} closed sales across {uninvoicedByClient.length} clients need invoices
+              {filteredUninvoiced.length} closed sales across {uninvoicedByClient.length} clients need invoices
             </div>
           </div>
           <Btn onClick={() => openNewInvoice(null)}>Generate Invoices</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+          {[
+            { value: "30days", label: "Next 30 Days" },
+            { value: "60days", label: "Next 60 Days" },
+            { value: "90days", label: "Next 90 Days" },
+            { value: "quarter", label: "This Quarter" },
+            { value: "year", label: "This Year" },
+            { value: "all", label: "All Time" },
+          ].map(opt => <button key={opt.value} onClick={() => setUninvRange(opt.value)} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${uninvRange === opt.value ? Z.ac : Z.bd}`, background: uninvRange === opt.value ? Z.ac + "18" : Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: uninvRange === opt.value ? Z.ac : Z.td }}>{opt.label}</button>)}
         </div>
         <div style={{ maxHeight: 280, overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>

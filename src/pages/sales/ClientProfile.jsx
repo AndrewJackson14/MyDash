@@ -7,7 +7,7 @@ import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   commForm, setCommForm, onBack, onNavTo, onOpenProposal, onSetViewPropId,
-  onOpenEditClient,
+  onOpenEditClient, bus,
 }) => {
   const vc = (clients || []).find(x => x.id === clientId);
   if (!vc) return null;
@@ -289,6 +289,7 @@ const ClientProfile = ({
             : <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm, fontFamily: COND, marginBottom: 8 }}>No active deals — time to reach out?</div>}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             <Btn sm onClick={() => onOpenProposal(vc.id)}><Ic.send size={11} /> Draft Proposal</Btn>
+            {closedCS.length > 0 && <Btn sm v="secondary" onClick={() => { if (bus) bus.emit("invoice.create", { clientId: vc.id, clientName: vc.name }); }}><Ic.invoice size={11} /> Create Invoice</Btn>}
             <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: "Account Manager", note: "" })}>Log Call</Btn>
             <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: "Account Manager", note: "" })}>Log Email</Btn>
           </div>

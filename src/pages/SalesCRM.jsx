@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, memo } from "react";
+import { useState, useRef, useMemo, useEffect, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
@@ -13,7 +13,7 @@ import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, I
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers } = props;
+  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry } = props;
   // Publications for dropdowns: filtered by jurisdiction for salespeople, all for admins
   const dropdownPubs = jurisdiction?.myPubs || pubs;
   const [tab, setTab] = useState("Pipeline");
@@ -75,6 +75,14 @@ const SalesCRM = (props) => {
   const [closedRange, setClosedRange] = useState("30days");
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
+
+  // Deep-link handling from notifications
+  useEffect(() => {
+    if (props.deepLink?.tab === "inquiries") {
+      setTab("Inquiries");
+      if (loadInquiries && !inquiriesLoaded) loadInquiries();
+    }
+  }, [props.deepLink]);
 
   // Build lookup maps for O(1) name resolution
   const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c.name; }); return m; }, [clients]);
@@ -385,7 +393,7 @@ const SalesCRM = (props) => {
       {tab === "Proposals" && <Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions"]} active={tab} onChange={t => navTo(t)} />{tab === "Pipeline" && <><TabPipe /><TB tabs={["My Pipeline", "All Pipeline"]} active={myPipeline ? "My Pipeline" : "All Pipeline"} onChange={v => setMyPipeline(v === "My Pipeline")} /><TabPipe /><TB tabs={["My Actions", "Full Pipeline"]} active={pipeView === "actions" ? "My Actions" : "Full Pipeline"} onChange={v => setPipeView(v === "My Actions" ? "actions" : "all")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}{tab === "Commissions" && <><TabPipe /><TB tabs={["Overview", "Rate Tables", "Goals", "Assignments"]} active={commTab} onChange={setCommTab} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions", "Inquiries"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && <><TabPipe /><TB tabs={["My Pipeline", "All Pipeline"]} active={myPipeline ? "My Pipeline" : "All Pipeline"} onChange={v => setMyPipeline(v === "My Pipeline")} /><TabPipe /><TB tabs={["My Actions", "Full Pipeline"]} active={pipeView === "actions" ? "My Actions" : "Full Pipeline"} onChange={v => setPipeView(v === "My Actions" ? "actions" : "all")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}{tab === "Commissions" && <><TabPipe /><TB tabs={["Overview", "Rate Tables", "Goals", "Assignments"]} active={commTab} onChange={setCommTab} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -460,7 +468,7 @@ const SalesCRM = (props) => {
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
     {tab === "Clients" && !viewClientId && clientView === "signals" && <ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} />}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
-    {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "" }); setCmo(true); }} />}
+    {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "" }); setCmo(true); }} />}
 
     {/* PROPOSALS */}
     {tab === "Proposals" && !viewPropId && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -575,6 +583,99 @@ const SalesCRM = (props) => {
     {/* COMMISSIONS */}
     {tab === "Commissions" && <Commissions sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} commissionRates={commissionRates || []} commissionLedger={commissionLedger || []} commissionPayouts={commissionPayouts || []} commissionGoals={commissionGoals || []} salespersonPubAssignments={salespersonPubAssignments || []} helpers={commissionHelpers || {}} tab={commTab} setTab={setCommTab} />}
     {tab === "Outreach" && <Outreach sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} campaigns={outreachCampaigns || []} entries={outreachEntries || []} helpers={outreachHelpers || {}} navTo={navTo} />}
+
+    {/* INQUIRIES */}
+    {tab === "Inquiries" && (() => {
+      const inquiries = adInquiries || [];
+      const newCount = inquiries.filter(i => i.status === "new").length;
+      const contactedCount = inquiries.filter(i => i.status === "contacted").length;
+      const convertedCount = inquiries.filter(i => i.status === "converted").length;
+      const statusColors = { new: Z.ac || "#3b82f6", contacted: Z.wa || "#f59e0b", converted: Z.su || "#22c55e", dismissed: Z.tm || "#9ca3af" };
+      const confidenceBadge = (conf, reason) => {
+        if (conf === "none") return null;
+        const color = conf === "exact" ? (Z.su || "#22c55e") : (Z.wa || "#f59e0b");
+        return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: color + "18", color, fontFamily: COND, textTransform: "uppercase" }}>{conf} — {reason}</span>;
+      };
+      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Stats */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <GlassStat label="New" value={newCount} color={statusColors.new} />
+          <GlassStat label="Contacted" value={contactedCount} color={statusColors.contacted} />
+          <GlassStat label="Converted" value={convertedCount} color={statusColors.converted} />
+          <GlassStat label="Total" value={inquiries.length} />
+        </div>
+
+        {/* Inquiry list */}
+        {!inquiriesLoaded ? (
+          <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading inquiries...</div>
+        ) : inquiries.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>No inquiries yet. Inquiries from your website's Advertise page will appear here.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {inquiries.map(inq => {
+              const matchedClient = inq.client_id ? (clients || []).find(c => c.id === inq.client_id) : null;
+              const rep = matchedClient?.repId ? (props.team || []).find(t => t.id === matchedClient.repId) : null;
+              return <div key={inq.id} style={{ ...glass(), padding: CARD.pad, borderRadius: R, border: "1px solid " + Z.bd, display: "flex", flexDirection: "column", gap: 8 }}>
+                {/* Header row */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{inq.business_name || inq.name}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (statusColors[inq.status] || Z.tm) + "18", color: statusColors[inq.status] || Z.tm, fontFamily: COND, textTransform: "uppercase" }}>{inq.status}</span>
+                      {confidenceBadge(inq.match_confidence, inq.match_reason)}
+                      {matchedClient && !inq.confirmed && inq.match_confidence !== "none" && (
+                        <span style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => updateInquiry(inq.id, { confirmed: true })} style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.su || "#22c55e") + "18", color: Z.su || "#22c55e", border: "none", cursor: "pointer", fontFamily: COND }}>Confirm Match</button>
+                          <button onClick={() => updateInquiry(inq.id, { client_id: null, match_confidence: "none", match_reason: "" })} style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.da || "#ef4444") + "18", color: Z.da || "#ef4444", border: "none", cursor: "pointer", fontFamily: COND }}>Reject</button>
+                        </span>
+                      )}
+                      {inq.confirmed && <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND }}>&#10003; Confirmed</span>}
+                    </div>
+                    <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                      {inq.name} &middot; {inq.email}{inq.phone ? " \u00b7 " + inq.phone : ""}{inq.website ? " \u00b7 " + inq.website : ""}
+                    </div>
+                    {matchedClient && <div style={{ fontSize: 11, color: Z.ac, fontFamily: COND, marginTop: 2, cursor: "pointer" }} onClick={() => navTo("Clients", matchedClient.id)}>Linked to: {matchedClient.name}{rep ? " (Rep: " + rep.name + ")" : ""}</div>}
+                  </div>
+                  <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>
+                    {new Date(inq.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                </div>
+
+                {/* Details row */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: Z.tx, fontFamily: COND }}>
+                  {inq.ad_types?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Types:</span> {inq.ad_types.join(", ")}</div>}
+                  {inq.preferred_zones?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Zones:</span> {inq.preferred_zones.join(", ")}</div>}
+                  {inq.budget_range && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Budget:</span> {inq.budget_range}</div>}
+                  {inq.desired_start && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Start:</span> {new Date(inq.desired_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
+                  {inq.how_heard && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Source:</span> {inq.how_heard}</div>}
+                </div>
+
+                {inq.message && <div style={{ fontSize: 12, color: Z.tx, fontFamily: COND, background: Z.sa, padding: "6px 10px", borderRadius: Ri, borderLeft: "3px solid " + Z.bd }}>{inq.message}</div>}
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                  {inq.status === "new" && <Btn sm onClick={() => updateInquiry(inq.id, { status: "contacted", updated_at: new Date().toISOString() })}>Mark Contacted</Btn>}
+                  {(inq.status === "new" || inq.status === "contacted") && (
+                    <Btn sm v="success" onClick={() => {
+                      if (!inq.client_id) {
+                        // Create a new client from this inquiry
+                        const newClient = { name: inq.business_name || inq.name, status: "Lead", leadSource: "Website Inquiry", contacts: [{ name: inq.name, email: inq.email, phone: inq.phone || "", role: "Business Owner" }], notes: "From ad inquiry: " + (inq.message || "") };
+                        insertClient(newClient).then(nc => {
+                          if (nc?.id) updateInquiry(inq.id, { status: "converted", client_id: nc.id, updated_at: new Date().toISOString() });
+                        });
+                      } else {
+                        updateInquiry(inq.id, { status: "converted", updated_at: new Date().toISOString() });
+                      }
+                    }}>Convert to Lead</Btn>
+                  )}
+                  {(inq.status === "new" || inq.status === "contacted") && <Btn sm v="ghost" onClick={() => updateInquiry(inq.id, { status: "dismissed", updated_at: new Date().toISOString() })}>Dismiss</Btn>}
+                </div>
+              </div>;
+            })}
+          </div>
+        )}
+      </div>;
+    })()}
 
     {/* MODALS: Client, Opportunity, Proposal, Email Compose, Next Step */}
     <Modal open={cmo} onClose={() => setCmo(false)} title={ec ? "Edit Client" : "New Client"} width={640}>
