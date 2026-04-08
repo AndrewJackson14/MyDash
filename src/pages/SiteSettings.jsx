@@ -19,8 +19,8 @@ async function uploadImage(file, path) {
   return (await res.json()).url;
 }
 
-// ── Ad Locations ────────────────────────────────────────────────
-const AD_LOCATIONS = [
+// ── Default Ad Locations (used when creating zones for a new site) ──
+const DEFAULT_AD_LOCATIONS = [
   { slug: "leaderboard", name: "Leaderboard", width: 728, height: 90 },
   { slug: "sidebar", name: "Sidebar", width: 300, height: 250 },
   { slug: "in-article", name: "In-Article", width: 300, height: 250 },
@@ -130,6 +130,7 @@ export default function SiteSettings({ pubs, setPubs }) {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [houseAds, setHouseAds] = useState({}); // { [zone_slug]: [{ id?, zone_id?, creative_url, click_url, alt_text }] }
+  const [adLocations, setAdLocations] = useState(DEFAULT_AD_LOCATIONS); // per-site zones
   const [mediaOpen, setMediaOpen] = useState(false);
   const [mediaTarget, setMediaTarget] = useState(null); // { zone, idx } — which ad slot is picking
   const [adUploading, setAdUploading] = useState(null); // "zone:idx" while uploading
@@ -185,8 +186,11 @@ export default function SiteSettings({ pubs, setPubs }) {
   });
 
   const loadHouseAds = async (siteId) => {
-    const { data: zones } = await supabase.from("ad_zones").select("id, slug").eq("publication_id", siteId).eq("is_active", true);
-    if (!zones?.length) { setHouseAds({}); return; }
+    const { data: zones } = await supabase.from("ad_zones").select("id, slug, name").eq("publication_id", siteId).eq("is_active", true);
+    if (!zones?.length) { setAdLocations(DEFAULT_AD_LOCATIONS); setHouseAds({}); return; }
+    // Build ad locations from this site's actual zones
+    const locs = zones.map(z => ({ slug: z.slug, name: z.name, width: z.slug.includes("leaderboard") || z.slug.includes("header") ? 728 : 300, height: z.slug.includes("leaderboard") || z.slug.includes("header") || z.slug.includes("footer") || z.slug.includes("banner") ? 90 : 250 }));
+    setAdLocations(locs);
     const zoneMap = {};
     zones.forEach(z => { zoneMap[z.slug] = { zone_id: z.id, placements: [] }; });
     const { data: placements } = await supabase.from("ad_placements").select("id, ad_zone_id, creative_url, click_url, alt_text").in("ad_zone_id", zones.map(z => z.id)).eq("is_active", true).order("created_at");
@@ -197,7 +201,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       });
     }
     const result = {};
-    AD_LOCATIONS.forEach(loc => {
+    locs.forEach(loc => {
       result[loc.slug] = zoneMap[loc.slug]?.placements?.map(p => ({
         id: p.id, zone_id: zoneMap[loc.slug].zone_id,
         creative_url: p.creative_url || "", click_url: p.click_url || "", alt_text: p.alt_text || "",
@@ -266,7 +270,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       setSites(prev => prev.map(s => s.id === selectedId ? { ...s, logo_url: draft.logo_url, favicon_url: draft.favicon_url, settings: merged } : s));
 
       // Save house ads
-      for (const loc of AD_LOCATIONS) {
+      for (const loc of adLocations) {
         const ads = houseAds[loc.slug] || [];
         // Ensure zone exists
         let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
@@ -399,7 +403,7 @@ export default function SiteSettings({ pubs, setPubs }) {
             </Section>
 
             <Section title="House Ads">
-              {AD_LOCATIONS.map(loc => {
+              {adLocations.map(loc => {
                 const ads = houseAds[loc.slug] || [];
                 const updateAd = (idx, key, value) => {
                   setHouseAds(prev => {
