@@ -20,7 +20,8 @@ serve(async (req: Request) => {
   const action = req.headers.get("x-action") || "list";
 
   const path = req.headers.get("x-path") || "";
-  const filename = req.headers.get("x-filename") || "";
+  const rawFilename = req.headers.get("x-filename") || "";
+  const filename = decodeURIComponent(rawFilename);
 
   try {
     // LIST — GET files/folders in a path

@@ -64,7 +64,7 @@ async function bunnyUpload(file, path, filename) {
       "Content-Type": file.type || "application/octet-stream",
       "x-action": "upload",
       "x-path": path,
-      "x-filename": filename,
+      "x-filename": encodeURIComponent(filename),
     },
     body: file,
   });
@@ -75,7 +75,7 @@ async function bunnyUpload(file, path, filename) {
 async function bunnyDelete(path, filename) {
   const res = await fetch(PROXY_URL, {
     method: "DELETE",
-    headers: { "x-action": "delete", "x-path": path, "x-filename": filename },
+    headers: { "x-action": "delete", "x-path": path, "x-filename": encodeURIComponent(filename) },
   });
   if (!res.ok) throw new Error("Delete failed: " + res.status);
 }
