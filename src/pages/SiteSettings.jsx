@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA } from "../components/ui";
-import MediaModal from "../components/MediaModal";
+const MediaModal = lazy(() => import("../components/MediaModal"));
 import { supabase, isOnline } from "../lib/supabase";
 
 // ── Upload via Edge Function ─────────────────────────────────────
@@ -631,7 +631,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       )}
 
       {/* Media Library Modal for House Ad image selection */}
-      <MediaModal
+      {mediaOpen && <Suspense fallback={null}><MediaModal
         open={mediaOpen}
         onClose={() => { setMediaOpen(false); setMediaTarget(null); }}
         onSelect={(asset) => {
@@ -649,7 +649,7 @@ export default function SiteSettings({ pubs, setPubs }) {
           setMediaTarget(null);
         }}
         pubs={pubs}
-      />
+      /></Suspense>}
     </div>
   );
 }
