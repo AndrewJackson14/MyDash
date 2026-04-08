@@ -270,6 +270,33 @@ const SalesCRM = (props) => {
   const oppToProposal = () => { saveOpp(false); const cid = clients.find(c => c.name.toLowerCase() === opp.company.toLowerCase())?.id || (editOppId && sales.find(s => s.id === editOppId)?.clientId); if (cid) setSales(sl => sl.map(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal" } : s)); setOppMo(false); openProposal(cid); };
 
   const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
+  // Open renewal proposal pre-populated from client's previous closed sales
+  const openRenewalProposal = (clientId) => {
+    const cid = clientId || clients[0]?.id || "";
+    const clientName = cn(cid);
+    // Get client's closed sales grouped by publication + ad size
+    const clientSales = sales.filter(s => s.clientId === cid && s.status === "Closed");
+    const pubGroups = {};
+    clientSales.forEach(s => {
+      if (!pubGroups[s.publication]) pubGroups[s.publication] = { pubId: s.publication, adSizes: {} };
+      const sizeKey = s.size || s.type || "Ad";
+      pubGroups[s.publication].adSizes[sizeKey] = (pubGroups[s.publication].adSizes[sizeKey] || 0) + 1;
+    });
+    // Build proposal pubs with upcoming issues, using the most common ad size
+    const renewPubs = Object.values(pubGroups).map(pg => {
+      const pub = pubs.find(p => p.id === pg.pubId);
+      if (!pub) return null;
+      const topSize = Object.entries(pg.adSizes).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+      const adSizeIdx = (pub.adSizes || []).findIndex(a => a.name === topSize);
+      const futureIssues = issues.filter(i => i.pubId === pg.pubId && i.date >= today).slice(0, 12);
+      return { pubId: pg.pubId, issues: futureIssues.map(iss => ({ issueId: iss.id, adSizeIdx: adSizeIdx >= 0 ? adSizeIdx : 0 })) };
+    }).filter(Boolean);
+    setPropClient(cid); setPropPubs(renewPubs); setPropPayPlan(false); setPropStep("build");
+    setPropName(`${clientName} \u2014 Renewal ${new Date().toLocaleDateString()}`);
+    setEditPropId(null); setPropAddPubId(pubs[0]?.id || "");
+    setPropExpandedPub(renewPubs[0]?.pubId || null);
+    setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true);
+  };
   const closePropMo = () => { if (propPending && propStep === "build") { setSales(sl => sl.map(s => s.id === propPending ? { ...s, status: "Presentation" } : s)); logActivity("Proposal cancelled — back to Presentation", "pipeline", sales.find(s => s.id === propPending)?.clientId, cn(sales.find(s => s.id === propPending)?.clientId)); } setPropPending(null); setPropMo(false); };
   const editProposal = (propId) => { const p = proposals.find(x => x.id === propId); if (!p) return; setPropClient(p.clientId); setPropName(p.name); setEditPropId(propId); setPropPayPlan(p.payPlan); setPropStep("build"); setViewPropId(null); const grouped = {}; p.lines.forEach(li => { if (!grouped[li.pubId]) grouped[li.pubId] = { pubId: li.pubId, issues: [] }; const pub = pubs.find(x => x.id === li.pubId); const ai = (pub?.adSizes || []).findIndex(a => a.name === li.adSize); grouped[li.pubId].issues.push({ issueId: li.issueId, adSizeIdx: ai >= 0 ? ai : 0 }); }); setPropPubs(Object.values(grouped)); setPropExpandedPub(Object.keys(grouped)[0] || null); setPropMo(true); };
   const addPropPub = () => { if (!propAddPubId || propPubs.some(pp => pp.pubId === propAddPubId)) return; setPropPubs(pp => [...pp, { pubId: propAddPubId, issues: [] }]); setPropExpandedPub(propAddPubId); };
@@ -578,26 +605,14 @@ const SalesCRM = (props) => {
           {/* Upsell intelligence */}
           {(() => {
             const clientSales = sales.filter(x => x.clientId === s.clientId && x.status === "Closed");
-            const totalIns = clientSales.length;
             const activePubs = [...new Set(clientSales.map(x => x.publication))];
             const otherPubs = pubs.filter(p => !activePubs.includes(p.id));
-            return <div style={{ marginTop: 4, padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.xs }}>
-              {totalIns >= 4 && totalIns < 6 && <div style={{ color: Z.wa, fontWeight: FW.bold }}>📈 {6-totalIns} more insertions → 15% discount tier</div>}
-              {totalIns >= 10 && totalIns < 12 && <div style={{ color: Z.wa, fontWeight: FW.bold }}>📈 {12-totalIns} more insertions → 25% discount tier</div>}
-              {otherPubs.length > 0 && <div style={{ color: Z.tm }}>Cross-sell: {otherPubs.slice(0,2).map(p => p.name).join(", ")}</div>}
-            </div>;
-          })()}
-          {/* UPSELL INTELLIGENCE */}
-          {(() => {
-            const cPubs = [...new Set(sales.filter(x => x.clientId === s.clientId).map(x => x.publication))];
-            const crossSell = pubs.filter(p => !cPubs.includes(p.id));
-            const insertions = sales.filter(x => x.clientId === s.clientId && x.status === "Closed").length;
-            return (crossSell.length > 0) ? <div style={{ marginTop: 4, padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.xs, color: Z.tm }}>
-              {crossSell.length > 0 && <div>Not in: {crossSell.slice(0,3).map(p => p.name.split(" ").map(w=>w[0]).join("")).join(", ")}</div>}
+            return otherPubs.length > 0 ? <div style={{ marginTop: 4, padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.xs, color: Z.tm }}>
+              Cross-sell: {otherPubs.slice(0,3).map(p => p.name).join(", ")}
             </div> : null;
           })()}
           <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-            <Btn sm onClick={() => { const lastProp = proposals.filter(p => p.clientId === s.clientId && p.status === "Approved/Signed").sort((a, b) => b.date.localeCompare(a.date))[0]; if (lastProp) editProposal(lastProp.id); else openProposal(s.clientId); }}>{lane.action}</Btn>
+            <Btn sm onClick={() => openRenewalProposal(s.clientId)}>{lane.action}</Btn>
             <Btn sm v="secondary" onClick={() => navTo("Clients", s.clientId)}>Profile</Btn>
           </div>
         </div>)}
