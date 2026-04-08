@@ -8,6 +8,9 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [viewId, setViewId] = useState(null);
+  const [sortCol, setSortCol] = useState("value");
+  const [sortDir, setSortDir] = useState("desc");
+  const doSort = (col) => { if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col); setSortDir("desc"); } };
 
   // Lazy load contracts when page is first opened
   useEffect(() => {
@@ -48,8 +51,21 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
       const q = sr.toLowerCase();
       list = list.filter(c => c.name.toLowerCase().includes(q) || cn(c.clientId).toLowerCase().includes(q));
     }
-    return list.sort((a, b) => b.totalValue - a.totalValue);
-  }, [contracts, tab, sr, clientMap, jurisdiction, currentUser]);
+    const dir = sortDir === "asc" ? 1 : -1;
+    return list.sort((a, b) => {
+      const oc = (salesByContract[a.id] || []).length;
+      const od = (salesByContract[b.id] || []).length;
+      if (sortCol === "name") return dir * (a.name || "").localeCompare(b.name || "");
+      if (sortCol === "client") return dir * cn(a.clientId).localeCompare(cn(b.clientId));
+      if (sortCol === "start") return dir * (a.startDate || "").localeCompare(b.startDate || "");
+      if (sortCol === "end") return dir * (a.endDate || "").localeCompare(b.endDate || "");
+      if (sortCol === "value") return dir * (a.totalValue - b.totalValue);
+      if (sortCol === "orders") return dir * (oc - od);
+      if (sortCol === "rep") return dir * rn(a.assignedTo).localeCompare(rn(b.assignedTo));
+      if (sortCol === "status") return dir * (a.status || "").localeCompare(b.status || "");
+      return 0;
+    });
+  }, [contracts, tab, sr, clientMap, jurisdiction, currentUser, sortCol, sortDir, salesByContract]);
 
   // View contract detail
   const viewContract = (contracts || []).find(c => c.id === viewId);
@@ -160,7 +176,11 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     {/* Contract list */}
     <DataTable>
       <thead><tr>
-        <th>Contract</th><th>Client</th><th>Start</th><th>End</th><th>Value</th><th>Orders</th><th>Rep</th><th>Status</th>
+        {[["name","Contract"],["client","Client"],["start","Start"],["end","End"],["value","Value"],["orders","Orders"],["rep","Rep"],["status","Status"]].map(([k,l]) => (
+          <th key={k} onClick={() => doSort(k)} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+            {l}{sortCol === k && <span style={{ marginLeft: 3, fontSize: 9 }}>{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span>}
+          </th>
+        ))}
       </tr></thead>
       <tbody>
         {filtered.slice(0, 100).map(c => {
