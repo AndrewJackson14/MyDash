@@ -198,9 +198,8 @@ export default function App() {
   // Navigate to billing when invoice.create is emitted from sales
   useEffect(() => {
     if (!bus) return;
-    const handler = () => { handleNav("billing"); };
-    bus.on("invoice.create", handler);
-    return () => bus.off("invoice.create", handler);
+    const unsub = bus.on("invoice.create", () => { handleNav("billing"); });
+    return unsub;
   }, [bus, pg]);
 
   const unreadCount = (notifications || []).filter(n => !n.read).length;

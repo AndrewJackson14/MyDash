@@ -65,11 +65,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const openNewInvoiceRef = useRef(null);
   useEffect(() => {
     if (!bus) return;
-    const handler = ({ clientId }) => {
+    return bus.on("invoice.create", ({ clientId }) => {
       if (openNewInvoiceRef.current) openNewInvoiceRef.current(clientId);
-    };
-    bus.on("invoice.create", handler);
-    return () => bus.off("invoice.create", handler);
+    });
   }, [bus]);
 
   // ─── Helpers ────────────────────────────────────────────
