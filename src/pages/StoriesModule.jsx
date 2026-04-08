@@ -17,7 +17,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
 
   const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const pn = id => pubs.find(p => p.id === id)?.name || "—";
-  const pubColor = id => pubs.find(p => p.id === id)?.color || Z.tm;
+  const pubColor = id => Z.tm;
   const authors = [...new Set(stories.map(s => s.author || "").filter(Boolean).concat(STORY_AUTHORS))].sort();
   const _today = new Date().toISOString().slice(0, 10);
   const _tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);

@@ -352,7 +352,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
             const pubNotices = all.filter(n => n.publicationId === pub.id);
             const pubRev = pubNotices.reduce((s, n) => s + (n.totalAmount || 0), 0);
             return <div key={pub.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr 80px 80px", gap: 10, alignItems: "center", padding: "10px 14px", background: Z.bg, borderRadius: R }}>
-              <div style={{ width: 10, height: 10, borderRadius: R, background: pub.color }} />
+              <div style={{ width: 10, height: 10, borderRadius: R, background: Z.tm }} />
               <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{pub.name}</span>
               <span style={{ fontSize: FS.sm, color: Z.td, textAlign: "right" }}>{pubNotices.length} notices</span>
               <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.su, textAlign: "right" }}>{fmtCurrency(pubRev)}</span>

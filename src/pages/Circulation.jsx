@@ -44,7 +44,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
   const [routeForm, setRouteForm] = useState(blankRoute);
 
   const pn = (pid) => pubs.find(p => p.id === pid)?.name || "";
-  const pubColor = (pid) => pubs.find(p => p.id === pid)?.color || Z.ac;
+  const pubColor = (pid) => Z.tm;
 
   // ─── Computed Stats ─────────────────────────────────────
   const subs = subscribers || [];
@@ -181,7 +181,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
         return <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(newspapers.length + 1, 5)}, 1fr)`, gap: 12 }}>
           {newspapers.map(p => {
             const ct = subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length;
-            return <GlassStat key={p.id} label={p.name} value={ct.toLocaleString()} sub="Print subscribers" color={p.color} />;
+            return <GlassStat key={p.id} label={p.name} value={ct.toLocaleString()} sub="Print subscribers" color={Z.tm} />;
           })}
           <GlassStat label="Digital (All)" value={activeDigital.length.toLocaleString()} sub="Newsletter subscribers" />
         </div>;
@@ -200,7 +200,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(renewalsByPub.length, 5)}, 1fr)`, gap: 10 }}>
             {renewalsByPub.map(r => <div key={r.pub.id} style={{ textAlign: "center", padding: 10, background: Z.bg, borderRadius: R }}>
               <div style={{ fontSize: 22, fontWeight: FW.black, color: r.count > 0 ? Z.wa : Z.su, fontFamily: DISPLAY }}>{r.count}</div>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: r.pub.color }}>{r.pub.name}</div>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx }}>{r.pub.name}</div>
             </div>)}
           </div>
         </GlassCard> : <GlassCard><div style={{ padding: 10, textAlign: "center", color: Z.su, fontSize: FS.md, fontWeight: FW.bold }}>No renewals due in the next 30 days</div></GlassCard>;
@@ -213,7 +213,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
           {pubSubCounts.map(p => {
             const total = p.print + p.drops;
             return <div key={p.pub.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr 90px 90px 90px 90px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R }}>
-              <div style={{ width: 10, height: 10, borderRadius: Ri, background: p.pub.color }} />
+              <div style={{ width: 10, height: 10, borderRadius: Ri, background: Z.tm }} />
               <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{p.pub.name}</div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.print}</div><div style={{ fontSize: FS.micro, color: Z.td }}>PRINT</div></div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.digital}</div><div style={{ fontSize: FS.micro, color: Z.td }}>DIGITAL</div></div>
@@ -305,7 +305,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
               </div>
             </div>
             {lpubs.length > 0 && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              {lpubs.map(lp => <span key={lp.publicationId} style={{ fontSize: FS.xs, fontWeight: FW.bold, color: pubColor(lp.publicationId), background: pubColor(lp.publicationId) + "18", borderRadius: Ri }}>{pn(lp.publicationId)} × {lp.quantity}</span>)}
+              {lpubs.map(lp => <span key={lp.publicationId} style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, background: Z.sa, borderRadius: Ri }}>{pn(lp.publicationId)} × {lp.quantity}</span>)}
             </div>}
           </GlassCard>;
         })}
@@ -446,7 +446,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
           <label style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Copies per Publication</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
             {pubs.map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 10, height: 10, borderRadius: Ri, background: p.color }} />
+              <div style={{ width: 10, height: 10, borderRadius: Ri, background: Z.tm }} />
               <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{p.name}</span>
               <input type="number" min="0" value={locForm.pubs?.[p.id] || ""} onChange={e => setLocForm(f => ({ ...f, pubs: { ...f.pubs, [p.id]: Number(e.target.value) || 0 } }))} placeholder="0" style={{ width: 70, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.base, textAlign: "right", outline: "none" }} />
             </div>)}

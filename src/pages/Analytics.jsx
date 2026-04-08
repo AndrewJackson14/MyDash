@@ -152,7 +152,7 @@ const Analytics = ({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <GlassCard>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Publication</div>
-          {revByPub.map(r => <HBar key={r.pub.id} label={r.pub.name} value={r.rev} max={mxP} color={r.pub.color} sub={`${r.deals}`} />)}
+          {revByPub.map(r => <HBar key={r.pub.id} label={r.pub.name} value={r.rev} max={mxP} color={Z.tm} sub={`${r.deals}`} />)}
         </GlassCard>
         <GlassCard>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Top Clients</div>
@@ -175,7 +175,7 @@ const Analytics = ({
       {/* Pub selector */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={() => setPlPub("all")} style={{ borderRadius: Ri, border: `1px solid ${Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`, background: "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>All Publications</button>
-        {pubs.map(p => <button key={p.id} onClick={() => setPlPub(p.id)} style={{ borderRadius: Ri, border: `1px solid ${plPub === p.id ? p.color : Z.bd}`, background: plPub === p.id ? p.color + "18" : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: plPub === p.id ? p.color : Z.tm }}>{p.name}</button>)}
+        {pubs.map(p => <button key={p.id} onClick={() => setPlPub(p.id)} style={{ borderRadius: Ri, border: `1px solid ${plPub === p.id ? Z.tm : Z.bd}`, background: plPub === p.id ? Z.sa : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: plPub === p.id ? Z.tx : Z.tm }}>{p.name}</button>)}
       </div>
 
       {/* P&L Table */}
@@ -193,7 +193,7 @@ const Analytics = ({
               {pubPL.map(p => <tr key={p.pub.id} onClick={() => setPlPub(p.pub.id)} style={{ cursor: "pointer" }}>
                 <td style={{ padding: "10px 14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: R, background: p.pub.color }} />
+                    <div style={{ width: 8, height: 8, borderRadius: R, background: Z.tm }} />
                     <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{p.pub.name}</span>
                   </div>
                 </td>
@@ -229,7 +229,7 @@ const Analytics = ({
         /* Single publication detail P&L */
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 14, height: 14, borderRadius: R, background: selPL.pub.color }} />
+            <div style={{ width: 14, height: 14, borderRadius: R, background: Z.tm }} />
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{selPL.pub.name} — P&L</h3>
           </div>
 
@@ -304,7 +304,7 @@ const Analytics = ({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <GlassCard>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Publication</div>
-          {revByPub.map(r => <HBar key={r.pub.id} label={r.pub.name} value={r.rev} max={mxP} color={r.pub.color} sub={`${r.deals}`} />)}
+          {revByPub.map(r => <HBar key={r.pub.id} label={r.pub.name} value={r.rev} max={mxP} color={Z.tm} sub={`${r.deals}`} />)}
         </GlassCard>
         <GlassCard>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Top Clients</div>
@@ -340,7 +340,7 @@ const Analytics = ({
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Stories by Publication</div>
         {pubs.map(p => {
           const pStories = stories.filter(s => s.publication === p.id);
-          return <HBar key={p.id} label={p.name} value={pStories.length} max={Math.max(...pubs.map(pp => stories.filter(s => s.publication === pp.id).length), 1)} color={p.color} sub="" />;
+          return <HBar key={p.id} label={p.name} value={pStories.length} max={Math.max(...pubs.map(pp => stories.filter(s => s.publication === pp.id).length), 1)} color={Z.tm} sub="" />;
         })}
       </GlassCard>
     </>}
@@ -357,7 +357,7 @@ const Analytics = ({
 
       // Subscribers by publication
       const byPub = {};
-      pubs.forEach(p => { byPub[p.id] = { name: p.name, color: p.color, count: 0, revenue: 0 }; });
+      pubs.forEach(p => { byPub[p.id] = { name: p.name, color: Z.tm, count: 0, revenue: 0 }; });
       active.forEach(sub => {
         if (sub.publicationId && byPub[sub.publicationId]) {
           byPub[sub.publicationId].count++;

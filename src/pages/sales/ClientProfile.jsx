@@ -102,7 +102,7 @@ const ClientProfile = ({
         </div>
         {(vc.interestedPubs || []).length > 0 && <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 6 }}>
           <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginRight: 2 }}>Interested:</span>
-          {(vc.interestedPubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: pub.color, background: pub.color + "18", padding: "2px 6px", borderRadius: Ri }}>{pub.name.split(" ").map(w => w[0]).join("")}</span> : null; })}
+          {(vc.interestedPubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tx, background: Z.sa, padding: "2px 6px", borderRadius: Ri }}>{pub.name.split(" ").map(w => w[0]).join("")}</span> : null; })}
         </div>}
       </div>
     </div>
@@ -197,7 +197,7 @@ const ClientProfile = ({
             <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Revenue by Publication</div>
             {revByPub.map(r => <div key={r.pub.id} style={{ marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{r.pub.name}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${r.rev.toLocaleString()}</span></div>
-              <div style={{ height: 4, background: Z.bg, borderRadius: Ri, marginTop: 2 }}><div style={{ height: "100%", borderRadius: Ri, width: `${(r.rev / maxPubRev) * 100}%`, background: r.pub.color }} /></div>
+              <div style={{ height: 4, background: Z.bg, borderRadius: Ri, marginTop: 2 }}><div style={{ height: "100%", borderRadius: Ri, width: `${(r.rev / maxPubRev) * 100}%`, background: Z.tm }} /></div>
             </div>)}
           </div>}
         </Card>
@@ -342,7 +342,7 @@ const ClientProfile = ({
             <div style={{ fontSize: FS.xs, color: (vc.totalSpend || 0) >= peerAvgSpend ? Z.su : Z.wa, fontWeight: FW.bold, marginTop: 4 }}>{(vc.totalSpend || 0) >= peerAvgSpend ? "Above industry average" : `$${(peerAvgSpend - (vc.totalSpend || 0)).toLocaleString()} below average`}</div>
           </div>}
           {activeCS.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Active Pipeline ({activeCS.length})</div>{activeCS.map(s => <div key={s.id} style={{ padding: "4px 0", borderBottom: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(s.publication)} · {s.type}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${(s.amount || 0).toLocaleString()}</span></div></div>)}</div>}
-          {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: p.color }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
+          {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: Z.tm }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
           {clientProposals.length > 0 && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Proposals</div>{clientProposals.map(p => <div key={p.id} onClick={() => { if (onNavTo) onNavTo("Proposals"); if (onSetViewPropId) setTimeout(() => onSetViewPropId(p.id), 50); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, background: p.status === "Draft" ? Z.wa + "08" : "transparent", borderLeft: p.status === "Draft" ? `3px solid ${Z.wa}` : "none", paddingLeft: p.status === "Draft" ? 6 : 0 }}><div><span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span>{p.status === "Draft" && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, marginLeft: 6 }}>PENDING</span>}</div><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.ac }}>${p.total?.toLocaleString()}</span></div>)}</div>}
         </Card>
       </div>

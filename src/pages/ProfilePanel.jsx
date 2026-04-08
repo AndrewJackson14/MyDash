@@ -166,7 +166,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
             {myPubs.length === 0 ? <span style={{ fontSize: FS.sm, color: Z.td }}>No publications assigned</span> :
               myPubs.map(p => (
                 <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: Ri, background: Z.bg }}>
-                  <div style={{ width: 4, height: 20, borderRadius: 2, background: p.color || Z.ac, flexShrink: 0 }} />
+                  <div style={{ width: 4, height: 20, borderRadius: 2, background: Z.tm, flexShrink: 0 }} />
                   <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{p.name}</span>
                   <span style={{ fontSize: FS.sm, color: Z.td, marginLeft: "auto" }}>{p.type}</span>
                 </div>

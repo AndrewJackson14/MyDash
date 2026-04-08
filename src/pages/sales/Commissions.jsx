@@ -185,7 +185,7 @@ const Commissions = ({
       {pubs.map(pub => {
         const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
         if (pubIssues.length === 0) return null;
-        return <Card key={pub.id} style={{ borderLeft: `3px solid ${pub.color}` }}>
+        return <Card key={pub.id} style={{ borderLeft: `3px solid ${Z.bd}` }}>
           <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, marginBottom: 8 }}>{pub.name}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 6 }}>
             {pubIssues.map(iss => {
@@ -207,7 +207,7 @@ const Commissions = ({
       <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>Assign each salesperson a percentage share of each publication.</div>
       {pubs.map(pub => {
         const totalPct = salespeople.reduce((s, sp) => s + getShare(sp.id, pub.id), 0);
-        return <Card key={pub.id} style={{ borderLeft: `3px solid ${pub.color}` }}>
+        return <Card key={pub.id} style={{ borderLeft: `3px solid ${Z.bd}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub.name}</div>
             <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: totalPct === 100 ? Z.go : totalPct > 100 ? Z.da : Z.wa }}>{totalPct}% assigned</div>

@@ -167,7 +167,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
           {(member.pubs || []).includes("all")
             ? <span style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>All publications</span>
             : <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {(member.pubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: pub.color, background: pub.color + "18", padding: "2px 8px", borderRadius: Ri }}>{pub.name}</span> : null; })}
+              {(member.pubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, background: Z.sa, padding: "2px 8px", borderRadius: Ri }}>{pub.name}</span> : null; })}
             </div>}
         </div>
         <div>

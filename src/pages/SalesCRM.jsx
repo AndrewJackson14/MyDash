@@ -393,7 +393,7 @@ const SalesCRM = (props) => {
       {tab === "Proposals" && <Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions", "Inquiries"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && <><TabPipe /><TB tabs={["My Pipeline", "All Pipeline"]} active={myPipeline ? "My Pipeline" : "All Pipeline"} onChange={v => setMyPipeline(v === "My Pipeline")} /><TabPipe /><TB tabs={["My Actions", "Full Pipeline"]} active={pipeView === "actions" ? "My Actions" : "Full Pipeline"} onChange={v => setPipeView(v === "My Actions" ? "actions" : "all")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}{tab === "Commissions" && <><TabPipe /><TB tabs={["Overview", "Rate Tables", "Goals", "Assignments"]} active={commTab} onChange={setCommTab} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions", "Inquiries"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && <><TabPipe /><TB tabs={["My Pipeline", "All Pipeline"]} active={myPipeline ? "My Pipeline" : "All Pipeline"} onChange={v => setMyPipeline(v === "My Pipeline")} /><TabPipe /><TB tabs={["My Actions", "Full Pipeline"]} active={pipeView === "actions" ? "My Actions" : "Full Pipeline"} onChange={v => setPipeView(v === "My Actions" ? "actions" : "all")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"7days":"Past 7 Days","30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}{tab === "Commissions" && <><TabPipe /><TB tabs={["Overview", "Rate Tables", "Goals", "Assignments"]} active={commTab} onChange={setCommTab} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -493,21 +493,45 @@ const SalesCRM = (props) => {
     {tab === "Closed" && (() => {
       const now = new Date(); const thisMonth = now.toISOString().slice(0,7); const thisYear = now.toISOString().slice(0,4);
       const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1).toISOString().slice(0,10);
+      const d7 = new Date(now); d7.setDate(d7.getDate() - 7); const d7s = d7.toISOString().slice(0,10);
       const d30 = new Date(now); d30.setDate(d30.getDate() - 30); const d30s = d30.toISOString().slice(0,10);
-      const filtered = closedSales.filter(s => { if (closedRange === "30days") return s.date >= d30s; if (closedRange === "month") return s.date?.startsWith(thisMonth); if (closedRange === "quarter") return s.date >= qStart; if (closedRange === "year") return s.date?.startsWith(thisYear); return true; });
+      let filtered = closedSales.filter(s => { if (closedRange === "7days") return s.date >= d7s; if (closedRange === "30days") return s.date >= d30s; if (closedRange === "month") return s.date?.startsWith(thisMonth); if (closedRange === "quarter") return s.date >= qStart; if (closedRange === "year") return s.date?.startsWith(thisYear); return true; });
+      if (fPub !== "all") filtered = filtered.filter(s => s.publication === fPub);
       const filtRev = filtered.reduce((s,x) => s + x.amount, 0);
-      return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {/* METRICS BAR */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+      const repName = (cid) => { const c = clients.find(x => x.id === cid); return c?.repId ? ((team || []).find(x => x.id === c.repId)?.name || "\u2014") : "\u2014"; };
+      const repRevs = {}; filtered.forEach(s => { const rn = repName(s.clientId); repRevs[rn] = (repRevs[rn] || 0) + (s.amount || 0); });
+      const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
+      return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* STATS CARDS */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {[
-          ["Revenue", "$" + (filtRev/1000).toFixed(0) + "K", Z.ac],
-          ["Deals", String(filtered.length), Z.pu],
-          ["Avg Deal", "$" + Math.round(filtRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
-          ["Renewals Due", String(renewalsDue.length), renewalsDue.length > 0 ? Z.da : Z.ac],
-          ["Near Tier Break", String(filtered.filter(s => { const ct = filtered.filter(x => x.clientId === s.clientId).length; return ct >= 4 && ct < 6 || ct >= 10 && ct < 12; }).length), Z.wa],
-        ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
+          ["Revenue", "$" + (filtRev >= 1000 ? (filtRev/1000).toFixed(0) + "K" : filtRev.toLocaleString()), Z.go],
+          ["Deals Closed", String(filtered.length), Z.ac],
+          ["Avg Deal Size", "$" + Math.round(filtRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
+          ["Top Salesperson", topRep ? topRep[0].split(" ")[0] : "\u2014", Z.ac],
+        ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Salesperson" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
       </div>
-      {filtered.map(s => { const prop = s.proposalId ? proposals.find(p => p.id === s.proposalId) : null; return <div key={s.id} onClick={() => { if (prop) { setViewPropId(prop.id); navTo("Proposals"); } else navTo("Clients", s.clientId); }} style={{ ...glass(), borderRadius: R, padding: 16, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.borderColor = Z.ac} onMouseLeave={e => e.currentTarget.style.borderColor = Z.bd}><div style={{ display: "flex", justifyContent: "space-between" }}><div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{cn(s.clientId)}</div><div style={{ fontSize: FS.sm, color: Z.tm }}>{pn(s.publication)} · {s.type}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>${(s.amount || 0).toLocaleString()}</div><div style={{ fontSize: FS.sm, color: Z.tm }}>{s.date}</div></div></div></div>; })}</div>; })()}
+      {/* TABLE */}
+      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
+            {["Client", "Publication", "Ad Size", "Amount", "Date", "Salesperson"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: h === "Amount" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {filtered.slice(0, 100).map(s => <tr key={s.id} onClick={() => navTo("Clients", s.clientId)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
+              onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{cn(s.clientId)}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{pn(s.publication)}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{s.size || s.type || "\u2014"}</td>
+              <td style={{ padding: "8px 12px", fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(s.amount || 0).toLocaleString()}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{s.date}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{repName(s.clientId)}</td>
+            </tr>)}
+          </tbody>
+        </table>
+        {filtered.length > 100 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 100 of {filtered.length}</div>}
+      </GlassCard>
+      </div>; })()}
     {tab === "Renewals" && (() => {
       const calcScore = (s) => {
         let score = 50;
@@ -687,7 +711,7 @@ const SalesCRM = (props) => {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {pubs.map(p => {
               const active = (cf.interestedPubs || []).includes(p.id);
-              return <Pill key={p.id} label={p.name} icon={Ic.pub} active={active} color={p.color} onClick={() => setCf(x => ({ ...x, interestedPubs: active ? (x.interestedPubs || []).filter(id => id !== p.id) : [...(x.interestedPubs || []), p.id] }))} />;
+              return <Pill key={p.id} label={p.name} icon={Ic.pub} active={active} color={Z.tm} onClick={() => setCf(x => ({ ...x, interestedPubs: active ? (x.interestedPubs || []).filter(id => id !== p.id) : [...(x.interestedPubs || []), p.id] }))} />;
             })}
           </div>
         </div>

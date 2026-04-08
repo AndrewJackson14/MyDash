@@ -45,7 +45,7 @@ const fmtDateShort = (d) => d.toLocaleDateString("en-US", { month: "short", day:
 const fmtDateFull = (d) => d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
 const pn = (pubs, id) => pubs.find(p => p.id === id)?.name || "";
-const pubColor = (pubs, id) => pubs.find(p => p.id === id)?.color || Z.tm;
+const pubColor = (pubs, id) => Z.tm;
 
 const Dot = ({ color }) => <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: color, flexShrink: 0 }} />;
 
