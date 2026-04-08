@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { DARK as Z, DISPLAY, COND, BODY, R, Ri, FS, FW, INV } from '../lib/theme';
+import { Z, DISPLAY, COND, BODY, R, Ri, FS, FW, INV } from '../lib/theme';
 
 export default function LoginPage({ onSkip }) {
   const { signInWithGoogle, signInWithEmail, isOnline } = useAuth();
