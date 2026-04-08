@@ -49,6 +49,147 @@ const pubColor = (pubs, id) => pubs.find(p => p.id === id)?.color || Z.tm;
 
 const Dot = ({ color }) => <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: color, flexShrink: 0 }} />;
 
+// ════════════════════════════════════════════════════════════
+// SNAPSHOT CARDS — role-based intelligence below calendar
+// ════════════════════════════════════════════════════════════
+const fmtK = (n) => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+const SnapCard = ({ icon: Icon, title, value, sub, color, onClick }) => (
+  <div onClick={onClick} style={{ flex: 1, minWidth: 200, padding: "16px 20px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, cursor: onClick ? "pointer" : "default", borderLeft: `3px solid ${color || Z.ac}`, transition: "background 0.15s" }}
+    onMouseEnter={e => { if (onClick) e.currentTarget.style.background = Z.sa; }}
+    onMouseLeave={e => { if (onClick) e.currentTarget.style.background = Z.sf; }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+      {Icon && <Icon size={14} color={color || Z.ac} />}
+      <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</span>
+    </div>
+    <div style={{ fontSize: 22, fontWeight: FW.black, color: color || Z.tx, fontFamily: DISPLAY }}>{value}</div>
+    {sub && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
+  </div>
+);
+
+const SnapshotCards = memo(({ role, sales, issues, pubs, clients, stories, allEvents, today, onNavigate }) => {
+  const todayISO = toISO(today);
+  const weekEnd = toISO(addDays(today, 7));
+  const twoWeeks = toISO(addDays(today, 14));
+
+  // Shared computations
+  const upcomingIssues = (issues || []).filter(i => i.date >= todayISO && i.date <= weekEnd);
+  const overdueActions = (sales || []).filter(s => s.nextActionDate && s.nextActionDate < todayISO && s.nextAction);
+  const thisWeekEvents = allEvents.filter(e => e.date >= todayISO && e.date <= weekEnd);
+  const closedSales = (sales || []).filter(s => s.status === "Closed");
+
+  // Role-based card sets
+  const adminRoles = ["Publisher", "Editor-in-Chief", "Office Manager"];
+  const salesRoles = ["Sales Manager", "Salesperson"];
+  const editorialRoles = ["Managing Editor", "Editor", "Writer/Reporter", "Copy Editor", "Photo Editor"];
+  const productionRoles = ["Production Manager", "Graphic Designer"];
+
+  const cards = [];
+
+  if (adminRoles.includes(role)) {
+    // This Week's Issues
+    cards.push(<SnapCard key="issues" icon={Ic.pub} title="This Week's Issues" value={upcomingIssues.length}
+      sub={upcomingIssues.length > 0 ? upcomingIssues.map(i => pn(pubs, i.pubId)).join(", ") : "No issues this week"}
+      color={Z.ac} onClick={() => onNavigate?.("schedule")} />);
+    // Revenue This Month
+    const monthSales = closedSales.filter(s => s.date?.startsWith(todayISO.slice(0, 7)));
+    const monthRev = monthSales.reduce((s, x) => s + (x.amount || 0), 0);
+    cards.push(<SnapCard key="rev" icon={Ic.chart} title="Revenue This Month" value={fmtK(monthRev)}
+      sub={`${monthSales.length} closed deals`} color={Z.go} onClick={() => onNavigate?.("analytics")} />);
+    // Overdue Items
+    const overdueCount = overdueActions.length;
+    cards.push(<SnapCard key="overdue" icon={Ic.clock} title="Overdue Actions" value={overdueCount}
+      sub={overdueCount > 0 ? "Needs attention" : "All caught up"}
+      color={overdueCount > 0 ? Z.da : Z.go} onClick={() => onNavigate?.("sales")} />);
+    // Week Events
+    cards.push(<SnapCard key="week" icon={Ic.cal} title="This Week" value={`${thisWeekEvents.length} events`}
+      sub={`${upcomingIssues.length} issues, ${overdueActions.length} overdue`} />);
+  }
+
+  else if (salesRoles.includes(role)) {
+    // My Actions This Week
+    const weekActions = (sales || []).filter(s => s.nextActionDate >= todayISO && s.nextActionDate <= weekEnd && s.nextAction);
+    cards.push(<SnapCard key="actions" icon={Ic.sale} title="Actions This Week" value={weekActions.length}
+      sub={weekActions.length > 0 ? weekActions.slice(0, 2).map(s => (clients || []).find(c => c.id === s.clientId)?.name || "").filter(Boolean).join(", ") : "Clear schedule"}
+      color={Z.ac} onClick={() => onNavigate?.("sales")} />);
+    // Pipeline Value
+    const pipeline = (sales || []).filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pipeVal = pipeline.reduce((s, x) => s + (x.amount || 0), 0);
+    cards.push(<SnapCard key="pipe" icon={Ic.chart} title="Pipeline" value={fmtK(pipeVal)}
+      sub={`${pipeline.length} active deals`} color={Z.wa} onClick={() => onNavigate?.("sales")} />);
+    // Ad Deadlines
+    const adDeadlines = (issues || []).filter(i => i.adDeadline >= todayISO && i.adDeadline <= twoWeeks);
+    cards.push(<SnapCard key="addl" icon={Ic.clock} title="Ad Deadlines" value={`${adDeadlines.length} upcoming`}
+      sub={adDeadlines.length > 0 ? adDeadlines.slice(0, 2).map(i => `${pn(pubs, i.pubId)} ${i.adDeadline}`).join(", ") : "None in next 2 weeks"}
+      color={Z.da} onClick={() => onNavigate?.("schedule")} />);
+    // Overdue
+    cards.push(<SnapCard key="overdue" icon={Ic.bell} title="Overdue" value={overdueActions.length}
+      sub={overdueActions.length > 0 ? "Past-due follow-ups" : "All caught up"}
+      color={overdueActions.length > 0 ? Z.da : Z.go} onClick={() => onNavigate?.("sales")} />);
+  }
+
+  else if (editorialRoles.includes(role)) {
+    // My Stories
+    const myStories = (stories || []).filter(s => s.status !== "Published" && s.dueDate);
+    const dueThisWeek = myStories.filter(s => s.dueDate >= todayISO && s.dueDate <= weekEnd);
+    cards.push(<SnapCard key="stories" icon={Ic.story} title="Stories Due" value={dueThisWeek.length}
+      sub={dueThisWeek.length > 0 ? dueThisWeek.slice(0, 2).map(s => s.title).join(", ") : "No stories due this week"}
+      color={Z.ac} onClick={() => onNavigate?.("stories")} />);
+    // Editorial Deadlines
+    const edDeadlines = (issues || []).filter(i => i.edDeadline >= todayISO && i.edDeadline <= twoWeeks);
+    cards.push(<SnapCard key="eddl" icon={Ic.edit} title="Ed Deadlines" value={`${edDeadlines.length} upcoming`}
+      sub={edDeadlines.length > 0 ? edDeadlines.slice(0, 2).map(i => `${pn(pubs, i.pubId)} ${i.edDeadline}`).join(", ") : "None in next 2 weeks"}
+      color={Z.pu} onClick={() => onNavigate?.("schedule")} />);
+    // In Progress
+    const inProgress = (stories || []).filter(s => ["Draft", "Needs Editing", "Edited"].includes(s.status));
+    cards.push(<SnapCard key="prog" icon={Ic.list} title="In Progress" value={inProgress.length}
+      sub={`${(stories || []).filter(s => s.status === "Draft").length} drafts, ${(stories || []).filter(s => s.status === "Needs Editing").length} editing`}
+      onClick={() => onNavigate?.("editorial")} />);
+    // Publish Dates
+    cards.push(<SnapCard key="pubs" icon={Ic.pub} title="This Week's Issues" value={upcomingIssues.length}
+      sub={upcomingIssues.map(i => pn(pubs, i.pubId)).join(", ") || "None"}
+      onClick={() => onNavigate?.("schedule")} />);
+  }
+
+  else if (productionRoles.includes(role)) {
+    // Print Schedule
+    cards.push(<SnapCard key="print" icon={Ic.pub} title="Print Schedule" value={`${upcomingIssues.length} this week`}
+      sub={upcomingIssues.map(i => `${pn(pubs, i.pubId)} (${i.pageCount || "?"}pp)`).join(", ") || "No issues"}
+      color={Z.ac} onClick={() => onNavigate?.("schedule")} />);
+    // Ad Deadlines
+    const adDeadlines = (issues || []).filter(i => i.adDeadline >= todayISO && i.adDeadline <= twoWeeks);
+    cards.push(<SnapCard key="addl" icon={Ic.clock} title="Ad Deadlines" value={`${adDeadlines.length} upcoming`}
+      sub={adDeadlines.slice(0, 2).map(i => `${pn(pubs, i.pubId)} ${i.adDeadline}`).join(", ") || "Clear"}
+      color={Z.da} onClick={() => onNavigate?.("schedule")} />);
+    // Editions
+    cards.push(<SnapCard key="ed" icon={Ic.file} title="Editions" value="Upload"
+      sub="Manage digital editions" onClick={() => onNavigate?.("editions")} />);
+  }
+
+  else if (role === "Finance") {
+    // Revenue
+    const monthSales = closedSales.filter(s => s.date?.startsWith(todayISO.slice(0, 7)));
+    cards.push(<SnapCard key="rev" icon={Ic.chart} title="Revenue This Month" value={fmtK(monthSales.reduce((s, x) => s + (x.amount || 0), 0))}
+      sub={`${monthSales.length} closed deals`} color={Z.go} onClick={() => onNavigate?.("analytics")} />);
+    // Ad Deadlines
+    const adDeadlines = (issues || []).filter(i => i.adDeadline >= todayISO && i.adDeadline <= twoWeeks);
+    cards.push(<SnapCard key="addl" icon={Ic.clock} title="Ad Deadlines" value={`${adDeadlines.length} upcoming`}
+      color={Z.da} onClick={() => onNavigate?.("billing")} />);
+    // Billing
+    cards.push(<SnapCard key="bill" icon={Ic.invoice} title="Billing" value="View"
+      sub="Invoices and payments" onClick={() => onNavigate?.("billing")} />);
+  }
+
+  // Fallback: generic cards for unrecognized roles
+  if (cards.length === 0) {
+    cards.push(<SnapCard key="week" icon={Ic.cal} title="This Week" value={`${thisWeekEvents.length} events`} sub={`${upcomingIssues.length} issues`} />);
+    cards.push(<SnapCard key="issues" icon={Ic.pub} title="Upcoming Issues" value={upcomingIssues.length} sub={upcomingIssues.map(i => pn(pubs, i.pubId)).join(", ") || "None"} onClick={() => onNavigate?.("schedule")} />);
+    cards.push(<SnapCard key="overdue" icon={Ic.clock} title="Overdue" value={overdueActions.length} color={overdueActions.length > 0 ? Z.da : Z.go} />);
+  }
+
+  return <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{cards}</div>;
+});
+
 const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories, bus, onNavigate }) => {
   const today = useMemo(() => new Date(), []);
   const [view, setView] = useState("month");
@@ -244,17 +385,19 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
     {/* MONTH VIEW */}
     {view === "month" && <div style={{ border: `1px solid ${Z.bd}`, borderRadius: R, overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${Z.bd}` }}>
-        {DAYS.map(d => <div key={d} style={{ padding: "6px 8px", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textAlign: "center", fontFamily: COND, textTransform: "uppercase" }}>{d}</div>)}
+        {DAYS.map(d => <div key={d} style={{ padding: "8px 8px", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textAlign: "center", fontFamily: COND, textTransform: "uppercase" }}>{d}</div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
         {monthDays.map((d, i) => {
           const isCur = d.getMonth() === selMonth;
           const isT = isSameDay(d, today);
           const de = eventsForDate(d);
-          return <div key={i} onClick={() => { setSelectedDate(d); if (de.length > 3) setView("day"); }} style={{ minHeight: 90, padding: "4px 6px", borderRight: (i + 1) % 7 !== 0 ? `1px solid ${Z.bd}` : "none", borderBottom: i < 35 ? `1px solid ${Z.bd}` : "none", background: isT ? Z.ac + "08" : isCur ? "transparent" : Z.sa, cursor: "pointer" }}>
-            <div style={{ fontSize: FS.sm, fontWeight: isT ? FW.black : FW.semi, color: isCur ? (isT ? Z.ac : Z.tx) : Z.td, marginBottom: 2 }}>{d.getDate()}</div>
-            {de.slice(0, 3).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e); }} style={{ display: "flex", alignItems: "center", gap: 3, padding: "1px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, marginBottom: 1, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><Dot color={e.color || Z.ac} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span></div>)}
-            {de.length > 3 && <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND, padding: "0 4px" }}>+{de.length - 3} more</div>}
+          return <div key={i} onClick={() => { setSelectedDate(d); setView("day"); }} style={{ height: 120, padding: "6px 8px", borderRight: (i + 1) % 7 !== 0 ? `1px solid ${Z.bd}` : "none", borderBottom: i < 35 ? `1px solid ${Z.bd}` : "none", background: isT ? Z.ac + "08" : isCur ? "transparent" : Z.sa, cursor: "pointer", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ fontSize: FS.sm, fontWeight: isT ? FW.black : FW.semi, color: isCur ? (isT ? Z.ac : Z.tx) : Z.td, marginBottom: 4 }}>{d.getDate()}</div>
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              {de.slice(0, 4).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e); }} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, marginBottom: 2, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><Dot color={e.color || Z.ac} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span></div>)}
+              {de.length > 4 && <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND, padding: "0 4px" }}>+{de.length - 4} more</div>}
+            </div>
           </div>;
         })}
       </div>
@@ -269,13 +412,13 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
           <div style={{ fontSize: FS.lg, fontWeight: isSameDay(d, today) ? FW.black : FW.semi, color: isSameDay(d, today) ? Z.ac : Z.tx }}>{d.getDate()}</div>
         </div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "50px repeat(7, 1fr)", maxHeight: 600, overflowY: "auto" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "50px repeat(7, 1fr)", maxHeight: 700, overflowY: "auto" }}>
         {HOURS.map(h => <div key={h} style={{ display: "contents" }}>
-          <div style={{ padding: "4px 6px", fontSize: FS.xs, color: Z.td, fontFamily: COND, textAlign: "right", borderBottom: `1px solid ${Z.bd}15`, height: 50 }}>{fmtTime(h)}</div>
+          <div style={{ padding: "6px 8px", fontSize: FS.xs, color: Z.td, fontFamily: COND, textAlign: "right", borderBottom: `1px solid ${Z.bd}15`, height: 60 }}>{fmtTime(h)}</div>
           {weekDays.map(d => {
             const ds = toISO(d);
             const he = allEvents.filter(e => e.date === ds && e.time && parseInt(e.time) === h);
-            return <div key={ds + h} style={{ borderLeft: `1px solid ${Z.bd}15`, borderBottom: `1px solid ${Z.bd}15`, padding: 2, height: 50 }}>
+            return <div key={ds + h} style={{ borderLeft: `1px solid ${Z.bd}15`, borderBottom: `1px solid ${Z.bd}15`, padding: 2, height: 60 }}>
               {he.map(e => <div key={e.id} onClick={() => setDetailEvent(e)} style={{ padding: "2px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, background: (e.color || Z.ac) + "20", borderLeft: `2px solid ${e.color || Z.ac}`, color: Z.tx, fontFamily: COND, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{e.title}</div>)}
             </div>;
           })}
@@ -289,10 +432,10 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
         <span style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{fmtDateFull(selectedDate)}</span>
         <span style={{ fontSize: FS.sm, color: Z.tm }}>{eventsForDate(selectedDate).length} events</span>
       </div>
-      <div style={{ maxHeight: 600, overflowY: "auto" }}>
+      <div style={{ maxHeight: 700, overflowY: "auto" }}>
         {HOURS.map(h => {
           const he = eventsForDate(selectedDate).filter(e => e.time && parseInt(e.time) === h);
-          return <div key={h} style={{ display: "flex", borderBottom: `1px solid ${Z.bd}10`, minHeight: 50 }}>
+          return <div key={h} style={{ display: "flex", borderBottom: `1px solid ${Z.bd}10`, minHeight: 60 }}>
             <div style={{ width: 60, padding: "6px 8px", fontSize: FS.xs, color: Z.td, fontFamily: COND, textAlign: "right", flexShrink: 0 }}>{fmtTime(h)}</div>
             <div style={{ flex: 1, padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
               {he.map(e => <div key={e.id} onClick={() => setDetailEvent(e)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: Ri, background: (e.color || Z.ac) + "12", borderLeft: `3px solid ${e.color || Z.ac}`, cursor: "pointer" }}>
@@ -305,6 +448,9 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
         })}
       </div>
     </GlassCard>}
+
+    {/* ════════ SNAPSHOT CARDS ════════ */}
+    <SnapshotCards role={currentUser?.role} sales={sales} issues={issues} pubs={pubs} clients={clients} stories={stories} allEvents={allEvents} today={today} onNavigate={onNavigate} />
 
     {/* NEW EVENT MODAL */}
     <Modal open={eventModal} onClose={() => setEventModal(false)} title="New Event" width={440}>
