@@ -1,5 +1,5 @@
 import { useState, memo } from "react";
-import { Z, COND, DISPLAY, FS, FW, CARD, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -216,7 +216,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
           const pub = team?.find(t => t.role === "Publisher");
           if (pub) escalateTicket(viewTicket.id, pub.id);
         }}>Escalate to Publisher</Btn>}
-        {["open", "in_progress", "escalated"].includes(viewTicket.status) && <Btn sm style={{ background: Z.su, color: "#fff" }} onClick={() => updateStatus(viewTicket.id, "resolved")}>Resolve</Btn>}
+        {["open", "in_progress", "escalated"].includes(viewTicket.status) && <Btn sm style={{ background: Z.su, color: INV.light }} onClick={() => updateStatus(viewTicket.id, "resolved")}>Resolve</Btn>}
         {viewTicket.status === "resolved" && <Btn sm v="ghost" onClick={() => updateStatus(viewTicket.id, "closed")}>Close</Btn>}
         {viewTicket.status === "resolved" && <Btn sm v="ghost" onClick={() => updateStatus(viewTicket.id, "open")}>Reopen</Btn>}
         <Btn sm v="ghost" onClick={() => openEditTicket(viewTicket)}>Edit</Btn>

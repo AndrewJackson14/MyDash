@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-
-const Z = { bg: "#08090D", sf: "#0E1018", sa: "#161A24", bd: "#1C2130", tx: "#E8ECF2", tm: "#8A95A8", td: "#525E72", go: "#00a300", da: "#E05050" };
-const DISPLAY = "'Playfair Display',Georgia,serif";
-const COND = "'IBM Plex Sans Condensed',sans-serif";
-const BODY = "'Source Sans 3',system-ui,sans-serif";
-const R = 5;
-const Ri = 3;
-const FS = { micro: 10, xs: 11, sm: 12, base: 13, md: 14, lg: 16, xl: 20, xxl: 26 };
-const FW = { normal: 400, medium: 500, semi: 600, bold: 700, heavy: 800, black: 900 };
+import { DARK as Z, DISPLAY, COND, BODY, R, Ri, FS, FW, INV } from '../lib/theme';
 
 export default function LoginPage({ onSkip }) {
   const { signInWithGoogle, signInWithEmail, isOnline } = useAuth();
@@ -61,7 +53,7 @@ export default function LoginPage({ onSkip }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 1.0, ease: 'easeOut' }}
         >
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -0.3 }}>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -0.3 }}>
             13 Stars Media
           </div>
           <div style={{ fontSize: FS.md, color: Z.td, fontFamily: COND, fontWeight: FW.semi, marginTop: 4 }}>
@@ -124,7 +116,7 @@ export default function LoginPage({ onSkip }) {
                     style={{ padding: '10px 14px', borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.md, outline: 'none' }} />
                   {error && <div style={{ fontSize: FS.base, color: Z.da }}>{error}</div>}
                   <button type="submit" disabled={loading}
-                    style={{ padding: '12px 16px', border: 'none', borderRadius: Ri, background: Z.go, color: '#fff', fontSize: FS.md, fontWeight: FW.bold, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                    style={{ padding: '12px 16px', border: 'none', borderRadius: Ri, background: Z.go, color: INV.light, fontSize: FS.md, fontWeight: FW.bold, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
                     {loading ? 'Signing in...' : 'Sign In'}
                   </button>
                 </form>

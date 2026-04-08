@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
@@ -48,7 +48,7 @@ const getColorStyle = () => ({ ...getInputStyle(), width: 60, height: 32, paddin
 const Toggle = ({ checked, onChange, label }) => (
   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, fontFamily: COND, color: Z.tx }}>
     <div onClick={() => onChange(!checked)} style={{ width: 36, height: 20, borderRadius: 10, background: checked ? (Z.su || "#22c55e") : Z.bd, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
-      <div style={{ width: 16, height: 16, borderRadius: 8, background: "#fff", position: "absolute", top: 2, left: checked ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+      <div style={{ width: 16, height: 16, borderRadius: 8, background: INV.light, position: "absolute", top: 2, left: checked ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
     </div>
     <span style={{ fontWeight: 600 }}>{label}</span>
   </label>
@@ -576,7 +576,7 @@ export default function SiteSettings({ pubs, setPubs }) {
                 <div style={{ background: draft.primary_color, borderRadius: 4, padding: "12px 16px", marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {draft.logo_url && <img src={draft.logo_url} alt="" style={{ height: 28, objectFit: "contain" }} />}
-                    <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: COND }}>{site.name}</span>
+                    <span style={{ color: INV.light, fontSize: 14, fontWeight: 700, fontFamily: COND }}>{site.name}</span>
                   </div>
                   {draft.nav_categories.length > 0 && (
                     <div style={{ display: "flex", gap: 12, marginTop: 8 }}>

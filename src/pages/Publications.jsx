@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import EZSchedule from "./EZSchedule";
 
@@ -14,7 +14,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const [showEZSchedule, setShowEZSchedule] = useState(false);
   const [showAddPub, setShowAddPub] = useState(false);
   const [goToWizard, setGoToWizard] = useState(false);
-  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: "#4B8BF5", hasWebsite: false, websiteUrl: "" });
+  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue, hasWebsite: false, websiteUrl: "" });
 
   const openPub = (p) => { setSel(p); setEditPub(JSON.parse(JSON.stringify(p))); setEditMode(false); setRateModal(true); };
   const savePub = async () => {
@@ -36,7 +36,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
       setPubs(ps => [...ps, pub]);
     }
     setShowAddPub(false);
-    setNewPub({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: "#4B8BF5" });
+    setNewPub({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue });
     if (goToWizard) {
       setGoToWizard(false);
       setShowEZSchedule(true);
@@ -86,7 +86,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx }}>
           <div onClick={() => setNewPub(p => ({ ...p, hasWebsite: !p.hasWebsite }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: newPub.hasWebsite ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
-            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 2, left: newPub.hasWebsite ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: INV.light, position: "absolute", top: TOGGLE.pad, left: newPub.hasWebsite ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
           </div>
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
         </label>
@@ -135,7 +135,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx, marginTop: 4 }}>
           <div onClick={() => setEditPub(p => ({ ...p, hasWebsite: !p.hasWebsite }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: editPub.hasWebsite ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
-            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#fff", position: "absolute", top: 2, left: editPub.hasWebsite ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+            <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: editPub.hasWebsite ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
           </div>
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
         </label>
@@ -160,7 +160,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
             <td>{editMode ? <input type="number" value={a.rate} onChange={e => updateAdSize(i, "rate", e.target.value)} style={{ background: "transparent", border: "none", color: Z.su, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80, fontWeight: FW.bold }} /> : <span style={{ fontWeight: FW.bold, color: Z.su }}>${(a.rate || 0).toLocaleString()}</span>}</td>
             <td>{editMode ? <input type="number" value={a.rate6} onChange={e => updateAdSize(i, "rate6", e.target.value)} style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80 }} /> : <span style={{ color: Z.tx }}>${(a.rate6 || 0).toLocaleString()}</span>}</td>
             <td>{editMode ? <input type="number" value={a.rate12} onChange={e => updateAdSize(i, "rate12", e.target.value)} style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80 }} /> : <span style={{ color: Z.tx }}>${(a.rate12 || 0).toLocaleString()}</span>}</td>
-            {editMode && <td><button onClick={() => setEditPub(p => ({ ...p, adSizes: p.adSizes.filter((_, j) => j !== i) }))} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }}>✕</button></td>}
+            {editMode && <td><button onClick={() => setEditPub(p => ({ ...p, adSizes: p.adSizes.filter((_, j) => j !== i) }))} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }}>✕</button></td>}
           </tr>)}</tbody>
         </DataTable>
         {editMode && <Btn sm v="ghost" onClick={() => setEditPub(p => ({ ...p, adSizes: [...(p.adSizes || []), { name: "", dims: "", rate: 0, rate6: 0, rate12: 0, w: 0, h: 0 }] }))}>+ Add Ad Size</Btn>}

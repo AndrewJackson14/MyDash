@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal } from "../../components/ui";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
@@ -83,7 +83,7 @@ const ClientProfile = ({
 
     {/* ── HEADER ── */}
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...vc.name].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{vc.name.split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
+      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...vc.name].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{vc.name.split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0, fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, fontFamily: serif }}>{primaryContact.name || vc.name}</h2>

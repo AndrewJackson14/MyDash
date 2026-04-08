@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
 import { Ic, Btn, SB } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
@@ -104,7 +104,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND };
+  const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND };
 
   return (
     <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid " + Z.bd, background: Z.sf, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -114,7 +114,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       </div>
 
       {isImage(item.ObjectName) && (
-        <img src={url} alt="" loading="lazy" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 4, background: Z.sa, border: "1px solid " + Z.bd }} />
+        <img src={url} alt="" loading="lazy" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: R, background: Z.sa, border: "1px solid " + Z.bd }} />
       )}
 
       <div>
@@ -132,7 +132,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>CDN URL</div>
         <div style={{ display: "flex", gap: 4 }}>
           <input value={url} readOnly style={{ ...inputStyle, flex: 1, fontSize: 10, color: Z.tm }} />
-          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? "#22c55e" : Z.tx, fontSize: 10, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? "#22c55e" : Z.tx, fontSize: 10, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             {copied ? "\u2713 Copied" : "Copy"}
           </button>
         </div>
@@ -140,7 +140,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
         {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
-        <button onClick={() => { if (confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: 3, border: "1px solid #ef444440", background: "transparent", color: "#ef4444", fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={() => { if (confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
           Delete
         </button>
       </div>
@@ -399,15 +399,15 @@ const UnusedImagesPanel = ({ onClose }) => {
               const isSel = selectedOrphans.has(item.ObjectName);
               return (
                 <div key={item.fullPath || item.ObjectName} onClick={() => toggleOrphan(item.ObjectName)} style={{
-                  borderRadius: 4, border: `2px solid ${isSel ? Z.da : Z.bd}`,
+                  borderRadius: R, border: `2px solid ${isSel ? Z.da : Z.bd}`,
                   background: isSel ? Z.da + "08" : Z.sf, cursor: "pointer", overflow: "hidden", position: "relative",
                 }}>
                   <div style={{
-                    position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: 3,
+                    position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: Ri,
                     border: "2px solid " + (isSel ? Z.da : "rgba(255,255,255,0.6)"), background: isSel ? Z.da : "rgba(0,0,0,0.3)",
-                    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", zIndex: ZI.raised,
                   }}>
-                    {isSel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    {isSel && <span style={{ color: INV.light, fontSize: 10, fontWeight: 700 }}>✓</span>}
                   </div>
                   {isImage(item.ObjectName) ? (
                     <div style={{ width: "100%", height: 100, background: Z.sa }}>
@@ -624,7 +624,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
 
       {/* Upload zone */}
       <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = "image/*,application/pdf,video/*"; inp.onchange = (e) => handleUpload(e.target.files); inp.click(); }} style={{
-        border: `2px dashed ${dragOver ? Z.ac : Z.bd}`, borderRadius: 6, padding: dragOver ? "20px" : "12px 16px",
+        border: `2px dashed ${dragOver ? Z.ac : Z.bd}`, borderRadius: R, padding: dragOver ? "20px" : "12px 16px",
         background: dragOver ? Z.ac + "08" : Z.sa, textAlign: "center", cursor: "pointer", transition: "all 0.2s",
       }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: dragOver ? Z.ac : Z.tm, fontFamily: COND }}>
@@ -636,7 +636,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       {uploading.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {uploading.map(u => (
-            <div key={u.id} style={{ padding: "4px 10px", borderRadius: 3, background: u.error ? "#fef2f2" : u.done ? "#f0fdf4" : Z.sa, border: "1px solid " + (u.error ? "#ef444430" : u.done ? "#22c55e30" : Z.bd), fontSize: 10, fontFamily: COND, color: u.error ? "#ef4444" : u.done ? "#22c55e" : Z.tm }}>
+            <div key={u.id} style={{ padding: "4px 10px", borderRadius: Ri, background: u.error ? "#fef2f2" : u.done ? "#f0fdf4" : Z.sa, border: "1px solid " + (u.error ? Z.da + "30" : u.done ? "#22c55e30" : Z.bd), fontSize: 10, fontFamily: COND, color: u.error ? Z.da : u.done ? "#22c55e" : Z.tm }}>
               {u.name} {u.error ? "\u2014 " + u.error : u.done ? "\u2713 Done" : "uploading..."}
             </div>
           ))}
@@ -649,7 +649,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           const isActive = currentPath === pf.slug || currentPath.startsWith(pf.slug + "/");
           return (
             <button key={pf.slug} onClick={() => navigate(pf.slug)} style={{
-              padding: "5px 10px", borderRadius: 3, border: "1px solid " + (isActive ? Z.ac : Z.bd),
+              padding: "5px 10px", borderRadius: Ri, border: "1px solid " + (isActive ? Z.ac : Z.bd),
               background: isActive ? Z.ac + "12" : "transparent", color: isActive ? Z.ac : Z.tm,
               fontSize: 11, fontWeight: isActive ? 700 : 500, fontFamily: COND, cursor: "pointer",
             }}>{pf.label}</button>
@@ -660,7 +660,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       {/* View toggle + sort + search */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Show All / Browse Folders toggle */}
-        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: 3 }}>
+        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: Ri }}>
           <button onClick={() => setShowAll(true)} style={{ padding: "4px 10px", background: showAll ? Z.ac + "12" : "transparent", border: "none", color: showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: showAll ? 700 : 500 }}>All Files</button>
           <button onClick={() => setShowAll(false)} style={{ padding: "4px 10px", background: !showAll ? Z.ac + "12" : "transparent", border: "none", color: !showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: !showAll ? 700 : 500 }}>Folders</button>
         </div>
@@ -668,20 +668,20 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         {!showAll && items.filter(i => i.IsDirectory).length > 0 && (
           <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
             {currentPath.includes("/") && (
-              <button onClick={() => { setShowAll(false); setCurrentPath(currentPath.split("/").slice(0, -1).join("/")); }} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
+              <button onClick={() => { setShowAll(false); setCurrentPath(currentPath.split("/").slice(0, -1).join("/")); }} style={{ padding: "3px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
             )}
             {items.filter(i => i.IsDirectory).map(f => (
-              <button key={f.ObjectName} onClick={() => { setShowAll(false); setCurrentPath(currentPath + "/" + f.ObjectName); }} style={{ padding: "3px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
+              <button key={f.ObjectName} onClick={() => { setShowAll(false); setCurrentPath(currentPath + "/" + f.ObjectName); }} style={{ padding: "3px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
             ))}
           </div>
         )}
         {loadProgress && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
           <option value="date">Newest</option>
           <option value="name">Name A-Z</option>
           <option value="size">Largest</option>
         </select>
-        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: 3 }}>
+        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: Ri }}>
           <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u25a6"}</button>
           <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u2630"}</button>
         </div>
@@ -697,10 +697,10 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
 
       {/* Bulk bar */}
       {selectedItems.size > 0 && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: 3, border: "1px solid " + Z.ac + "20" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: Ri, border: "1px solid " + Z.ac + "20" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
-          <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: 3, border: "1px solid #ef444430", background: "transparent", color: "#ef4444", fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
-          <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
+          <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.da}30`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
+          <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
         </div>
       )}
 
@@ -719,15 +719,15 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
                 const isActive = selected?.ObjectName === item.ObjectName;
                 return (
                   <div key={item.ObjectName} onClick={() => { if (selected?.ObjectName === item.ObjectName) setLightbox(item); else setSelected(item); }} style={{
-                    borderRadius: 4, border: `2px solid ${isActive ? Z.ac : isSel ? Z.ac + "60" : Z.bd}`,
+                    borderRadius: R, border: `2px solid ${isActive ? Z.ac : isSel ? Z.ac + "60" : Z.bd}`,
                     background: Z.sf, cursor: "pointer", overflow: "hidden", position: "relative",
                   }}>
                     <div onClick={(e) => { e.stopPropagation(); toggleSelect(item.ObjectName); }} style={{
-                      position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: 3,
+                      position: "absolute", top: 4, left: 4, width: 18, height: 18, borderRadius: Ri,
                       border: "2px solid " + (isSel ? Z.ac : "rgba(255,255,255,0.6)"), background: isSel ? Z.ac : "rgba(0,0,0,0.3)",
-                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 1,
+                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: ZI.raised,
                     }}>
-                      {isSel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>{"\u2713"}</span>}
+                      {isSel && <span style={{ color: INV.light, fontSize: 10, fontWeight: 700 }}>{"\u2713"}</span>}
                     </div>
                     {isImage(item.ObjectName) ? (
                       <div style={{ width: "100%", height: thumbH, background: Z.sa }}>
@@ -763,19 +763,19 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
                 const isActive = selected?.ObjectName === item.ObjectName;
                 return (
                   <div key={item.ObjectName} onClick={() => { if (selected?.ObjectName === item.ObjectName) setLightbox(item); else setSelected(item); }} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: 3, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", borderRadius: Ri, cursor: "pointer",
                     background: isActive ? Z.ac + "08" : "transparent",
                   }}>
                     <div onClick={(e) => { e.stopPropagation(); toggleSelect(item.ObjectName); }} style={{
-                      width: 16, height: 16, borderRadius: 3, border: "2px solid " + (isSel ? Z.ac : Z.bd), flexShrink: 0,
+                      width: 16, height: 16, borderRadius: Ri, border: "2px solid " + (isSel ? Z.ac : Z.bd), flexShrink: 0,
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: isSel ? Z.ac : "transparent",
                     }}>
-                      {isSel && <span style={{ color: "#fff", fontSize: 9 }}>{"\u2713"}</span>}
+                      {isSel && <span style={{ color: INV.light, fontSize: 9 }}>{"\u2713"}</span>}
                     </div>
                     {isImage(item.ObjectName) ? (
-                      <img src={url} alt="" loading="lazy" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 3, flexShrink: 0 }} />
+                      <img src={url} alt="" loading="lazy" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: Ri, flexShrink: 0 }} />
                     ) : (
-                      <div style={{ width: 36, height: 36, borderRadius: 3, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: Z.tm, flexShrink: 0 }}>{item.ObjectName.split(".").pop()?.toUpperCase()}</div>
+                      <div style={{ width: 36, height: 36, borderRadius: Ri, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: Z.tm, flexShrink: 0 }}>{item.ObjectName.split(".").pop()?.toUpperCase()}</div>
                     )}
                     <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</span>
                     <span style={{ width: 70, fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "right" }}>{fmtSize(item.Length)}</span>
@@ -789,7 +789,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           {/* Load More / status */}
           {hasMore && (
             <div style={{ padding: "16px 0", textAlign: "center" }}>
-              <button onClick={() => setVisibleCount(prev => prev + 60)} style={{ padding: "8px 24px", borderRadius: 4, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => setVisibleCount(prev => prev + 60)} style={{ padding: "8px 24px", borderRadius: R, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                 Show More ({allFiles.length - visibleCount} remaining)
               </button>
             </div>
@@ -819,7 +819,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         const lbUrl = lightbox.cdnUrl || `${CDN_BASE}/${lightbox.fullPath}`;
         return (
           <div onClick={() => setLightbox(null)} style={{
-            position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.85)",
+            position: "fixed", inset: 0, zIndex: ZI.overlay, background: "rgba(0,0,0,0.85)",
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
           }}>
             <div onClick={e => e.stopPropagation()} style={{
@@ -828,16 +828,16 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
             }}>
               <button onClick={() => setLightbox(null)} style={{
                 position: "absolute", top: 0, right: 0, background: "rgba(255,255,255,0.15)",
-                border: "none", color: "#fff", fontSize: 22, cursor: "pointer", width: 36, height: 36,
+                border: "none", color: INV.light, fontSize: 22, cursor: "pointer", width: 36, height: 36,
                 borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center",
               }}>{"\u00d7"}</button>
               {isImage(lightbox.ObjectName) ? (
-                <img src={lbUrl} alt="" style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: 4 }} />
+                <img src={lbUrl} alt="" style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: R }} />
               ) : (
-                <div style={{ color: "#fff", fontSize: 14, fontFamily: COND }}>{lightbox.ObjectName}</div>
+                <div style={{ color: INV.light, fontSize: 14, fontFamily: COND }}>{lightbox.ObjectName}</div>
               )}
               <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightbox.ObjectName}</span>
+                <span style={{ color: INV.light, fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightbox.ObjectName}</span>
                 <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{fmtSize(lightbox.Length)}</span>
               </div>
             </div>

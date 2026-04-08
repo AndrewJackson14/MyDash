@@ -76,12 +76,12 @@ export function DataProvider({ children, localData }) {
   }, []);
 
   // Helper to fetch all rows from a table (bypasses 1000-row PostgREST limit)
-  const fetchAllRows = useCallback(async (table, orderCol, ascending = true) => {
+  const fetchAllRows = useCallback(async (table, orderCol, ascending = true, fields = '*') => {
     let allRows = [];
     let from = 0;
     const pageSize = 1000;
     while (true) {
-      let q = supabase.from(table).select('*').range(from, from + pageSize - 1);
+      let q = supabase.from(table).select(fields).range(from, from + pageSize - 1);
       if (orderCol) q = q.order(orderCol, { ascending });
       const { data, error } = await q;
       if (error) { console.error(`Fetch ${table} error:`, error); break; }
@@ -102,6 +102,8 @@ export function DataProvider({ children, localData }) {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,contract_end_date,last_ad_date';
+        const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
+        const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal';
         const [pubsRes, teamRes, notifsRes, adSizesRes, c0, c1, c2, c3, issuesRes, s0, s1, s2, s3] = await Promise.all([
           supabase.from('publications').select('*').order('name'),
           supabase.from('team_members').select('*').order('name'),
@@ -112,13 +114,13 @@ export function DataProvider({ children, localData }) {
           supabase.from('clients').select(clientSelect).order('name').range(1000, 1999),
           supabase.from('clients').select(clientSelect).order('name').range(2000, 2999),
           supabase.from('clients').select(clientSelect).order('name').range(3000, 3999),
-          // Issues: single page (1,439 rows fits in 2 pages)
-          supabase.from('issues').select('*').order('date').range(0, 999),
-          // Sales: 4 parallel pages of 1000 (3-month window)
-          supabase.from('sales').select('*').gte('date', cutoff).order('date', { ascending: false }).range(0, 999),
-          supabase.from('sales').select('*').gte('date', cutoff).order('date', { ascending: false }).range(1000, 1999),
-          supabase.from('sales').select('*').gte('date', cutoff).order('date', { ascending: false }).range(2000, 2999),
-          supabase.from('sales').select('*').gte('date', cutoff).order('date', { ascending: false }).range(3000, 3999),
+          // Issues: select only needed fields
+          supabase.from('issues').select(issueSelect).order('date').range(0, 999),
+          // Sales: select only needed fields (3-month window)
+          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(0, 999),
+          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(1000, 1999),
+          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(2000, 2999),
+          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(3000, 3999),
         ]);
 
         // Also fetch issues page 2 if needed
@@ -200,7 +202,7 @@ export function DataProvider({ children, localData }) {
     let allSales = [];
     let sp = 0;
     while (true) {
-      const { data } = await supabase.from('sales').select('*').gte('date', cutoff).order('date', { ascending: false }).range(sp * 1000, (sp + 1) * 1000 - 1);
+      const { data } = await supabase.from('sales').select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id').gte('date', cutoff).order('date', { ascending: false }).range(sp * 1000, (sp + 1) * 1000 - 1);
       if (!data || data.length === 0) break;
       allSales = allSales.concat(data);
       if (data.length < 1000) break;
@@ -224,9 +226,9 @@ export function DataProvider({ children, localData }) {
   const loadClientDetails = useCallback(async () => {
     if (clientDetailsLoaded || !isOnline()) return;
     const [allContacts, allComms, allSalesSummary] = await Promise.all([
-      fetchAllRows('client_contacts', null),
-      fetchAllRows('communications', 'created_at', false),
-      fetchAllRows('client_sales_summary', null),
+      fetchAllRows('client_contacts', null, true, 'id,client_id,name,email,phone,role,is_primary'),
+      fetchAllRows('communications', 'created_at', false, 'id,client_id,type,author_name,date,note'),
+      fetchAllRows('client_sales_summary', null, true, 'client_id,publication_id,year,order_count,total_revenue,avg_order,ad_sizes,first_order_date,last_order_date'),
     ]);
     const contactsByClient = {};
     allContacts.forEach(ct => {

@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from "react";
-import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT } from "../lib/theme";
+import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, ZI, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, glass as glassStyle } from "../components/ui";
 import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 
@@ -305,7 +305,7 @@ const Dashboard = ({
 
     {/* FROSTED GLASS STICKY HEADER — greeting + briefing */}
     <div style={{
-      position: "sticky", top: 0, zIndex: 20,
+      position: "sticky", top: 0, zIndex: ZI.dropdown,
       padding: "48px 28px 32px",
     }}>
       {/* Blur backdrop layer */}
@@ -595,7 +595,7 @@ const Dashboard = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>My Day</span>
             <div style={{ display: "flex", gap: 3 }}>
-              {[{ value: "all", label: "All" }, { value: "sales", label: "Sales" }, { value: "editorial", label: "Editorial" }, { value: "production", label: "Production" }, { value: "admin", label: "Admin" }].map(o => <button key={o.value} onClick={() => setDayFilter(o.value)} style={{ padding: "5px 12px", borderRadius: Ri, border: "none", background: dayFilter === o.value ? Z.go : "transparent", color: dayFilter === o.value ? "#fff" : Z.td, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND }}>{o.label}</button>)}
+              {[{ value: "all", label: "All" }, { value: "sales", label: "Sales" }, { value: "editorial", label: "Editorial" }, { value: "production", label: "Production" }, { value: "admin", label: "Admin" }].map(o => <button key={o.value} onClick={() => setDayFilter(o.value)} style={{ padding: "5px 12px", borderRadius: Ri, border: "none", background: dayFilter === o.value ? Z.go : "transparent", color: dayFilter === o.value ? INV.light : Z.td, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND }}>{o.label}</button>)}
             </div>
           </div>
           {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).map((fi, idx, arr) => <div key={fi.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none" }}>
@@ -723,7 +723,7 @@ const Dashboard = ({
     </Modal>
 
     {/* TEAM MEMBER SLIDE-IN */}
-    {selMember && <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={closeMemberPanel}>
+    {selMember && <div style={{ position: "fixed", inset: 0, zIndex: ZI.top }} onClick={closeMemberPanel}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", opacity: panelOpen ? 1 : 0, transition: "opacity 0.25s" }} />
       <div onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420, maxWidth: "90vw", background: Z.sf, borderLeft: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", transform: panelOpen ? "translateX(0)" : "translateX(100%)", transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: panelOpen ? "-8px 0 30px rgba(0,0,0,0.3)" : "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: `1px solid ${Z.bd}` }}>

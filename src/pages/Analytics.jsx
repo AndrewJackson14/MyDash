@@ -117,7 +117,7 @@ const Analytics = ({
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="My Analytics" />
 
-    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
@@ -344,6 +344,104 @@ const Analytics = ({
         })}
       </GlassCard>
     </>}
+
+    {tab === "Subscribers" && (() => {
+      const active = _subs.filter(s => s.status === "active");
+      const expired = _subs.filter(s => s.status === "expired");
+      const cancelled = _subs.filter(s => s.status === "cancelled");
+      const pending = _subs.filter(s => s.status === "pending");
+      const printSubs = active.filter(s => s.type === "print");
+      const digitalSubs = active.filter(s => s.type === "digital");
+      const totalRevenue = _subs.reduce((s, sub) => s + (sub.amountPaid || 0), 0);
+      const activeRevenue = active.reduce((s, sub) => s + (sub.amountPaid || 0), 0);
+
+      // Subscribers by publication
+      const byPub = {};
+      pubs.forEach(p => { byPub[p.id] = { name: p.name, color: p.color, count: 0, revenue: 0 }; });
+      active.forEach(sub => {
+        if (sub.publicationId && byPub[sub.publicationId]) {
+          byPub[sub.publicationId].count++;
+          byPub[sub.publicationId].revenue += (sub.amountPaid || 0);
+        }
+      });
+      const pubEntries = Object.values(byPub).filter(p => p.count > 0).sort((a, b) => b.count - a.count);
+      const maxPubCount = Math.max(...pubEntries.map(p => p.count), 1);
+      const maxPubRev = Math.max(...pubEntries.map(p => p.revenue), 1);
+
+      // Monthly signups (last 12 months)
+      const monthlySignups = {};
+      const now = new Date();
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = d.toISOString().slice(0, 7);
+        monthlySignups[key] = 0;
+      }
+      _subs.forEach(sub => {
+        const key = (sub.createdAt || sub.startDate || "").slice(0, 7);
+        if (monthlySignups[key] !== undefined) monthlySignups[key]++;
+      });
+      const monthKeys = Object.keys(monthlySignups);
+      const maxMonthly = Math.max(...Object.values(monthlySignups), 1);
+
+      return <>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14 }}>
+          <GlassStat label="Total" value={_subs.length} />
+          <GlassStat label="Active" value={active.length} color={Z.su} />
+          <GlassStat label="Print" value={printSubs.length} />
+          <GlassStat label="Digital" value={digitalSubs.length} />
+          <GlassStat label="Active Revenue" value={fmtCurrency(activeRevenue)} color={Z.su} />
+          <GlassStat label="Lifetime Revenue" value={fmtCurrency(totalRevenue)} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Status Breakdown</div>
+            <HBar label="Active" value={active.length} max={Math.max(_subs.length, 1)} color={Z.su || "#22c55e"} />
+            <HBar label="Expired" value={expired.length} max={Math.max(_subs.length, 1)} color={Z.wa || "#f59e0b"} />
+            <HBar label="Cancelled" value={cancelled.length} max={Math.max(_subs.length, 1)} color={Z.da || "#ef4444"} />
+            <HBar label="Pending" value={pending.length} max={Math.max(_subs.length, 1)} color={Z.tm} />
+          </GlassCard>
+
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Type Breakdown</div>
+            <HBar label="Print" value={printSubs.length} max={Math.max(active.length, 1)} color={Z.ac} />
+            <HBar label="Digital" value={digitalSubs.length} max={Math.max(active.length, 1)} color={Z.pu || "#8b5cf6"} />
+          </GlassCard>
+        </div>
+
+        <GlassCard>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Monthly Signups (Last 12 Months)</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
+            {monthKeys.map(key => {
+              const val = monthlySignups[key];
+              const h = maxMonthly > 0 ? Math.max(4, (val / maxMonthly) * 100) : 4;
+              const label = new Date(key + "-01").toLocaleDateString("en-US", { month: "short" });
+              return <div key={key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{val || ""}</span>
+                <div style={{ width: "100%", height: h + "%", background: Z.ac, borderRadius: 2, minHeight: 4, transition: "height 0.3s" }} />
+                <span style={{ fontSize: 9, color: Z.td, fontFamily: COND }}>{label}</span>
+              </div>;
+            })}
+          </div>
+        </GlassCard>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Subscribers by Publication</div>
+            {pubEntries.length > 0 ? pubEntries.map(p => (
+              <HBar key={p.name} label={p.name} value={p.count} max={maxPubCount} color={p.color} sub="" />
+            )) : <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>No active subscribers</div>}
+          </GlassCard>
+
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Publication</div>
+            {pubEntries.length > 0 ? pubEntries.map(p => (
+              <HBar key={p.name} label={p.name} value={p.revenue} max={maxPubRev} color={p.color} />
+            )) : <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>No subscriber revenue</div>}
+          </GlassCard>
+        </div>
+      </>;
+    })()}
   </div>;
 };
 

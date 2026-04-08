@@ -1,6 +1,6 @@
 // ClientSignals.jsx — Signal-driven client dashboard with MyPriorities
 import { useState, useMemo } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD } from "../../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, ACCENT } from "../../lib/theme";
 import { Btn, SB, glass } from "../../components/ui";
 import { THRESHOLDS, DAYS_PER_MONTH } from "../../constants";
 
@@ -436,16 +436,16 @@ export default function ClientSignals({
       {/* ── 30-Day Wins + Pipeline Bar ────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {/* Wins */}
-        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid #22c55e" }}>
+        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.green}` }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>30-Day Wins</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 24, fontWeight: FW.black, color: "#22c55e", fontFamily: DISPLAY }}>{recentWins.total}</span>
-            <span style={{ fontSize: 12, fontWeight: FW.heavy, color: "#22c55e", fontFamily: COND }}>{fmtK(recentWins.revenue)}</span>
+            <span style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.green, fontFamily: DISPLAY }}>{recentWins.total}</span>
+            <span style={{ fontSize: 12, fontWeight: FW.heavy, color: ACCENT.green, fontFamily: COND }}>{fmtK(recentWins.revenue)}</span>
           </div>
           {Object.keys(recentWins.byCategory).length > 0 && (
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
               {Object.entries(recentWins.byCategory).map(([cat, data]) => (
-                <span key={cat} style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: (SIGNAL_COLORS[cat] || "#22c55e") + "18", color: SIGNAL_COLORS[cat] || "#22c55e", fontFamily: COND }}>
+                <span key={cat} style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: (SIGNAL_COLORS[cat] || ACCENT.green) + "18", color: SIGNAL_COLORS[cat] || ACCENT.green, fontFamily: COND }}>
                   {SIGNAL_META[cat]?.title || cat} {data.count}
                 </span>
               ))}
@@ -461,9 +461,9 @@ export default function ClientSignals({
         </div>
 
         {/* Conversion */}
-        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid #6366f1" }}>
+        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.indigo}` }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Conversion Rate</div>
-          <div style={{ fontSize: 24, fontWeight: FW.black, color: "#6366f1", fontFamily: DISPLAY }}>{conversionRate}%</div>
+          <div style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{conversionRate}%</div>
           <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>priorities {"\u2192"} closed (30d)</div>
         </div>
       </div>
@@ -495,7 +495,7 @@ export default function ClientSignals({
                 {hasMore && <span style={{ fontSize: 10, color: Z.td, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>{"\u25bc"}</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {winCount > 0 && <span style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: "#dcfce7", color: "#16a34a", fontFamily: COND }}>{winCount} won</span>}
+                {winCount > 0 && <span style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: ACCENT.green + "18", color: ACCENT.green, fontFamily: COND }}>{winCount} won</span>}
                 <span style={{ fontSize: FS.sm, color: Z.td }}>{panel.items.length}</span>
               </div>
             </div>

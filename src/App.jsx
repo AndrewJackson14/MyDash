@@ -7,7 +7,7 @@ import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
 import { isOnline } from "./lib/supabase";
-import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R } from "./lib/theme";
+import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn } from "./components/ui";
 import {
   INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
@@ -316,7 +316,7 @@ export default function App() {
             {sec.label && !col && <div onClick={() => toggleSection(sec.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px 3px", cursor: "pointer", userSelect: "none" }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: sectionHasActive ? Z.tx : Z.td, letterSpacing: 1.2, textTransform: "uppercase" }}>{sec.label}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                {isCollapsed && sectionBadgeTotal > 0 && <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: Z.tx, borderRadius: 3, padding: "0 4px", minWidth: 14, textAlign: "center", lineHeight: "16px" }}>{sectionBadgeTotal}</span>}
+                {isCollapsed && sectionBadgeTotal > 0 && <span style={{ fontSize: 9, fontWeight: 800, color: INV.light, background: Z.tx, borderRadius: 3, padding: "0 4px", minWidth: 14, textAlign: "center", lineHeight: "16px" }}>{sectionBadgeTotal}</span>}
                 <span style={{ fontSize: 9, color: Z.td, transition: "transform 0.2s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0)" }}>▼</span>
               </div>
             </div>}
@@ -345,12 +345,12 @@ export default function App() {
                 <span style={{ flexShrink: 0, width: 16, display: "flex", alignItems: "center", justifyContent: "center" }}><n.icon size={14} /></span>
                 {!col && <span style={{ flex: 1 }}>{n.label}</span>}
                 {!col && n.badge && <span style={{
-                  fontSize: 9, fontWeight: 800, color: "#fff",
+                  fontSize: 9, fontWeight: 800, color: INV.light,
                   background: n.badgeColor || Z.tx, borderRadius: 3,
                   padding: "0 5px", minWidth: 16, textAlign: "center", lineHeight: "16px",
                 }}>{n.badge}</span>}
                 {col && n.badge && <div style={{ position: "relative", width: 0, height: 0 }}>
-                  <span style={{ position: "absolute", top: -14, right: -6, fontSize: 8, fontWeight: 900, color: "#fff", background: n.badgeColor || Z.tx, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }}>{n.badge}</span>
+                  <span style={{ position: "absolute", top: -14, right: -6, fontSize: 8, fontWeight: 900, color: INV.light, background: n.badgeColor || Z.tx, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }}>{n.badge}</span>
                 </div>}
               </button>;
             })}
@@ -407,7 +407,7 @@ export default function App() {
         <div style={{ position: "relative" }}>
           <button onClick={() => setShowNotifs(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, padding: 4 }}>
             <Ic.clock size={18} />
-            {unreadCount > 0 && <span style={{ position: "absolute", top: -2, right: -4, background: Z.da, color: "#fff", fontSize: 9, fontWeight: 900, borderRadius: 3, padding: "1px 4px" }}>{unreadCount}</span>}
+            {unreadCount > 0 && <span style={{ position: "absolute", top: -2, right: -4, background: Z.da, color: INV.light, fontSize: 9, fontWeight: 900, borderRadius: 3, padding: "1px 4px" }}>{unreadCount}</span>}
           </button>
           {showNotifs && <div onClick={() => setShowNotifs(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />}
           {showNotifs && <div style={{ position: "absolute", right: 0, top: 34, width: 320, maxHeight: 400, overflowY: "auto", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 3, zIndex: 99, boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>

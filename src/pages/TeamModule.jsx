@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
@@ -138,7 +138,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Header */}
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(member.name)}</div>
+        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(member.name)}</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{member.name}</div>
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>
@@ -352,7 +352,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
               onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
               onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: "#fff", flexShrink: 0 }}>{ini(t.name)}</div>
+                <div style={{ width: 36, height: 36, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(t.name)}</div>
                 <div>
                   <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
                   <div style={{ fontSize: FS.xs, color: Z.ac, fontWeight: FW.semi }}>{t.role}</div>
@@ -378,7 +378,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
           <thead>
             <tr>
-              <th style={{ position: "sticky", left: 0, zIndex: 2, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
               {MODULES.map(m => <th key={m.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 50 }}><div style={{ fontSize: FS.sm, marginBottom: 2 }}>{m.icon}</div>{m.label.split(" / ")[0].split(" ")[0]}</th>)}
               <th style={{ padding: "10px 14px", textAlign: "center", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", borderBottom: `1px solid ${Z.bd}` }}>Actions</th>
             </tr>
@@ -387,7 +387,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
             {visibleTeam.map(member => {
               const perms = member.modulePermissions || [];
               return <tr key={member.id}>
-                <td style={{ position: "sticky", left: 0, zIndex: 1, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                   <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
                   <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
                 </td>
@@ -414,7 +414,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
           <thead>
             <tr>
-              <th style={{ position: "sticky", left: 0, zIndex: 2, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
               {ALERT_EVENTS.map(ev => <th key={ev.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 8, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 65 }}>{ev.label}</th>)}
             </tr>
           </thead>
@@ -422,7 +422,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
             {visibleTeam.map(member => {
               const prefs = member.alertPreferences || getAlertDefaults(member.role);
               return <tr key={member.id}>
-                <td style={{ position: "sticky", left: 0, zIndex: 1, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                   <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
                   <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
                 </td>

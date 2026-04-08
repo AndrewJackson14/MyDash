@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Z, COND, DISPLAY, FS, FW, CARD, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -42,7 +42,7 @@ const StepBar = ({ current }) => {
           width: active ? 22 : 16, height: active ? 22 : 16, borderRadius: R,
           background: done ? (STATUS_COLORS[s]?.text || Z.su) : Z.sa,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 9, fontWeight: FW.black, color: done ? "#fff" : Z.td,
+          fontSize: 9, fontWeight: FW.black, color: done ? INV.light : Z.td,
           border: active ? `2px solid ${STATUS_COLORS[s]?.text || Z.su}` : "2px solid transparent",
         }}>{done ? "✓" : i + 1}</div>
         {i < JOB_STATUSES.length - 1 && <div style={{ width: 16, height: 2, background: done && i < idx ? Z.su : Z.bd }} />}

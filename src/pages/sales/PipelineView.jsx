@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Sel, Card, SB, TB, glass } from "../../components/ui";
 import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, actInfo } from "./constants";
 
@@ -70,7 +70,7 @@ const PipelineView = ({
       </div>
       {scored.length === 0 && <Card style={{ textAlign: "center", padding: 20, color: Z.ac }}>All caught up — no renewals due</Card>}
       {[{ label: "Ready to Renew", items: ready, color: Z.ac }, { label: "Warm Up", items: warm, color: Z.wa }, { label: "At Risk", items: atRisk, color: Z.da }].map(lane => lane.items.length === 0 ? null : <div key={lane.label}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0 4px", borderBottom: `2px solid ${lane.color}` }}><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{lane.label}</span><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: "#fff", background: lane.color, padding: "1px 7px", borderRadius: Ri }}>{lane.items.length}</span></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0 4px", borderBottom: `2px solid ${lane.color}` }}><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{lane.label}</span><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: INV.light, background: lane.color, padding: "1px 7px", borderRadius: Ri }}>{lane.items.length}</span></div>
         {lane.items.map(s => <div key={s.id} style={{ ...glass(), borderRadius: R, padding: 16, marginTop: 4, borderLeft: `3px solid ${lane.color}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div><span style={{ fontSize: 15, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{cn(s.clientId)}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{pn(s.publication)} · ${(s.amount || 0).toLocaleString()}</div></div>

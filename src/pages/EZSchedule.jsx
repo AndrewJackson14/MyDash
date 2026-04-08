@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Z, COND, DISPLAY, R, Ri, FS, FW } from "../lib/theme";
+import { Z, COND, DISPLAY, R, Ri, FS, FW, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Badge, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -361,7 +361,7 @@ const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => 
             {nthWeekdays.map((rule, i) => <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <Sel value={rule.nth} onChange={e => setNthWeekdays(prev => prev.map((r, j) => j === i ? { ...r, nth: +e.target.value } : r))} options={NTH_LABELS.map((l, idx) => ({ value: idx, label: l }))} />
               <Sel value={rule.day} onChange={e => setNthWeekdays(prev => prev.map((r, j) => j === i ? { ...r, day: +e.target.value } : r))} options={DAYS.map((d, idx) => ({ value: idx, label: d }))} />
-              {nthWeekdays.length > 1 && <button onClick={() => setNthWeekdays(prev => prev.filter((_, j) => j !== i))} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: "#fff", fontSize: FS.xs, fontWeight: FW.bold }}>✕</button>}
+              {nthWeekdays.length > 1 && <button onClick={() => setNthWeekdays(prev => prev.filter((_, j) => j !== i))} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }}>✕</button>}
             </div>)}
             <Btn sm v="ghost" onClick={() => setNthWeekdays(prev => [...prev, { nth: 0, day: 2 }])}>+ Add Rule</Btn>
           </div>}

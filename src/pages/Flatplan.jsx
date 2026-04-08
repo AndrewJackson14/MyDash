@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, memo } from "react";
-import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
 const GRID_COLS = 2;
@@ -81,7 +81,7 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       return <div key={p.id} draggable onDragStart={e => { e.stopPropagation(); onStartDrag(p.id, p.isPlaceholder ? "placeholder" : "sale"); }} style={{ position: "absolute", left: `${p.gridCol * cellW}%`, top: `${p.gridRow * cellH}%`, width: `${p.spanCols * cellW}%`, height: `${p.spanRows * cellH}%`, background: bgStyle, border: borderStyle, borderRadius: R, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", zIndex: 5, boxSizing: "border-box", cursor: "grab" }}>
         <div style={{ fontSize: fs, fontWeight: FW.heavy, color: textColor, textAlign: "center", lineHeight: 1.1, padding: "0 2px" }}>{isPH ? (phLabels?.[p.id] || "HOLD") : clientName(p.clientId).slice(0, 18)}</div>
         <div style={{ fontSize: fsSmall, color: subColor, fontWeight: FW.semi }}>{isPH ? "Placeholder" : (p.size || p.type)}</div>
-        {pageW > 70 && <button onClick={e => { e.stopPropagation(); onRemoveAd(p.id); }} style={{ position: "absolute", top: 1, right: 1, width: 13, height: 13, borderRadius: Ri, background: "rgba(232,72,85,0.85)", border: "none", cursor: "pointer", fontSize: 9, color: "#fff", fontWeight: FW.black, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
+        {pageW > 70 && <button onClick={e => { e.stopPropagation(); onRemoveAd(p.id); }} style={{ position: "absolute", top: 1, right: 1, width: 13, height: 13, borderRadius: Ri, background: "rgba(232,72,85,0.85)", border: "none", cursor: "pointer", fontSize: 9, color: INV.light, fontWeight: FW.black, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
       </div>;
     })}
   </div>;

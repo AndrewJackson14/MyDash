@@ -6,7 +6,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
-import { Z, SC, COND, DISPLAY } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
@@ -51,7 +51,7 @@ async function uploadImage(file, path) {
 
 // ── Toolbar components ───────────────────────────────────────────
 const TBtn = ({ onClick, active, children, title }) => (
-  <button onClick={onClick} title={title} style={{ padding: "4px 8px", border: "none", borderRadius: 2, background: active ? Z.ac + "20" : "transparent", color: active ? Z.ac : Z.tm, cursor: "pointer", fontSize: 13, fontWeight: active ? 700 : 500, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 28 }}
+  <button onClick={onClick} title={title} style={{ padding: "4px 8px", border: "none", borderRadius: Ri, background: active ? Z.ac + "20" : "transparent", color: active ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.base, fontWeight: active ? 700 : 500, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 28 }}
     onMouseEnter={e => { if (!active) e.currentTarget.style.background = Z.sa; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>{children}</button>
 );
 const TSep = () => <div style={{ width: 1, height: 20, background: Z.bd, margin: "0 4px" }} />;
@@ -63,7 +63,7 @@ const ChipPicker = ({ label, options, selected, onChange }) => (
     <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
       {options.map(o => {
         const on = selected.includes(o.id);
-        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: 2, fontSize: 10, fontWeight: on ? 700 : 500, border: "1px solid " + (on ? (o.color || Z.ac) : Z.bd), background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
+        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: 10, fontWeight: on ? 700 : 500, border: "1px solid " + (on ? (o.color || Z.ac) : Z.bd), background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
       })}
     </div>
   </div>
@@ -79,16 +79,16 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 380 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {checks.map((c, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 2, background: c.pass ? (Z.su || "#22c55e") + "10" : "#ef444410", border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : "#ef444430") }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: Ri, background: c.pass ? (Z.su || "#22c55e") + "10" : Z.da + "10", border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : Z.da + "30") }}>
               <span style={{ fontSize: 14 }}>{c.pass ? "\u2713" : "\u2717"}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : "#ef4444", fontFamily: COND }}>{c.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
             </div>
           ))}
         </div>
         <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Publish Date & Time</div>
-          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
-          <div style={{ fontSize: 11, fontWeight: 600, color: isScheduled ? "#6366f1" : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
+          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
+          <div style={{ fontSize: 11, fontWeight: 600, color: isScheduled ? ACCENT.indigo : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
             {isScheduled ? `Scheduled: ${fmtScheduled}` : "Immediately upon publish"}
           </div>
         </div>
@@ -98,7 +98,7 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
             <Ic.send size={11} /> {isScheduled ? "Schedule" : "Publish Now"}
           </Btn>
         </div>
-        {!allPassed && <p style={{ fontSize: 10, color: "#ef4444", fontFamily: COND, margin: 0, textAlign: "right" }}>Fix required items before publishing</p>}
+        {!allPassed && <p style={{ fontSize: 10, color: Z.da, fontFamily: COND, margin: 0, textAlign: "right" }}>Fix required items before publishing</p>}
       </div>
     </Modal>
   );
@@ -357,15 +357,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid " + Z.bd, background: Z.sf, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontFamily: COND, fontWeight: 600 }}>{"\u2190"} Back to Editorial</button>
         <TSep />
-        <span style={{ fontSize: 13, fontWeight: 700, color: Z.tx, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.title || "Untitled Story"}</span>
+        <span style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.title || "Untitled Story"}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {saving && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Saving\u2026</span>}
           {!saving && lastSaved && <span style={{ fontSize: 10, color: Z.su || "#22c55e", fontFamily: COND }}>{"\u2713"} Saved {ago(lastSaved)}</span>}
-          {imageUploading && <span style={{ fontSize: 10, color: "#f59e0b", fontFamily: COND }}>Uploading\u2026</span>}
+          {imageUploading && <span style={{ fontSize: 10, color: Z.wa, fontFamily: COND }}>Uploading\u2026</span>}
           <Badge status={meta.status || "Draft"} small />
-          {meta.is_featured && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 2, background: "#fef3c7", color: "#d97706" }}>{"\u2605"} Featured</span>}
-          {isPublished && !needsRepublish && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 2, background: "#dcfce7", color: "#16a34a" }}>Live</span>}
-          {needsRepublish && <Btn sm onClick={republishToWeb} style={{ background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a" }}>{"\u21bb"} Republish</Btn>}
+          {meta.is_featured && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>{"\u2605"} Featured</span>}
+          {isPublished && !needsRepublish && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
+          {needsRepublish && <Btn sm onClick={republishToWeb} style={{ background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{"\u21bb"} Republish</Btn>}
         </div>
       </div>
 
@@ -411,7 +411,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
           {/* FIX #1: Published/Updated dates */}
           {isPublished && (
-            <div style={{ background: Z.bg, borderRadius: 3, padding: 10, border: "1px solid " + Z.bd }}>
+            <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication Dates</div>
               {meta.first_published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
               {!meta.first_published_at && meta.published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
@@ -435,50 +435,50 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           </div>
 
           {/* Web Approval + Publish / Featured */}
-          <div style={{ background: Z.bg, borderRadius: 3, padding: 10, border: "1px solid " + Z.bd }}>
+          <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
             {isPublished && !needsRepublish ? (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>{"\u2713"} Live on Web</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <Btn sm onClick={republishToWeb} style={{ flex: 1 }}>{"\u21bb"} Update Live</Btn>
-                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: "#ef4444", borderColor: "#ef444440" }}>Unpublish</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
             ) : needsRepublish ? (
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: Z.wa, fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Btn sm onClick={republishToWeb} style={{ flex: 1, background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a" }}>{"\u21bb"} Republish</Btn>
-                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: "#ef4444", borderColor: "#ef444440" }}>Unpublish</Btn>
+                  <Btn sm onClick={republishToWeb} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{"\u21bb"} Republish</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
             ) : currentStage === "Ready" && !webApproved ? (
-              <Btn sm onClick={async () => { setWebApproved(true); await saveMeta("web_approved", true); }} style={{ width: "100%", background: "#3b82f620", color: "#3b82f6", border: "1px solid #3b82f640" }}>{"\u2713"} Approve for Web</Btn>
+              <Btn sm onClick={async () => { setWebApproved(true); await saveMeta("web_approved", true); }} style={{ width: "100%", background: ACCENT.blue + "20", color: ACCENT.blue, border: "1px solid " + ACCENT.blue + "40" }}>{"\u2713"} Approve for Web</Btn>
             ) : webApproved || isPublished ? (
               <Btn sm onClick={handlePublishClick} style={{ width: "100%" }}><Ic.send size={11} /> Publish to Web</Btn>
             ) : (
               <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center", padding: 4 }}>Set status to Ready and approve before publishing</div>
             )}
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
-              <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: "#d97706" }} />
-              <span style={{ fontWeight: 600 }}>{"\u2605"} Featured Article</span><span style={{ fontSize: 9, color: Z.tm }}>(hero)</span>
+              <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: Z.wa }} />
+              <span style={{ fontWeight: 600 }}>{"\u2605"} Featured Article</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(hero)</span>
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
-              <input type="checkbox" checked={!!meta.is_premium} onChange={e => saveMeta("is_premium", e.target.checked)} style={{ accentColor: "#6366f1" }} />
-              <span style={{ fontWeight: 600 }}>{"\ud83d\udd12"} Premium</span><span style={{ fontSize: 9, color: Z.tm }}>(paywall)</span>
+              <input type="checkbox" checked={!!meta.is_premium} onChange={e => saveMeta("is_premium", e.target.checked)} style={{ accentColor: ACCENT.indigo }} />
+              <span style={{ fontWeight: 600 }}>{"\ud83d\udd12"} Premium</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(paywall)</span>
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
-              <input type="checkbox" checked={!!meta.is_sponsored} onChange={e => saveMeta("is_sponsored", e.target.checked)} style={{ accentColor: "#d97706" }} />
+              <input type="checkbox" checked={!!meta.is_sponsored} onChange={e => saveMeta("is_sponsored", e.target.checked)} style={{ accentColor: Z.wa }} />
               <span style={{ fontWeight: 600 }}>Sponsored</span>
             </label>
             {meta.is_sponsored && (
-              <input value={meta.sponsor_name || ""} onChange={e => setMeta(m => ({ ...m, sponsor_name: e.target.value }))} onBlur={e => saveMeta("sponsor_name", e.target.value)} placeholder="Sponsor name..." style={{ width: "100%", padding: "4px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, marginTop: 2 }} />
+              <input value={meta.sponsor_name || ""} onChange={e => setMeta(m => ({ ...m, sponsor_name: e.target.value }))} onBlur={e => saveMeta("sponsor_name", e.target.value)} placeholder="Sponsor name..." style={{ width: "100%", padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, marginTop: 2 }} />
             )}
           </div>
 
           {/* Scheduled indicator (set via preflight) */}
           {!isPublished && meta.scheduled_at && (
-            <div style={{ fontSize: 10, color: "#6366f1", fontFamily: COND, padding: "6px 8px", background: "#6366f110", borderRadius: 2, border: "1px solid #6366f130" }}>
+            <div style={{ fontSize: 10, color: ACCENT.indigo, fontFamily: COND, padding: "6px 8px", background: ACCENT.indigo + "10", borderRadius: Ri, border: "1px solid " + ACCENT.indigo + "30" }}>
               Scheduled: {fmtDate(meta.scheduled_at)}
             </div>
           )}
@@ -488,7 +488,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             const site = (pubs || []).find(p => p.id === selectedPubs[0]);
             const domain = site?.domain || site?.name?.toLowerCase().replace(/\s+/g, "-");
             return domain ? (
-              <a href={"https://" + domain + "/" + meta.slug} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
+              <a href={"https://" + domain + "/" + meta.slug} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
                 View on {domain} {"\u2197"}
               </a>
             ) : null;
@@ -496,7 +496,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
           {/* View count */}
           {meta.view_count > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: Z.sa, borderRadius: 3 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: Z.sa, borderRadius: Ri }}>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Views</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: Z.tx, fontFamily: DISPLAY }}>{(meta.view_count || 0).toLocaleString()}</span>
             </div>
@@ -507,17 +507,17 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Featured Image</div>
             {meta.featured_image_url ? (
               <div>
-                <div style={{ position: "relative" }}><img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 3, border: "1px solid " + Z.bd }} /></div>
+                <div style={{ position: "relative" }}><img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: Ri, border: "1px solid " + Z.bd }} /></div>
                 <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                  <button onClick={setFeaturedImage} style={{ flex: 1, padding: "4px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Upload New</button>
-                  <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, padding: "4px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Library</button>
-                  <button onClick={() => saveMeta("featured_image_url", null)} style={{ padding: "4px 6px", borderRadius: 2, border: "1px solid #ef444430", background: "transparent", color: "#ef4444", fontSize: 10, cursor: "pointer", fontFamily: COND }}>Remove</button>
+                  <button onClick={setFeaturedImage} style={{ flex: 1, padding: "4px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Upload New</button>
+                  <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, padding: "4px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Library</button>
+                  <button onClick={() => saveMeta("featured_image_url", null)} style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.da + "30", background: "transparent", color: Z.da, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Remove</button>
                 </div>
               </div>
             ) : (
               <div style={{ display: "flex", gap: 4 }}>
-                <button onClick={setFeaturedImage} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: 3, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>+ Upload</button>
-                <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: 3, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>From Library</button>
+                <button onClick={setFeaturedImage} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>+ Upload</button>
+                <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>From Library</button>
               </div>
             )}
           </div>
@@ -525,7 +525,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Publication */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication</div>
-            <select value={selectedPubs[0] || ""} onChange={e => saveMeta("publication", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <select value={selectedPubs[0] || ""} onChange={e => saveMeta("publication", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
               <option value="">Select publication...</option>
               {pubs.filter(p => p.type !== "Special Publication").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
@@ -534,7 +534,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Author */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
-            <select value={meta.author || ""} onChange={e => { if (e.target.value === "__custom") { const name = prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <select value={meta.author || ""} onChange={e => { if (e.target.value === "__custom") { const name = prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
               <option value="">Select author...</option>
               {authors.map(a => <option key={a.id} value={a.name}>{(a.name || "").replace(/[\u2013\u2014]/g, "-")} ({a.is_freelance ? "Freelance" : "Staff"}{a.role ? ", " + a.role : ""})</option>)}
               {freelancers.map(f => <option key={f.id} value={f.name}>{f.name} (Freelance{f.specialty ? ", " + f.specialty : ""})</option>)}
@@ -556,8 +556,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             {freelancers.length > 0 && (
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {freelancers.map(f => (
-                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 2, fontSize: 10, fontFamily: COND, background: Z.sa, color: Z.tx, border: "1px solid " + Z.bd }}>
-                    {f.name} <span style={{ color: Z.tm, fontSize: 9 }}>{f.specialty}</span>
+                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: Ri, fontSize: 10, fontFamily: COND, background: Z.sa, color: Z.tx, border: "1px solid " + Z.bd }}>
+                    {f.name} <span style={{ color: Z.tm, fontSize: FS.micro }}>{f.specialty}</span>
                   </span>
                 ))}
               </div>
@@ -567,15 +567,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Category */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Category</div>
-            <select value={meta.category_id || ""} onChange={e => { const cat = categories.find(c => c.id === e.target.value); saveMeta("category_id", e.target.value); if (cat) { saveMeta("category", cat.name); saveMeta("category_slug", cat.slug); } }} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <select value={meta.category_id || ""} onChange={e => { const cat = categories.find(c => c.id === e.target.value); saveMeta("category_id", e.target.value); if (cat) { saveMeta("category", cat.name); saveMeta("category_slug", cat.slug); } }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
               <option value="">Select category</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Type</div><select value={meta.story_type || "article"} onChange={e => saveMeta("story_type", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{STORY_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">Unassigned</option>{team.map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
+            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Type</div><select value={meta.story_type || "article"} onChange={e => saveMeta("story_type", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{STORY_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
+            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">Unassigned</option>{team.map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
           </div>
 
           <Inp label="Due Date" type="date" value={meta.due_date || ""} onChange={v => saveMeta("due_date", v)} />
@@ -583,7 +583,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Print Issue */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Issue</div>
-            <select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: 2, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{pn(i.pub_id || i.publicationId, pubs)} {"\u203a"} {i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select>
+            <select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{pn(i.pub_id || i.publicationId, pubs)} {"\u203a"} {i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select>
           </div>
 
           {/* SEO */}
@@ -591,16 +591,17 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>SEO</div>
             <div>
               <Inp label="SEO Title" value={meta.seo_title || ""} onChange={v => setMeta(m => ({ ...m, seo_title: v }))} onBlur={() => saveMeta("seo_title", meta.seo_title)} />
-              <div style={{ fontSize: 9, color: (meta.seo_title || "").length >= 50 && (meta.seo_title || "").length <= 60 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_title || "").length}/60</div>
+              <div style={{ fontSize: FS.micro, color: (meta.seo_title || "").length >= 50 && (meta.seo_title || "").length <= 60 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_title || "").length}/60</div>
             </div>
             <div style={{ marginTop: 4 }}>
               <TA label="SEO Description" value={meta.seo_description || ""} onChange={v => setMeta(m => ({ ...m, seo_description: v }))} onBlur={() => saveMeta("seo_description", meta.seo_description)} rows={2} />
-              <div style={{ fontSize: 9, color: (meta.seo_description || "").length >= 150 && (meta.seo_description || "").length <= 160 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_description || "").length}/160</div>
+              <div style={{ fontSize: FS.micro, color: (meta.seo_description || "").length >= 150 && (meta.seo_description || "").length <= 160 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_description || "").length}/160</div>
             </div>
             <Inp label="Slug" value={meta.slug || ""} onChange={v => setMeta(m => ({ ...m, slug: v }))} onBlur={() => saveMeta("slug", meta.slug)} />
             {/* Google search preview */}
-            <div style={{ marginTop: 8, padding: 10, background: Z.bg, borderRadius: 3, border: "1px solid " + Z.bd }}>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Search Preview</div>
+            <div style={{ marginTop: 8, padding: 10, background: Z.bg, borderRadius: Ri, border: "1px solid " + Z.bd }}>
+              <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Search Preview</div>
+              {/* SEO preview colors (Google standard) */}
               <div style={{ fontSize: 14, color: "#1a0dab", fontFamily: "arial, sans-serif", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.seo_title || meta.title || "Page Title"}</div>
               <div style={{ fontSize: 11, color: "#006621", fontFamily: "arial, sans-serif", marginTop: 2 }}>{selectedPubs[0] && pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "") + ".com"}/{meta.slug || "article-slug"}</div>
               <div style={{ fontSize: 11, color: "#545454", fontFamily: "arial, sans-serif", marginTop: 2, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.seo_description || meta.excerpt || "No description set"}</div>
@@ -645,7 +646,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
       <Modal open={linkModalOpen} onClose={() => setLinkModalOpen(false)} title="Insert Link"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}><Inp label="URL" value={linkUrl} onChange={setLinkUrl} placeholder="https://\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>{editor?.isActive("link") && <Btn sm v="secondary" onClick={() => { editor.chain().focus().unsetLink().run(); setLinkModalOpen(false); }}>Remove Link</Btn>}<Btn sm onClick={insertLink}>Insert Link</Btn></div></div></Modal>
 
-      <Modal open={imageModalOpen} onClose={() => setImageModalOpen(false)} title="Add Image"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}>{pendingImageUrl && <img src={pendingImageUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 3, background: Z.sa }} />}<Inp label="Caption (optional)" value={imageCaption} onChange={setImageCaption} placeholder="Photo credit or description\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn sm v="secondary" onClick={() => setImageModalOpen(false)}>Cancel</Btn><Btn sm onClick={insertImage}>Insert Image</Btn></div></div></Modal>
+      <Modal open={imageModalOpen} onClose={() => setImageModalOpen(false)} title="Add Image"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}>{pendingImageUrl && <img src={pendingImageUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: Ri, background: Z.sa }} />}<Inp label="Caption (optional)" value={imageCaption} onChange={setImageCaption} placeholder="Photo credit or description\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn sm v="secondary" onClick={() => setImageModalOpen(false)}>Cancel</Btn><Btn sm onClick={insertImage}>Insert Image</Btn></div></div></Modal>
 
       <MediaModal open={mediaPickerOpen} onClose={() => setMediaPickerOpen(false)} pubs={pubs} pubFilter={selectedPubs[0] || undefined} onSelect={(media) => {
         if (mediaPickerMode === "featured") {

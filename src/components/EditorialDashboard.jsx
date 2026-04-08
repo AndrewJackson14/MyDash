@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Z, SC, COND, DISPLAY } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import StoryEditor from "./StoryEditor";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 const KANBAN_COLS = [
-  { key: "idea", label: "Ideas", color: "#9ca3af", statuses: ["Draft"] },
-  { key: "assigned", label: "Assigned", color: "#6366f1", statuses: ["Needs Editing"] },
-  { key: "editing", label: "Editing", color: "#f59e0b", statuses: ["Edited"] },
-  { key: "ready", label: "Ready", color: "#3b82f6", statuses: ["Approved"] },
+  { key: "idea", label: "Ideas", color: ACCENT.grey, statuses: ["Draft"] },
+  { key: "assigned", label: "Assigned", color: ACCENT.indigo, statuses: ["Needs Editing"] },
+  { key: "editing", label: "Editing", color: ACCENT.amber, statuses: ["Edited"] },
+  { key: "ready", label: "Ready", color: ACCENT.blue, statuses: ["Approved"] },
   { key: "published", label: "Published", color: Z.su || "#22c55e", statuses: ["Published", "Sent to Web"] },
 ];
 
@@ -22,7 +22,7 @@ const PRINT_STAGES = [
   { key: "sent_to_press", label: "Sent to Press" },
 ];
 
-const PRIORITY_COLORS = { urgent: "#ef4444", high: "#f59e0b", normal: Z.tm || "#6b7280", low: "#d1d5db" };
+const PRIORITY_COLORS = { urgent: Z.da, high: ACCENT.amber, normal: Z.tm || ACCENT.grey, low: "#d1d5db" };
 const PRIORITY_LABELS = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
 
 const STORY_TYPES = ["article", "column", "letter", "obituary", "legal_notice", "calendar_event", "press_release", "opinion"];
@@ -59,8 +59,8 @@ const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
       onDragStart={(e) => { e.dataTransfer.setData("storyId", story.id); e.dataTransfer.effectAllowed = "move"; }}
       style={{
         background: Z.sf, border: `1px solid ${isDragging ? Z.ac : Z.bd}`,
-        borderRadius: 3, padding: "10px 12px", cursor: "pointer",
-        borderLeft: `3px solid ${pri === "urgent" ? "#ef4444" : pri === "high" ? "#f59e0b" : pColor(story.publication_id || story.publication, pubs)}`,
+        borderRadius: Ri, padding: "10px 12px", cursor: "pointer",
+        borderLeft: `3px solid ${pri === "urgent" ? Z.da : pri === "high" ? ACCENT.amber : pColor(story.publication_id || story.publication, pubs)}`,
         transition: "box-shadow 0.15s, border-color 0.15s",
         opacity: isDragging ? 0.5 : 1,
       }}
@@ -79,7 +79,7 @@ const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
 
       {/* Meta row */}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: Z.tm, fontFamily: COND }}>
-        <span style={{ background: pColor(story.publication_id || story.publication, pubs) + "20", color: pColor(story.publication_id || story.publication, pubs), padding: "1px 6px", borderRadius: 2, fontWeight: 700, fontSize: 9 }}>
+        <span style={{ background: pColor(story.publication_id || story.publication, pubs) + "20", color: pColor(story.publication_id || story.publication, pubs), padding: "1px 6px", borderRadius: Ri, fontWeight: 700, fontSize: FS.micro }}>
           {pn(story.publication_id || story.publication, pubs).split(" ").map(w => w[0]).join("")}
         </span>
         {story.category && <span>{story.category}</span>}
@@ -91,25 +91,25 @@ const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
       <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
         {/* Web published badge */}
         {webPublished && !repubNeeded && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 2, fontSize: 9, fontWeight: 700, background: "#dcfce7", color: "#16a34a" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: Ri, fontSize: FS.micro, fontWeight: 700, background: ACCENT.green + "18", color: ACCENT.green }}>
             <Ic.check size={9} /> Web
           </span>
         )}
         {/* Needs re-publish signal */}
         {repubNeeded && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 2, fontSize: 9, fontWeight: 700, background: "#fef3c7", color: "#d97706", animation: "pulse 2s infinite" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: Ri, fontSize: FS.micro, fontWeight: 700, background: Z.wa + "18", color: Z.wa, animation: "pulse 2s infinite" }}>
             ↻ Updated — Republish
           </span>
         )}
         {/* Print status badge */}
         {story.print_status && story.print_status !== "none" && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 2, fontSize: 9, fontWeight: 700, background: Z.sa, color: Z.tm }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: Ri, fontSize: FS.micro, fontWeight: 700, background: Z.sa, color: Z.tm }}>
             ⎙ {PRINT_STAGES.find(s => s.key === story.print_status)?.label || story.print_status}
           </span>
         )}
         {/* Correction note indicator */}
         {story.correction_note && (
-          <span style={{ padding: "1px 6px", borderRadius: 2, fontSize: 9, fontWeight: 700, background: "#fef3c7", color: "#92400e" }}>
+          <span style={{ padding: "1px 6px", borderRadius: Ri, fontSize: FS.micro, fontWeight: 700, background: Z.wa + "18", color: Z.wa }}>
             Correction
           </span>
         )}
@@ -144,7 +144,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
       {/* Drop zone */}
       <div style={{
         flex: 1, display: "flex", flexDirection: "column", gap: 6,
-        padding: 4, borderRadius: 3, minHeight: 120,
+        padding: 4, borderRadius: Ri, minHeight: 120,
         background: dragOver ? col.color + "10" : "transparent",
         border: dragOver ? `1px dashed ${col.color}` : "1px dashed transparent",
         transition: "all 0.15s",
@@ -336,11 +336,11 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         {[
           { label: "Total", value: stats.total, color: Z.tx },
-          { label: "Drafts", value: stats.drafts, color: "#9ca3af" },
-          { label: "In Progress", value: stats.inProgress, color: "#6366f1" },
+          { label: "Drafts", value: stats.drafts, color: ACCENT.grey },
+          { label: "In Progress", value: stats.inProgress, color: ACCENT.indigo },
           { label: "Published", value: stats.published, color: Z.su || "#22c55e" },
-          ...(stats.needsRepublish > 0 ? [{ label: "Needs Republish", value: stats.needsRepublish, color: "#d97706" }] : []),
-          ...(stats.urgent > 0 ? [{ label: "Urgent", value: stats.urgent, color: "#ef4444" }] : []),
+          ...(stats.needsRepublish > 0 ? [{ label: "Needs Republish", value: stats.needsRepublish, color: Z.wa }] : []),
+          ...(stats.urgent > 0 ? [{ label: "Urgent", value: stats.urgent, color: Z.da }] : []),
         ].map(s => (
           <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: DISPLAY }}>{s.value}</span>
@@ -363,7 +363,7 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
             }}>
               {t.label}
               {t.id === "web" && stats.needsRepublish > 0 && (
-                <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#d97706", color: "#fff", fontSize: 9, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{stats.needsRepublish}</span>
+                <span style={{ width: 16, height: 16, borderRadius: "50%", background: Z.wa, color: INV.light, fontSize: FS.micro, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{stats.needsRepublish}</span>
               )}
             </button>
           ))}
@@ -372,19 +372,19 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
         {/* Filters */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {/* Pub filter */}
-          <button onClick={() => setFPub("all")} style={{ padding: "3px 8px", borderRadius: 2, border: `1px solid ${fPub === "all" ? Z.ac : Z.bd}`, background: fPub === "all" ? Z.ac + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === "all" ? 700 : 500, color: fPub === "all" ? Z.ac : Z.tm, fontFamily: COND }}>All Pubs</button>
+          <button onClick={() => setFPub("all")} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${fPub === "all" ? Z.ac : Z.bd}`, background: fPub === "all" ? Z.ac + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === "all" ? 700 : 500, color: fPub === "all" ? Z.ac : Z.tm, fontFamily: COND }}>All Pubs</button>
           {pubs.map(p => (
-            <button key={p.id} onClick={() => setFPub(p.id)} style={{ padding: "3px 8px", borderRadius: 2, border: `1px solid ${fPub === p.id ? (p.color || Z.ac) : Z.bd}`, background: fPub === p.id ? (p.color || Z.ac) + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === p.id ? 700 : 500, color: fPub === p.id ? (p.color || Z.ac) : Z.tm, fontFamily: COND }}>{p.name.split(" ").map(w => w[0]).join("")}</button>
+            <button key={p.id} onClick={() => setFPub(p.id)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${fPub === p.id ? (p.color || Z.ac) : Z.bd}`, background: fPub === p.id ? (p.color || Z.ac) + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === p.id ? 700 : 500, color: fPub === p.id ? (p.color || Z.ac) : Z.tm, fontFamily: COND }}>{p.name.split(" ").map(w => w[0]).join("")}</button>
           ))}
           {/* Assignee filter */}
           {assignees.length > 0 && (
-            <select value={fAssignee} onChange={e => setFAssignee(e.target.value)} style={{ padding: "3px 8px", borderRadius: 2, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
+            <select value={fAssignee} onChange={e => setFAssignee(e.target.value)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
               <option value="all">All Writers</option>
               {assignees.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           )}
           {/* Priority filter */}
-          <select value={fPriority} onChange={e => setFPriority(e.target.value)} style={{ padding: "3px 8px", borderRadius: 2, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
+          <select value={fPriority} onChange={e => setFPriority(e.target.value)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
             <option value="all">All Priority</option>
             <option value="urgent">Urgent</option>
             <option value="high">High</option>
@@ -425,7 +425,7 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
               const isSelected = selIssue === iss.id;
               return (
                 <div key={iss.id} onClick={() => setSelIssue(iss.id)} style={{
-                  padding: "8px 10px", borderRadius: 3, cursor: "pointer",
+                  padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
                   background: isSelected ? Z.ac + "12" : Z.sf,
                   border: `1px solid ${isSelected ? Z.ac : Z.bd}`,
                   borderLeft: `3px solid ${pColor(iss.publicationId, pubs)}`,
@@ -459,9 +459,9 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
                   {PRINT_STAGES.slice(1).map(stage => {
                     const count = issueStories.filter(s => s.print_status === stage.key).length;
                     return (
-                      <div key={stage.key} style={{ flex: 1, textAlign: "center", padding: "6px 4px", background: count > 0 ? Z.ac + "12" : Z.sa, borderRadius: 2 }}>
+                      <div key={stage.key} style={{ flex: 1, textAlign: "center", padding: "6px 4px", background: count > 0 ? Z.ac + "12" : Z.sa, borderRadius: Ri }}>
                         <div style={{ fontSize: 16, fontWeight: 800, color: count > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{count}</div>
-                        <div style={{ fontSize: 9, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{stage.label}</div>
+                        <div style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{stage.label}</div>
                       </div>
                     );
                   })}
@@ -486,19 +486,19 @@ const EditorialDashboard = ({ stories, setStories, pubs, issues, team, bus, edit
             Ready to Publish / Needs Republish ({webQueue.length})
           </div>
           {webQueue.length === 0 && (
-            <div style={{ padding: 32, textAlign: "center", color: Z.tm, fontSize: 13, background: Z.sa, borderRadius: 3 }}>
+            <div style={{ padding: 32, textAlign: "center", color: Z.tm, fontSize: FS.base, background: Z.sa, borderRadius: Ri }}>
               No stories waiting for web publishing
             </div>
           )}
           {webQueue.map(s => {
             const isRepub = needsRepublish(s);
             return (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 3, borderLeft: `3px solid ${isRepub ? "#d97706" : "#3b82f6"}` }}>
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, borderLeft: `3px solid ${isRepub ? Z.wa : ACCENT.blue}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{s.title}</span>
                     {isRepub && (
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 2, background: "#fef3c7", color: "#d97706" }}>
+                      <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "1px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>
                         Updated since last publish
                       </span>
                     )}

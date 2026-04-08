@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { STORY_STATUSES } from "../constants";
 
@@ -180,11 +180,11 @@ const Editorial = ({ stories, setStories, pubs, notifications, setNotifications,
             {/* AI tools bar inside editor */}
             <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa }}>
               <button onClick={() => setAiPanel(aiPanel === "assistant" ? null : "assistant")}
-                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "assistant" ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "assistant" ? "#fff" : Z.tm, fontFamily: COND }}>AI Assist</button>
+                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "assistant" ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "assistant" ? INV.light : Z.tm, fontFamily: COND }}>AI Assist</button>
               <button onClick={runSpellCheck}
-                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "spelling" ? Z.da : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "spelling" ? "#fff" : Z.tm, fontFamily: COND }}>Spelling</button>
+                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "spelling" ? Z.da : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "spelling" ? INV.light : Z.tm, fontFamily: COND }}>Spelling</button>
               <button onClick={runApCheck}
-                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "ap" ? Z.wa : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "ap" ? "#fff" : Z.tm, fontFamily: COND }}>AP Style</button>
+                style={{ padding: "5px 10px", borderRadius: Ri, border: `1px solid ${_isDk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`, background: aiPanel === "ap" ? Z.wa : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: aiPanel === "ap" ? INV.light : Z.tm, fontFamily: COND }}>AP Style</button>
             </div>
             <textarea value={editorText} onChange={e => setEditorText(e.target.value)}
               style={{ flex: 1, background: "transparent", border: "none", padding: 16, color: Z.tx, fontSize: FS.md, lineHeight: 1.8, outline: "none", resize: "none", fontFamily: "inherit", minHeight: 0 }} />
@@ -226,7 +226,7 @@ const Editorial = ({ stories, setStories, pubs, notifications, setNotifications,
                     <div style={{ fontSize: FS.sm, color: Z.da, textDecoration: iss.applied ? "line-through" : "none" }}>{iss.original}</div>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: iss.applied ? Z.su : Z.tx }}>→ {iss.fix}</div>
                     {iss.rule && <div style={{ fontSize: FS.xs, color: Z.wa, fontStyle: "italic" }}>{iss.rule}</div>}
-                    {!iss.applied && <button onClick={() => applyFix(iss)} style={{ background: Z.ac, border: "none", borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: FS.xs, color: "#fff", marginTop: 3 }}>Fix</button>}
+                    {!iss.applied && <button onClick={() => applyFix(iss)} style={{ background: Z.ac, border: "none", borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: FS.xs, color: INV.light, marginTop: 3 }}>Fix</button>}
                   </div>)}
                 </>}
               </>}

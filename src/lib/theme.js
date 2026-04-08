@@ -204,3 +204,40 @@ export const ACCENT = {
   blue: "#3b82f6",
   grey: "#6B7280",
 };
+
+// Z-index scale — every z-index in the app should use this
+export const ZI = {
+  base: 0,
+  raised: 1,         // sticky table headers, inline overlays
+  sticky: 10,        // sticky nav, floating action bars
+  dropdown: 20,      // dropdowns, popovers, tooltips
+  modal: 100,        // modal backdrop
+  modalContent: 101, // modal dialog
+  overlay: 998,      // full-screen overlays (lightbox, side panels)
+  top: 999,          // notification toasts, profile panel
+  max: 1000,         // modal on top of modal (confirmation over modal)
+};
+
+// Contrast text — guaranteed readable on colored backgrounds
+export const INV = {
+  light: "#FFFFFF",   // white text on dark/colored backgrounds
+  dark: "#111318",    // dark text on light backgrounds
+};
+
+// Toggle dimensions — shared by all toggle switch implementations
+export const TOGGLE = {
+  w: 36,              // outer width
+  h: 20,              // outer height
+  circle: 16,         // inner circle diameter
+  pad: 2,             // gap between circle and edge
+  radius: 10,         // outer border-radius (half of h)
+  circleRadius: 8,    // inner circle border-radius
+};
+
+// Avatar dimensions — shared by all avatar/initials implementations
+export const AVATAR = {
+  sm: 28,             // small (list items, inline)
+  md: 40,             // medium (cards, table rows)
+  lg: 56,             // large (profile headers)
+  fontSize: { sm: 11, md: 15, lg: 22 },
+};

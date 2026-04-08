@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, ZI } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { ACTION_TYPES, MILESTONES } from "../constants";
 
@@ -106,7 +106,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, onNavigate }) => {
           {eventsForDate(selDate).map(ev => {
             const [eh, em] = (ev.time || "09:00").split(":").map(Number);
             const top = (eh - 7) * 60 + em;
-            return <div key={ev.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", ev.id)} onClick={() => openEdit(ev)} style={{ position: "absolute", top: Math.max(0, top), left: 56, right: 8, height: Math.max(24, (ev.duration || 30)), background: `${ev.color}20`, border: `1px solid ${ev.color}50`, borderRadius: Ri, padding: "3px 8px", cursor: "grab", zIndex: 2 }}>
+            return <div key={ev.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", ev.id)} onClick={() => openEdit(ev)} style={{ position: "absolute", top: Math.max(0, top), left: 56, right: 8, height: Math.max(24, (ev.duration || 30)), background: `${ev.color}20`, border: `1px solid ${ev.color}50`, borderRadius: Ri, padding: "3px 8px", cursor: "grab", zIndex: ZI.raised }}>
               <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: ev.color }}>{ev.icon} {ev.label}</div>
               {ev.client && <div style={{ fontSize: FS.sm, color: Z.tm }}>{ev.client}</div>}
             </div>;
@@ -126,7 +126,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, onNavigate }) => {
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", overflow: "auto" }}>
         {weekDays.map((d, i) => { const isToday = d === today; const dayEvts = eventsForDate(d);
           return <div key={d} style={{ borderRight: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "6px 4px", textAlign: "center", borderBottom: `1px solid ${Z.bd}`, position: "sticky", top: 0, ...glass(), zIndex: 3 }}>
+            <div style={{ padding: "6px 4px", textAlign: "center", borderBottom: `1px solid ${Z.bd}`, position: "sticky", top: 0, ...glass(), zIndex: ZI.raised }}>
               <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm }}>{dayNames[i]}</div>
               <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: isToday ? Z.ac : Z.tx }}>{d.slice(8)}</div>
             </div>
@@ -136,7 +136,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, onNavigate }) => {
               {dayEvts.map(ev => {
                 const [eh, em] = (ev.time || "09:00").split(":").map(Number);
                 const top = (eh - 7) * 60 + em;
-                return <div key={ev.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", ev.id)} onClick={() => openEdit(ev)} style={{ position: "absolute", top: Math.max(0, top), left: 2, right: 2, height: Math.max(20, (ev.duration || 30) * 0.8), background: `${ev.color}25`, border: `1px solid ${ev.color}50`, borderRadius: Ri, padding: "2px 4px", cursor: "grab", zIndex: 2, overflow: "hidden" }}>
+                return <div key={ev.id} draggable onDragStart={e => e.dataTransfer.setData("text/plain", ev.id)} onClick={() => openEdit(ev)} style={{ position: "absolute", top: Math.max(0, top), left: 2, right: 2, height: Math.max(20, (ev.duration || 30) * 0.8), background: `${ev.color}25`, border: `1px solid ${ev.color}50`, borderRadius: Ri, padding: "2px 4px", cursor: "grab", zIndex: ZI.raised, overflow: "hidden" }}>
                   <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: ev.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.icon} {ev.label}</div>
                 </div>;
               })}
@@ -147,14 +147,14 @@ const CalendarPage = ({ clients, sales, issues, pubs, onNavigate }) => {
 
     {/* MONTH VIEW */}
     {view === "month" && <GlassCard noPad style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, position: "sticky", top: 0, ...glass(), zIndex: 2 }}>{dayNames.map(d => <div key={d} style={{ textAlign: "center", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, padding: "6px 4px", borderBottom: `1px solid ${Z.bd}` }}>{d}</div>)}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, position: "sticky", top: 0, ...glass(), zIndex: ZI.raised }}>{dayNames.map(d => <div key={d} style={{ textAlign: "center", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, padding: "6px 4px", borderBottom: `1px solid ${Z.bd}` }}>{d}</div>)}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gridTemplateRows: "repeat(6, 1fr)", flex: 1, overflow: "hidden" }}>{monthDays.map(d => { const dayEvts = eventsForDate(d); const isToday = d === today; const isCurrentMonth = d.slice(5, 7) === selDate.slice(5, 7);
         return <div key={d} onClick={() => setDayPopover(dayPopover === d ? null : d)} style={{ background: isCurrentMonth ? "transparent" : isDk ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.03)", borderRight: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, padding: 4, position: "relative", cursor: "pointer", overflow: "hidden" }}>
           <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: isToday ? Z.ac : isCurrentMonth ? Z.tx : Z.td, marginBottom: 2 }}>{parseInt(d.slice(8))}</div>
           {dayEvts.slice(0, 3).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); openEdit(e); }} style={{ fontSize: FS.xs, padding: "1px 3px", background: `${e.color}15`, borderRadius: R, marginBottom: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: e.color, cursor: "pointer" }}>{e.icon} {e.label}</div>)}
           {dayEvts.length > 3 && <div style={{ fontSize: FS.xs, color: Z.td }}>+{dayEvts.length - 3}</div>}
           {/* Day click popover */}
-          {dayPopover === d && <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, zIndex: 10, ...glass(), borderRadius: R, padding: CARD.pad, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", minWidth: 120 }}>
+          {dayPopover === d && <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, zIndex: ZI.sticky, ...glass(), borderRadius: R, padding: CARD.pad, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", minWidth: 120 }}>
             <button onClick={() => openNew(d)} style={{ display: "block", width: "100%", padding: "6px 10px", background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, textAlign: "left", borderRadius: Ri }} onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "none"}>+ Add Event</button>
             <button onClick={() => { setSelDate(d); setView("day"); setDayPopover(null); }} style={{ display: "block", width: "100%", padding: "6px 10px", background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, textAlign: "left", borderRadius: Ri }} onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "none"}>View Day</button>
             <button onClick={() => { setSelDate(d); setView("week"); setDayPopover(null); }} style={{ display: "block", width: "100%", padding: "6px 10px", background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, textAlign: "left", borderRadius: Ri }} onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "none"}>View Week</button>

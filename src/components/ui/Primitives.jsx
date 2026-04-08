@@ -2,7 +2,7 @@
 // Shared UI Primitives — MyDash Editorial Monochrome
 // R = 5px card radius, Ri = 3px internal radius, SP = spacing
 // ============================================================
-import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, isDark as _isDark } from "../../lib/theme";
+import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, isDark as _isDark } from "../../lib/theme";
 import Ic from "./Icons";
 
 export const ThemeToggle = ({ onToggle }) => {
@@ -52,12 +52,12 @@ export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa
 export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
   const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 };
   const variants = {
-    primary:   { background: Z.go, color: "#fff" },
-    success:   { background: Z.go, color: "#fff" },
+    primary:   { background: Z.go, color: INV.light },
+    success:   { background: Z.go, color: INV.light },
     secondary: { background: Z.tx, color: Z.bg },
     ghost:     { background: "transparent", color: Z.tx, border: "none", textDecoration: "underline", textUnderlineOffset: 3 },
-    danger:    { background: Z.da, color: "#fff" },
-    warning:   { background: Z.wa, color: "#fff" },
+    danger:    { background: Z.da, color: INV.light },
+    warning:   { background: Z.wa, color: INV.light },
   };
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[v], ...style }}>{children}</button>;
 };
@@ -78,9 +78,46 @@ export const TB = ({ tabs, active, onChange }) => <div style={{ display: "flex",
 
 export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ ...labelStyle, marginBottom: 8 }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
 
-export const Modal = ({ open, onClose, title, children, width = MODAL.defaultWidth, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: MODAL.backdropBg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: MODAL.backdropBlur, outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: MODAL.radius + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
+export const Modal = ({ open, onClose, title, children, width = MODAL.defaultWidth, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: MODAL.backdropBg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: ZI.max, backdropFilter: MODAL.backdropBlur, outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: MODAL.radius + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
 
 export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0))); return <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>{data.map((d, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>{[...keys].reverse().map(k => <div key={k} style={{ height: Math.max(2, (d[k] / mx) * (height - 30)), background: colors[k] || Z.tx, borderRadius: R }} />)}</div><span style={{ fontSize: FS.base, color: Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{d.month}</span></div>)}</div>; };
+
+// ============================================================
+// Toggle — reusable on/off switch (replaces 5+ inline implementations)
+// ============================================================
+export const Toggle = ({ checked, onChange, label, disabled }) => (
+  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+    <div onClick={e => { e.preventDefault(); if (!disabled) onChange(!checked); }} style={{ width: TOGGLE.w, height: TOGGLE.h, borderRadius: TOGGLE.radius, background: checked ? Z.go : Z.bd, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+      <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: checked ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+    </div>
+    {label && <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{label}</span>}
+  </label>
+);
+
+// ============================================================
+// Checkbox — consistent styled checkbox
+// ============================================================
+export const Check = ({ checked, onChange, label, size = 16 }) => (
+  <label onClick={e => { e.preventDefault(); if (onChange) onChange(!checked); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+    <div style={{ width: size, height: size, borderRadius: Ri, border: `1.5px solid ${checked ? Z.go : Z.bd}`, background: checked ? Z.go : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0 }}>
+      {checked && <svg width={size - 6} height={size - 6} viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke={INV.light} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+    </div>
+    {label && <span style={{ fontSize: FS.base, color: Z.tx, fontFamily: COND }}>{label}</span>}
+  </label>
+);
+
+// ============================================================
+// Avatar — initials-based avatar with consistent sizing
+// ============================================================
+export const Avi = ({ name, size = "md", style: extraStyle }) => {
+  const dim = AVATAR[size] || AVATAR.md;
+  const fs = AVATAR.fontSize[size] || AVATAR.fontSize.md;
+  const initials = (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const hue = Math.abs([...(name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
+  return (
+    <div style={{ width: dim, height: dim, borderRadius: R, background: `hsl(${hue}, 40%, 38%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs, fontWeight: FW.black, color: INV.light, flexShrink: 0, fontFamily: COND, ...extraStyle }}>{initials}</div>
+  );
+};
 
 // ============================================================
 // Global Layout Components — used across all pages
@@ -150,7 +187,7 @@ export const SolidTabs = ({ options, active, onChange }) => <div style={{ displa
     return <button key={val} onClick={() => onChange(val)} style={{
       padding: "5px 14px", borderRadius: Ri, border: "none",
       background: isActive ? Z.go : "transparent",
-      color: isActive ? "#fff" : Z.td,
+      color: isActive ? INV.light : Z.td,
       cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
     }}>{label}</button>;
   })}

@@ -4,7 +4,7 @@
 // Client-side PDF compression via pdf.js re-render + jsPDF assembly
 // ============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, PageHeader, GlassCard, DataTable, SB, Badge, FilterBar } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
@@ -862,7 +862,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
             }}
           >
             <div style={{
-              width: 18, height: 18, borderRadius: 9, background: "#fff",
+              width: 18, height: 18, borderRadius: 9, background: INV.light,
               position: "absolute", top: 2, left: isFeatured ? 20 : 2,
               transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
             }} />

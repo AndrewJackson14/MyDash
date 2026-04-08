@@ -22,7 +22,7 @@ const ImportCard = ({ title, description, buttonLabel, onRun, status, progress, 
       </div>}
     </div>}
     {status === "done" && <div>
-      <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+      <div style={{ fontSize: FS.xxl, marginBottom: 8 }}>✓</div>
       <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su, marginBottom: 4 }}>Import Complete</div>
       <div style={{ fontSize: FS.base, color: Z.tm }}>{progress.summary}</div>
       {(progress.errors || []).length > 0 && <div style={{ marginTop: 8, fontSize: FS.sm, color: Z.da }}>{progress.errors.length} errors (check console)</div>}
@@ -375,7 +375,7 @@ const SimpleCircImport = () => {
       )}
       {status === "done" && (
         <div>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+          <div style={{ fontSize: FS.xxl, marginBottom: 8 }}>✓</div>
           <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su, marginBottom: 4 }}>Import Complete</div>
           <div style={{ fontSize: FS.base, color: Z.tm }}>{progress.summary}</div>
           {progress.errors.length > 0 && <div style={{ marginTop: 8, fontSize: FS.sm, color: Z.da }}>{progress.errors.length} errors — check console</div>}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Card, glass } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
@@ -90,11 +90,11 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
 
   return <>
     {/* Backdrop */}
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 998 }} />
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: ZI.overlay }} />
 
     {/* Panel */}
     <div style={{
-      position: "fixed", left: 0, top: 0, bottom: 0, width: 360, zIndex: 999,
+      position: "fixed", left: 0, top: 0, bottom: 0, width: 360, zIndex: ZI.top,
       background: Z.sf, borderRight: `1px solid ${Z.bd}`,
       boxShadow: "4px 0 24px rgba(0,0,0,0.3)", overflowY: "auto",
       display: "flex", flexDirection: "column",
@@ -200,7 +200,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
               return <div key={pref} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderRadius: Ri, background: Z.bg }}>
                 <span style={{ fontSize: FS.base, color: Z.tx }}>{pref}</span>
                 <div style={{ width: 36, height: 20, borderRadius: 10, background: isOn ? Z.go : Z.sa, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-                  <div style={{ width: 16, height: 16, borderRadius: 8, background: "#fff", position: "absolute", top: 2, left: isOn ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                  <div style={{ width: 16, height: 16, borderRadius: 8, background: INV.light, position: "absolute", top: 2, left: isOn ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                 </div>
               </div>;
             })}

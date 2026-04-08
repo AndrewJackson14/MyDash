@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, TBL } from "../../lib/theme";
+import { useState, useMemo, memo } from "react";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, TBL, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Sel, SB, SolidTabs, GlassCard, glass } from "../../components/ui";
 import { computeClientStatus, CLIENT_STATUS_COLORS } from "./constants";
 
@@ -8,6 +8,52 @@ const daysAgo = (d) => { if (!d) return null; return Math.floor((new Date() - ne
 const daysLabel = (n) => { if (n === null) return "—"; if (n === 0) return "Today"; if (n <= 30) return n + "d ago"; if (n <= 365) return Math.round(n / 30) + "mo ago"; return Math.round(n / 365 * 10) / 10 + "yr"; };
 
 const STATUS_ORDER = { Renewal: 0, Active: 1, Lead: 2, Lapsed: 3 };
+const today = new Date().toISOString().slice(0, 10);
+
+const ClientRow = memo(({ client, data, nextAction, onSelect }) => {
+  const c = client;
+  const d = data || {};
+  const na = nextAction;
+  const lastDays = daysAgo(d.lastSale);
+  const stColor = CLIENT_STATUS_COLORS[c.status] || CLIENT_STATUS_COLORS.Lead;
+  const trend = d.thisYear > 0 && d.lastYear > 0 ? (d.thisYear >= d.lastYear * 1.1 ? "up" : d.thisYear <= d.lastYear * 0.9 ? "down" : "flat") : null;
+  const recencyColor = lastDays === null ? Z.td : lastDays <= 30 ? Z.go : lastDays <= 90 ? Z.tx : lastDays <= 180 ? Z.wa : Z.da;
+  const actionOverdue = na?.date && na.date < today;
+
+  return <tr onClick={() => onSelect(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}20` }}
+    onMouseEnter={e => e.currentTarget.style.background = Z.sa}
+    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+    <td style={{ padding: TBL.cellPad }}>
+      <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, lineHeight: 1.2 }}>{c.name}</div>
+      {c.contacts?.[0]?.name && <div style={{ fontSize: FS.sm, color: Z.tm }}>{c.contacts[0].name}</div>}
+    </td>
+    <td style={{ padding: TBL.cellPad }}>
+      <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: FW.heavy, background: stColor.bg, color: stColor.text, textTransform: "uppercase" }}>{c.status}</span>
+    </td>
+    <td style={{ padding: TBL.cellPad, color: recencyColor, fontWeight: FW.semi, fontSize: FS.sm }}>
+      {daysLabel(lastDays)}
+    </td>
+    <td style={{ padding: TBL.cellPad, textAlign: "right" }}>
+      <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{fmtK(d.spend || 0)}</span>
+      {trend && <span style={{ marginLeft: 4, fontSize: FS.micro, color: trend === "up" ? Z.go : trend === "down" ? Z.da : Z.tm }}>{trend === "up" ? "▲" : trend === "down" ? "▼" : "—"}</span>}
+    </td>
+    <td style={{ padding: TBL.cellPad, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
+      {d.pubSet?.size || 0}
+    </td>
+    <td style={{ padding: TBL.cellPad }}>
+      {na ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: actionOverdue ? Z.da : Z.tx }}>
+            {typeof na.action === "object" ? na.action.label : na.status}
+          </span>
+          {actionOverdue && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase" }}>overdue</span>}
+        </div>
+      ) : (
+        <span style={{ fontSize: FS.sm, color: Z.td }}>—</span>
+      )}
+    </td>
+  </tr>;
+});
 
 const PAGE_SIZE = 50;
 
@@ -124,7 +170,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
         <button key={t.key} onClick={() => setStatusFilter(t.key)} style={{
           padding: "5px 14px", borderRadius: Ri, border: "none",
           background: statusFilter === t.key ? Z.go : "transparent",
-          color: statusFilter === t.key ? "#fff" : Z.td,
+          color: statusFilter === t.key ? INV.light : Z.td,
           cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
         }}>{t.label} <span style={{ opacity: 0.7 }}>({t.count})</span></button>
       ))}
@@ -149,55 +195,9 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, visibleCount).map(c => {
-                const d = clientData[c.id] || {};
-                const na = nextActions[c.id];
-                const lastDays = daysAgo(d.lastSale);
-                const stColor = CLIENT_STATUS_COLORS[c.status] || CLIENT_STATUS_COLORS.Lead;
-                const trend = d.thisYear > 0 && d.lastYear > 0 ? (d.thisYear >= d.lastYear * 1.1 ? "up" : d.thisYear <= d.lastYear * 0.9 ? "down" : "flat") : null;
-                const recencyColor = lastDays === null ? Z.td : lastDays <= 30 ? Z.go : lastDays <= 90 ? Z.tx : lastDays <= 180 ? Z.wa : Z.da;
-                const actionOverdue = na?.date && na.date < today;
-
-                return <tr key={c.id} onClick={() => onSelectClient(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}20` }}
-                  onMouseEnter={e => e.currentTarget.style.background = Z.sa}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                >
-                  <td style={{ padding: TBL.cellPad }}>
-                    <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, lineHeight: 1.2 }}>{c.name}</div>
-                    {c.contacts?.[0]?.name && <div style={{ fontSize: FS.sm, color: Z.tm }}>{c.contacts[0].name}</div>}
-                  </td>
-
-                  <td style={{ padding: TBL.cellPad }}>
-                    <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: FW.heavy, background: stColor.bg, color: stColor.text, textTransform: "uppercase" }}>{c.status}</span>
-                  </td>
-
-                  <td style={{ padding: TBL.cellPad, color: recencyColor, fontWeight: FW.semi, fontSize: FS.sm }}>
-                    {daysLabel(lastDays)}
-                  </td>
-
-                  <td style={{ padding: TBL.cellPad, textAlign: "right" }}>
-                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{fmtK(d.spend || 0)}</span>
-                    {trend && <span style={{ marginLeft: 4, fontSize: FS.micro, color: trend === "up" ? Z.go : trend === "down" ? Z.da : Z.tm }}>{trend === "up" ? "▲" : trend === "down" ? "▼" : "—"}</span>}
-                  </td>
-
-                  <td style={{ padding: TBL.cellPad, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
-                    {d.pubSet?.size || 0}
-                  </td>
-
-                  <td style={{ padding: TBL.cellPad }}>
-                    {na ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: actionOverdue ? Z.da : Z.tx }}>
-                          {typeof na.action === "object" ? na.action.label : na.status}
-                        </span>
-                        {actionOverdue && <span style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase" }}>overdue</span>}
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: FS.sm, color: Z.td }}>—</span>
-                    )}
-                  </td>
-                </tr>;
-              })}
+              {filtered.slice(0, visibleCount).map(c => (
+                <ClientRow key={c.id} client={c} data={clientData[c.id]} nextAction={nextActions[c.id]} onSelect={onSelectClient} />
+              ))}
             </tbody>
           </table>
         </div>
