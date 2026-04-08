@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
-import { Ic, Btn, Inp, TA } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
 // ── Upload via Edge Function ─────────────────────────────────────
@@ -336,6 +336,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>MyWebsites</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={sites.map(s => ({ value: s.id, label: s.name }))} />
           {site?.domain && (
             <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
               Preview {site.domain} {"\u2197"}
@@ -345,18 +346,6 @@ export default function SiteSettings({ pubs, setPubs }) {
             {saving ? "Saving..." : saved ? "\u2713 Saved" : "Save Changes"}
           </Btn>
         </div>
-      </div>
-
-      {/* Site selector tabs */}
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {sites.map(s => (
-          <button key={s.id} onClick={() => selectSite(s.id)} style={{
-            padding: "6px 14px", borderRadius: 3, fontSize: 12, fontWeight: selectedId === s.id ? 700 : 500,
-            border: "1px solid " + (selectedId === s.id ? Z.ac : Z.bd),
-            background: selectedId === s.id ? Z.ac + "12" : "transparent",
-            color: selectedId === s.id ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
-          }}>{s.name}</button>
-        ))}
       </div>
 
       {draft && (

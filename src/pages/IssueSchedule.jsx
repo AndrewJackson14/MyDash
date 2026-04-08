@@ -13,13 +13,10 @@ const IssueSchedule = ({ pubs, issues, setIssues, sales }) => {
   };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-      <h3 style={{ margin: 0, fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: "'Playfair Display',Georgia,serif" }}>Issue Schedule (24 Months)</h3>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <Sel value={selPub} onChange={e => setSelPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
-        <Btn sm v={showPast ? "primary" : "secondary"} onClick={() => setShowPast(x => !x)}>Show Past</Btn>
-      </div>
-    </div>
+    <PageHeader title="Issue Schedule" count={filtered.length}>
+      <Sel value={selPub} onChange={e => setSelPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
+      <Btn sm v={showPast ? "primary" : "secondary"} onClick={() => setShowPast(x => !x)}>Show Past</Btn>
+    </PageHeader>
     <DataTable>
         <thead><tr>{["Publication", "Issue", "Date", "Ad Deadline", "Ed Deadline", "Pages", "Ads Sold", "Revenue", "Status"].map(h => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>{filtered.map(iss => {

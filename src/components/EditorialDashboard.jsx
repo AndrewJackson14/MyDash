@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar } from "./ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import StoryEditor from "./StoryEditor";
 
@@ -324,6 +324,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Editorial</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SB value={sr} onChange={setSr} placeholder="Search stories…" />
+          <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
           <Btn sm onClick={() => {
             const id = "story-" + Date.now();
             const newStory = { id, title: "New Story", status: "Draft", author: "", publication_id: fPub !== "all" ? fPub : pubs[0]?.id, category: "News", priority: "normal", web_status: "none", print_status: "none", created_at: new Date().toISOString() };
@@ -372,11 +373,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
         {/* Filters */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {/* Pub filter */}
-          <button onClick={() => setFPub("all")} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${fPub === "all" ? Z.ac : Z.bd}`, background: fPub === "all" ? Z.ac + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === "all" ? 700 : 500, color: fPub === "all" ? Z.ac : Z.tm, fontFamily: COND }}>All Pubs</button>
-          {pubs.map(p => (
-            <button key={p.id} onClick={() => setFPub(p.id)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${fPub === p.id ? (p.color || Z.ac) : Z.bd}`, background: fPub === p.id ? (p.color || Z.ac) + "18" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: fPub === p.id ? 700 : 500, color: fPub === p.id ? (p.color || Z.ac) : Z.tm, fontFamily: COND }}>{p.name.split(" ").map(w => w[0]).join("")}</button>
-          ))}
           {/* Assignee filter */}
           {assignees.length > 0 && (
             <select value={fAssignee} onChange={e => setFAssignee(e.target.value)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>

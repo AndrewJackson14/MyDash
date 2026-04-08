@@ -93,13 +93,13 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="My Stories" count={fl.length}>
       <SB value={sr} onChange={setSr} placeholder="Search..." />
+      <Sel value={fPub} onChange={e => { setFPub(e.target.value); setFIssue("all"); }} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name })), { value: "none", label: "No Publication" }]} />
+      <Btn sm onClick={addNew}><Ic.plus size={13} /> New Story</Btn>
     </PageHeader>
 
     <TabRow>
-      <TB tabs={["All", ...pubs.map(p => p.name), "None"]} active={fPub === "all" ? "All" : fPub === "none" ? "None" : pubs.find(p => p.id === fPub)?.name || "All"} onChange={v => { if (v === "All") { setFPub("all"); } else if (v === "None") { setFPub("none"); } else { setFPub(pubs.find(p => p.name === v)?.id || "all"); } setFIssue("all"); }} />
-      {fPub !== "all" && fPub !== "none" && <><TabPipe /><TB tabs={["All Issues", ...issues.filter(i => i.pubId === fPub && i.date >= new Date().toISOString().slice(0,10)).sort((a,b) => a.date.localeCompare(b.date)).slice(0, 3).map(i => i.label + " · " + i.date.slice(5)), "Past"]} active={fIssue === "all" ? "All Issues" : fIssue === "past" ? "Past" : (() => { const iss = issues.find(i => i.id === fIssue); return iss ? iss.label + " · " + iss.date.slice(5) : "All Issues"; })()} onChange={v => { if (v === "All Issues") setFIssue("all"); else if (v === "Past") setFIssue("past"); else { const match = issues.find(i => i.pubId === fPub && (i.label + " · " + i.date.slice(5)) === v); if (match) setFIssue(match.id); } }} /></>}
-      <TabPipe />
       <TB tabs={["All Status", ...STORY_STATUSES]} active={fStatus === "all" ? "All Status" : fStatus} onChange={v => setFStatus(v === "All Status" ? "all" : v)} />
+      {fPub !== "all" && fPub !== "none" && <><TabPipe /><TB tabs={["All Issues", ...issues.filter(i => i.pubId === fPub && i.date >= new Date().toISOString().slice(0,10)).sort((a,b) => a.date.localeCompare(b.date)).slice(0, 3).map(i => i.label + " · " + i.date.slice(5)), "Past"]} active={fIssue === "all" ? "All Issues" : fIssue === "past" ? "Past" : (() => { const iss = issues.find(i => i.id === fIssue); return iss ? iss.label + " · " + iss.date.slice(5) : "All Issues"; })()} onChange={v => { if (v === "All Issues") setFIssue("all"); else if (v === "Past") setFIssue("past"); else { const match = issues.find(i => i.pubId === fPub && (i.label + " · " + i.date.slice(5)) === v); if (match) setFIssue(match.id); } }} /></>}
     </TabRow>
     {/* Bulk actions bar */}
     {selectedIds.size > 0 && (
