@@ -19,6 +19,17 @@ async function uploadImage(file, path) {
   return (await res.json()).url;
 }
 
+// ── Publication ID → CDN folder slug ────────────────────────────
+const PUB_CDN_FOLDER = {
+  "pub-paso-robles-press": "paso-robles-press",
+  "pub-atascadero-news": "atascadero-news",
+  "pub-paso-robles-magazine": "paso-robles-magazine",
+  "pub-atascadero-news-maga": "atascadero-news-magazine",
+  "pub-morro-bay-life": "morro-bay-life",
+  "pub-santa-ynez-valley-st": "santa-ynez-valley-star",
+  "pub-the-malibu-times": "malibu-times",
+};
+
 // ── Default Ad Locations (used when creating zones for a new site) ──
 const DEFAULT_AD_LOCATIONS = [
   { slug: "leaderboard", name: "Leaderboard", width: 728, height: 90 },
@@ -447,7 +458,7 @@ export default function SiteSettings({ pubs, setPubs }) {
                           const f = e.target.files[0]; if (!f) return;
                           setAdUploading(uploadKey);
                           try {
-                            const uploadPath = "house-ads/" + (site?.slug || "general");
+                            const uploadPath = PUB_CDN_FOLDER[selectedId] || "general";
                             const ext = f.name?.split(".").pop()?.toLowerCase() || "jpg";
                             const fname = Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
                             const res = await fetch("https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage", {
