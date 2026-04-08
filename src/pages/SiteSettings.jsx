@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA } from "../components/ui";
-import MediaModal from "../components/MediaModal";
 import { supabase, isOnline } from "../lib/supabase";
 
 // ── Upload via Edge Function ─────────────────────────────────────
@@ -145,6 +144,12 @@ export default function SiteSettings({ pubs, setPubs }) {
   const [mediaOpen, setMediaOpen] = useState(false);
   const [mediaTarget, setMediaTarget] = useState(null); // { zone, idx } — which ad slot is picking
   const [adUploading, setAdUploading] = useState(null); // "zone:idx" while uploading
+  const [MediaModal, setMediaModal] = useState(null); // dynamically loaded
+  const openMediaPicker = (zone, idx) => {
+    setMediaTarget({ zone, idx });
+    if (MediaModal) { setMediaOpen(true); return; }
+    import("../components/MediaModal").then(mod => { setMediaModal(() => mod.default); setMediaOpen(true); });
+  };
 
   // Load sites
   useEffect(() => {
@@ -489,7 +494,7 @@ export default function SiteSettings({ pubs, setPubs }) {
                                 <button onClick={handleAdUpload} disabled={adUploading === uploadKey} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                                   {adUploading === uploadKey ? "Uploading..." : "Upload"}
                                 </button>
-                                <button onClick={() => { setMediaTarget({ zone: loc.slug, idx: i }); setMediaOpen(true); }} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                                <button onClick={() => openMediaPicker(loc.slug, i)} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                                   Media Library
                                 </button>
                                 {ad.creative_url && <button onClick={() => updateAd(i, "creative_url", "")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600 }}>Clear</button>}
@@ -655,7 +660,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       )}
 
       {/* Media Library Modal for House Ad image selection */}
-      <MediaModal
+      {mediaOpen && MediaModal && <MediaModal
         open={mediaOpen}
         onClose={() => { setMediaOpen(false); setMediaTarget(null); }}
         onSelect={(asset) => {
@@ -673,7 +678,7 @@ export default function SiteSettings({ pubs, setPubs }) {
           setMediaTarget(null);
         }}
         pubs={pubs}
-      />
+      />}
     </div>
   );
 }
