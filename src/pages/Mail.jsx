@@ -10,7 +10,7 @@ import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
-import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB } from "../components/ui";
+import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────
@@ -551,23 +551,16 @@ const Mail = () => {
 
     {/* Label bar */}
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
-      {SYSTEM_LABELS.map(l => (
-        <button key={l.id} onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }}
-          style={{
-            padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: activeLabel === l.id ? FW.bold : FW.medium,
-            border: `1px solid ${activeLabel === l.id ? Z.ac : Z.bd}`,
-            background: activeLabel === l.id ? Z.ac + "18" : "transparent",
-            color: activeLabel === l.id ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
-          }}>{l.name}</button>
-      ))}
+      {SYSTEM_LABELS.map(l => {
+        const iconMap = { INBOX: Ic.mail, SENT: Ic.send, STARRED: Ic.star, DRAFT: Ic.edit, TRASH: Ic.trash, SPAM: Ic.close };
+        return (
+          <Pill key={l.id} label={l.name} icon={iconMap[l.id] || Ic.tag} active={activeLabel === l.id}
+            onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }} />
+        );
+      })}
       {customLabels.map(l => (
-        <button key={l.id} onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }}
-          style={{
-            padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: activeLabel === l.id ? FW.bold : FW.medium,
-            border: `1px solid ${activeLabel === l.id ? Z.ac : Z.bd}`,
-            background: activeLabel === l.id ? Z.ac + "18" : "transparent",
-            color: activeLabel === l.id ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
-          }}>{l.name}</button>
+        <Pill key={l.id} label={l.name} icon={Ic.tag} active={activeLabel === l.id}
+          onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }} />
       ))}
       {searchActive && (
         <span style={{ padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: FW.bold, background: Z.wa + "22", color: Z.wa, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>

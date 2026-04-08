@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB } from "../components/ui";
+import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
 const GCAL_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/gcal-api";
@@ -29,6 +29,7 @@ const ROLE_FILTERS = {
   "Production Manager": ["google", "publish", "adDeadline", "custom"],
   Finance: ["google", "adDeadline", "custom"],
 };
+const EVENT_ICONS = { google: Ic.cal, publish: Ic.pub, adDeadline: Ic.clock, edDeadline: Ic.edit, salesAction: Ic.sale, storyDue: Ic.story, custom: Ic.star };
 const ALL_TYPES = Object.keys(EVENT_TYPES);
 const getDefaultFilters = (role) => ROLE_FILTERS[role] || ALL_TYPES;
 
@@ -235,7 +236,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
         <button onClick={goNext} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, width: 28, height: 28, cursor: "pointer", color: Z.tx, fontSize: FS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u203A"}</button>
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {ALL_TYPES.map(t => <button key={t} onClick={() => toggleType(t)} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, border: `1px solid ${activeTypes.includes(t) ? Z.ac : Z.bd}`, background: activeTypes.includes(t) ? Z.ac + "15" : "transparent", color: activeTypes.includes(t) ? Z.ac : Z.td, cursor: "pointer" }}>{EVENT_TYPES[t].icon} {EVENT_TYPES[t].label}</button>)}
+        {ALL_TYPES.map(t => <Pill key={t} label={EVENT_TYPES[t].label} icon={EVENT_ICONS[t]} active={activeTypes.includes(t)} onClick={() => toggleType(t)} />)}
         {googleLoading && <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Syncing...</span>}
       </div>
     </div>

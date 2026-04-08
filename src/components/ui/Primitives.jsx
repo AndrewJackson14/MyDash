@@ -120,6 +120,26 @@ export const Avi = ({ name, size = "md", style: extraStyle }) => {
 };
 
 // ============================================================
+// Pill — small toggle/filter button with optional icon
+// ============================================================
+export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) => (
+  <button onClick={onClick} disabled={disabled} style={{
+    display: "inline-flex", alignItems: "center", gap: 4,
+    padding: "4px 10px", borderRadius: Ri,
+    border: `1px solid ${active ? (color || Z.ac) : Z.bd}`,
+    background: active ? (color || Z.ac) + "15" : "transparent",
+    color: active ? (color || Z.ac) : Z.td,
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
+    whiteSpace: "nowrap", transition: "all 0.15s",
+    opacity: disabled ? 0.5 : 1,
+  }}>
+    {Icon && <Icon size={11} />}
+    {label}
+  </button>
+);
+
+// ============================================================
 // Global Layout Components — used across all pages
 // ============================================================
 

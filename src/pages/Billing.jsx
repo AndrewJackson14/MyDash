@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, memo, useEffect, useCallback } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, glass } from "../components/ui";
 import { COMPANY } from "../constants";
 
 // ─── Invoice Status Colors ──────────────────────────────────
@@ -435,13 +435,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         </div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
           {[
-            { value: "30days", label: "Next 30 Days" },
-            { value: "60days", label: "Next 60 Days" },
-            { value: "90days", label: "Next 90 Days" },
-            { value: "quarter", label: "This Quarter" },
-            { value: "year", label: "This Year" },
-            { value: "all", label: "All Time" },
-          ].map(opt => <button key={opt.value} onClick={() => setUninvRange(opt.value)} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${uninvRange === opt.value ? Z.ac : Z.bd}`, background: uninvRange === opt.value ? Z.ac + "18" : Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: uninvRange === opt.value ? Z.ac : Z.td }}>{opt.label}</button>)}
+            { value: "30days", label: "Next 30 Days", icon: Ic.clock },
+            { value: "60days", label: "Next 60 Days", icon: Ic.clock },
+            { value: "90days", label: "Next 90 Days", icon: Ic.clock },
+            { value: "quarter", label: "This Quarter", icon: Ic.chart },
+            { value: "year", label: "This Year", icon: Ic.cal },
+            { value: "all", label: "All Time", icon: Ic.list },
+          ].map(opt => <Pill key={opt.value} label={opt.label} icon={opt.icon} active={uninvRange === opt.value} onClick={() => setUninvRange(opt.value)} />)}
         </div>
         <div style={{ maxHeight: 280, overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
@@ -628,14 +628,14 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             <button onClick={addManualLine} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold }}>+ Add line</button>
           </div>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-            <button onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: true })) }))} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Select All</button>
-            <button onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: false })) }))} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.td }}>Deselect All</button>
-            {(() => { const cutoff = new Date(); cutoff.setDate(cutoff.getDate() + 30); const c30 = cutoff.toISOString().slice(0, 10); return <button onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: l.date && l.date <= c30 })) }))} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Next 30 Days</button>; })()}
+            <Pill label="Select All" icon={Ic.checkAll} onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: true })) }))} />
+            <Pill label="Deselect All" icon={Ic.close} onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: false })) }))} />
+            {(() => { const cutoff = new Date(); cutoff.setDate(cutoff.getDate() + 30); const c30 = cutoff.toISOString().slice(0, 10); return <Pill label="Next 30 Days" icon={Ic.clock} onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: l.date && l.date <= c30 })) }))} />; })()}
             {/* Per-publication select buttons */}
             {[...new Set(invForm.lines.map(l => l.pubId))].filter(Boolean).map(pid => {
               const name = pn(pid);
               const short = name.length > 18 ? name.slice(0, 16) + "…" : name;
-              return <button key={pid} onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: l.pubId === pid })) }))} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm }}>{short}</button>;
+              return <Pill key={pid} label={short} icon={Ic.pub} onClick={() => setInvForm(f => ({ ...f, lines: f.lines.map(l => ({ ...l, selected: l.pubId === pid })) }))} />;
             })}
           </div>
 

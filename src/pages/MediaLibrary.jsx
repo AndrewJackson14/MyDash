@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
-import { Ic, Btn, SB } from "../components/ui";
+import { Ic, Btn, SB, Pill } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────────
@@ -378,9 +378,11 @@ const UnusedImagesPanel = ({ onClose }) => {
         <>
           {/* Bulk bar */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={selectedOrphans.size === orphans.length ? selectNone : selectAll} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
-              {selectedOrphans.size === orphans.length ? "Deselect All" : "Select All"}
-            </button>
+            <Pill
+              label={selectedOrphans.size === orphans.length ? "Deselect All" : "Select All"}
+              icon={selectedOrphans.size === orphans.length ? Ic.close : Ic.checkAll}
+              onClick={selectedOrphans.size === orphans.length ? selectNone : selectAll}
+            />
             {selectedOrphans.size > 0 && (
               <Btn sm v="danger" onClick={deleteSelected}>
                 Delete {selectedOrphans.size} Unused Image{selectedOrphans.size !== 1 ? "s" : ""}
@@ -389,7 +391,7 @@ const UnusedImagesPanel = ({ onClose }) => {
             {deleteProgress && <span style={{ fontSize: 11, color: Z.wa, fontFamily: COND }}>{deleteProgress}</span>}
             <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{selectedOrphans.size} of {orphans.length} selected</span>
             <div style={{ flex: 1 }} />
-            <button onClick={startScan} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Re-scan</button>
+            <Pill label="Re-scan" icon={Ic.search} onClick={startScan} />
           </div>
 
           {/* Grid of orphaned images (paginated) */}
@@ -607,7 +609,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " · " + loadProgress : ""}</span>
-            <button onClick={() => setShowUnused(true)} style={{ padding: "5px 12px", borderRadius: Ri, border: "1px solid " + Z.da + "40", background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Find Unused Images</button>
+            <Pill label="Find Unused Images" icon={Ic.trash} onClick={() => setShowUnused(true)} />
           </div>
         </div>
       )}
@@ -660,9 +662,9 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
       {/* View toggle + sort + search */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Show All / Browse Folders toggle */}
-        <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: Ri }}>
-          <button onClick={() => setShowAll(true)} style={{ padding: "4px 10px", background: showAll ? Z.ac + "12" : "transparent", border: "none", color: showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: showAll ? 700 : 500 }}>All Files</button>
-          <button onClick={() => setShowAll(false)} style={{ padding: "4px 10px", background: !showAll ? Z.ac + "12" : "transparent", border: "none", color: !showAll ? Z.ac : Z.tm, cursor: "pointer", fontSize: 11, fontFamily: COND, fontWeight: !showAll ? 700 : 500 }}>Folders</button>
+        <div style={{ display: "flex", gap: 4 }}>
+          <Pill label="All Files" icon={Ic.list} active={showAll} onClick={() => setShowAll(true)} />
+          <Pill label="Folders" icon={Ic.folder} active={!showAll} onClick={() => setShowAll(false)} />
         </div>
         {/* Subfolder nav — only in folder mode */}
         {!showAll && items.filter(i => i.IsDirectory).length > 0 && (

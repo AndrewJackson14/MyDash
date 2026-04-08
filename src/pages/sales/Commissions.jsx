@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, DataTable, GlassCard, GlassStat } from "../../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, DataTable, GlassCard, GlassStat, Pill } from "../../components/ui";
 
 const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
@@ -160,7 +160,7 @@ const Commissions = ({
             const trigger = sp.commissionTrigger || "both";
             return <div key={sp.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx, width: 150, flexShrink: 0 }}>{sp.name}</span>
-              {["issue_published", "invoice_paid", "both"].map(t => <button key={t} onClick={() => updateTrigger(sp.id, t)} style={{ padding: "5px 12px", borderRadius: Ri, border: `1px solid ${trigger === t ? Z.go : Z.bd}`, background: trigger === t ? "rgba(0,163,0,0.12)" : Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: trigger === t ? FW.bold : FW.normal, color: trigger === t ? Z.go : Z.td }}>{TRIGGER_LABELS[t]}</button>)}
+              {["issue_published", "invoice_paid", "both"].map(t => <Pill key={t} label={TRIGGER_LABELS[t]} icon={{ issue_published: Ic.pub, invoice_paid: Ic.invoice, both: Ic.check }[t]} active={trigger === t} onClick={() => updateTrigger(sp.id, t)} />)}
             </div>;
           })}
         </div>

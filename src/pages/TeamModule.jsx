@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow } from "../components/ui";
+import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
 // ── Constants ────────────────────────────────────────────────
@@ -215,13 +215,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
                 <span style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND }}>{ev.label}</span>
                 <div style={{ display: "flex", gap: 2 }}>
                   {ALERT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => setAlertPref(ev.key, opt.value)} style={{
-                      padding: "3px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: val === opt.value ? FW.bold : FW.normal,
-                      border: `1px solid ${val === opt.value ? Z.ac : Z.bd}`,
-                      background: val === opt.value ? Z.ac + "18" : "transparent",
-                      color: val === opt.value ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
-                      opacity: saving === ev.key ? 0.5 : 1,
-                    }}>{opt.label}</button>
+                    <Pill key={opt.value} label={opt.label} icon={{ off: Ic.close, in_app: Ic.bell, email: Ic.mail, both: Ic.check }[opt.value]} active={val === opt.value} onClick={() => setAlertPref(ev.key, opt.value)} />
                   ))}
                 </div>
               </div>;

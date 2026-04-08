@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail, initiateGmailAuth, buildProposalEmailHtml } from "../lib/gmail";
 import ClientList from "./sales/ClientList";
@@ -687,7 +687,7 @@ const SalesCRM = (props) => {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {pubs.map(p => {
               const active = (cf.interestedPubs || []).includes(p.id);
-              return <button key={p.id} type="button" onClick={() => setCf(x => ({ ...x, interestedPubs: active ? (x.interestedPubs || []).filter(id => id !== p.id) : [...(x.interestedPubs || []), p.id] }))} style={{ padding: "5px 12px", borderRadius: Ri, border: `2px solid ${active ? p.color : Z.bd}`, background: active ? p.color + "18" : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: active ? 700 : 500, color: active ? p.color : Z.tm, transition: "all 0.15s" }}>{p.name}</button>;
+              return <Pill key={p.id} label={p.name} icon={Ic.pub} active={active} color={p.color} onClick={() => setCf(x => ({ ...x, interestedPubs: active ? (x.interestedPubs || []).filter(id => id !== p.id) : [...(x.interestedPubs || []), p.id] }))} />;
             })}
           </div>
         </div>
@@ -704,7 +704,7 @@ const SalesCRM = (props) => {
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxHeight: 100, overflowY: "auto", padding: 2 }}>
             {INDUSTRIES.map(ind => {
               const active = (cf.industries || []).includes(ind);
-              return <button key={ind} type="button" onClick={() => setCf(x => ({ ...x, industries: active ? (x.industries || []).filter(i => i !== ind) : [...(x.industries || []), ind] }))} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${active ? Z.pu : Z.bd}`, background: active ? Z.pu + "14" : "transparent", cursor: "pointer", fontSize: FS.xs, fontWeight: active ? 700 : 400, color: active ? Z.pu : Z.tm }}>{ind}</button>;
+              return <Pill key={ind} label={ind} icon={Ic.tag} active={active} onClick={() => setCf(x => ({ ...x, industries: active ? (x.industries || []).filter(i => i !== ind) : [...(x.industries || []), ind] }))} />;
             })}
           </div>
         </div>

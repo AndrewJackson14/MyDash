@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, ZI, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, glass as glassStyle } from "../components/ui";
+import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, Pill, glass as glassStyle } from "../components/ui";
 import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 
 const Dashboard = ({
@@ -595,7 +595,7 @@ const Dashboard = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>My Day</span>
             <div style={{ display: "flex", gap: 3 }}>
-              {[{ value: "all", label: "All" }, { value: "sales", label: "Sales" }, { value: "editorial", label: "Editorial" }, { value: "production", label: "Production" }, { value: "admin", label: "Admin" }].map(o => <button key={o.value} onClick={() => setDayFilter(o.value)} style={{ padding: "5px 12px", borderRadius: Ri, border: "none", background: dayFilter === o.value ? Z.go : "transparent", color: dayFilter === o.value ? INV.light : Z.td, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND }}>{o.label}</button>)}
+              {[{ value: "all", label: "All", icon: Ic.list }, { value: "sales", label: "Sales", icon: Ic.sale }, { value: "editorial", label: "Editorial", icon: Ic.edit }, { value: "production", label: "Production", icon: Ic.flat }, { value: "admin", label: "Admin", icon: Ic.lock }].map(o => <Pill key={o.value} label={o.label} icon={o.icon} active={dayFilter === o.value} onClick={() => setDayFilter(o.value)} />)}
             </div>
           </div>
           {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).map((fi, idx, arr) => <div key={fi.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` : "none" }}>
