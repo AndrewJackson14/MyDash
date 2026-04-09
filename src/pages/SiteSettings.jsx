@@ -188,6 +188,7 @@ export default function SiteSettings({ pubs, setPubs }) {
     issuu_enabled: site.settings?.issuu_enabled ?? false,
     breaking_news: site.settings?.breaking_news || "",
     ga_measurement_id: site.settings?.ga_measurement_id || "",
+    native_analytics_enabled: site.settings?.native_analytics_enabled ?? true,
     // Advertise page options
     adv_ad_types: site.settings?.advertise_options?.ad_types || ["Digital Display", "Print", "Sponsorship", "Newsletter", "Social Media"],
     adv_zones: site.settings?.advertise_options?.zones || ["Leaderboard", "Sidebar", "In-Article", "Banner"],
@@ -256,6 +257,7 @@ export default function SiteSettings({ pubs, setPubs }) {
       issuu_enabled: draft.issuu_enabled,
       breaking_news: draft.breaking_news,
       ga_measurement_id: draft.ga_measurement_id,
+      native_analytics_enabled: draft.native_analytics_enabled,
       advertise_options: {
         ad_types: draft.adv_ad_types,
         zones: draft.adv_zones,
@@ -404,9 +406,16 @@ export default function SiteSettings({ pubs, setPubs }) {
             </Section>
 
             <Section title="Analytics">
+              <Toggle checked={draft.native_analytics_enabled && !draft.ga_measurement_id} onChange={v => update("native_analytics_enabled", v)} label={draft.ga_measurement_id ? "Native Analytics (disabled — using Google Analytics)" : "Native Analytics Enabled"} />
+              {!draft.ga_measurement_id && draft.native_analytics_enabled && (
+                <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Tracking page views, sessions, referrers, and top pages natively.</div>
+              )}
               <Field label="Google Analytics Measurement ID">
                 <input value={draft.ga_measurement_id} onChange={e => update("ga_measurement_id", e.target.value)} placeholder="G-XXXXXXXXXX" style={getInputStyle()} />
               </Field>
+              {draft.ga_measurement_id && (
+                <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Native analytics is automatically disabled when Google Analytics is configured.</div>
+              )}
             </Section>
 
             <Section title="House Ads">

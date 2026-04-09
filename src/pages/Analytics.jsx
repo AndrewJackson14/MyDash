@@ -1,6 +1,7 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { supabase } from "../lib/supabase";
 
 const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtK = (n) => "$" + ((n || 0) / 1000).toFixed(1) + "K";
@@ -117,7 +118,7 @@ const Analytics = ({
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="My Analytics" />
 
-    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Web"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
@@ -442,7 +443,159 @@ const Analytics = ({
         </div>
       </>;
     })()}
+
+    {/* ════════ WEB ANALYTICS ════════ */}
+    {tab === "Web" && <WebAnalyticsTab pubs={pubs} />}
   </div>;
+};
+
+// ── Web Analytics Tab ──────────────────────────────────────────
+const WBar = ({ value, max, color, label, sub }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0" }}>
+    {label && <span style={{ fontSize: FS.base, fontWeight: FW.semi, fontFamily: COND, color: Z.tx, width: 200, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>}
+    <div style={{ flex: 1, height: 8, background: Z.bg, borderRadius: R }}>
+      <div style={{ height: "100%", borderRadius: R, width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%`, background: color || Z.ac, transition: "width 0.3s" }} />
+    </div>
+    <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: color || Z.ac, width: 60, textAlign: "right", flexShrink: 0 }}>{(value || 0).toLocaleString()}</span>
+    {sub && <span style={{ fontSize: FS.xs, color: Z.td, width: 40, textAlign: "right", flexShrink: 0 }}>{sub}</span>}
+  </div>
+);
+
+const WebAnalyticsTab = ({ pubs }) => {
+  const [webPub, setWebPub] = useState("all");
+  const [range, setRange] = useState("30d");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadWebData(); }, [webPub, range]);
+
+  async function loadWebData() {
+    setLoading(true);
+    const now = new Date();
+    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+    const since = new Date(now - days * 86400000).toISOString();
+
+    let q = supabase.from("page_views").select("path, session_id, referrer, screen_width, created_at").gte("created_at", since);
+    if (webPub !== "all") q = q.eq("site_id", webPub);
+    else {
+      const siteIds = (pubs || []).filter(p => p.hasWebsite).map(p => p.id);
+      if (siteIds.length) q = q.in("site_id", siteIds);
+    }
+    const { data: rows } = await q.order("created_at", { ascending: false }).limit(50000);
+    if (!rows) { setData(null); setLoading(false); return; }
+
+    // Total views
+    const totalViews = rows.length;
+
+    // Unique sessions
+    const sessions = new Set(rows.map(r => r.session_id).filter(Boolean));
+    const uniqueSessions = sessions.size;
+
+    // Views per day (for chart)
+    const dailyMap = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
+      dailyMap[d] = 0;
+    }
+    rows.forEach(r => { const d = r.created_at?.slice(0, 10); if (d && dailyMap[d] !== undefined) dailyMap[d]++; });
+    const dailyData = Object.entries(dailyMap).sort().map(([date, count]) => ({ date, count }));
+
+    // Top pages
+    const pageCounts = {};
+    rows.forEach(r => { pageCounts[r.path] = (pageCounts[r.path] || 0) + 1; });
+    const topPages = Object.entries(pageCounts).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([path, count]) => ({ path, count }));
+
+    // Top referrers (exclude empty and self)
+    const refCounts = {};
+    rows.forEach(r => {
+      if (!r.referrer) return;
+      try { const h = new URL(r.referrer).hostname; if (h) refCounts[h] = (refCounts[h] || 0) + 1; } catch {}
+    });
+    const topReferrers = Object.entries(refCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([host, count]) => ({ host, count }));
+
+    // Device breakdown
+    let mobile = 0, tablet = 0, desktop = 0;
+    rows.forEach(r => {
+      const w = r.screen_width || 0;
+      if (w < 768) mobile++;
+      else if (w < 1024) tablet++;
+      else desktop++;
+    });
+
+    setData({ totalViews, uniqueSessions, dailyData, topPages, topReferrers, mobile, tablet, desktop });
+    setLoading(false);
+  }
+
+  const pubOptions = (pubs || []).filter(p => p.hasWebsite);
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontFamily: COND }}>Loading web analytics...</div>;
+  if (!data) return <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontFamily: COND }}>No data available</div>;
+
+  const maxDaily = Math.max(...data.dailyData.map(d => d.count), 1);
+  const maxPage = data.topPages[0]?.count || 1;
+  const maxRef = data.topReferrers[0]?.count || 1;
+  const deviceTotal = data.mobile + data.tablet + data.desktop || 1;
+
+  return <>
+    {/* Filters */}
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      <select value={webPub} onChange={e => setWebPub(e.target.value)} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
+        <option value="all">All Sites</option>
+        {pubOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      {["7d", "30d", "90d"].map(r => (
+        <button key={r} onClick={() => setRange(r)} style={{
+          padding: "4px 12px", borderRadius: 3, fontSize: FS.sm, fontWeight: range === r ? FW.heavy : FW.normal,
+          border: "1px solid " + (range === r ? Z.ac : Z.bd), background: range === r ? Z.ac + "18" : "transparent",
+          color: range === r ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
+        }}>{r === "7d" ? "7 Days" : r === "30d" ? "30 Days" : "90 Days"}</button>
+      ))}
+    </div>
+
+    {/* Stats */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
+      <GlassStat label="Page Views" value={data.totalViews.toLocaleString()} />
+      <GlassStat label="Unique Sessions" value={data.uniqueSessions.toLocaleString()} />
+      <GlassStat label="Pages / Session" value={data.uniqueSessions ? (data.totalViews / data.uniqueSessions).toFixed(1) : "0"} />
+      <GlassStat label="Mobile" value={Math.round(data.mobile / deviceTotal * 100) + "%"} />
+      <GlassStat label="Tablet" value={Math.round(data.tablet / deviceTotal * 100) + "%"} />
+      <GlassStat label="Desktop" value={Math.round(data.desktop / deviceTotal * 100) + "%"} />
+    </div>
+
+    {/* Daily views chart */}
+    <GlassCard>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Page Views Over Time</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 120 }}>
+        {data.dailyData.map((d, i) => {
+          const h = maxDaily > 0 ? Math.max(2, (d.count / maxDaily) * 100) : 2;
+          const showLabel = data.dailyData.length <= 14 || i % Math.ceil(data.dailyData.length / 14) === 0;
+          return <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+            {d.count > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: Z.tx, fontFamily: COND, marginBottom: 2 }}>{d.count}</span>}
+            <div style={{ width: "100%", height: h + "%", background: Z.ac, borderRadius: 2, minHeight: 2, transition: "height 0.3s" }} />
+            {showLabel && <span style={{ fontSize: 8, color: Z.td, fontFamily: COND, marginTop: 3 }}>{d.date.slice(5)}</span>}
+          </div>;
+        })}
+      </div>
+    </GlassCard>
+
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+      {/* Top Pages */}
+      <GlassCard>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Top Pages</div>
+        {data.topPages.length > 0 ? data.topPages.map(p => (
+          <WBar key={p.path} label={p.path} value={p.count} max={maxPage} />
+        )) : <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>No page views yet</div>}
+      </GlassCard>
+
+      {/* Top Referrers */}
+      <GlassCard>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Top Referrers</div>
+        {data.topReferrers.length > 0 ? data.topReferrers.map(r => (
+          <WBar key={r.host} label={r.host} value={r.count} max={maxRef} />
+        )) : <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>No external referrers yet</div>}
+      </GlassCard>
+    </div>
+  </>;
 };
 
 export default memo(Analytics);
