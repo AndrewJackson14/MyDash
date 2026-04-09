@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
@@ -126,6 +126,150 @@ const ImageField = ({ value, onChange, uploadPath, label }) => {
         </div>
       </div>
     </Field>
+  );
+};
+
+// ── Site Analytics Summary ──────────────────────────────────────
+const SiteAnalytics = ({ siteId }) => {
+  const [stats, setStats] = useState(null);
+  const [range, setRange] = useState("7d");
+
+  useEffect(() => {
+    if (!siteId) return;
+    loadStats();
+  }, [siteId, range]);
+
+  async function loadStats() {
+    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    const prevSince = new Date(Date.now() - days * 2 * 86400000).toISOString();
+    const prevUntil = since;
+
+    const [{ data: rows }, { data: prevRows }] = await Promise.all([
+      supabase.from("page_views").select("path, session_id, referrer, screen_width, created_at").eq("site_id", siteId).gte("created_at", since).order("created_at", { ascending: false }).limit(50000),
+      supabase.from("page_views").select("session_id, created_at").eq("site_id", siteId).gte("created_at", prevSince).lt("created_at", prevUntil).limit(50000),
+    ]);
+
+    if (!rows) { setStats(null); return; }
+
+    const views = rows.length;
+    const sessions = new Set(rows.map(r => r.session_id).filter(Boolean)).size;
+    const prevViews = prevRows?.length || 0;
+    const prevSessions = new Set((prevRows || []).map(r => r.session_id).filter(Boolean)).size;
+
+    // Daily chart
+    const now = new Date();
+    const dailyMap = {};
+    for (let i = 0; i < days; i++) {
+      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
+      dailyMap[d] = 0;
+    }
+    rows.forEach(r => { const d = r.created_at?.slice(0, 10); if (d && dailyMap[d] !== undefined) dailyMap[d]++; });
+    const daily = Object.entries(dailyMap).sort().map(([date, count]) => ({ date, count }));
+
+    // Top 5 pages
+    const pc = {};
+    rows.forEach(r => { pc[r.path] = (pc[r.path] || 0) + 1; });
+    const topPages = Object.entries(pc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([path, count]) => ({ path, count }));
+
+    // Top 5 referrers
+    const rc = {};
+    rows.forEach(r => { if (!r.referrer) return; try { const h = new URL(r.referrer).hostname; if (h) rc[h] = (rc[h] || 0) + 1; } catch {} });
+    const topRefs = Object.entries(rc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([host, count]) => ({ host, count }));
+
+    // Device
+    let mobile = 0, desktop = 0;
+    rows.forEach(r => { if ((r.screen_width || 0) < 768) mobile++; else desktop++; });
+
+    const pctChange = (cur, prev) => prev > 0 ? Math.round((cur - prev) / prev * 100) : cur > 0 ? 100 : 0;
+
+    setStats({
+      views, sessions, prevViews, prevSessions,
+      viewsChange: pctChange(views, prevViews),
+      sessionsChange: pctChange(sessions, prevSessions),
+      daily, topPages, topRefs,
+      mobilePercent: Math.round(mobile / (rows.length || 1) * 100),
+      desktopPercent: Math.round(desktop / (rows.length || 1) * 100),
+    });
+  }
+
+  if (!stats) return null;
+
+  const maxDaily = Math.max(...stats.daily.map(d => d.count), 1);
+  const maxPage = stats.topPages[0]?.count || 1;
+  const maxRef = stats.topRefs[0]?.count || 1;
+  const changeColor = (v) => v > 0 ? (Z.su || "#22c55e") : v < 0 ? (Z.da || "#ef4444") : Z.tm;
+  const changeLabel = (v) => (v > 0 ? "+" : "") + v + "%";
+
+  return (
+    <div style={{ marginBottom: 20, padding: 16, border: "1px solid " + Z.bd, borderRadius: 6, background: Z.sa }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Web Analytics</div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {["7d", "30d", "90d"].map(r => (
+            <button key={r} onClick={() => setRange(r)} style={{
+              padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: range === r ? 700 : 500,
+              border: "1px solid " + (range === r ? Z.ac : Z.bd), background: range === r ? Z.ac + "18" : "transparent",
+              color: range === r ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
+            }}>{r}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stat row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        {[
+          { label: "Views", value: stats.views.toLocaleString(), change: stats.viewsChange },
+          { label: "Sessions", value: stats.sessions.toLocaleString(), change: stats.sessionsChange },
+          { label: "Mobile", value: stats.mobilePercent + "%" },
+          { label: "Desktop", value: stats.desktopPercent + "%" },
+        ].map(s => (
+          <div key={s.label} style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: Z.tx, fontFamily: COND }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+              {s.label}
+              {s.change !== undefined && <span style={{ marginLeft: 4, color: changeColor(s.change), fontWeight: 700 }}>{changeLabel(s.change)}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mini chart */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 48, marginBottom: 12 }}>
+        {stats.daily.map(d => {
+          const h = maxDaily > 0 ? Math.max(4, (d.count / maxDaily) * 100) : 4;
+          return <div key={d.date} title={`${d.date}: ${d.count} views`} style={{ flex: 1, height: h + "%", background: Z.ac, borderRadius: 1, minHeight: 2, transition: "height 0.3s", cursor: "default" }} />;
+        })}
+      </div>
+
+      {/* Top pages + referrers side by side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Pages</div>
+          {stats.topPages.length > 0 ? stats.topPages.map(p => (
+            <div key={p.path} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
+              <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</span>
+              <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
+                <div style={{ height: "100%", borderRadius: 2, width: `${(p.count / maxPage) * 100}%`, background: Z.ac }} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: Z.ac, fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{p.count}</span>
+            </div>
+          )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Referrers</div>
+          {stats.topRefs.length > 0 ? stats.topRefs.map(r => (
+            <div key={r.host} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
+              <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.host}</span>
+              <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
+                <div style={{ height: "100%", borderRadius: 2, width: `${(r.count / maxRef) * 100}%`, background: Z.ac }} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: Z.ac, fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{r.count}</span>
+            </div>
+          )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -349,6 +493,8 @@ export default function SiteSettings({ pubs, setPubs }) {
           </Btn>
         </div>
       </div>
+
+      {draft && selectedId && <SiteAnalytics siteId={selectedId} />}
 
       {draft && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
