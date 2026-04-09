@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail, initiateGmailAuth, buildProposalEmailHtml } from "../lib/gmail";
+import { supabase } from "../lib/supabase";
 import ClientList from "./sales/ClientList";
 import ClientProfile from "./sales/ClientProfile";
 import ClientSignals from "./sales/ClientSignals";
@@ -345,7 +346,7 @@ const SalesCRM = (props) => {
     if (!propClient || propLineItems.length === 0 || propEmailRecipients.length === 0) return;
     setPropSending(true);
     try {
-      // Save the proposal to Supabase (without advancing the step)
+      // Save the proposal
       let renewalDate = null;
       if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
       const propData = {
@@ -354,21 +355,71 @@ const SalesCRM = (props) => {
         total: pTotal, payPlan: propPayPlan, monthly: pMonthly,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
+      let proposalId = editPropId;
       if (editPropId) {
         await updateProposal(editPropId, { ...propData, status: "Sent", sentAt: new Date().toISOString() });
       } else {
-        await insertProposal(propData);
+        const result = await insertProposal(propData);
+        if (result?.id) proposalId = result.id;
       }
 
+      // Create signature record with proposal snapshot
+      const cl = clients.find(c => c.id === propClient);
+      const primaryContact = (cl?.contacts || []).find(c => c.email) || {};
+      let signLink = "";
+      if (proposalId) {
+        const snapshot = { ...propData, clientName: cn(propClient) };
+        const { data: sigData } = await supabase.from("proposal_signatures").insert({
+          proposal_id: proposalId,
+          signer_name: primaryContact.name || cn(propClient),
+          signer_email: propEmailRecipients[0] || primaryContact.email || "",
+          proposal_snapshot: snapshot,
+        }).select("access_token").single();
+        if (sigData?.access_token) signLink = `${window.location.origin}/sign/${sigData.access_token}`;
+      }
+
+      // Build branded HTML email with sign link
       const clientName = cn(propClient);
-      const htmlBody = buildProposalEmailHtml({ message: propEmailMsg, lineItems: propLineItems, total: pTotal });
       const teamMember = currentUser || (props.team || []).find(t => t.permissions?.includes("admin")) || props.team?.[0];
       if (!teamMember) throw new Error("No team member found");
+
+      const lineItemsHtml = propLineItems.map(li =>
+        `<tr><td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.pubName}</td>` +
+        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.adSize}</td>` +
+        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.issueLabel}</td>` +
+        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700">$${(li.price || 0).toLocaleString()}</td></tr>`
+      ).join("");
+
+      const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto">
+        <div style="border-bottom:2px solid #1a1a2e;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between">
+          <div><div style="font-size:20px;font-weight:900;color:#1a1a2e">13 Stars Media Group</div>
+          <div style="font-size:11px;color:#666;margin-top:2px">P.O. Box 427, Paso Robles, CA 93447 · (805) 237-6060</div></div>
+        </div>
+        <div style="margin-bottom:8px;font-size:11px;color:#666">
+          <strong>${teamMember.name}</strong> · ${teamMember.email}${teamMember.phone ? ` · ${teamMember.phone}` : ""}
+        </div>
+        <div style="margin-bottom:20px;font-size:14px;color:#1a1a2e;line-height:1.6;white-space:pre-wrap">${(propEmailMsg || "").replace(/\n/g, "<br>")}</div>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0">
+          <thead><tr style="background:#f5f5f5">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Publication</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Ad Size</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Issue</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Rate</th>
+          </tr></thead>
+          <tbody>${lineItemsHtml}</tbody>
+          <tfoot><tr style="border-top:2px solid #1a1a2e"><td colspan="3" style="padding:12px 14px;font-weight:700;font-size:14px">Total</td>
+            <td style="padding:12px 14px;text-align:right;font-weight:800;font-size:20px;color:#1a1a2e">$${pTotal.toLocaleString()}</td>
+          </tr></tfoot>
+        </table>
+        ${propPayPlan && monthSpan > 1 ? `<div style="padding:10px 14px;background:#f0f4ff;border-radius:6px;margin-bottom:20px;font-size:13px;color:#1a1a2e">Payment Plan: ${monthSpan} months × $${pMonthly.toLocaleString()}/month</div>` : ""}
+        ${signLink ? `<div style="text-align:center;margin:32px 0"><a href="${signLink}" style="display:inline-block;padding:14px 40px;background:#16A34A;color:#fff;font-size:16px;font-weight:800;text-decoration:none;border-radius:8px">Click to Review & Sign</a><div style="font-size:11px;color:#999;margin-top:8px">This link expires in 30 days</div></div>` : ""}
+        <div style="margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">13 Stars Media Group · Paso Robles, CA · 13stars.media</div>
+      </div>`;
 
       const result = await sendGmailEmail({
         teamMemberId: teamMember.id,
         to: propEmailRecipients,
-        subject: `Proposal: ${propName} — ${clientName}`,
+        subject: `Proposal: ${propName} \u2014 ${clientName}`,
         htmlBody, mode,
       });
 
