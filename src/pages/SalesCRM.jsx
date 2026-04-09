@@ -13,7 +13,7 @@ import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, I
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry } = props;
+  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate } = props;
   // Publications for dropdowns: filtered by jurisdiction for salespeople, all for admins
   const dropdownPubs = jurisdiction?.myPubs || pubs;
   const [tab, setTab] = useState("Pipeline");
@@ -477,6 +477,7 @@ const SalesCRM = (props) => {
                   </>}
                   {stage !== "Follow-up" && <button onClick={e => { e.stopPropagation(); moveToStage(s.id, PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]); }} style={{ flex: 1, padding: "3px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }}>→ {PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]}</button>}
                   {(stage === "Closed" || stage === "Follow-up") && <button onClick={e => { e.stopPropagation(); cloneSale(s); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm }}>⟳</button>}
+                  {stage === "Closed" && onNavigate && <button onClick={e => { e.stopPropagation(); onNavigate("adprojects"); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.pu}40`, background: Z.pu + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.pu }} title="Start ad design project">🎨</button>}
                 </div>
               </div>)}
             </div>

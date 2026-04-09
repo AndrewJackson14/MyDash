@@ -41,6 +41,8 @@ const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
+const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
+const Messaging = lazyLoad(() => import("./pages/Messaging"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
@@ -254,6 +256,8 @@ export default function App() {
     medialibrary: 'stories',
     editions: 'publications',
     sitesettings: 'publications',
+    adprojects: 'sales',
+    messaging: null,
   };
 
   // Get current user's module permissions (from impersonated user or real user)
@@ -267,6 +271,7 @@ export default function App() {
   const NAV = [
     { id: "dashboard", label: "My Dash", icon: Ic.dash },
     { id: "calendar", label: "Calendar", icon: Ic.cal },
+    { id: "messaging", label: "Messages", icon: Ic.chat },
     { id: "mail", label: "Mail", icon: Ic.mail },
     { id: "_revenue", section: true, label: "Revenue" },
     { id: "sales", label: "Sales", icon: Ic.sale, badge: (salesActive || 0) + (newInquiries || 0) || null, badgeColor: newInquiries > 0 ? Z.ac : null },
@@ -284,6 +289,7 @@ export default function App() {
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.chat, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
     { id: "legalnotices", label: "Legal Notices", icon: Ic.gavel, badge: activeLegal || null },
+    { id: "adprojects", label: "Ad Projects", icon: Ic.image },
     { id: "creativejobs", label: "Creative Services", icon: Ic.paintbrush, badge: activeJobs || null },
     { id: "_system", section: true, label: "System" },
     { id: "team", label: "Team", icon: Ic.user },
@@ -461,14 +467,15 @@ export default function App() {
         {show("publications") && <div style={vis("publications")}><Publications pubs={pubs} setPubs={setPubs} issues={jIssues} setIssues={setIssues} sales={jSales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} /></div>}
         {show("stories") && <div style={vis("stories")}><StoriesModule stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} /></div>}
-        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={jClients} setClients={setClients} sales={jSales} setSales={setSales} pubs={pubs} issues={jIssues} proposals={jProposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} deepLink={deepLink} /></div>}
+        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={jClients} setClients={setClients} sales={jSales} setSales={setSales} pubs={pubs} issues={jIssues} proposals={jProposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} deepLink={deepLink} onNavigate={handleNav} /></div>}
         {show("contracts") && <div style={vis("contracts")}><Contracts contracts={appData.contracts || []} clients={jClients} pubs={pubs} sales={jSales} team={team} jurisdiction={jurisdiction} currentUser={currentUser} onNavigate={handleNav} loadContracts={appData.loadContracts} contractsLoaded={appData.contractsLoaded} /></div>}
-        {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={jClients} sales={jSales} pubs={pubs} issues={jIssues} proposals={jProposals} invoices={jInvoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} /></div>}
+        {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={jClients} sales={jSales} pubs={pubs} issues={jIssues} proposals={jProposals} invoices={jInvoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} team={team} subscribers={subscribers} subscriptionPayments={appData.subscriptionPayments || []} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={jClients} sales={jSales} issues={jIssues} pubs={pubs} team={team} currentUser={currentUser} stories={jStories} bus={bus} onNavigate={handleNav} /></div>}
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan jurisdiction={jurisdiction} pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} stories={jStories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} /></div>}
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={jSales} clients={jClients} issues={jIssues} stories={jStories} invoices={jInvoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
+        {show("messaging") && <div style={vis("messaging")}><Messaging team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail /></div>}
         {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage pubs={pubs} currentUser={currentUser} /></div>}
@@ -480,6 +487,7 @@ export default function App() {
         {show("circulation") && <div style={vis("circulation")}><Circulation pubs={pubs} issues={jIssues} subscribers={subscribers} setSubscribers={setSubscribers} subscriptions={appData.subscriptions || []} setSubscriptions={appData.setSubscriptions} subscriptionPayments={appData.subscriptionPayments || []} mailingLists={appData.mailingLists || []} setMailingLists={appData.setMailingLists} dropLocations={dropLocations} setDropLocations={setDropLocations} dropLocationPubs={dropLocationPubs} setDropLocationPubs={setDropLocationPubs} drivers={drivers} setDrivers={setDrivers} driverRoutes={driverRoutes} setDriverRoutes={setDriverRoutes} routeStops={routeStops} setRouteStops={setRouteStops} bus={bus} team={team} currentUser={currentUser} /></div>}
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={jClients} subscribers={subscribers} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}
+        {show("adprojects") && <div style={vis("adprojects")}><AdProjects pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
         </Suspense>
       </main>

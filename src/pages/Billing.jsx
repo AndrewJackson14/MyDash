@@ -39,7 +39,7 @@ const InvBadge = ({ status }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments }) => {
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -49,6 +49,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [sortCol, setSortCol] = useState("issue_date");
   const [sortDir, setSortDir] = useState("desc");
   const [uninvRange, setUninvRange] = useState("30days");
+  const [reportView, setReportView] = useState("revenue");
+  const [reportPeriod, setReportPeriod] = useState("mtd");
+  const [reportPub, setReportPub] = useState("all");
 
   // New invoice form
   const [invForm, setInvForm] = useState({
@@ -408,7 +411,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Receivables"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>
@@ -600,6 +603,238 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         })()}
       </GlassCard>
     </>}
+
+    {/* ════════ REPORTS TAB (Sec 6.1–6.3) ════════ */}
+    {tab === "Reports" && (() => {
+      const _sales = sales || [];
+      const _payments = payments || [];
+      const _subs = subscribers || [];
+      const _subPay = subscriptionPayments || [];
+      const _team = team || [];
+      const thisMonth = today.slice(0, 7);
+      const thisYear = today.slice(0, 4);
+      const thisQ = `Q${Math.ceil((new Date().getMonth() + 1) / 3)}`;
+
+      // Period filter helper
+      const inPeriod = (dateStr) => {
+        if (!dateStr) return false;
+        if (reportPeriod === "mtd") return dateStr.startsWith(thisMonth);
+        if (reportPeriod === "qtd") { const m = new Date().getMonth(); const qStart = new Date(new Date().getFullYear(), Math.floor(m / 3) * 3, 1).toISOString().slice(0, 10); return dateStr >= qStart; }
+        if (reportPeriod === "ytd") return dateStr.startsWith(thisYear);
+        return true;
+      };
+      const pubMatch = (pid) => reportPub === "all" || pid === reportPub;
+
+      // Filtered data
+      const periodSales = _sales.filter(s => s.status === "Closed" && inPeriod(s.date || s.closedAt) && pubMatch(s.publication));
+      const periodAdRev = periodSales.reduce((s, x) => s + (x.amount || 0), 0);
+      const periodSubPay = _subPay.filter(p => inPeriod(p.paymentDate));
+      const periodSubRev = periodSubPay.reduce((s, p) => s + (p.amount || 0), 0);
+
+      return <>
+        {/* Report selector + period filter */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[{ k: "revenue", l: "Revenue Summary" }, { k: "aging", l: "AR Aging" }, { k: "uninvoiced", l: "Uninvoiced" }, { k: "performance", l: "Sales Performance" }].map(r => (
+              <Pill key={r.k} label={r.l} active={reportView === r.k} onClick={() => setReportView(r.k)} />
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <Sel value={reportPeriod} onChange={e => setReportPeriod(e.target.value)} options={[
+              { value: "mtd", label: "Month to Date" }, { value: "qtd", label: "Quarter to Date" },
+              { value: "ytd", label: "Year to Date" }, { value: "all", label: "All Time" },
+            ]} />
+            <Sel value={reportPub} onChange={e => setReportPub(e.target.value)} options={[
+              { value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name })),
+            ]} />
+          </div>
+        </div>
+
+        {/* ── Revenue Summary (Sec 6.3.1) ── */}
+        {reportView === "revenue" && <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            <GlassStat label="Total Revenue" value={fmtCurrency(periodAdRev + periodSubRev)} color={Z.go} />
+            <GlassStat label="Ad Revenue" value={fmtCurrency(periodAdRev)} sub={`${periodSales.length} sales`} />
+            <GlassStat label="Sub Revenue" value={fmtCurrency(periodSubRev)} sub={`${periodSubPay.length} payments`} />
+          </div>
+
+          {/* By publication */}
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Publication</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {(pubs || []).map(p => {
+                const pubRev = _sales.filter(s => s.status === "Closed" && inPeriod(s.date || s.closedAt) && s.publication === p.id).reduce((s, x) => s + (x.amount || 0), 0);
+                const goalObj = issues?.filter(i => i.pubId === p.id && inPeriod(i.date));
+                const issueGoal = (goalObj || []).reduce((s, iss) => s + (iss.revenueGoal || p.defaultRevenueGoal || 0), 0);
+                const pct = issueGoal > 0 ? Math.min(100, Math.round((pubRev / issueGoal) * 100)) : 0;
+                if (reportPub !== "all" && p.id !== reportPub) return null;
+                return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 1fr 60px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "8px 12px" }}>
+                  <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{p.name}</div>
+                  <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(pubRev)}</div>
+                  <div style={{ textAlign: "right", fontSize: FS.sm, color: Z.td }}>{issueGoal > 0 ? `of ${fmtCurrency(issueGoal)}` : "No goal"}</div>
+                  <div style={{ height: 6, background: Z.sa, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: pct >= 80 ? Z.go : pct >= 50 ? Z.wa : Z.da, borderRadius: 3, transition: "width 0.5s" }} />
+                  </div>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: pct >= 80 ? Z.go : pct >= 50 ? Z.wa : Z.da, textAlign: "right" }}>{pct}%</div>
+                </div>;
+              }).filter(Boolean)}
+            </div>
+          </GlassCard>
+
+          {/* By salesperson */}
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Salesperson</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {_team.filter(t => ["Sales Manager", "Salesperson"].includes(t.role) && t.isActive !== false).map(sp => {
+                const myClients = new Set((clients || []).filter(c => c.repId === sp.id).map(c => c.id));
+                const spRev = periodSales.filter(s => myClients.has(s.clientId)).reduce((s2, x) => s2 + (x.amount || 0), 0);
+                const dealCount = periodSales.filter(s => myClients.has(s.clientId)).length;
+                return <div key={sp.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 80px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "8px 12px" }}>
+                  <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{sp.name}</div>
+                  <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(spRev)}</div>
+                  <div style={{ textAlign: "right", fontSize: FS.sm, color: Z.td }}>{dealCount} deal{dealCount !== 1 ? "s" : ""}</div>
+                </div>;
+              })}
+            </div>
+          </GlassCard>
+        </>}
+
+        {/* ── AR Aging Report (Sec 6.3.2) ── */}
+        {reportView === "aging" && (() => {
+          const openInv = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub)));
+          const buckets = { current: [], d30: [], d60: [], d90: [], over90: [] };
+          openInv.forEach(inv => {
+            const age = daysBetween(inv.issueDate || inv.dueDate || today, today);
+            if (age <= 30) buckets.current.push(inv);
+            else if (age <= 60) buckets.d30.push(inv);
+            else if (age <= 90) buckets.d60.push(inv);
+            else buckets.over90.push(inv);
+          });
+          const bucketSum = (arr) => arr.reduce((s, i) => s + (i.balanceDue || 0), 0);
+          const BUCKET_CFG = [
+            { key: "current", label: "Current (0-30d)", color: Z.go },
+            { key: "d30", label: "31-60 days", color: Z.wa },
+            { key: "d60", label: "61-90 days", color: Z.da },
+            { key: "over90", label: "90+ days", color: Z.da },
+          ];
+          return <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+              {BUCKET_CFG.map(b => <GlassStat key={b.key} label={b.label} value={fmtCurrency(bucketSum(buckets[b.key]))} sub={`${buckets[b.key].length} invoice${buckets[b.key].length !== 1 ? "s" : ""}`} color={b.color} />)}
+            </div>
+            {BUCKET_CFG.map(b => {
+              if (buckets[b.key].length === 0) return null;
+              return <GlassCard key={b.key}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: b.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{b.label} — {fmtCurrency(bucketSum(buckets[b.key]))}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {buckets[b.key].sort((a2, b2) => (b2.balanceDue || 0) - (a2.balanceDue || 0)).map(inv => (
+                    <div key={inv.id} onClick={() => setViewInvId(inv.id)} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px 60px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "6px 10px", cursor: "pointer" }}>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(inv.clientId)}</div>
+                      <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(inv.balanceDue)}</div>
+                      <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{fmtDate(inv.issueDate)}</div>
+                      <InvBadge status={inv.status} />
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>;
+            })}
+          </>;
+        })()}
+
+        {/* ── Uninvoiced Contracts (Sec 6.2) ── */}
+        {reportView === "uninvoiced" && (() => {
+          const invSaleIds = new Set();
+          processedInvoices.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); }));
+          const cutoff30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+          const uninv = _sales.filter(s => s.status === "Closed" && !invSaleIds.has(s.id) && (reportPub === "all" || s.publication === reportPub))
+            .sort((a, b) => {
+              const issA = (issues || []).find(i => i.id === a.issueId);
+              const issB = (issues || []).find(i => i.id === b.issueId);
+              return (issA?.date || "9").localeCompare(issB?.date || "9");
+            });
+          const published = uninv.filter(s => { const iss = (issues || []).find(i => i.id === s.issueId); return iss && iss.date && iss.date < today; });
+          const upcoming = uninv.filter(s => { const iss = (issues || []).find(i => i.id === s.issueId); return iss && iss.date && iss.date >= today && iss.date <= cutoff30; });
+          const totalUninv = uninv.reduce((s, x) => s + (x.amount || 0), 0);
+
+          return <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <GlassStat label="Total Uninvoiced" value={fmtCurrency(totalUninv)} color={totalUninv > 0 ? Z.wa : Z.go} sub={`${uninv.length} sales`} />
+              <GlassStat label="Published Issues" value={fmtCurrency(published.reduce((s, x) => s + (x.amount || 0), 0))} sub={`${published.length} — ready to invoice`} color={Z.da} />
+              <GlassStat label="Upcoming 30d" value={fmtCurrency(upcoming.reduce((s, x) => s + (x.amount || 0), 0))} sub={`${upcoming.length} — publishing soon`} />
+            </div>
+
+            {published.length > 0 && <GlassCard>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase", letterSpacing: 1 }}>Published — Ready to Invoice</div>
+                <Btn sm onClick={() => alert(`Batch invoice for ${published.length} sales — coming soon`)}>Invoice All Published</Btn>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {published.map(s => {
+                  const iss = (issues || []).find(i => i.id === s.issueId);
+                  return <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 80px 100px 80px 80px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "6px 10px" }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(s.amount)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : "—"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(iss?.date)}</div>
+                    <Btn sm v="secondary" onClick={() => { /* pre-fill invoice from sale */ }}>Invoice</Btn>
+                  </div>;
+                })}
+              </div>
+            </GlassCard>}
+
+            {upcoming.length > 0 && <GlassCard>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Upcoming — Publishing Within 30 Days</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {upcoming.map(s => {
+                  const iss = (issues || []).find(i => i.id === s.issueId);
+                  return <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 80px 100px 80px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "6px 10px" }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(s.amount)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : "—"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.wa }}>{iss ? `${daysBetween(today, iss.date)}d` : "—"}</div>
+                  </div>;
+                })}
+              </div>
+            </GlassCard>}
+          </>;
+        })()}
+
+        {/* ── Sales Performance (Sec 6.3.4) ── */}
+        {reportView === "performance" && (() => {
+          const salespeople = _team.filter(t => ["Sales Manager", "Salesperson"].includes(t.role) && t.isActive !== false);
+          return <>
+            <GlassCard>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Salesperson Performance</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {salespeople.map(sp => {
+                  const myClients = new Set((clients || []).filter(c => c.repId === sp.id).map(c => c.id));
+                  const closed = periodSales.filter(s => myClients.has(s.clientId));
+                  const closedRev = closed.reduce((s2, x) => s2 + (x.amount || 0), 0);
+                  const dealCount = closed.length;
+                  const avgDeal = dealCount > 0 ? closedRev / dealCount : 0;
+                  const lost = _sales.filter(s => s.status === "Follow-up" && inPeriod(s.date) && myClients.has(s.clientId)).length;
+                  const winRate = (dealCount + lost) > 0 ? Math.round((dealCount / (dealCount + lost)) * 100) : 0;
+                  const pipeline = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status) && myClients.has(s.clientId));
+                  const pipelineVal = pipeline.reduce((s2, x) => s2 + (x.amount || 0), 0);
+
+                  return <div key={sp.id} style={{ background: Z.bg, borderRadius: R, padding: "14px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>{sp.name}</div>
+                      <div style={{ fontSize: 20, fontWeight: FW.black, color: Z.su }}>{fmtCurrency(closedRev)}</div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.tx }}>{dealCount}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Deals Closed</div></div>
+                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.tx }}>{fmtCurrency(avgDeal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Avg Deal</div></div>
+                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: winRate >= 50 ? Z.go : Z.wa }}>{winRate}%</div><div style={{ fontSize: FS.xs, color: Z.td }}>Win Rate</div></div>
+                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.wa }}>{fmtCurrency(pipelineVal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Pipeline</div></div>
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </GlassCard>
+          </>;
+        })()}
+      </>;
+    })()}
 
     {/* ════════ CREATE INVOICE MODAL ════════ */}
     <Modal open={invModal} onClose={() => setInvModal(false)} title={`Invoice — ${cn(invForm.clientId)}`} width={720} onSubmit={saveInvoice}>

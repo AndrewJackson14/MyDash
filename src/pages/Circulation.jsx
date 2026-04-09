@@ -19,7 +19,7 @@ const StatusBadge = ({ status, map }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs, drivers, setDrivers, driverRoutes, setDriverRoutes, routeStops, setRouteStops, bus }) => {
+const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions, setSubscriptions, subscriptionPayments, mailingLists, setMailingLists, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs, drivers, setDrivers, driverRoutes, setDriverRoutes, routeStops, setRouteStops, bus, team, currentUser }) => {
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
   const [subFilter, setSubFilter] = useState("all");
@@ -31,6 +31,27 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
   const [editSub, setEditSub] = useState(null);
   const [editLoc, setEditLoc] = useState(null);
   const [dropPubFilter, setDropPubFilter] = useState([]);
+  const [exportModal, setExportModal] = useState(false);
+  const [renewalModal, setRenewalModal] = useState(false);
+  const [subDetailId, setSubDetailId] = useState(null);
+
+  // Export mailing list state
+  const EXPORT_COLUMNS = [
+    { key: "firstName", label: "First Name" }, { key: "lastName", label: "Last Name" },
+    { key: "addressLine1", label: "Address" }, { key: "addressLine2", label: "Address 2" },
+    { key: "city", label: "City" }, { key: "state", label: "State" }, { key: "zip", label: "ZIP" },
+    { key: "phone", label: "Phone" }, { key: "email", label: "Email" },
+    { key: "publicationId", label: "Publication" }, { key: "type", label: "Type" },
+    { key: "status", label: "Status" }, { key: "expiryDate", label: "Expiry" },
+    { key: "startDate", label: "Start Date" }, { key: "renewalDate", label: "Renewal Date" },
+    { key: "amountPaid", label: "Amount Paid" }, { key: "source", label: "Source" }, { key: "notes", label: "Notes" },
+  ];
+  const PRINTER_PRESET = ["firstName", "lastName", "addressLine1", "addressLine2", "city", "state", "zip"];
+  const [exportCols, setExportCols] = useState(PRINTER_PRESET);
+  const [exportPub, setExportPub] = useState("all");
+  const [exportStatus, setExportStatus] = useState("active");
+  const [exportFormat, setExportFormat] = useState("csv");
+  const [exportSort, setExportSort] = useState("lastName");
 
   // ─── Form state ─────────────────────────────────────────
   const blankSub = { type: "print", status: "active", firstName: "", lastName: "", email: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: "CA", zip: "", publicationId: pubs[0]?.id || "", startDate: today, expiryDate: "", renewalDate: "", amountPaid: 0, source: "", notes: "" };
@@ -166,7 +187,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
     <PageHeader title="My Circulation">
       {(tab === "Print Subscribers" || tab === "Digital Subscribers" || tab === "Drop Locations") && <SB value={sr} onChange={setSr} placeholder={tab.includes("Subscribers") ? "Search subscribers..." : "Search locations..."} />}
       {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />}
-      {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn>}
+      {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <><Btn sm v="secondary" onClick={() => setExportModal(true)}>Export List</Btn><Btn sm v="secondary" onClick={() => setRenewalModal(true)}>Send Renewals</Btn><Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn></>}
       {tab === "Drop Locations" && <Btn sm onClick={() => openLocModal(null)}><Ic.plus size={13} /> New Location</Btn>}
       {tab === "Routes" && <><Btn sm v="secondary" onClick={() => setDriverModal(true)}><Ic.plus size={13} /> New Driver</Btn><Btn sm onClick={() => setRouteModal(true)}><Ic.plus size={13} /> New Route</Btn></>}
     </PageHeader>
@@ -235,6 +256,31 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
           </div>)}
         </div>
       </GlassCard>}
+
+      {/* Printer Mailing Workflow (Sec 5.4) */}
+      <GlassCard>
+        <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, marginBottom: 12 }}>Printer Mailing Workflow</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[
+            { step: 1, label: "Filter subscribers", desc: "Select publication and status, choose columns", action: "Open Export", onClick: () => setExportModal(true) },
+            { step: 2, label: "Download list", desc: "Export as CSV or Excel for printer", action: "Export", onClick: () => setExportModal(true) },
+            { step: 3, label: "Email to printer", desc: "Attach list and send to print partner", action: "Draft Email", onClick: () => alert("Gmail draft integration — coming in Phase 3 build") },
+          ].map(s => (
+            <div key={s.step} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: Z.ac + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.sm, fontWeight: FW.black, color: Z.ac, flexShrink: 0 }}>{s.step}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{s.label}</div>
+                <div style={{ fontSize: FS.xs, color: Z.td }}>{s.desc}</div>
+              </div>
+              <Btn sm v="secondary" onClick={s.onClick}>{s.action}</Btn>
+            </div>
+          ))}
+        </div>
+        {(() => {
+          const lastExport = (mailingLists || []).sort((a, b) => (b.exportedAt || "").localeCompare(a.exportedAt || ""))[0];
+          return lastExport ? <div style={{ marginTop: 10, fontSize: FS.xs, color: Z.td }}>Last export: {fmtDate(lastExport.exportedAt)} — {lastExport.subscriberCount || "?"} subscribers</div> : null;
+        })()}
+      </GlassCard>
     </>}
 
     {/* ════════ SUBSCRIBERS ════════ */}
@@ -253,7 +299,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
           <tbody>
             {filteredSubs.length === 0
               ? <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No subscribers found</td></tr>
-              : filteredSubs.sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)).map(s => <tr key={s.id} style={{ cursor: "pointer" }} onClick={() => openSubModal(s)}>
+              : filteredSubs.sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)).map(s => <tr key={s.id} style={{ cursor: "pointer" }} onClick={() => setSubDetailId(s.id)}>
                 <td style={{ padding: "8px 10px" }}>
                   <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{s.firstName} {s.lastName}</div>
                   {s.email && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.email}</div>}
@@ -518,6 +564,166 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, dropLocations,
         </div>
       </div>
     </Modal>
+
+    {/* ═══ EXPORT MAILING LIST MODAL (Sec 5.5) ═══ */}
+    <Modal open={exportModal} onClose={() => setExportModal(false)} title="Export Mailing List" width={640}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Filters */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Publication</div>
+            <Sel value={exportPub} onChange={e => setExportPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
+          </div>
+          <div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Status</div>
+            <Sel value={exportStatus} onChange={e => setExportStatus(e.target.value)} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "expired", label: "Expired" }]} />
+          </div>
+        </div>
+        {/* Column picker */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Columns</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setExportCols(EXPORT_COLUMNS.map(c => c.key))} style={{ fontSize: FS.xs, color: Z.ac, background: "none", border: "none", cursor: "pointer", fontWeight: FW.bold }}>Select All</button>
+              <button onClick={() => setExportCols([])} style={{ fontSize: FS.xs, color: Z.tm, background: "none", border: "none", cursor: "pointer", fontWeight: FW.bold }}>Clear</button>
+              <button onClick={() => setExportCols([...PRINTER_PRESET])} style={{ fontSize: FS.xs, color: Z.go, background: "none", border: "none", cursor: "pointer", fontWeight: FW.bold }}>Printer Preset</button>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            {EXPORT_COLUMNS.map(col => (
+              <label key={col.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: Ri, background: exportCols.includes(col.key) ? Z.as : Z.bg, cursor: "pointer", fontSize: FS.sm }}>
+                <input type="checkbox" checked={exportCols.includes(col.key)} onChange={() => setExportCols(prev => prev.includes(col.key) ? prev.filter(c => c !== col.key) : [...prev, col.key])} />
+                <span style={{ color: Z.tx }}>{col.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {/* Format + Sort */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Format</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["csv", "xlsx"].map(f => <Btn key={f} sm v={exportFormat === f ? "primary" : "secondary"} onClick={() => setExportFormat(f)}>{f.toUpperCase()}</Btn>)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Sort By</div>
+            <Sel value={exportSort} onChange={e => setExportSort(e.target.value)} options={[
+              { value: "lastName", label: "Last Name" }, { value: "zip", label: "ZIP Code" },
+              { value: "city", label: "City" }, { value: "expiryDate", label: "Expiry Date" },
+              { value: "publicationId", label: "Publication" },
+            ]} />
+          </div>
+        </div>
+        {/* Preview */}
+        {(() => {
+          let rows = subs.filter(s => s.type === "print");
+          if (exportPub !== "all") rows = rows.filter(s => s.publicationId === exportPub);
+          if (exportStatus !== "all") rows = rows.filter(s => s.status === exportStatus);
+          return <div style={{ padding: "8px 12px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm, color: Z.tm }}>
+            {rows.length} subscriber{rows.length !== 1 ? "s" : ""} · {exportCols.length} column{exportCols.length !== 1 ? "s" : ""} · {exportFormat.toUpperCase()}
+          </div>;
+        })()}
+        {/* Download */}
+        <Btn onClick={() => {
+          let rows = subs.filter(s => s.type === "print");
+          if (exportPub !== "all") rows = rows.filter(s => s.publicationId === exportPub);
+          if (exportStatus !== "all") rows = rows.filter(s => s.status === exportStatus);
+          rows.sort((a, b) => (a[exportSort] || "").localeCompare(b[exportSort] || ""));
+          const header = exportCols.map(k => EXPORT_COLUMNS.find(c => c.key === k)?.label || k);
+          const csvRows = rows.map(s => exportCols.map(k => k === "publicationId" ? pn(s[k]) : (s[k] ?? "")).map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+          const csv = [header.join(","), ...csvRows].join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = `mailing-list-${exportPub === "all" ? "all" : exportPub}-${today}.csv`; a.click();
+          URL.revokeObjectURL(url);
+          setExportModal(false);
+        }}>Download {exportFormat.toUpperCase()}</Btn>
+      </div>
+    </Modal>
+
+    {/* ═══ RENEWAL NOTICES MODAL (Sec 5.7) ═══ */}
+    <Modal open={renewalModal} onClose={() => setRenewalModal(false)} title="Send Renewal Notices" width={560}>
+      {(() => {
+        const d30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const expiring = subs.filter(s => s.status === "active" && s.type === "print" && s.renewalDate && s.renewalDate >= today && s.renewalDate <= d30);
+        const byPub = {};
+        expiring.forEach(s => { const pk = s.publicationId || "other"; if (!byPub[pk]) byPub[pk] = []; byPub[pk].push(s); });
+        return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{expiring.length} subscriber{expiring.length !== 1 ? "s" : ""} expiring within 30 days</div>
+          </div>
+          {Object.entries(byPub).map(([pubId, subList]) => (
+            <div key={pubId}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>{pn(pubId) || "Other"} ({subList.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 200, overflowY: "auto" }}>
+                {subList.map(s => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+                  <span style={{ fontWeight: FW.semi, color: Z.tx }}>{s.firstName} {s.lastName}</span>
+                  <span style={{ color: Z.wa, fontSize: FS.xs }}>{fmtDate(s.renewalDate)}</span>
+                </div>)}
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Btn v="secondary" onClick={() => setRenewalModal(false)}>Cancel</Btn>
+            <Btn onClick={() => { alert(`Renewal notices generated for ${expiring.length} subscribers. PDF merge + email draft feature coming soon.`); setRenewalModal(false); }}>Generate Notices ({expiring.length})</Btn>
+          </div>
+        </div>;
+      })()}
+    </Modal>
+
+    {/* ═══ SUBSCRIBER DETAIL MODAL (Sec 5.3) ═══ */}
+    {subDetailId && (() => {
+      const sub = subs.find(s => s.id === subDetailId);
+      if (!sub) return null;
+      const subPayments = (subscriptionPayments || []).filter(p => p.subscriberId === sub.id).sort((a, b) => (b.paymentDate || "").localeCompare(a.paymentDate || ""));
+      return <Modal open={!!subDetailId} onClose={() => setSubDetailId(null)} title={`${sub.firstName} ${sub.lastName}`} width={520}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Publication</div>
+              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{pn(sub.publicationId)}</div>
+            </div>
+            <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Status</div>
+              <StatusBadge status={sub.status} />
+            </div>
+          </div>
+          {sub.addressLine1 && <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Mailing Address</div>
+            <div style={{ fontSize: FS.sm, color: Z.tx, lineHeight: 1.5 }}>
+              {sub.addressLine1}<br />{sub.addressLine2 && <>{sub.addressLine2}<br /></>}{sub.city}, {sub.state} {sub.zip}
+            </div>
+          </div>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            {sub.email && <div><div style={{ fontSize: FS.xs, color: Z.td }}>Email</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{sub.email}</div></div>}
+            {sub.phone && <div><div style={{ fontSize: FS.xs, color: Z.td }}>Phone</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{sub.phone}</div></div>}
+            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Type</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{sub.type}</div></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Start</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{fmtDate(sub.startDate)}</div></div>
+            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Expiry</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{fmtDate(sub.expiryDate)}</div></div>
+            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Renewal</div><div style={{ fontSize: FS.sm, color: Z.tx, color: sub.renewalDate && sub.renewalDate < today ? Z.da : Z.tx }}>{fmtDate(sub.renewalDate)}</div></div>
+          </div>
+          {/* Payment History */}
+          <div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Payment History</div>
+            {subPayments.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No payments recorded</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 200, overflowY: "auto" }}>
+              {subPayments.map(p => <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+                <span style={{ color: Z.tx }}>{fmtDate(p.paymentDate)}</span>
+                <span style={{ color: Z.tm }}>{p.method || "—"}</span>
+                <span style={{ fontWeight: FW.bold, color: Z.go }}>{fmtCurrency(p.amount)}</span>
+              </div>)}
+            </div>}
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Btn sm v="secondary" onClick={() => { setSubDetailId(null); openSubModal(sub); }}>Edit</Btn>
+            <Btn sm onClick={() => setSubDetailId(null)}>Close</Btn>
+          </div>
+        </div>
+      </Modal>;
+    })()}
   </div>;
 };
 

@@ -1,8 +1,9 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, ZI, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, Pill, glass as glassStyle } from "../components/ui";
 import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 import { supabase, isOnline } from "../lib/supabase";
+import RoleDashboard from "../components/RoleDashboard";
 
 const Dashboard = ({
   pubs, stories, setStories, clients, sales, issues, proposals, team,
@@ -231,6 +232,9 @@ const Dashboard = ({
 
   // Salesperson check (needed before issueProgress → myGoals → myRevStats)
   const isSalesperson = currentUser && ["Sales Manager", "Salesperson"].includes(currentUser.role);
+  const isPublisher = !currentUser?.role || ["Publisher", "Owner"].includes(currentUser.role);
+  const isAdmin = currentUser?.permissions?.includes?.("admin") || currentUser?.role === "Editor-in-Chief";
+  const isTeamMember = !isSalesperson && !isPublisher && !isAdmin;
 
   // Today's action items for salesperson cockpit
   const todaysActions = useMemo(() => {
@@ -395,7 +399,67 @@ const Dashboard = ({
 
   // ─── Briefing ───────────────────────────────────────────
   const [showWrapUp, setShowWrapUp] = useState(false);
-  const generateBriefing = () => { const d = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }); const l = [`13 STARS MEDIA — DAILY BRIEFING`, d, "", "═══ REVENUE ═══", `Closed: ${fmtCurrency(closedRev)} of ${fmtCurrency(target)} (${pct}%)`]; if (overdue > 0) l.push(`⚠ OVERDUE: ${fmtCurrency(overdue)}`); if (uninvoiced > 0) l.push(`Uninvoiced: ${fmtCurrency(uninvoiced)}`); l.push(""); if (issueProgress.length > 0) { l.push("═══ PUBLISHING ═══"); issueProgress.slice(0, 5).forEach(ip => l.push(`${ip.pub.name} ${ip.issue.label} — ${ip.revPct}% of goal`)); l.push(""); } if (focusItems.length > 0) { l.push("═══ PRIORITIES ═══"); focusItems.forEach((fi, i) => l.push(`${i + 1}. ${fi.title}`)); } return l.join("\n"); };
+  const generateBriefing = () => {
+    const d = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    const l = [`13 STARS MEDIA — DAILY BRIEFING`, d, ""];
+
+    // Revenue
+    l.push("═══ REVENUE ═══");
+    l.push(`Ad Revenue MTD: ${fmtCurrency(adRevMTD)}`);
+    l.push(`Subscription Revenue YTD: ${fmtCurrency(subRevYTD)}`);
+    l.push(`Outstanding AR: ${fmtCurrency(outstandingAR)}${overdueInvCount > 0 ? ` (${overdueInvCount} overdue)` : ""}`);
+    l.push(`Pipeline: ${fmtCurrency(pipelineValue)} (${pipelineCount} deals)`);
+    if (uninvoicedContracts > 0) l.push(`Uninvoiced: ${fmtCurrency(uninvoicedContracts)}`);
+    l.push("");
+
+    // Publishing
+    if (issueCountdown.length > 0) {
+      l.push("═══ PUBLISHING ═══");
+      issueCountdown.slice(0, 6).forEach(iss => l.push(`${pn(iss.pubId)} ${iss.label} — ${iss.daysOut}d — ${fmtCurrency(iss.rev)}/${fmtCurrency(iss.goal)} (${iss.pct}%)`));
+      l.push("");
+    }
+
+    // Editorial pipeline
+    const storyStatuses = {};
+    _stories.forEach(s => { storyStatuses[s.status] = (storyStatuses[s.status] || 0) + 1; });
+    const editStatuses = ["Draft", "Needs Editing", "Edited", "Approved", "On Page"];
+    const hasEditorial = editStatuses.some(st => storyStatuses[st] > 0);
+    if (hasEditorial) {
+      l.push("═══ EDITORIAL ═══");
+      editStatuses.forEach(st => { if (storyStatuses[st]) l.push(`${st}: ${storyStatuses[st]}`); });
+      l.push("");
+    }
+
+    // Outreach campaigns
+    const activeCampaigns = (outreachCampaigns || []).filter(c => c.status === "active");
+    if (activeCampaigns.length > 0) {
+      l.push("═══ OUTREACH ═══");
+      activeCampaigns.forEach(c => {
+        const entries = (outreachEntries || []).filter(e => e.campaignId === c.id);
+        const contacted = entries.filter(e => !["queued", "not_contacted"].includes(e.status)).length;
+        const wonBack = entries.filter(e => e.status === "won_back").length;
+        l.push(`${c.name}: ${contacted}/${entries.length} contacted, ${wonBack} won back`);
+      });
+      l.push("");
+    }
+
+    // Subscriptions
+    const activeSubs = _subs.filter(s => s.status === "active").length;
+    if (activeSubs > 0 || expiringNext30 > 0) {
+      l.push("═══ SUBSCRIPTIONS ═══");
+      l.push(`Active: ${activeSubs}`);
+      if (expiringNext30 > 0) l.push(`Expiring 30d: ${expiringNext30}`);
+      l.push("");
+    }
+
+    // Priorities
+    if (focusItems.length > 0) {
+      l.push("═══ PRIORITIES ═══");
+      focusItems.forEach((fi, i) => l.push(`${i + 1}. ${fi.title}`));
+    }
+
+    return l.join("\n");
+  };
   const copyBriefing = () => { navigator.clipboard?.writeText(generateBriefing()).catch(() => {}); };
 
   // End-of-day wrap-up
@@ -649,6 +713,23 @@ const Dashboard = ({
       ].map(f => <Pill key={f.key} label={f.label} icon={f.icon} active={focusMode === f.key} onClick={() => setFocusMode(f.key)} />)}
     </div>
 
+    {/* ═══ REVENUE COMMAND BAR — 5 stat cards (Sec 3.2) ═══ */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+      {[
+        { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
+        { label: "Sub Revenue YTD", value: fmtCurrency(subRevYTD), color: Z.ac, tags: ["financials", "admin"], onClick: () => onNavigate?.("circulation") },
+        { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
+        { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
+        { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
+      ].filter(c => showInFocus(c.tags)).map(c => (
+        <div key={c.label} onClick={c.onClick} style={{ ...glass, padding: "12px 16px", cursor: "pointer", borderBottom: `2px solid ${c.color}` }}>
+          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{c.label}</div>
+          <div style={{ fontSize: 22, fontWeight: FW.black, color: c.color, fontFamily: DISPLAY, marginTop: 4 }}>{c.value}</div>
+          {c.sub && <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{c.sub}</div>}
+        </div>
+      ))}
+    </div>
+
     </>}
 
     {/* TWO COLUMNS — role-specific */}
@@ -783,6 +864,7 @@ const Dashboard = ({
         </div>
       </div>
     </>
+    : isTeamMember ? <RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={_stories} setStories={setStories} clients={_clients} sales={_sales} issues={_issues} team={team} invoices={_inv} payments={_pay} subscribers={_subs} tickets={_tickets} legalNotices={_legal} creativeJobs={_jobs} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />
     : /* ═══ PUBLISHER'S COMMAND CENTER — 3-COLUMN LAYOUT ═══ */
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
 
@@ -791,7 +873,11 @@ const Dashboard = ({
         {/* DEADLINE ALERTS — auto-hides when empty */}
         {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {deadlineAlerts.map(a => (
-            <div key={a.id} onClick={() => onNavigate?.("schedule")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+            <div key={a.id} onClick={() => {
+              if (a.type === "ad" && setIssueDetailId) { const issId = a.id.replace("ad-", ""); setIssueDetailId(issId); }
+              else if (a.type === "ed") onNavigate?.("editorial");
+              else onNavigate?.("schedule");
+            }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
               <Ic.clock size={14} color={a.color} />
               <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
               <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
@@ -873,6 +959,74 @@ const Dashboard = ({
 
       {/* ════ CENTER COLUMN ════ */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* EDITORIAL PIPELINE (Sec 3.5.1) */}
+        {showInFocus(["editorial"]) && (() => {
+          const STAGES = [
+            { key: "Draft", color: ACCENT.amber },
+            { key: "Needs Editing", color: Z.da },
+            { key: "Edited", color: ACCENT.blue },
+            { key: "Approved", color: Z.go },
+            { key: "On Page", color: ACCENT.indigo },
+          ];
+          const counts = {};
+          STAGES.forEach(st => { counts[st.key] = _stories.filter(s => s.status === st.key).length; });
+          const maxCount = Math.max(1, ...Object.values(counts));
+          const total = Object.values(counts).reduce((s, c) => s + c, 0);
+          if (total === 0) return null;
+          const stuckCount = _stories.filter(s => s.status === "Needs Editing" && s.updatedAt && Math.round((new Date(today) - new Date(s.updatedAt.slice(0, 10))) / 86400000) > 3).length;
+          return <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Editorial Pipeline</span>
+              <span style={{ fontSize: FS.sm, color: Z.tm }}>{total} stories</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {STAGES.map(st => {
+                const c = counts[st.key];
+                const pct = Math.round((c / maxCount) * 100);
+                const isStuck = st.key === "Needs Editing" && stuckCount > 0;
+                return <div key={st.key} onClick={() => onNavigate?.("editorial")} style={{ cursor: "pointer" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.xs, color: Z.tm, marginBottom: 2 }}>
+                    <span>{st.key} {isStuck && <span style={{ color: Z.da, fontWeight: FW.bold }}>{stuckCount} stuck &gt;3d</span>}</span>
+                    <span style={{ fontWeight: FW.bold, color: c > 0 ? st.color : Z.td }}>{c}</span>
+                  </div>
+                  <div style={{ height: 6, background: Z.bd + "40", borderRadius: 3 }}>
+                    <div style={{ height: 6, borderRadius: 3, background: st.color, width: `${pct}%`, transition: "width 0.3s" }} />
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>;
+        })()}
+
+        {/* WEB PUBLISHING QUEUE (Sec 3.5.2) */}
+        {showInFocus(["editorial", "websites"]) && (() => {
+          const readyStories = _stories.filter(s => s.status === "Approved" && s.webStatus !== "published");
+          if (readyStories.length === 0) return null;
+          return <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Web Publishing Queue</span>
+              {readyStories.length > 1 && <Btn sm v="secondary" onClick={() => {
+                if (confirm(`Publish all ${readyStories.length} stories to web?`)) {
+                  readyStories.forEach(s => { if (setStories) setStories(prev => prev.map(x => x.id === s.id ? { ...x, webStatus: "published", publishedAt: new Date().toISOString() } : x)); });
+                }
+              }}>Publish All ({readyStories.length})</Btn>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {readyStories.slice(0, 8).map(s => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: Z.bg, borderRadius: Ri }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.author || "—"} · {pn(s.publication)}</div>
+                  </div>
+                  <Btn sm onClick={() => {
+                    if (setStories) setStories(prev => prev.map(x => x.id === s.id ? { ...x, webStatus: "published", publishedAt: new Date().toISOString() } : x));
+                  }}>Publish</Btn>
+                </div>
+              ))}
+            </div>
+          </div>;
+        })()}
+
         {/* SALES TO GOAL */}
         {showInFocus(["sales"]) && salesToGoal.length > 0 && <div style={glass}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Sales to Goal</div>
