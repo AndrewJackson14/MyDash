@@ -524,48 +524,6 @@ const Dashboard = ({
       ].map(f => <Pill key={f.key} label={f.label} icon={f.icon} active={focusMode === f.key} onClick={() => setFocusMode(f.key)} />)}
     </div>
 
-    {/* DEADLINE ALERTS — auto-hides when empty */}
-    {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {deadlineAlerts.map(a => (
-        <div key={a.id} onClick={() => onNavigate?.("schedule")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
-          <Ic.clock size={14} color={a.color} />
-          <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
-          <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
-        </div>
-      ))}
-    </div>}
-
-    {/* ISSUE COUNTDOWN with revenue rings */}
-    {showInFocus(["editorial", "sales"]) && issueCountdown.length > 0 && <div style={{ ...glass, padding: "18px 22px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Issue Countdown</span>
-        <Btn sm v="ghost" onClick={() => onNavigate?.("schedule")}>View Schedule</Btn>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {issueCountdown.slice(0, 8).map(iss => {
-          const ringColor = iss.pct >= 80 ? Z.go : iss.pct >= 50 ? Z.wa : Z.da;
-          const daysColor = iss.daysOut <= 3 ? Z.da : iss.daysOut <= 7 ? Z.wa : Z.td;
-          const r = 14; const stroke = 3; const circ = 2 * Math.PI * r; const offset = circ - (iss.pct / 100) * circ;
-          return <div key={iss.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(iss.id); }} style={{ display: "grid", gridTemplateColumns: "40px 1fr 60px 60px 40px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
-            {/* Mini revenue ring */}
-            <div style={{ position: "relative", width: 34, height: 34 }}>
-              <svg width="34" height="34" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="17" cy="17" r={r} fill="none" stroke={Z.bd} strokeWidth={stroke} />
-                <circle cx="17" cy="17" r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
-              </svg>
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.black, color: ringColor }}>{iss.pct}%</div>
-            </div>
-            <div>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
-              <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads \u00B7 {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
-            </div>
-            <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
-            <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date}</div>
-            <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
-          </div>;
-        })}
-      </div>
-    </div>}
     </>}
 
     {/* TWO COLUMNS — role-specific */}
@@ -705,6 +663,17 @@ const Dashboard = ({
 
       {/* ════ LEFT COLUMN ════ */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* DEADLINE ALERTS — auto-hides when empty */}
+        {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {deadlineAlerts.map(a => (
+            <div key={a.id} onClick={() => onNavigate?.("schedule")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+              <Ic.clock size={14} color={a.color} />
+              <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
+            </div>
+          ))}
+        </div>}
+
         {/* MY DAY */}
         {showInFocus(["editorial", "sales", "admin"]) && <div style={glass}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -723,6 +692,37 @@ const Dashboard = ({
               <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, background: Z.sa, padding: "2px 6px", borderRadius: Ri, textTransform: "capitalize", fontFamily: COND, flexShrink: 0 }}>{fi.dept}</span>
             </div>)}
             {focusItems.filter(fi => dayFilter === "all" || fi.dept === dayFilter).length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>All clear</div>}
+          </div>
+        </div>}
+
+        {/* ISSUE COUNTDOWN with revenue rings */}
+        {showInFocus(["editorial", "sales"]) && issueCountdown.length > 0 && <div style={{ ...glass, padding: "18px 22px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Issue Countdown</span>
+            <Btn sm v="ghost" onClick={() => onNavigate?.("schedule")}>View Schedule</Btn>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {issueCountdown.slice(0, 8).map(iss => {
+              const ringColor = iss.pct >= 80 ? Z.go : iss.pct >= 50 ? Z.wa : Z.da;
+              const daysColor = iss.daysOut <= 3 ? Z.da : iss.daysOut <= 7 ? Z.wa : Z.td;
+              const r = 14; const stroke = 3; const circ = 2 * Math.PI * r; const offset = circ - (iss.pct / 100) * circ;
+              return <div key={iss.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(iss.id); }} style={{ display: "grid", gridTemplateColumns: "40px 1fr 60px 60px 40px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
+                <div style={{ position: "relative", width: 34, height: 34 }}>
+                  <svg width="34" height="34" style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx="17" cy="17" r={r} fill="none" stroke={Z.bd} strokeWidth={stroke} />
+                    <circle cx="17" cy="17" r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
+                  </svg>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.black, color: ringColor }}>{iss.pct}%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads \u00B7 {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
+                <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date}</div>
+                <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
+              </div>;
+            })}
           </div>
         </div>}
 
