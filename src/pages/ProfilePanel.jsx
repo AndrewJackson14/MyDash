@@ -14,7 +14,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
   // Check Gmail connection status
   useEffect(() => {
     if (!me.id || !supabase) return;
-    supabase.from("gmail_tokens").select("email, token_expiry").eq("team_member_id", me.id).maybeSingle()
+    supabase.from("google_tokens").select("email, token_expiry").eq("team_member_id", me.id).maybeSingle()
       .then(({ data }) => {
         if (data) {
           setGmailStatus({ connected: true, email: data.email, expires: data.token_expiry });
@@ -62,7 +62,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
           if (popup.closed) {
             clearInterval(interval);
             // Re-check Gmail token status
-            const { data: token } = await supabase.from("gmail_tokens").select("email, token_expiry").eq("team_member_id", me.id).maybeSingle();
+            const { data: token } = await supabase.from("google_tokens").select("email, token_expiry").eq("team_member_id", me.id).maybeSingle();
             if (token) {
               setGmailStatus({ connected: true, email: token.email, expires: token.token_expiry });
             }
@@ -84,7 +84,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
 
   const disconnectGmail = async () => {
     if (!confirm("Disconnect Gmail? You won't be able to send emails from MyDash until you reconnect.")) return;
-    await supabase.from("gmail_tokens").delete().eq("team_member_id", me.id);
+    await supabase.from("google_tokens").delete().eq("team_member_id", me.id);
     setGmailStatus({ connected: false });
   };
 
