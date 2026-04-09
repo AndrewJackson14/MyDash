@@ -3,27 +3,38 @@ import { supabase } from "./supabase";
 
 const SUPABASE_URL = "https://hqywacyhpllapdwccmaw.supabase.co";
 
+// Encode string to base64url (Gmail API format)
+function toBase64Url(str) {
+  // Convert string to Uint8Array to handle all characters
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  bytes.forEach(b => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// RFC 2047 encode subject for non-ASCII characters
+function encodeSubject(subject) {
+  if (/^[\x20-\x7E]*$/.test(subject)) return subject; // pure ASCII, no encoding needed
+  return "=?UTF-8?B?" + btoa(unescape(encodeURIComponent(subject))) + "?=";
+}
+
 // Build RFC 2822 message and base64url encode it
 function buildRawMessage({ to, subject, htmlBody, from }) {
   const boundary = "boundary_" + Date.now();
-  const lines = [
+  const raw = [
     `From: ${from || "me"}`,
     `To: ${Array.isArray(to) ? to.join(", ") : to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodeSubject(subject)}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     "",
     `--${boundary}`,
     `Content-Type: text/html; charset="UTF-8"`,
-    `Content-Transfer-Encoding: base64`,
     "",
-    btoa(unescape(encodeURIComponent(htmlBody))),
+    htmlBody,
     `--${boundary}--`,
-  ];
-  const raw = lines.join("\r\n");
-  // base64url encode (no padding, +→-, /→_)
-  return btoa(unescape(encodeURIComponent(raw)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  ].join("\r\n");
+  return toBase64Url(raw);
 }
 
 export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode = "draft" }) {

@@ -44,6 +44,7 @@ const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
 const Permissions = lazy(() => import("./pages/Permissions"));
+const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
@@ -258,6 +259,7 @@ export default function App() {
     sitesettings: 'publications',
     adprojects: 'sales',
     messaging: null,
+    emailtemplates: 'integrations',
   };
 
   // Get current user's module permissions (from impersonated user or real user)
@@ -296,6 +298,7 @@ export default function App() {
     { id: "publications", label: "Publications", icon: Ic.pub },
     { id: "schedule", label: "Schedule", icon: Ic.story },
     { id: "analytics", label: "Analytics", icon: Ic.barChart },
+    { id: "emailtemplates", label: "Email Templates", icon: Ic.mail },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
     { id: "dataimport", label: "Data Import", icon: Ic.up },
   ].filter(n => n.section || hasModule(n.id));
@@ -480,6 +483,7 @@ export default function App() {
         {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage pubs={pubs} currentUser={currentUser} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} setPubs={setPubs} /></div>}
+        {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates pubs={pubs} currentUser={currentUser} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
