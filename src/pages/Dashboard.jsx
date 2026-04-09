@@ -557,7 +557,7 @@ const Dashboard = ({
       <div style={{
         position: "absolute", inset: 0,
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
-        background: isDark ? "rgba(8,9,13,0.8)" : "rgba(240,241,244,0.8)",
+        background: isDark ? "rgba(8,9,13,0.8)" : "rgba(244,245,247,0.85)",
         maskImage: "linear-gradient(to bottom, black 50%, transparent 100%)",
         WebkitMaskImage: "linear-gradient(to bottom, black 50%, transparent 100%)",
         pointerEvents: "none",
@@ -701,7 +701,7 @@ const Dashboard = ({
               </div>
               <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, textAlign: "center" }}>{ir.pub.name.split(" ")[0]}</div>
               <div style={{ fontSize: 11, fontWeight: FW.black, color: dColor }}>{ir.daysOut}d</div>
-              <div style={{ fontSize: FS.micro, color: Z.tm }}>{ir.storyCount} stories \u00B7 {ir.adCount} ads</div>
+              <div style={{ fontSize: FS.micro, color: Z.tm }}>{ir.storyCount} stories · {ir.adCount} ads</div>
               <div style={{ fontSize: FS.micro, color: Z.tm }}>{fmtCurrency(ir.rev)} / {fmtCurrency(ir.goal)}</div>
             </div>;
           })}
@@ -961,7 +961,7 @@ const Dashboard = ({
                 </div>
                 <div>
                   <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
-                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads \u00B7 {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads · {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
                 </div>
                 <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
                 <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date}</div>
@@ -1115,7 +1115,7 @@ const Dashboard = ({
               const statusColor = overdue > 2 ? Z.da : overdue > 0 ? Z.wa : Z.go;
               const statusLabel = overdue > 2 ? `${overdue} overdue` : overdue > 0 ? `${overdue} late` : "On track";
               const hue = Math.abs([...(t.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
-              const metric = isSales ? `Sales \u00B7 ${overdue} overdue tasks \u00B7 Pipeline ${fmtCurrency(pipeline)}` : isEditor ? `Editor \u00B7 ${editCount} stories awaiting edit` : isAdmin ? `Admin \u00B7 ${openTix} open tickets \u00B7 ${subTasks} sub tasks` : `${t.role}`;
+              const metric = isSales ? `Sales · ${overdue} overdue tasks · Pipeline ${fmtCurrency(pipeline)}` : isEditor ? `Editor · ${editCount} stories awaiting edit` : isAdmin ? `Admin · ${openTix} open tickets · ${subTasks} sub tasks` : `${t.role}`;
               return <div key={t.id} onClick={() => openMemberPanel(t)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${Z.bd}10`, cursor: "pointer" }}>
                 <div style={{ width: 32, height: 32, borderRadius: R, background: `hsl(${hue}, 40%, 38%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(t.name)}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1182,7 +1182,7 @@ const Dashboard = ({
               const pct = cEntries.length > 0 ? Math.round((cContacted / cEntries.length) * 100) : 0;
               return <div key={c.id} onClick={() => onNavigate?.("sales")} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 6, cursor: "pointer" }}>
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{c.name}</div>
-                <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 4 }}>{(team || []).find(t => t.id === c.assignedTo)?.name || ""} \u00B7 {cEntries.length} clients</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 4 }}>{(team || []).find(t => t.id === c.assignedTo)?.name || ""} · {cEntries.length} clients</div>
                 <div style={{ height: 4, background: Z.bd, borderRadius: 2, marginBottom: 4 }}>
                   <div style={{ height: 4, borderRadius: 2, background: Z.ac, width: `${pct}%` }} />
                 </div>

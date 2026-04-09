@@ -19,8 +19,8 @@ export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => <tr style={
 // DataTable — universal frosted glass table with standardized styles
 export const DataTable = ({ children, style, emptyMessage }) => {
   const isDark = Z.bg === "#08090D";
-  const glassBg = isDark ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)";
-  const glassBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)";
+  const glassBg = isDark ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.75)";
+  const glassBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
   const headerBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
   const hoverBg = isDark ? "rgba(255,255,255," + TBL.hoverAlpha + ")" : "rgba(0,0,0," + TBL.hoverAlpha + ")";
   const activeBg = isDark ? "rgba(255,255,255," + TBL.activeAlpha + ")" : "rgba(0,0,0," + TBL.activeAlpha + ")";
@@ -145,9 +145,10 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) =>
 
 // Glass effect — reusable inline style mixin for frosted glass appearance
 export const glass = () => ({
-  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
+  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.75)",
   backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+  boxShadow: _isDark() ? "none" : "0 1px 3px rgba(0,0,0,0.04)",
 });
 
 export const GlassCard = ({ children, style, noPad }) => <div style={{
@@ -157,9 +158,7 @@ export const GlassCard = ({ children, style, noPad }) => <div style={{
 
 // ListCard — individual frosted glass card for list items (floating cards with gap)
 export const ListCard = ({ children, style, onClick, active }) => <div onClick={onClick} style={{
-  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
-  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+  ...glass(),
   borderRadius: CARD.radius, padding: CARD.pad,
   cursor: onClick ? "pointer" : "default",
   transition: "background 0.1s",
@@ -214,10 +213,8 @@ export const SolidTabs = ({ options, active, onChange }) => <div style={{ displa
 </div>;
 
 // Glass stat card — metric display with frosted effect
-export const GlassStat = ({ label, value, sub }) => <div style={{
-  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)",
-  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`,
+export const GlassStat = ({ label, value, sub, color }) => <div style={{
+  ...glass(),
   borderRadius: R, padding: SP.cardPad,
 }}>
   <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, fontFamily: COND }}>{label}</div>
