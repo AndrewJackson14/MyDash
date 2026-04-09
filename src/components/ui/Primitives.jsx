@@ -125,9 +125,9 @@ export const Avi = ({ name, size = "md", style: extraStyle }) => {
 export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) => (
   <button onClick={onClick} disabled={disabled} style={{
     display: "inline-flex", alignItems: "center", gap: 4,
-    padding: "4px 10px", borderRadius: Ri,
-    border: `1px solid ${active ? Z.tm : Z.bd}`,
-    background: active ? (color || Z.ac) + "12" : "transparent",
+    padding: "5px 12px", borderRadius: 14,
+    border: "none",
+    background: active ? (color || Z.tx) + "18" : Z.sa,
     color: active ? (color || Z.tx) : Z.td,
     cursor: disabled ? "not-allowed" : "pointer",
     fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
