@@ -3,6 +3,8 @@ import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
+const today = new Date().toISOString().slice(0, 10);
+
 // ── Constants ────────────────────────────────────────────────
 const DEPARTMENTS = [
   { key: "leadership", label: "Leadership", roles: ["Publisher", "Editor-in-Chief"] },
@@ -96,7 +98,7 @@ const ALERT_OPTIONS = [
 // ══════════════════════════════════════════════════════════════
 // TEAM MEMBER MODAL
 // ══════════════════════════════════════════════════════════════
-const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit }) => {
+const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets }) => {
   if (!open || !member) return null;
   const [tab, setTab] = useState("Profile");
   const [saving, setSaving] = useState(null);
@@ -148,9 +150,9 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
       </div>
 
       {/* Tabs */}
-      <TabRow><TB tabs={["Profile", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
+      <TabRow><TB tabs={["Profile", "Workload", "Settings", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
 
-      {/* Profile tab */}
+      {/* Profile tab — metrics, pubs, activity, Google status */}
       {tab === "Profile" && (<>
         {metrics.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 10 }}>
@@ -170,10 +172,125 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
               {(member.pubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, background: Z.sa, padding: "2px 8px", borderRadius: Ri }}>{pub.name}</span> : null; })}
             </div>}
         </div>
+        {/* Google Account Status */}
         <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Google Account</div>
-          <span style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>Not connected</span>
+          <span style={{ fontSize: FS.sm, color: member.authId ? Z.go : Z.tm, fontFamily: COND }}>{member.authId ? "Connected" : "Not connected"}</span>
         </div>
+        {/* Freelancer info */}
+        {member.isFreelance && <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Freelancer Details</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Rate</div>
+              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>${member.rateAmount || 0}{member.rateType === "per_hour" ? "/hr" : member.rateType === "per_piece" ? "/piece" : ""}</div>
+            </div>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Type</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{(member.rateType || "flat").replace(/_/g, " ")}</div>
+            </div>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Availability</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: member.availability === "available" ? Z.go : member.availability === "busy" ? Z.wa : Z.da }}>{member.availability || "—"}</div>
+            </div>
+          </div>
+          {member.specialties?.length > 0 && <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {member.specialties.map(s => <span key={s} style={{ fontSize: FS.xs, color: Z.ac, background: Z.ac + "12", padding: "2px 8px", borderRadius: Ri }}>{s}</span>)}
+          </div>}
+        </div>}
+      </>)}
+
+      {/* Workload tab — open tasks, overdue, activity feed */}
+      {tab === "Workload" && (<>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          {(() => {
+            const isSales = ["Sales Manager", "Salesperson"].includes(member.role);
+            const isEditor = ["Editor", "Managing Editor", "Editor-in-Chief", "Content Editor", "Copy Editor"].includes(member.role);
+            const isAdmin = ["Office Manager", "Office Administrator"].includes(member.role);
+            const myClients = new Set((clients || []).filter(c => c.repId === member.id).map(c => c.id));
+            const overdue = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && s.nextActionDate && s.nextActionDate < today && s.nextAction && !["Closed", "Follow-up"].includes(s.status)).length : 0;
+            const pipeline = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)) : [];
+            const editQueue = isEditor ? (stories || []).filter(s => ["Needs Editing", "Draft"].includes(s.status)).length : 0;
+            const openTix = isAdmin ? (tickets || []).filter(t => ["open", "in_progress"].includes(t.status)).length : 0;
+            return [
+              isSales && { label: "Pipeline", value: `$${pipeline.reduce((s, x) => s + (x.amount || 0), 0).toLocaleString()}`, sub: `${pipeline.length} deals` },
+              isSales && { label: "Overdue Actions", value: overdue, color: overdue > 0 ? Z.da : Z.go },
+              isEditor && { label: "Edit Queue", value: editQueue },
+              isAdmin && { label: "Open Tickets", value: openTix },
+              { label: "Active", value: member.isActive !== false ? "Yes" : "No", color: member.isActive !== false ? Z.go : Z.da },
+            ].filter(Boolean).map(m => (
+              <div key={m.label} style={{ textAlign: "center", padding: 12, background: Z.sa, borderRadius: R }}>
+                <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: m.color || Z.tx, fontFamily: DISPLAY }}>{m.value}</div>
+                <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{m.label}</div>
+                {m.sub && <div style={{ fontSize: FS.micro, color: Z.tm }}>{m.sub}</div>}
+              </div>
+            ));
+          })()}
+        </div>
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recent Activity</div>
+          <div style={{ fontSize: FS.sm, color: Z.tm, padding: 12, textAlign: "center", background: Z.sa, borderRadius: R }}>Activity tracking coming soon — will show recent actions in MyDash</div>
+        </div>
+      </>)}
+
+      {/* Settings tab — commission, pub assignments */}
+      {tab === "Settings" && (<>
+        {/* Commission settings (sales roles) */}
+        {["Sales Manager", "Salesperson"].includes(member.role) && <>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Commission Settings</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ padding: 12, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Default Rate</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Inp type="number" value={member.commissionDefaultRate || 20} onChange={e => { if (updateTeamMember) updateTeamMember(member.id, { commissionDefaultRate: Number(e.target.value) }); }} style={{ width: 60 }} />
+                <span style={{ fontSize: FS.sm, color: Z.tm }}>%</span>
+              </div>
+            </div>
+            <div style={{ padding: 12, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Earning Trigger</div>
+              <Sel value={member.commissionTrigger || "both"} onChange={e => { if (updateTeamMember) updateTeamMember(member.id, { commissionTrigger: e.target.value }); }} options={[
+                { value: "both", label: "Both (Issue + Invoice)" },
+                { value: "issue_published", label: "When Issue Publishes" },
+                { value: "invoice_paid", label: "When Invoice Paid" },
+              ]} />
+            </div>
+          </div>
+        </>}
+        {/* Publication assignments with % */}
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Publication Assignments</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {pubs.map(p => {
+              const isAssigned = (member.pubs || []).includes("all") || (member.pubs || []).includes(p.id);
+              return <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: isAssigned ? Z.go + "08" : Z.sa, borderRadius: Ri, borderLeft: `2px solid ${isAssigned ? Z.go : Z.bd}` }}>
+                <span style={{ flex: 1, fontSize: FS.sm, fontWeight: isAssigned ? FW.bold : FW.normal, color: isAssigned ? Z.tx : Z.td }}>{p.name}</span>
+                <span style={{ fontSize: FS.xs, color: isAssigned ? Z.go : Z.td }}>{isAssigned ? "Assigned" : "—"}</span>
+              </div>;
+            })}
+          </div>
+        </div>
+        {/* Freelancer settings */}
+        {member.isFreelance && <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Freelancer Settings</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate Type</div>
+              <Sel value={member.rateType || "per_piece"} onChange={e => { if (updateTeamMember) updateTeamMember(member.id, { rateType: e.target.value }); }} options={[
+                { value: "per_piece", label: "Per Piece" }, { value: "per_hour", label: "Per Hour" }, { value: "flat", label: "Flat" },
+              ]} />
+            </div>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate</div>
+              <Inp type="number" value={member.rateAmount || 0} onChange={e => { if (updateTeamMember) updateTeamMember(member.id, { rateAmount: Number(e.target.value) }); }} />
+            </div>
+            <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Availability</div>
+              <Sel value={member.availability || "available"} onChange={e => { if (updateTeamMember) updateTeamMember(member.id, { availability: e.target.value }); }} options={[
+                { value: "available", label: "Available" }, { value: "busy", label: "Busy" }, { value: "unavailable", label: "Unavailable" },
+              ]} />
+            </div>
+          </div>
+        </div>}
       </>)}
 
       {/* Permissions tab */}
@@ -471,6 +588,10 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
       updateTeamMember={updateTeamMember}
       metrics={memberModal ? getMetrics(memberModal) : []}
       onEdit={openEdit}
+      clients={clients}
+      sales={sales}
+      stories={stories}
+      tickets={tickets}
     />
   </div>;
 };

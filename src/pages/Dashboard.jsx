@@ -39,11 +39,42 @@ const Dashboard = ({
   const [selMember, setSelMember] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [memberNote, setMemberNote] = useState("");
+  const [memberNotes, setMemberNotes] = useState([]);
+  const [noteSending, setNoteSending] = useState(false);
   const [briefingModal, setBriefingModal] = useState(false);
   const [showOnTrack, setShowOnTrack] = useState(false);
   const ini = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
-  const openMemberPanel = (t) => { setSelMember(t); setTimeout(() => setPanelOpen(true), 10); };
+  const openMemberPanel = (t) => {
+    setSelMember(t);
+    setTimeout(() => setPanelOpen(true), 10);
+    // Load notes for this team member
+    if (t?.authId && isOnline()) {
+      supabase.from("team_notes").select("*")
+        .or(`to_user.eq.${t.authId},from_user.eq.${t.authId}`)
+        .order("created_at", { ascending: false }).limit(20)
+        .then(({ data }) => setMemberNotes(data || []));
+    } else setMemberNotes([]);
+  };
   const closeMemberPanel = () => { setPanelOpen(false); setTimeout(() => setSelMember(null), 250); };
+
+  const sendNote = async (message, contextType, contextId) => {
+    if (!message?.trim() || !selMember?.authId || noteSending) return;
+    setNoteSending(true);
+    const { data } = await supabase.from("team_notes").insert({
+      from_user: currentUser?.authId || null,
+      to_user: selMember.authId,
+      message: message.trim(),
+      context_type: contextType || "general",
+      context_id: contextId || null,
+    }).select().single();
+    if (data) setMemberNotes(prev => [data, ...prev]);
+    setMemberNote("");
+    setNoteSending(false);
+  };
+
+  const sendQuickAssign = (task) => {
+    sendNote(`Task assigned: ${task}`, "task", null);
+  };
 
   const _inv = invoices || []; const _pay = payments || []; const _subs = subscribers || [];
   const _tickets = tickets || []; const _legal = legalNotices || []; const _jobs = creativeJobs || [];
@@ -1215,20 +1246,47 @@ const Dashboard = ({
           <Btn sm v="ghost" onClick={closeMemberPanel}>&times;</Btn>
         </div>
         <div style={{ flex: 1, overflow: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Send a note (writes to team_notes) */}
           <div>
             <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>Send a note</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={memberNote} onChange={e => setMemberNote(e.target.value)} placeholder="Direct this team member..." style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "10px 14px", color: Z.tx, fontSize: FS.base, outline: "none" }} onKeyDown={e => { if (e.key === "Enter" && memberNote.trim()) setMemberNote(""); }} />
-              <Btn sm onClick={() => { if (memberNote.trim()) setMemberNote(""); }}>Send</Btn>
+              <input value={memberNote} onChange={e => setMemberNote(e.target.value)} placeholder="Direct this team member..." style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "10px 14px", color: Z.tx, fontSize: FS.base, outline: "none", fontFamily: "inherit" }} onKeyDown={e => { if (e.key === "Enter" && memberNote.trim()) sendNote(memberNote); }} />
+              <Btn sm onClick={() => sendNote(memberNote)} disabled={!memberNote.trim() || noteSending}>{noteSending ? "..." : "Send"}</Btn>
             </div>
           </div>
+
+          {/* Quick assign (creates task note) */}
           <div>
             <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>Quick assign</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {(["Sales Manager", "Salesperson"].includes(selMember.role) ? ["Follow up with client", "Send media kit", "Send proposal", "Schedule call", "Review contract"] : ["Editor", "Copy Editor", "Managing Editor"].includes(selMember.role) ? ["Edit story", "Review draft", "Final proof", "Assign photos", "Write headline"] : ["Graphic Designer", "Photo Editor"].includes(selMember.role) ? ["Design ad", "Layout pages", "Create proof", "Update media kit", "Photo edit"] : ["Office Manager"].includes(selMember.role) ? ["Follow up on payment", "Process renewal", "Handle complaint", "Schedule driver", "Send legal proof"] : ["Write story", "Submit draft", "Revise story", "Add photos", "Research topic"]
-              ).map(task => <button key={task} style={{ padding: "6px 14px", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm, fontFamily: COND }}>{task}</button>)}
+              {(["Sales Manager", "Salesperson"].includes(selMember.role) ? ["Follow up with client", "Send media kit", "Send proposal", "Schedule call", "Review contract"] : ["Editor", "Copy Editor", "Managing Editor", "Content Editor"].includes(selMember.role) ? ["Edit story", "Review draft", "Final proof", "Assign photos", "Write headline"] : ["Graphic Designer", "Photo Editor", "Layout Designer", "Production Manager"].includes(selMember.role) ? ["Design ad", "Layout pages", "Create proof", "Update media kit", "Photo edit"] : ["Office Manager", "Office Administrator"].includes(selMember.role) ? ["Follow up on payment", "Process renewal", "Handle complaint", "Schedule driver", "Send legal proof"] : ["Write story", "Submit draft", "Revise story", "Add photos", "Research topic"]
+              ).map(task => <button key={task} onClick={() => sendQuickAssign(task)} style={{ padding: "6px 14px", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.bg, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm, fontFamily: COND, transition: "background 0.1s" }} onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = Z.bg}>{task}</button>)}
             </div>
           </div>
+
+          {/* Notes history */}
+          <div style={{ borderTop: `1px solid ${Z.bd}`, paddingTop: 14 }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>
+              Recent Notes {memberNotes.length > 0 && <span style={{ color: Z.tm }}>({memberNotes.length})</span>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+              {memberNotes.length === 0 && <div style={{ fontSize: FS.sm, color: Z.td, padding: "8px 0" }}>No notes yet</div>}
+              {memberNotes.slice(0, 10).map(n => {
+                const isFromMe = n.from_user === currentUser?.authId;
+                const isTask = n.context_type === "task";
+                return <div key={n.id} style={{ padding: "8px 10px", borderRadius: Ri, background: isTask ? Z.wa + "08" : Z.bg, borderLeft: `2px solid ${isTask ? Z.wa : isFromMe ? Z.ac : Z.go}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: isFromMe ? Z.ac : Z.go }}>{isFromMe ? "You" : selMember?.name?.split(" ")[0]}</span>
+                    <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtDate(n.created_at?.slice(0, 10))}</span>
+                  </div>
+                  <div style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{n.message}</div>
+                  {!n.is_read && !isFromMe && <span style={{ fontSize: FS.micro, color: Z.wa, fontWeight: FW.bold }}>UNREAD</span>}
+                </div>;
+              })}
+            </div>
+          </div>
+
+          {/* Contact */}
           <div style={{ borderTop: `1px solid ${Z.bd}`, paddingTop: 14 }}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>Contact</div>
             <div style={{ fontSize: FS.base, color: Z.tm }}>{selMember.email}</div>

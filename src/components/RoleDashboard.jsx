@@ -2,9 +2,10 @@
 // RoleDashboard.jsx — Role-specific team member dashboards
 // Renders personalized 2-column dashboard per role (Sec 12.1-12.6)
 // ============================================================
-import { useState, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Pill, GlassCard, GlassStat, glass as glassStyle } from "../components/ui";
+import { supabase, isOnline } from "../lib/supabase";
 
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);
@@ -35,6 +36,61 @@ const RoleDashboard = memo(({
 
   const pn = (pid) => (pubs || []).find(p => p.id === pid)?.name || "";
   const cn = (cid) => _clients.find(c => c.id === cid)?.name || "—";
+
+  // ─── Direction from Publisher (Sec 12.0.3) ─────────────
+  const [directionNotes, setDirectionNotes] = useState([]);
+  const [replyText, setReplyText] = useState("");
+  useEffect(() => {
+    if (!currentUser?.authId || !isOnline()) return;
+    supabase.from("team_notes").select("*")
+      .eq("to_user", currentUser.authId)
+      .order("created_at", { ascending: false }).limit(10)
+      .then(({ data }) => setDirectionNotes(data || []));
+  }, [currentUser?.authId]);
+
+  const markNoteRead = async (noteId) => {
+    await supabase.from("team_notes").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", noteId);
+    setDirectionNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_read: true } : n));
+  };
+
+  const replyToNote = async (note) => {
+    if (!replyText.trim()) return;
+    const { data } = await supabase.from("team_notes").insert({
+      from_user: currentUser.authId, to_user: note.from_user,
+      message: replyText.trim(), context_type: "general",
+    }).select().single();
+    if (data) setDirectionNotes(prev => [data, ...prev]);
+    setReplyText("");
+  };
+
+  const DirectionCard = () => {
+    const unread = directionNotes.filter(n => !n.is_read && n.from_user !== currentUser?.authId);
+    return <div style={glass}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Direction from Publisher</span>
+        {unread.length > 0 && <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.ac, background: Z.ac + "15", padding: "2px 8px", borderRadius: Ri }}>{unread.length} new</span>}
+      </div>
+      {directionNotes.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No notes from publisher</div>
+      : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+        {directionNotes.filter(n => n.from_user !== currentUser?.authId).slice(0, 5).map(n => (
+          <div key={n.id} onClick={() => { if (!n.is_read) markNoteRead(n.id); }} style={{ padding: "8px 10px", borderRadius: Ri, background: Z.bg, borderLeft: `2px solid ${n.is_read ? Z.bd : Z.ac}`, cursor: n.is_read ? "default" : "pointer" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+              <span style={{ fontSize: FS.xs, color: n.is_read ? Z.td : Z.ac, fontWeight: FW.bold }}>{n.context_type === "task" ? "Task" : "Note"}</span>
+              <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtDate(n.created_at?.slice(0, 10))}</span>
+            </div>
+            <div style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{n.message}</div>
+          </div>
+        ))}
+      </div>}
+      {/* Reply input */}
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <input value={replyText} onChange={e => setReplyText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && replyText.trim() && directionNotes[0]) replyToNote(directionNotes[0]); }}
+          placeholder="Reply..." style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, outline: "none", fontFamily: "inherit" }} />
+        <Btn sm onClick={() => { if (directionNotes[0]) replyToNote(directionNotes[0]); }} disabled={!replyText.trim()}>Reply</Btn>
+      </div>
+    </div>;
+  };
 
   // ─── Content Editor Dashboard (Camille) — Sec 12.2 ────
   if (["Editor", "Managing Editor", "Copy Editor", "Content Editor"].includes(role)) {
@@ -93,6 +149,7 @@ const RoleDashboard = memo(({
         </div>
         {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Today's Completed</div>
             {editedToday.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No stories submitted yet today</div>
@@ -143,6 +200,7 @@ const RoleDashboard = memo(({
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Print Schedule</div>
             {activeIssues.slice(0, 6).map(iss => {
@@ -210,6 +268,7 @@ const RoleDashboard = memo(({
           </div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -268,6 +327,7 @@ const RoleDashboard = memo(({
           </div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Deadline Calendar</div>
             {_issues.filter(i => i.adDeadline && daysUntil(i.adDeadline) >= 0 && daysUntil(i.adDeadline) <= 30).slice(0, 6).map(iss => {
