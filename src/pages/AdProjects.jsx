@@ -187,17 +187,36 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   if (viewProject) {
     const st = STATUSES[viewProject.status] || STATUSES.brief;
     const latestProof = viewProofs[0];
+    const STAGES = ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"];
+    const currentIdx = STAGES.indexOf(viewProject.status);
+    const spName = (team || []).find(t => t.id === viewProject.salesperson_id)?.name;
+
+    // Status advance helper
+    const advanceStatus = async (newStatus) => {
+      await supabase.from("ad_projects").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", viewProject.id);
+      setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, status: newStatus } : p));
+    };
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <PageHeader title={`${cn(viewProject.client_id)} \u2014 ${pn(viewProject.publication_id)}`}>
-        <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
-        <Badge status={st.label} small />
-      </PageHeader>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{cn(viewProject.client_id)} — {pn(viewProject.publication_id)}</div>
+          <div style={{ fontSize: FS.sm, color: Z.tm }}>
+            Salesperson: <span style={{ fontWeight: FW.bold, color: Z.tx }}>{spName || "—"}</span>
+            {" · "}Designer: <span style={{ fontWeight: FW.bold, color: Z.tx }}>{tn(viewProject.designer_id)}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {viewProject.status === "brief" && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
+          <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
+        </div>
+      </div>
 
       {/* Status pipeline */}
-      <div style={{ display: "flex", gap: 2, marginBottom: 16 }}>
-        {["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].map(s => {
+      <div style={{ display: "flex", gap: 2 }}>
+        {STAGES.map((s, i) => {
           const isCurrent = viewProject.status === s;
-          const isPast = ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].indexOf(viewProject.status) > ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].indexOf(s);
+          const isPast = currentIdx > i;
           return <div key={s} style={{ flex: 1, padding: "6px 0", textAlign: "center", fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5, color: isCurrent ? "#fff" : isPast ? Z.go : Z.td, background: isCurrent ? st.color : isPast ? Z.go + "20" : Z.sa, borderRadius: Ri }}>{STATUSES[s]?.label || s}</div>;
         })}
       </div>
@@ -225,71 +244,107 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
       })()}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}>
-        {/* LEFT: Brief + Proofs */}
+        {/* LEFT: Brief with hero proof + history */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Structured Brief */}
+
+          {/* Design Brief + Current Proof Hero */}
           <GlassCard>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            {/* Brief header: ad size, issue, client contact, revisions */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Design Brief</span>
-              {viewProject.client_contact_name && <span style={{ fontSize: FS.xs, color: Z.tm }}>Contact: {viewProject.client_contact_name} {viewProject.client_contact_email ? `· ${viewProject.client_contact_email}` : ""}</span>}
+              {viewProject.client_contact_name && <span style={{ fontSize: FS.xs, color: Z.tm }}>Client: {viewProject.client_contact_name}{viewProject.client_contact_email ? ` · ${viewProject.client_contact_email}` : ""}{viewProject.client_contact_phone ? ` · ${viewProject.client_contact_phone}` : ""}</span>}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: FS.sm, marginBottom: 10 }}>
-              <div><span style={{ color: Z.td }}>Ad Size:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.ad_size || "—"}</span></div>
-              <div><span style={{ color: Z.td }}>Designer:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{tn(viewProject.designer_id)}</span></div>
-              <div><span style={{ color: Z.td }}>Issue:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || viewProject.issue_id : "—"}</span></div>
-              <div><span style={{ color: Z.td }}>Revisions:</span> <span style={{ color: viewProject.revision_count >= 3 ? Z.wa : Z.tx, fontWeight: FW.semi }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25} charges)` : ""}</span></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: FS.sm, marginBottom: 14 }}>
+              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
+              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || "—" : "—"}</div></div>
+              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(viewProject.publication_id)}</div></div>
+              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
             </div>
-            {/* Structured brief fields */}
-            {[
-              { label: "Key Message / Headline", value: viewProject.brief_headline, key: "brief_headline" },
-              { label: "Style Direction", value: viewProject.brief_style, key: "brief_style" },
-              { label: "Colors", value: viewProject.brief_colors, key: "brief_colors" },
-              { label: "Special Instructions", value: viewProject.brief_instructions, key: "brief_instructions" },
-            ].map(f => (
-              <div key={f.key} style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{f.label}</div>
-                {f.value ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "6px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{f.value}</div>
-                  : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "6px 10px" }}>Not provided yet</div>}
-              </div>
-            ))}
-            {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div style={{ marginTop: 4 }}>
+
+            {/* Current Proof — hero display */}
+            <div style={{ marginBottom: 14, padding: 16, background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, minHeight: 120 }}>
+              {latestProof ? <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div>
+                    <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>Proof v{latestProof.version}</span>
+                    <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{fmtDate(latestProof.created_at)}</span>
+                    {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready for Sales", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent to Client" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 8px", borderRadius: Ri, marginLeft: 8 }}>{lbl}</span>; })()}
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <Btn sm v="ghost" onClick={() => window.open(latestProof.proof_url, "_blank")}>View Full</Btn>
+                    {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }}>Mark Ready</Btn>}
+                    {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }}>Request Edit</Btn>}
+                    {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved") && <Btn sm onClick={() => copyApprovalLink(latestProof)}>Send to Client</Btn>}
+                  </div>
+                </div>
+                {/* Proof preview */}
+                {latestProof.proof_url && (latestProof.proof_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                  ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} style={{ maxWidth: "100%", maxHeight: 400, borderRadius: Ri, display: "block", margin: "0 auto" }} />
+                  : <div style={{ textAlign: "center", padding: 20, color: Z.tm, fontSize: FS.sm }}>PDF proof — <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open in new tab</a></div>
+                )}
+                {latestProof.designer_notes && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 8 }}>Designer notes: {latestProof.designer_notes}</div>}
+                {latestProof.client_feedback && <div style={{ fontSize: FS.xs, color: Z.tx, marginTop: 4, padding: "6px 10px", background: Z.wa + "10", borderRadius: Ri, borderLeft: `2px solid ${Z.wa}` }}>Client feedback: {latestProof.client_feedback}</div>}
+              </> : <>
+                <div style={{ textAlign: "center", padding: "24px 0" }}>
+                  <div style={{ fontSize: FS.sm, color: Z.td, marginBottom: 10 }}>No proof uploaded yet</div>
+                  <Btn onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={13} /> Upload First Proof</Btn>
+                </div>
+              </>}
+            </div>
+
+            {/* Upload new version (when proof exists) */}
+            {latestProof && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+              <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload New Version</Btn>
+            </div>}
+
+            {/* Brief fields — structured */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[
+                { label: "Key Message / Headline", value: viewProject.brief_headline, key: "brief_headline" },
+                { label: "Colors to Use / Avoid", value: viewProject.brief_colors, key: "brief_colors" },
+              ].map(f => (
+                <div key={f.key}>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{f.label}</div>
+                  {f.value ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 36 }}>{f.value}</div>
+                    : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
+                </div>
+              ))}
+            </div>
+            {/* Style direction — full width, more room */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Style Direction</div>
+              {viewProject.brief_style ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 60, lineHeight: 1.6 }}>{viewProject.brief_style}</div>
+                : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
+            </div>
+            {/* Special instructions — full width */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Special Instructions</div>
+              {viewProject.brief_instructions ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 40, lineHeight: 1.6 }}>{viewProject.brief_instructions}</div>
+                : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
+            </div>
+            {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
-              <div style={{ fontSize: FS.sm, color: Z.tx, padding: "6px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
+              <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
             </div>}
           </GlassCard>
 
-          {/* Proofs with ready/edit/send workflow */}
-          <GlassCard>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Proofs ({viewProofs.length})</span>
-              <Btn sm onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload Proof</Btn>
-            </div>
-            {viewProofs.map(proof => {
-              const intStatus = proof.internal_status || "uploaded";
-              const statusLabel = { uploaded: "Uploaded", ready: "Ready for Sales", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent to Client" }[intStatus] || intStatus;
-              const statusColor = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[intStatus] || Z.tm;
-              return <div key={proof.id} style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, marginBottom: 6, borderLeft: `3px solid ${statusColor}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>v{proof.version}</span>
-                    <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{fmtDate(proof.created_at)}</span>
-                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: statusColor, background: statusColor + "15", padding: "1px 6px", borderRadius: Ri, marginLeft: 6 }}>{statusLabel}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <Btn sm v="ghost" onClick={() => window.open(proof.proof_url, "_blank")}>View</Btn>
-                    {intStatus === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", proof.id); setProofs(prev => prev.map(p => p.id === proof.id ? { ...p, internal_status: "ready" } : p)); }}>Mark Ready</Btn>}
-                    {intStatus === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", proof.id); setProofs(prev => prev.map(p => p.id === proof.id ? { ...p, internal_status: "edit" } : p)); }}>Request Edit</Btn>}
-                    {(intStatus === "ready" || intStatus === "approved") && <Btn sm onClick={() => { copyApprovalLink(proof); }}>Send to Client</Btn>}
-                  </div>
+          {/* Proof Version History (previous versions) */}
+          {viewProofs.length > 1 && <GlassCard>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Version History</div>
+            {viewProofs.slice(1).map(proof => {
+              const is = proof.internal_status || "uploaded";
+              const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm;
+              return <div key={proof.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, borderLeft: `2px solid ${clr}` }}>
+                <div>
+                  <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>v{proof.version}</span>
+                  <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 6 }}>{fmtDate(proof.created_at)}</span>
                 </div>
-                {proof.designer_notes && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Designer: {proof.designer_notes}</div>}
-                {proof.client_feedback && <div style={{ fontSize: FS.xs, color: Z.tx, marginTop: 4, padding: "4px 8px", background: Z.sa, borderRadius: Ri }}>Client: {proof.client_feedback}</div>}
+                <Btn sm v="ghost" onClick={() => window.open(proof.proof_url, "_blank")}>View</Btn>
               </div>;
             })}
-            {viewProofs.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No proofs uploaded yet</div>}
-          </GlassCard>
+          </GlassCard>}
 
-          {/* Ad History — previous ads for this client */}
+          {/* Ad History */}
           {(() => {
             const clientAds = (sales || []).filter(s => s.clientId === viewProject.client_id && s.status === "Closed" && s.id !== viewProject.sale_id).slice(0, 5);
             if (clientAds.length === 0) return null;
