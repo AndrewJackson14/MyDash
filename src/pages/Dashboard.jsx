@@ -677,6 +677,33 @@ const Dashboard = ({
           </div>)}
         </div>
       </div>}
+
+      {/* DOSE emotional feedback strip */}
+      {(() => {
+        const closedThisWeek = _sales.filter(s => s.status === "Closed" && s.closedAt && s.closedAt.slice(0, 10) >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10) && myRevStats.myClientIds?.has?.(s.clientId)).length;
+        const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+        const closedByDay = {};
+        _sales.filter(s => s.status === "Closed" && s.closedAt && s.closedAt.slice(0, 10) >= d7ago).forEach(s => {
+          const d = s.closedAt.slice(0, 10); closedByDay[d] = (closedByDay[d] || 0) + 1;
+        });
+        const hwm = Math.max(0, ...Object.values(closedByDay));
+        const pipelineEmpty = myRevStats.pipelineCount === 0;
+        return <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {hwm > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 14 }}>🔥</span>
+            <span style={{ fontSize: 12, fontWeight: FW.black, color: Z.wa }}>{hwm} deals in a day</span>
+            <span style={{ fontSize: 10, color: Z.tm }}>7d best</span>
+          </div>}
+          {closedThisWeek > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 14 }}>💰</span>
+            <span style={{ fontSize: 12, fontWeight: FW.bold, color: Z.go }}>{closedThisWeek} closed this week</span>
+          </div>}
+          {pipelineEmpty && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: ACCENT.blue + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: 12, fontWeight: FW.bold, color: ACCENT.blue }}>Pipeline clear — time to prospect</span>
+          </div>}
+        </div>;
+      })()}
     </> :
     /* ═══ PUBLISHER'S COMMAND CENTER (not shown for team members) ═══ */
     !isTeamMember ? <>
@@ -897,6 +924,35 @@ const Dashboard = ({
       </div>
     </>
     : /* ═══ PUBLISHER'S COMMAND CENTER — 3-COLUMN LAYOUT ═══ */
+    <>
+    {/* Publisher DOSE strip */}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 4 }}>
+      {(() => {
+        const closedThisMonth = _sales.filter(s => s.status === "Closed" && s.date?.startsWith(today.slice(0, 7)));
+        const teamEdited = _stories.filter(s => s.status !== "Draft" && s.updatedAt?.startsWith(today.slice(0, 7))).length;
+        const issuesOnTime = _issues.filter(i => i.sentToPressAt && i.date >= today.slice(0, 7) + "-01").length;
+        const allDeadlinesMet = deadlineAlerts.length === 0;
+        const topSeller = salesToGoal.sort((a, b) => b.monthlyTotal - a.monthlyTotal)[0];
+        return <>
+          {closedThisMonth.length > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 12 }}>💰</span>
+            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>{closedThisMonth.length} deals closed MTD · {fmtCurrency(closedThisMonth.reduce((s, x) => s + (x.amount || 0), 0))}</span>
+          </div>}
+          {topSeller && topSeller.monthlyTotal > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.ac + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 12 }}>⭐</span>
+            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac }}>{topSeller.sp.name?.split(" ")[0]}: {fmtCurrency(topSeller.monthlyTotal)} MTD</span>
+          </div>}
+          {teamEdited > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: ACCENT.blue + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 12 }}>📝</span>
+            <span style={{ fontSize: 11, fontWeight: FW.bold, color: ACCENT.blue }}>{teamEdited} stories edited this month</span>
+          </div>}
+          {allDeadlinesMet && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
+            <span style={{ fontSize: 12 }}>✨</span>
+            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>All deadlines met</span>
+          </div>}
+        </>;
+      })()}
+    </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
 
       {/* ════ LEFT COLUMN ════ */}
@@ -1210,6 +1266,7 @@ const Dashboard = ({
         </div>}
       </div>
     </div>}
+    </>}
     </div>{/* end padded content wrapper */}
 
     {/* BRIEFING MODAL */}

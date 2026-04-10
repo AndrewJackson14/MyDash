@@ -367,7 +367,6 @@ const RoleDashboard = memo(({
           </div>}
         </div>
       </div>
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
