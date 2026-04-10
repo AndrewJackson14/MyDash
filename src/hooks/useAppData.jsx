@@ -158,7 +158,7 @@ export function DataProvider({ children, localData }) {
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
           id: c.id, name: c.name, status: c.status, totalSpend: Number(c.total_spend),
           category: c.category || '', address: c.address || '', city: c.city || '', state: c.state || '', zip: c.zip || '',
-          repId: c.rep_id || null, contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null,
+          repId: c.rep_id || null, clientCode: c.client_code || null, contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null,
           contacts: [], comms: [], yearlySummary: [],
         })));
 

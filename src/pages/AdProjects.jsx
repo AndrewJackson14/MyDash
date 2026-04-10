@@ -189,82 +189,150 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     const latestProof = viewProofs[0];
     return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <PageHeader title={`${cn(viewProject.client_id)} \u2014 ${pn(viewProject.publication_id)}`}>
-        <Btn sm v="ghost" onClick={() => setViewId(null)}>\u2190 Back</Btn>
+        <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
         <Badge status={st.label} small />
       </PageHeader>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {/* LEFT: Project details + proofs */}
+      {/* Status pipeline */}
+      <div style={{ display: "flex", gap: 2, marginBottom: 16 }}>
+        {["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].map(s => {
+          const isCurrent = viewProject.status === s;
+          const isPast = ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].indexOf(viewProject.status) > ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"].indexOf(s);
+          return <div key={s} style={{ flex: 1, padding: "6px 0", textAlign: "center", fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5, color: isCurrent ? "#fff" : isPast ? Z.go : Z.td, background: isCurrent ? st.color : isPast ? Z.go + "20" : Z.sa, borderRadius: Ri }}>{STATUSES[s]?.label || s}</div>;
+        })}
+      </div>
+
+      {/* Deadline context */}
+      {(() => {
+        const issue = (issues || []).find(i => i.id === viewProject.issue_id);
+        if (!issue) return null;
+        const daysToPublish = issue.date ? Math.ceil((new Date(issue.date + "T12:00:00") - new Date()) / 86400000) : null;
+        const daysToAdDl = issue.adDeadline ? Math.ceil((new Date(issue.adDeadline + "T12:00:00") - new Date()) / 86400000) : null;
+        return <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          {daysToAdDl !== null && <div style={{ flex: 1, padding: "8px 14px", background: (daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.go) + "10", borderRadius: Ri, borderLeft: `3px solid ${daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.go}` }}>
+            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Materials Due</div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.black, color: daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.tx }}>{daysToAdDl < 0 ? `${Math.abs(daysToAdDl)}d overdue` : daysToAdDl === 0 ? "Today" : `${daysToAdDl}d`}</div>
+          </div>}
+          {daysToPublish !== null && <div style={{ flex: 1, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
+            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publishes</div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>{fmtDate(issue.date)} ({daysToPublish}d)</div>
+          </div>}
+          <div style={{ flex: 1, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
+            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Placement</div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm }}>Not yet placed</div>
+          </div>
+        </div>;
+      })()}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}>
+        {/* LEFT: Brief + Proofs */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Brief */}
+          {/* Structured Brief */}
           <GlassCard>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Design Brief</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: FS.sm, marginBottom: 8 }}>
-              <div><span style={{ color: Z.td }}>Ad Size:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.ad_size || "\u2014"}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Design Brief</span>
+              {viewProject.client_contact_name && <span style={{ fontSize: FS.xs, color: Z.tm }}>Contact: {viewProject.client_contact_name} {viewProject.client_contact_email ? `· ${viewProject.client_contact_email}` : ""}</span>}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: FS.sm, marginBottom: 10 }}>
+              <div><span style={{ color: Z.td }}>Ad Size:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.ad_size || "—"}</span></div>
               <div><span style={{ color: Z.td }}>Designer:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{tn(viewProject.designer_id)}</span></div>
-              <div><span style={{ color: Z.td }}>Issue:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || viewProject.issue_id : "\u2014"}</span></div>
+              <div><span style={{ color: Z.td }}>Issue:</span> <span style={{ color: Z.tx, fontWeight: FW.semi }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || viewProject.issue_id : "—"}</span></div>
               <div><span style={{ color: Z.td }}>Revisions:</span> <span style={{ color: viewProject.revision_count >= 3 ? Z.wa : Z.tx, fontWeight: FW.semi }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25} charges)` : ""}</span></div>
             </div>
-            {viewProject.design_notes && <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>}
-            {viewProject.client_contact_name && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6 }}>Client contact: {viewProject.client_contact_name} {viewProject.client_contact_email && `\u2014 ${viewProject.client_contact_email}`}</div>}
+            {/* Structured brief fields */}
+            {[
+              { label: "Key Message / Headline", value: viewProject.brief_headline, key: "brief_headline" },
+              { label: "Style Direction", value: viewProject.brief_style, key: "brief_style" },
+              { label: "Colors", value: viewProject.brief_colors, key: "brief_colors" },
+              { label: "Special Instructions", value: viewProject.brief_instructions, key: "brief_instructions" },
+            ].map(f => (
+              <div key={f.key} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{f.label}</div>
+                {f.value ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "6px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{f.value}</div>
+                  : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "6px 10px" }}>Not provided yet</div>}
+              </div>
+            ))}
+            {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
+              <div style={{ fontSize: FS.sm, color: Z.tx, padding: "6px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
+            </div>}
           </GlassCard>
 
-          {/* Proofs */}
+          {/* Proofs with ready/edit/send workflow */}
           <GlassCard>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Proofs ({viewProofs.length})</span>
               <Btn sm onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload Proof</Btn>
             </div>
-            {viewProofs.map(proof => (
-              <div key={proof.id} style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, marginBottom: 6, borderLeft: `3px solid ${proof.client_status === "approved" ? Z.go : proof.client_status === "changes_requested" ? Z.wa : Z.tm}` }}>
+            {viewProofs.map(proof => {
+              const intStatus = proof.internal_status || "uploaded";
+              const statusLabel = { uploaded: "Uploaded", ready: "Ready for Sales", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent to Client" }[intStatus] || intStatus;
+              const statusColor = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[intStatus] || Z.tm;
+              return <div key={proof.id} style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, marginBottom: 6, borderLeft: `3px solid ${statusColor}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Version {proof.version}</span>
+                    <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>v{proof.version}</span>
                     <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{fmtDate(proof.created_at)}</span>
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: statusColor, background: statusColor + "15", padding: "1px 6px", borderRadius: Ri, marginLeft: 6 }}>{statusLabel}</span>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <Badge status={proof.client_status === "approved" ? "Approved" : proof.client_status === "changes_requested" ? "Changes" : "Pending"} small />
-                    <Btn sm v="ghost" onClick={() => copyApprovalLink(proof)}>Copy Link</Btn>
                     <Btn sm v="ghost" onClick={() => window.open(proof.proof_url, "_blank")}>View</Btn>
+                    {intStatus === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", proof.id); setProofs(prev => prev.map(p => p.id === proof.id ? { ...p, internal_status: "ready" } : p)); }}>Mark Ready</Btn>}
+                    {intStatus === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", proof.id); setProofs(prev => prev.map(p => p.id === proof.id ? { ...p, internal_status: "edit" } : p)); }}>Request Edit</Btn>}
+                    {(intStatus === "ready" || intStatus === "approved") && <Btn sm onClick={() => { copyApprovalLink(proof); }}>Send to Client</Btn>}
                   </div>
                 </div>
-                {proof.designer_notes && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Designer notes: {proof.designer_notes}</div>}
-                {proof.client_notes && <div style={{ fontSize: FS.xs, color: Z.tx, marginTop: 4, padding: "4px 8px", background: Z.sa, borderRadius: Ri }}>Client: {proof.client_notes}</div>}
-                {(proof.client_annotations || []).length > 0 && <div style={{ fontSize: FS.xs, color: Z.wa, marginTop: 2 }}>{proof.client_annotations.length} annotation{proof.client_annotations.length !== 1 ? "s" : ""} on proof</div>}
-              </div>
-            ))}
+                {proof.designer_notes && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Designer: {proof.designer_notes}</div>}
+                {proof.client_feedback && <div style={{ fontSize: FS.xs, color: Z.tx, marginTop: 4, padding: "4px 8px", background: Z.sa, borderRadius: Ri }}>Client: {proof.client_feedback}</div>}
+              </div>;
+            })}
             {viewProofs.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No proofs uploaded yet</div>}
           </GlassCard>
 
+          {/* Ad History — previous ads for this client */}
+          {(() => {
+            const clientAds = (sales || []).filter(s => s.clientId === viewProject.client_id && s.status === "Closed" && s.id !== viewProject.sale_id).slice(0, 5);
+            if (clientAds.length === 0) return null;
+            return <GlassCard>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Client Ad History</div>
+              {clientAds.map(s => (
+                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, fontSize: FS.sm }}>
+                  <span style={{ color: Z.tx }}>{pn(s.publication)} {(issues || []).find(i => i.id === s.issueId)?.label || ""}</span>
+                  <span style={{ color: Z.tm }}>{s.size || s.adSize || s.type || "Ad"} · {s.page ? `Page ${s.page}` : "—"}</span>
+                </div>
+              ))}
+            </GlassCard>;
+          })()}
+
           {/* Sign-off */}
-          {viewProject.status === "approved" || viewProject.revision_count > 0 ? <GlassCard>
+          {(viewProject.status === "approved" || viewProject.revision_count > 0) && <GlassCard>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Sign-Off</div>
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1, padding: "10px 14px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Designer</div>
-                {viewProject.designer_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>\u2713 Signed off</div>
+                {viewProject.designer_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>✓ Signed off</div>
                   : <Btn sm style={{ marginTop: 4 }} onClick={() => signOff(viewProject.id, "designer")}>Sign Off</Btn>}
               </div>
               <div style={{ flex: 1, padding: "10px 14px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Salesperson</div>
-                {viewProject.salesperson_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>\u2713 Signed off</div>
+                {viewProject.salesperson_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>✓ Signed off</div>
                   : <Btn sm style={{ marginTop: 4 }} onClick={() => signOff(viewProject.id, "salesperson")}>Sign Off</Btn>}
               </div>
             </div>
-          </GlassCard> : null}
+          </GlassCard>}
         </div>
 
-        {/* RIGHT: Messages */}
-        <GlassCard style={{ display: "flex", flexDirection: "column", maxHeight: 600 }}>
+        {/* RIGHT: Chat */}
+        <GlassCard style={{ display: "flex", flexDirection: "column", maxHeight: 700 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Project Chat</div>
-          <ChatPanel threadId={viewThread?.id} currentUser={currentUser} height={500} placeholder="Message about this project..." />
+          <ChatPanel threadId={viewThread?.id} currentUser={currentUser} height={600} placeholder="Message about this project..." />
         </GlassCard>
       </div>
 
       {/* Proof upload modal */}
       <Modal open={proofModal} onClose={() => setProofModal(false)} title="Upload Proof" width={440}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <TA label="Notes to Client" value={proofForm.designerNotes} onChange={e => setProofForm(f => ({ ...f, designerNotes: e.target.value }))} placeholder="Any notes for the client about this version..." rows={3} />
+          <TA label="Designer Notes" value={proofForm.designerNotes} onChange={e => setProofForm(f => ({ ...f, designerNotes: e.target.value }))} placeholder="Any notes about this version..." rows={3} />
           <Btn onClick={() => uploadProof(viewProject.id)} disabled={uploading}><Ic.up size={13} /> {uploading ? "Uploading..." : "Select & Upload Proof"}</Btn>
         </div>
       </Modal>
