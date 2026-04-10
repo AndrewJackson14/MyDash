@@ -59,11 +59,32 @@ export default function ProposalSign() {
   const handleSign = async () => {
     if (!agreed || !signerName.trim() || submitting) return;
     setSubmitting(true);
+
+    // 1. Record the signature
     await supabase.from("proposal_signatures").update({
       signed: true, signed_at: new Date().toISOString(),
       signer_name: signerName.trim(), signer_title: signerTitle.trim(),
       signed_ip: "", signed_user_agent: navigator.userAgent,
     }).eq("id", sig.id);
+
+    // 2. Mark proposal as signed
+    await supabase.from("proposals").update({
+      status: "Approved/Signed", signed_at: new Date().toISOString(),
+    }).eq("id", sig.proposal_id);
+
+    // 3. Auto-convert to contract + create sales orders
+    const { data: convResult } = await supabase.rpc("convert_proposal_to_contract", {
+      p_proposal_id: sig.proposal_id,
+    });
+
+    // 4. Create a notification for the salesperson
+    const snapshot = sig.proposal_snapshot || {};
+    await supabase.from("notifications").insert({
+      title: `${signerName.trim()} signed "${snapshot.name || "Proposal"}" — contract created`,
+      type: "system",
+      link: "/sales?tab=Closed",
+    });
+
     setSigned(true);
     setSubmitting(false);
   };
