@@ -293,54 +293,218 @@ const RoleDashboard = memo(({
 
   // ─── Ad Designer Dashboard (Jen) — Sec 12.4 ────
   if (role === "Ad Designer" || (role === "Graphic Designer" && currentUser?.title === "Ad Designer")) {
+    const [adProjects, setAdProjects] = useState([]);
+    const [adFilter, setAdFilter] = useState("all");
+    const [upcomingRange, setUpcomingRange] = useState("30d");
+    const [pinging, setPinging] = useState(null);
+
+    // Load ad projects assigned to this designer
+    useEffect(() => {
+      if (!currentUser?.id || !isOnline()) return;
+      supabase.from("ad_projects").select("*").order("created_at", { ascending: false })
+        .then(({ data }) => {
+          if (data) setAdProjects(data.filter(p => p.designer_id === currentUser.id || !p.designer_id));
+        });
+    }, [currentUser?.id]);
+
+    // Active projects (not placed/signed off)
+    const activeProjects = adProjects.filter(p => !["signed_off", "placed"].includes(p.status));
+    const revisionProjects = activeProjects.filter(p => p.status === "revising");
+    const approvedProjects = adProjects.filter(p => p.status === "approved" || p.status === "signed_off");
+    const approvedThisWeek = approvedProjects.filter(p => p.updated_at && daysUntil(p.updated_at.slice(0, 10)) >= -7);
+
+    // Also pull from creativeJobs as fallback
     const myJobs = _jobs.filter(j => !["complete", "billed"].includes(j.status)).sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"));
-    const newRequests = myJobs.filter(j => j.status === "not_started");
-    const inProgress = myJobs.filter(j => j.status === "in_progress");
-    const proofsSent = myJobs.filter(j => j.status === "proof_sent");
-    const approvedWeek = _jobs.filter(j => j.status === "complete" && j.completedAt && daysUntil(j.completedAt.slice(0, 10)) >= -7);
+
+    // Combined queue: ad_projects + creativeJobs (deduplicated)
+    const projectClientIds = new Set(activeProjects.map(p => p.client_id));
+    const combinedQueue = [
+      ...activeProjects.map(p => ({ id: p.id, type: "project", clientId: p.client_id, adSize: p.ad_size, status: p.status, issueId: p.issue_id, dueDate: null })),
+      ...myJobs.filter(j => !projectClientIds.has(j.clientId)).map(j => ({ id: j.id, type: "job", clientId: j.clientId, adSize: j.adSize, status: j.status, issueId: j.issueId, dueDate: j.dueDate })),
+    ];
+
+    // Filter
+    const filteredQueue = adFilter === "all" ? combinedQueue
+      : adFilter === "revision" ? combinedQueue.filter(q => q.status === "revising" || q.status === "revision_requested")
+      : combinedQueue.filter(q => q.status === adFilter);
+
+    // Upcoming ads: closed sales for issues publishing within 30d (or 7d) that may not have design briefs yet
+    const rangeDays = upcomingRange === "7d" ? 7 : 30;
+    const upcomingAds = useMemo(() => {
+      const cutoff = new Date(Date.now() + rangeDays * 86400000).toISOString().slice(0, 10);
+      const closedSales = (_sales || []).filter(s => s.status === "Closed" && s.issueId);
+      const upcomingIssueIds = new Set((_issues || []).filter(i => i.date >= today && i.date <= cutoff).map(i => i.id));
+      return closedSales
+        .filter(s => upcomingIssueIds.has(s.issueId))
+        .map(s => {
+          const issue = _issues.find(i => i.id === s.issueId);
+          const hasProject = adProjects.some(p => p.client_id === s.clientId && p.issue_id === s.issueId);
+          const hasJob = _jobs.some(j => j.clientId === s.clientId && j.issueId === s.issueId);
+          return { ...s, issue, hasBrief: hasProject || hasJob, projectId: adProjects.find(p => p.client_id === s.clientId && p.issue_id === s.issueId)?.id };
+        })
+        .sort((a, b) => (a.issue?.date || "9").localeCompare(b.issue?.date || "9"));
+    }, [_sales, _issues, adProjects, _jobs, rangeDays, today]);
+    const noBriefCount = upcomingAds.filter(a => !a.hasBrief).length;
+
+    // Ping salesperson
+    const pingSalesperson = async (sale) => {
+      setPinging(sale.id);
+      const sp = (_clients || []).find(c => c.id === sale.clientId);
+      const spId = sp?.repId;
+      const spMember = (team || []).find(t => t.id === spId);
+      if (spMember?.authId) {
+        await supabase.from("team_notes").insert({
+          from_user: currentUser?.authId || null,
+          to_user: spMember.authId,
+          message: `Design brief needed: ${cn(sale.clientId)} has a ${sale.size || sale.adSize || "ad"} in ${pn(sale.publication)} ${sale.issue?.label || ""} — can you send me the details?`,
+          context_type: "task",
+        });
+      }
+      setPinging(null);
+    };
+
+    // Stats
+    const statusColors = { brief: Z.wa, designing: ACCENT.blue, proof_sent: Z.wa, revising: Z.da, approved: Z.go, signed_off: Z.go, placed: Z.go, not_started: Z.td, in_progress: ACCENT.blue, revision_requested: Z.da, complete: Z.go };
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <GlassStat label="New Requests" value={newRequests.length} color={newRequests.length > 0 ? Z.wa : Z.go} />
-        <GlassStat label="In Progress" value={inProgress.length} color={ACCENT.blue} />
-        <GlassStat label="Proofs Sent" value={proofsSent.length} color={Z.wa} />
-        <GlassStat label="Approved This Week" value={approvedWeek.length} color={Z.go} />
+
+      {/* Stat bar */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+        <GlassStat label="Active Designs" value={activeProjects.length + myJobs.length} color={ACCENT.blue} />
+        <GlassStat label="Revisions" value={revisionProjects.length} color={revisionProjects.length > 0 ? Z.da : Z.go} />
+        <GlassStat label="Proofs Out" value={activeProjects.filter(p => p.status === "proof_sent").length} color={Z.wa} />
+        <GlassStat label="Approved (7d)" value={approvedThisWeek.length} color={Z.go} />
+        <GlassStat label="No Brief Yet" value={noBriefCount} color={noBriefCount > 0 ? Z.wa : Z.go} />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
-        <div style={glass}>
-          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>My Design Queue</div>
-          {myJobs.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No active design requests</div>
-          : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
-            {myJobs.map(j => {
-              const d = j.dueDate ? daysUntil(j.dueDate) : 999;
-              const c = d <= 2 && ["not_started", "in_progress"].includes(j.status) ? Z.da : d <= 5 ? Z.wa : Z.tm;
-              const statusColors = { not_started: Z.td, in_progress: ACCENT.blue, proof_sent: Z.wa, revision_requested: Z.da, complete: Z.go };
-              return <div key={j.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${c}`, cursor: "pointer" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(j.clientId)} — {j.adSize || "Ad"}</div>
-                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{j.dueDate ? `Due ${fmtDate(j.dueDate)}` : "No deadline"}</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16 }}>
+        {/* ═══ LEFT COLUMN ═══ */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}>
+
+          {/* Design Queue with filter pills */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>My Design Queue</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm }}>{filteredQueue.length} item{filteredQueue.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
+              {[["all", "All"], ["brief", "Brief"], ["designing", "Designing"], ["proof_sent", "Proof Sent"], ["revision", "Revisions"], ["approved", "Approved"]].map(([k, l]) => (
+                <button key={k} onClick={() => setAdFilter(k)} style={{ padding: "3px 10px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 11, fontWeight: adFilter === k ? FW.bold : 500, background: adFilter === k ? Z.tx + "12" : "transparent", color: adFilter === k ? Z.tx : Z.td }}>{l}</button>
+              ))}
+            </div>
+            {filteredQueue.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No items match this filter</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
+              {filteredQueue.map(q => {
+                const c = statusColors[q.status] || Z.tm;
+                return <div key={q.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${c}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(q.clientId)} — {q.adSize || "Ad"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{q.dueDate ? `Due ${fmtDate(q.dueDate)}` : pn((_issues || []).find(i => i.id === q.issueId)?.pubId)}</div>
+                  </div>
+                  <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: c, background: c + "15", padding: "2px 8px", borderRadius: Ri }}>{(q.status || "").replace(/_/g, " ")}</span>
+                </div>;
+              })}
+            </div>}
+          </div>
+
+          {/* Revisions — separated for priority visibility */}
+          {revisionProjects.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Revisions Requested</span>
+              <span style={{ fontSize: FS.xs, color: Z.da, fontWeight: FW.bold }}>{revisionProjects.length}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {revisionProjects.map(p => (
+                <div key={p.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.da + "08", borderRadius: Ri, borderLeft: `3px solid ${Z.da}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(p.client_id)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>v{p.revision_count || 1} · {p.updated_at ? `${Math.round((new Date() - new Date(p.updated_at)) / 86400000)}d ago` : ""}</div>
+                  </div>
+                  <Btn sm v="secondary" onClick={(e) => { e.stopPropagation(); onNavigate?.("adprojects"); }}>Revise</Btn>
                 </div>
-                <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: statusColors[j.status] || Z.tm, background: (statusColors[j.status] || Z.tm) + "15", padding: "2px 8px", borderRadius: Ri }}>{j.status?.replace(/_/g, " ")}</span>
-              </div>;
-            })}
+              ))}
+            </div>
           </div>}
+
+          {/* Upcoming Ads — closed sales needing design work */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Upcoming Ads</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {["7d", "30d"].map(r => (
+                  <button key={r} onClick={() => setUpcomingRange(r)} style={{ padding: "2px 8px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 10, fontWeight: upcomingRange === r ? FW.bold : 500, background: upcomingRange === r ? Z.tx + "12" : "transparent", color: upcomingRange === r ? Z.tx : Z.td }}>{r === "7d" ? "7 Days" : "30 Days"}</button>
+                ))}
+              </div>
+            </div>
+            {upcomingAds.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No ads in this window</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+              {upcomingAds.map(a => {
+                const d = a.issue ? daysUntil(a.issue.date) : 999;
+                return <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${a.hasBrief ? Z.go : Z.wa}` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(a.clientId)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(a.publication)} {a.issue?.label || ""} · {a.size || a.adSize || "Ad"} · {d}d</div>
+                  </div>
+                  {a.hasBrief
+                    ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "2px 8px", borderRadius: Ri }}>Brief</span>
+                    : <button onClick={() => pingSalesperson(a)} disabled={pinging === a.id} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.wa}`, background: Z.wa + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{pinging === a.id ? "Sent" : "Ping Sales"}</button>
+                  }
+                </div>;
+              })}
+            </div>}
+          </div>
         </div>
+
+        {/* ═══ RIGHT COLUMN ═══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* Recently Approved */}
+          {approvedProjects.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recently Approved</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+              {approvedProjects.slice(0, 6).map(p => (
+                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+                  <div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{cn(p.client_id)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{p.ad_size || "Ad"}</div>
+                  </div>
+                  <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: p.status === "placed" ? ACCENT.indigo : Z.go, background: (p.status === "placed" ? ACCENT.indigo : Z.go) + "15", padding: "2px 8px", borderRadius: Ri }}>{p.status === "placed" ? "Placed" : "Ready"}</span>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          {/* Deadline Calendar */}
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Deadline Calendar</div>
-            {_issues.filter(i => i.adDeadline && daysUntil(i.adDeadline) >= 0 && daysUntil(i.adDeadline) <= 30).slice(0, 6).map(iss => {
+            {_issues.filter(i => i.adDeadline && daysUntil(i.adDeadline) >= 0 && daysUntil(i.adDeadline) <= 30).slice(0, 8).map(iss => {
               const d = daysUntil(iss.adDeadline);
-              const myCount = myJobs.filter(j => j.issueId === iss.id).length;
+              const myCount = upcomingAds.filter(a => a.issueId === iss.id).length;
               return <div key={iss.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
                 <span style={{ fontSize: FS.sm, color: Z.tx }}>{pn(iss.pubId)} {iss.label}</span>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {myCount > 0 && <span style={{ fontSize: FS.xs, color: Z.tm }}>{myCount} designs</span>}
+                  {myCount > 0 && <span style={{ fontSize: FS.xs, color: Z.tm }}>{myCount} ads</span>}
                   <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: d <= 3 ? Z.da : d <= 7 ? Z.wa : Z.td }}>{d}d</span>
                 </div>
               </div>;
             })}
+          </div>
+
+          {/* Quick Stats */}
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Stats</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm }}>
+                <span style={{ color: Z.tm }}>Completed this month</span>
+                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status) && p.updated_at?.startsWith(today.slice(0, 7))).length + _jobs.filter(j => j.status === "complete" && j.completedAt?.startsWith(today.slice(0, 7))).length}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm }}>
+                <span style={{ color: Z.tm }}>Revision rate</span>
+                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{adProjects.length > 0 ? Math.round(adProjects.filter(p => (p.revision_count || 0) > 1).length / adProjects.length * 100) : 0}%</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
