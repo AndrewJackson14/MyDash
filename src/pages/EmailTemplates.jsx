@@ -304,12 +304,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
               {/* Payment schedule */}
               <GlassCard style={{ padding: "16px 20px" }}>
                 <div style={secHead}>Payment Schedule</div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  {[["per_issue", "Per issue publish date"], ["monthly", "Monthly installments"], ["lump_sum", "Lump sum upfront"]].map(([v, l]) => (
-                    <button key={v} onClick={() => setPropCfg(c => ({ ...c, paymentTiming: v }))} style={{ padding: "6px 14px", borderRadius: Ri, border: `1px solid ${proposalCfg.paymentTiming === v ? Z.ac : Z.bd}`, background: proposalCfg.paymentTiming === v ? Z.ac + "15" : Z.bg, cursor: "pointer", fontSize: FS.xs, fontWeight: proposalCfg.paymentTiming === v ? FW.bold : FW.normal, color: proposalCfg.paymentTiming === v ? Z.ac : Z.tm }}>{l}</button>
-                  ))}
-                </div>
-                <label style={checkLbl}><input type="checkbox" checked={proposalCfg.groupPaymentsByDate} onChange={e => setPropCfg(c => ({ ...c, groupPaymentsByDate: e.target.checked }))} style={chk} /> Combine same-day payments</label>
+                <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 8 }}>Payment timing is selected by the salesperson per proposal in the Proposal Builder.</div>
+                <label style={checkLbl}><input type="checkbox" checked={proposalCfg.groupPaymentsByDate} onChange={e => setPropCfg(c => ({ ...c, groupPaymentsByDate: e.target.checked }))} style={chk} /> Combine same-day payments (when multiple issues share a date)</label>
               </GlassCard>
 
               {/* Closing */}

@@ -76,8 +76,10 @@ export default function ProposalSign() {
   }, []);
 
   // Generate proposal HTML (without sign button — we render our own form below)
+  // Use the payment timing the salesperson selected for this deal
+  const dealPayTiming = snapshot?.payTiming || "per_issue";
   const proposalHtml = templateConfig ? generateProposalHtml({
-    config: { ...(templateConfig || DEFAULT_PROPOSAL_CONFIG), signButtonText: "" },
+    config: { ...(templateConfig || DEFAULT_PROPOSAL_CONFIG), signButtonText: "", paymentTiming: dealPayTiming },
     proposal: snapshot || {},
     client: { name: snapshot?.clientName, contacts: [{ name: sig.signer_name, email: sig.signer_email }] },
     salesperson: {},

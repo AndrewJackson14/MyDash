@@ -47,6 +47,7 @@ const SalesCRM = (props) => {
   const OPP_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client"];
   const [propClient, setPropClient] = useState("");
   const [propPayPlan, setPropPayPlan] = useState(false);
+  const [propPayTiming, setPropPayTiming] = useState("per_issue"); // per_issue | monthly | lump_sum
   const [propStep, setPropStep] = useState("build");
   const [propName, setPropName] = useState("");
   const [editPropId, setEditPropId] = useState(null);
@@ -271,7 +272,7 @@ const SalesCRM = (props) => {
   const sendKit = () => { saveOpp(false); setOppKitSent(true); const cid = clients.find(c => c.name.toLowerCase() === opp.company.toLowerCase())?.id; logActivity(`Rate cards sent`, "comm", cid, opp.company); if (cid) { setClients(cl => cl.map(c => c.id === cid ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: `Sent rate cards: ${oppKitPubs.map(pid => pn(pid)).join(", ")}` }] } : c)); setSales(sl => sl.map(s => s.clientId === cid && s.status === "Discovery" ? { ...s, status: "Presentation", nextAction: STAGE_AUTO_ACTIONS.Presentation, nextActionDate: opp.nextActionDate } : s)); } };
   const oppToProposal = () => { saveOpp(false); const cid = clients.find(c => c.name.toLowerCase() === opp.company.toLowerCase())?.id || (editOppId && sales.find(s => s.id === editOppId)?.clientId); if (cid) setSales(sl => sl.map(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal" } : s)); setOppMo(false); openProposal(cid); };
 
-  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
+  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
   // Open renewal proposal pre-populated from client's previous closed sales
   const openRenewalProposal = (clientId) => {
     const cid = clientId || clients[0]?.id || "";
@@ -324,7 +325,7 @@ const SalesCRM = (props) => {
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
       lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
-      total: pTotal, payPlan: propPayPlan, monthly: pMonthly,
+      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
     if (editPropId) {
@@ -353,7 +354,7 @@ const SalesCRM = (props) => {
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
         lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
-        total: pTotal, payPlan: propPayPlan, monthly: pMonthly,
+        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
       let proposalId = editPropId;
@@ -390,9 +391,12 @@ const SalesCRM = (props) => {
         .select("config").eq("category", "proposal").eq("is_default", true).limit(1);
       if (templates?.[0]?.config) templateConfig = { ...templateConfig, ...templates[0].config };
 
+      // Override template payment timing with salesperson's per-deal selection
+      templateConfig.paymentTiming = propPayTiming;
+
       const htmlBody = generateProposalHtml({
         config: templateConfig,
-        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, monthly: pMonthly, termMonths: monthSpan },
+        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, termMonths: monthSpan },
         client: cl,
         salesperson: teamMember,
         pubs: pubs || [],
@@ -837,8 +841,18 @@ const SalesCRM = (props) => {
           <button onClick={() => removePropPub(pp.pubId)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button></div>
           <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{[3,6,12].map(m => <button key={m} onClick={() => selectIssueRange(pi, m)} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{m}mo</button>)}<button onClick={() => setPropPubs(pps => pps.map((p, i) => i !== pi ? p : { ...p, issues: [] }))} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Clear</button></div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{pI.map(iss => { const sel = pp.issues.some(x => x.issueId === iss.id); return <button key={iss.id} onClick={() => togglePropIssue(pi, iss.id)} style={{ padding: "4px 8px", borderRadius: R, border: `1px solid ${sel ? Z.go : Z.bd}`, background: sel ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: sel ? INV.light : Z.tm }}>{iss.label}</button>; })}</div>{pp.issues.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return <div key={iss.issueId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 60px 24px", gap: 5, padding: "4px 6px", background: Z.sa, borderRadius: R }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{issLabel(iss.issueId)}</span><select value={iss.adSizeIdx} onChange={e => setIssueAdSize(pi, iss.issueId, +e.target.value)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: "3px", color: Z.tx, fontSize: FS.sm, outline: "none" }}>{(pub?.adSizes || []).map((a, ai) => <option key={ai} value={ai}>{a.name}</option>)}</select><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(ad?.[autoTier] || 0).toLocaleString()}</span><button onClick={() => applyAdSizeBelow(pi, iss.issueId, iss.adSizeIdx)} title="Apply below" style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, cursor: "pointer", fontSize: FS.sm, color: Z.tx, fontWeight: FW.heavy }}>↓</button></div>; })}</div>}</div>; })}</div>
-        {propLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} insertions · {autoTermLabel}</span><span style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>{monthSpan > 1 && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><input type="checkbox" checked={propPayPlan} onChange={e => setPropPayPlan(e.target.checked)} style={{ accentColor: Z.ac }} /><span style={{ fontSize: FS.sm, color: Z.tx }}>Payment: {monthSpan}mo × ${pMonthly.toLocaleString()}/mo</span></div>}</div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })), total: pTotal, payPlan: propPayPlan, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        {propLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} insertions · {autoTermLabel}</span><span style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Payment Terms</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[["per_issue", "Per Issue"], ["monthly", `Monthly (${monthSpan}mo × $${pMonthly.toLocaleString()})`], ["lump_sum", "Lump Sum Upfront"]].map(([v, l]) => (
+              <button key={v} onClick={() => { setPropPayTiming(v); setPropPayPlan(v === "monthly"); }} style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${propPayTiming === v ? Z.ac : Z.bd}`, background: propPayTiming === v ? Z.ac + "12" : "transparent", cursor: "pointer", fontSize: FS.xs, fontWeight: propPayTiming === v ? FW.bold : FW.normal, color: propPayTiming === v ? Z.ac : Z.tm, fontFamily: COND }}>{l}</button>
+            ))}
+          </div>
+          {propPayTiming === "per_issue" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Client pays before each issue publishes</div>}
+          {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
+        </div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 
