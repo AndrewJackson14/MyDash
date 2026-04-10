@@ -158,7 +158,7 @@ export function DataProvider({ children, localData }) {
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
           id: c.id, name: c.name, status: c.status, totalSpend: Number(c.total_spend),
           category: c.category || '', address: c.address || '', city: c.city || '', state: c.state || '', zip: c.zip || '',
-          repId: c.rep_id || null, clientCode: c.client_code || null, contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null,
+          repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null,
           contacts: [], comms: [], yearlySummary: [],
         })));
 
@@ -754,8 +754,53 @@ export function DataProvider({ children, localData }) {
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
     })));
+
+    // Auto-create ad_projects for each unique pub+adSize in the proposal
+    const proposal = proposals.find(p => p.id === proposalId);
+    if (proposal?.lines?.length) {
+      const seen = new Set();
+      const uniqueAds = proposal.lines.filter(l => {
+        const key = `${l.pubId || l.publication}|${l.adSize}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const artSource = proposal.artSource || proposal.art_source || 'we_design';
+      let adProjectsCreated = 0;
+
+      for (const ad of uniqueAds) {
+        // Create message thread
+        const clientName = clients.find(c => c.id === proposal.clientId)?.name || '';
+        const pubName = pubs.find(p => p.id === (ad.pubId || ad.publication))?.name || '';
+        const { data: thread } = await supabase.from('message_threads').insert({
+          type: 'ad_project', title: `Ad: ${clientName} — ${pubName} ${ad.adSize || ''}`,
+          participants: [proposal.assignedTo || null].filter(Boolean),
+        }).select('id').single();
+
+        // Create ad project
+        await supabase.from('ad_projects').insert({
+          client_id: proposal.clientId,
+          publication_id: ad.pubId || ad.publication,
+          ad_size: ad.adSize,
+          art_source: artSource,
+          salesperson_id: proposal.assignedTo || null,
+          source_contract_id: data.contract_id,
+          source_proposal_id: proposalId,
+          status: artSource === 'camera_ready' ? 'awaiting_art' : 'brief',
+          thread_id: thread?.id || null,
+        });
+        adProjectsCreated++;
+      }
+
+      // Update client's last art source memory
+      await supabase.from('clients').update({ last_art_source: artSource }).eq('id', proposal.clientId);
+      setClients(cl => cl.map(c => c.id === proposal.clientId ? { ...c, lastArtSource: artSource } : c));
+
+      data.ad_projects_created = adProjectsCreated;
+    }
+
     return data;
-  }, []);
+  }, [proposals, clients, pubs]);
 
   const addComm = useCallback(async (clientId, comm) => {
     setClients(cl => cl.map(c => c.id === clientId ? { ...c, comms: [...(c.comms || []), comm] } : c));

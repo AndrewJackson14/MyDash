@@ -6,6 +6,7 @@ import ChatPanel from "../components/ChatPanel";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
+  awaiting_art: { label: "Awaiting Art", color: Z.wa },
   designing: { label: "Designing", color: Z.ac },
   proof_sent: { label: "Proof Sent", color: Z.pu },
   revising: { label: "Revising", color: Z.wa },
@@ -13,6 +14,8 @@ const STATUSES = {
   signed_off: { label: "Signed Off", color: Z.go },
   placed: { label: "Placed", color: Z.go },
 };
+
+const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"];
 
 const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
@@ -31,6 +34,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const [viewId, setViewId] = useState(null);
   const [createModal, setCreateModal] = useState(false);
   const [proofModal, setProofModal] = useState(false);
+  const [view, setView] = useState("board"); // board | list
+  const [heatmapFilter, setHeatmapFilter] = useState(null);
   const [uploading, setUploading] = useState(false);
 
   // Create form
@@ -141,9 +146,22 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
 
         if (proof) {
           setProofs(prev => [proof, ...prev]);
-          // Update project status
-          await supabase.from("ad_projects").update({ status: "proof_sent", revision_count: version, updated_at: new Date().toISOString() }).eq("id", projectId);
-          setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: "proof_sent", revision_count: version } : p));
+          // Update project status + revision billing
+          const billableCount = version > 4 ? version - 4 : 0;
+          const revCharges = billableCount * 25;
+          await supabase.from("ad_projects").update({
+            status: "proof_sent", revision_count: version,
+            revision_billable_count: billableCount, revision_charges: revCharges,
+            updated_at: new Date().toISOString(),
+          }).eq("id", projectId);
+          setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: "proof_sent", revision_count: version, revision_billable_count: billableCount, revision_charges: revCharges } : p));
+          // Revision charge warning in thread
+          if (version === 4 && proj?.thread_id) {
+            await supabase.from("messages").insert({ thread_id: proj.thread_id, sender_name: "System", body: "⚠ This is the last free revision. Additional revisions will be charged at $25 each.", is_system: true });
+          }
+          if (version > 4 && proj?.thread_id) {
+            await supabase.from("messages").insert({ thread_id: proj.thread_id, sender_name: "System", body: `💰 Revision ${version} — $25 charge applied. Total revision charges: $${revCharges}`, is_system: true });
+          }
           // System message
           if (proj?.thread_id) {
             const { data: msg } = await supabase.from("messages").insert({
@@ -405,22 +423,135 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
       <Btn sm onClick={() => setCreateModal(true)}><Ic.plus size={13} /> New Project</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Active", "Completed", "All"]} active={tab} onChange={setTab} /></TabRow>
+    {/* View toggle + tabs */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <TabRow><TB tabs={["Active", "Completed", "All"]} active={tab} onChange={setTab} /></TabRow>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[["board", "Board"], ["list", "List"]].map(([v, l]) => (
+          <button key={v} onClick={() => setView(v)} style={{ padding: "4px 12px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: 11, fontWeight: view === v ? FW.bold : 500, background: view === v ? Z.tx + "12" : "transparent", color: view === v ? Z.tx : Z.td }}>{l}</button>
+        ))}
+      </div>
+    </div>
 
     {loading ? <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading...</div> :
+
+    /* ═══ STATS BAR ═══ */
+    <><div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
+      {[
+        { label: "Active Designs", value: filtered.filter(p => !["signed_off", "placed", "approved"].includes(p.status)).length, color: Z.ac },
+        { label: "Proofs Out", value: filtered.filter(p => p.status === "proof_sent").length, color: Z.pu },
+        { label: "Awaiting Client", value: filtered.filter(p => p.status === "proof_sent" || p.status === "revising").length, color: Z.wa },
+        { label: "Approved (7d)", value: projects.filter(p => p.status === "approved" && p.updated_at && Math.ceil((new Date() - new Date(p.updated_at)) / 86400000) <= 7).length, color: Z.go },
+        { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["approved", "signed_off", "placed"].includes(p.status); }).length, color: Z.da },
+      ].map(s => (
+        <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
+          <span style={{ fontSize: 16, fontWeight: FW.black, color: s.value > 0 && s.label === "At Risk" ? Z.da : s.color }}>{s.value}</span>
+        </div>
+      ))}
+    </div>
+
+    {/* ═══ HEATMAP ═══ */}
+    {view === "board" && (() => {
+      const activePubs = (pubs || []).filter(p => p.isActive !== false);
+      const today = new Date().toISOString().slice(0, 10);
+      return <div style={{ marginBottom: 14, padding: "12px 16px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
+        <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: COND }}>Deadline Heatmap</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {activePubs.map(pub => {
+            const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+            if (pubIssues.length === 0) return null;
+            return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 140, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub.name}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {pubIssues.map(iss => {
+                  const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
+                  const count = filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
+                  const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#E24B4A" : adDl <= 7 ? "#EF9F27" : "#97C459";
+                  const isActive = heatmapFilter?.pubId === pub.id && heatmapFilter?.issueId === iss.id;
+                  return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: 22, height: 22, borderRadius: "50%", background: isActive ? dotColor : dotColor + (count > 0 ? "30" : "18"), border: `2px solid ${isActive ? dotColor : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: count > 0 ? dotColor : "transparent", transition: "all 0.15s" }}>{count > 0 ? count : ""}</div>;
+                })}
+              </div>
+            </div>;
+          })}
+        </div>
+        {heatmapFilter && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, padding: "4px 10px", background: Z.ac + "10", borderRadius: Ri }}>
+          <span style={{ fontSize: FS.xs, color: Z.ac, fontWeight: FW.bold }}>Filtered: {heatmapFilter.label}</span>
+          <button onClick={() => setHeatmapFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: 14, fontWeight: 900 }}>×</button>
+        </div>}
+      </div>;
+    })()}
+
+    {/* ═══ KANBAN BOARD ═══ */}
+    {view === "board" ? <div style={{ display: "grid", gridTemplateColumns: `repeat(${KANBAN_COLS.length}, 1fr)`, gap: 10, minHeight: 400 }}>
+      {KANBAN_COLS.map(col => {
+        const colProjects = filtered
+          .filter(p => (p.status === col || (col === "brief" && p.status === "awaiting_art")))
+          .filter(p => !heatmapFilter || (p.publication_id === heatmapFilter.pubId && p.issue_id === heatmapFilter.issueId));
+        const colSt = STATUSES[col];
+        return <div key={col} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: colSt.color + "12", borderRadius: Ri }}>
+            <span style={{ fontSize: 11, fontWeight: FW.heavy, color: colSt.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{colSt.label}</span>
+            <span style={{ fontSize: 12, fontWeight: FW.black, color: colSt.color }}>{colProjects.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, overflowY: "auto", maxHeight: 500 }}>
+            {colProjects.map(p => {
+              const iss = (issues || []).find(i => i.id === p.issue_id);
+              const adDl = iss?.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
+              const urgColor = adDl <= 3 ? Z.da : adDl <= 7 ? Z.wa : Z.go;
+              const isUnassigned = !p.designer_id;
+              const latestProof = proofs.filter(pr => pr.project_id === p.id).sort((a, b) => (b.version || 0) - (a.version || 0))[0];
+              const isCameraReady = p.art_source === "camera_ready";
+              const daysAgo = p.updated_at ? Math.round((new Date() - new Date(p.updated_at)) / 86400000) : 0;
+              const approvedOpacity = col === "approved" ? Math.max(0.6, 1 - daysAgo * 0.15) : 1;
+
+              return <div key={p.id} onClick={() => setViewId(p.id)} style={{
+                padding: "10px 12px", background: Z.bg, borderRadius: Ri, cursor: "pointer",
+                borderLeft: isUnassigned ? "none" : `3px solid ${urgColor}`,
+                border: isUnassigned ? `1.5px dashed #E24B4A50` : undefined,
+                opacity: approvedOpacity, transition: "opacity 0.2s",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(p.client_id)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {p.ad_size || "Ad"}</div>
+                  </div>
+                  {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {adDl < 99 && <span style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor }}>{adDl <= 0 ? "OVERDUE" : `${adDl}d`}</span>}
+                    <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCameraReady ? Z.wa : Z.ac, background: (isCameraReady ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCameraReady ? "Camera Ready" : "We Design"}</span>
+                  </div>
+                  {isUnassigned
+                    ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da }}>Unassigned</span>
+                    : <span style={{ fontSize: 10, color: Z.tm }}>{tn(p.designer_id)?.split(" ")[0]}</span>
+                  }
+                </div>
+                {col === "brief" && isCameraReady && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.wa, marginTop: 4 }}>Awaiting client artwork</div>}
+              </div>;
+            })}
+            {colProjects.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.xs }}>Empty</div>}
+          </div>
+        </div>;
+      })}
+    </div>
+
+    : /* ═══ LIST VIEW ═══ */
     <DataTable>
       <thead><tr>
-        {["Client", "Publication", "Issue", "Ad Size", "Designer", "Status", "Revisions", "Updated"].map(h => <th key={h}>{h}</th>)}
+        {["Client", "Publication", "Issue", "Ad Size", "Art Source", "Designer", "Status", "Revisions", "Updated"].map(h => <th key={h}>{h}</th>)}
       </tr></thead>
       <tbody>
-        {filtered.length === 0 ? <tr><td colSpan={8} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No ad projects</td></tr>
+        {filtered.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No ad projects</td></tr>
         : filtered.map(p => {
           const st = STATUSES[p.status] || STATUSES.brief;
           return <tr key={p.id} onClick={() => setViewId(p.id)} style={{ cursor: "pointer" }}>
             <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(p.client_id)}</td>
             <td style={{ color: Z.tm }}>{pn(p.publication_id)}</td>
-            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.issue_id ? ((issues || []).find(i => i.id === p.issue_id)?.label || "\u2014") : "\u2014"}</td>
-            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "\u2014"}</td>
+            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.issue_id ? ((issues || []).find(i => i.id === p.issue_id)?.label || "—") : "—"}</td>
+            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "—"}</td>
+            <td><span style={{ fontSize: 10, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{tn(p.designer_id)}</td>
             <td><Badge status={st.label} small /></td>
             <td style={{ color: p.revision_count >= 3 ? Z.wa : Z.tm }}>{p.revision_count || 0}</td>
@@ -429,6 +560,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
         })}
       </tbody>
     </DataTable>}
+    </>}
 
     {/* CREATE PROJECT MODAL */}
     <Modal open={createModal} onClose={() => setCreateModal(false)} title="New Ad Project" width={600}>

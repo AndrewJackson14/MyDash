@@ -47,7 +47,8 @@ const SalesCRM = (props) => {
   const OPP_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client"];
   const [propClient, setPropClient] = useState("");
   const [propPayPlan, setPropPayPlan] = useState(false);
-  const [propPayTiming, setPropPayTiming] = useState("per_issue"); // per_issue | monthly | lump_sum
+  const [propPayTiming, setPropPayTiming] = useState("per_issue");
+  const [propArtSource, setPropArtSource] = useState("we_design"); // we_design | camera_ready
   const [propStep, setPropStep] = useState("build");
   const [propName, setPropName] = useState("");
   const [editPropId, setEditPropId] = useState(null);
@@ -272,7 +273,14 @@ const SalesCRM = (props) => {
   const sendKit = () => { saveOpp(false); setOppKitSent(true); const cid = clients.find(c => c.name.toLowerCase() === opp.company.toLowerCase())?.id; logActivity(`Rate cards sent`, "comm", cid, opp.company); if (cid) { setClients(cl => cl.map(c => c.id === cid ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: `Sent rate cards: ${oppKitPubs.map(pid => pn(pid)).join(", ")}` }] } : c)); setSales(sl => sl.map(s => s.clientId === cid && s.status === "Discovery" ? { ...s, status: "Presentation", nextAction: STAGE_AUTO_ACTIONS.Presentation, nextActionDate: opp.nextActionDate } : s)); } };
   const oppToProposal = () => { saveOpp(false); const cid = clients.find(c => c.name.toLowerCase() === opp.company.toLowerCase())?.id || (editOppId && sales.find(s => s.id === editOppId)?.clientId); if (cid) setSales(sl => sl.map(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal" } : s)); setOppMo(false); openProposal(cid); };
 
-  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
+  // Pre-populate art source from client history
+  useEffect(() => {
+    if (!propClient) return;
+    const client = clients.find(c => c.id === propClient);
+    setPropArtSource(client?.lastArtSource || client?.last_art_source || "we_design");
+  }, [propClient]);
+
+  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropArtSource("we_design"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
   // Open renewal proposal pre-populated from client's previous closed sales
   const openRenewalProposal = (clientId) => {
     const cid = clientId || clients[0]?.id || "";
@@ -325,7 +333,7 @@ const SalesCRM = (props) => {
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
       lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
+      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
     if (editPropId) {
@@ -354,7 +362,7 @@ const SalesCRM = (props) => {
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
         lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
+        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
       let proposalId = editPropId;
@@ -396,7 +404,7 @@ const SalesCRM = (props) => {
 
       const htmlBody = generateProposalHtml({
         config: templateConfig,
-        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, termMonths: monthSpan },
+        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, termMonths: monthSpan },
         client: cl,
         salesperson: teamMember,
         pubs: pubs || [],
@@ -835,7 +843,16 @@ const SalesCRM = (props) => {
       {propStep === "sent" ? <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", padding: 16 }}><Ic.check size={28} color={Z.su} /><div style={{ fontSize: FS.base, color: Z.tm }}>Proposal sent — {propLineItems.length} items · <b style={{ color: Z.su }}>${pTotal.toLocaleString()}</b></div><div style={{ fontSize: FS.sm, color: Z.td, maxWidth: 340, textAlign: "center" }}>When the client signs, this will convert to a contract and create confirmed sales orders.</div><div style={{ display: "flex", gap: 6, marginTop: 4 }}><Btn v="success" onClick={async () => { await signProposal(editPropId || proposals[proposals.length - 1]?.id); setPropMo(false); setPropPending(null); }}>Client Signed → Convert to Contract</Btn><Btn v="secondary" onClick={() => { setPropMo(false); setPropPending(null); }}>Close</Btn></div></div>
       : propStep === "email" ? <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "60vh" }}><div><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Recipients</label><div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{(clients.find(c => c.id === propClient)?.contacts || []).filter(c => c.email).map(ct => <button key={ct.email} onClick={() => toggleRecipient(ct.email)} style={{ padding: "5px 10px", borderRadius: R, border: `1px solid ${propEmailRecipients.includes(ct.email) ? Z.go : Z.bd}`, background: propEmailRecipients.includes(ct.email) ? Z.go : Z.bg, cursor: "pointer" }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: propEmailRecipients.includes(ct.email) ? INV.light : Z.tx }}>{ct.name}</span><div style={{ fontSize: FS.sm, color: propEmailRecipients.includes(ct.email) ? INV.light + "b3" : Z.tm }}>{ct.email}</div></button>)}</div></div><div style={{ flex: 1, display: "flex", flexDirection: "column" }}><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Message</label><textarea value={propEmailMsg} onChange={e => setPropEmailMsg(e.target.value)} style={{ flex: 1, width: "100%", padding: "12px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }} /></div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexShrink: 0 }}><Btn v="secondary" onClick={() => setPropStep("build")}>Back</Btn><Btn v="secondary" disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("draft")}>{propSending ? "Creating..." : "Save Gmail Draft"}</Btn><Btn disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("send")}><Ic.send size={12} /> {propSending ? "Sending..." : "Send Now"}</Btn></div></div>
-      : <div style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: "45vh" }}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><Sel label="Client" value={propClient} onChange={e => setPropClient(e.target.value)} options={clients.map(c => ({ value: c.id, label: c.name }))} /><Inp label="Proposal Name" value={propName} onChange={e => setPropName(e.target.value)} /></div><div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}><div style={{ flex: 1 }}><Sel label="Add Publication" data-prop-pub value={propAddPubId} onChange={e => setPropAddPubId(e.target.value)} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} /></div><Btn onClick={addPropPub} disabled={propPubs.some(pp => pp.pubId === propAddPubId)}><Ic.plus size={12} /> Add</Btn></div>
+      : <div style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: "45vh" }}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><Sel label="Client" value={propClient} onChange={e => setPropClient(e.target.value)} options={clients.map(c => ({ value: c.id, label: c.name }))} /><Inp label="Proposal Name" value={propName} onChange={e => setPropName(e.target.value)} /></div>
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Art Source</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[["we_design", "We Will Design"], ["camera_ready", "Camera-Ready Art"]].map(([v, l]) => (
+              <button key={v} onClick={() => setPropArtSource(v)} style={{ flex: 1, padding: "8px 14px", borderRadius: Ri, border: `1px solid ${propArtSource === v ? (v === "we_design" ? Z.ac : Z.wa) : Z.bd}`, background: propArtSource === v ? (v === "we_design" ? Z.ac + "12" : Z.wa + "12") : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: propArtSource === v ? FW.bold : FW.normal, color: propArtSource === v ? (v === "we_design" ? Z.ac : Z.wa) : Z.tm, fontFamily: COND }}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}><div style={{ flex: 1 }}><Sel label="Add Publication" data-prop-pub value={propAddPubId} onChange={e => setPropAddPubId(e.target.value)} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} /></div><Btn onClick={addPropPub} disabled={propPubs.some(pp => pp.pubId === propAddPubId)}><Ic.plus size={12} /> Add</Btn></div>
         <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 320, overflowY: "auto" }}>{propPubs.map((pp, pi) => { const pub = pubs.find(p => p.id === pp.pubId); const isExp = propExpandedPub === pp.pubId; if (!isExp) return <button key={pp.pubId} onClick={() => setPropExpandedPub(pp.pubId)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", ...glass(), borderRadius: Ri, cursor: "pointer", width: "100%" }}><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{pub?.name} ▸</span><span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>{pubSummary(pp)}</span></button>; const pI = issues.filter(i => i.pubId === pp.pubId && i.date >= today).slice(0, 24); return <div key={pp.pubId} style={{ background: Z.bg, border: `1px solid ${Z.ac}40`, borderRadius: R, padding: CARD.pad }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span onClick={() => setPropExpandedPub(null)} style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, cursor: "pointer" }}>{pub?.name} ▾</span>
           <button onClick={() => removePropPub(pp.pubId)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button></div>
@@ -852,7 +869,7 @@ const SalesCRM = (props) => {
           {propPayTiming === "per_issue" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Client pays before each issue publishes</div>}
           {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 

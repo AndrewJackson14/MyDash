@@ -345,8 +345,8 @@ const RoleDashboard = memo(({
     // Combined queue: ad_projects + creativeJobs (deduplicated)
     const projectClientIds = new Set(activeProjects.map(p => p.client_id));
     const combinedQueue = [
-      ...activeProjects.map(p => ({ id: p.id, type: "project", clientId: p.client_id, adSize: p.ad_size, status: p.status, issueId: p.issue_id, dueDate: null })),
-      ...myJobs.filter(j => !projectClientIds.has(j.clientId)).map(j => ({ id: j.id, type: "job", clientId: j.clientId, adSize: j.adSize, status: j.status, issueId: j.issueId, dueDate: j.dueDate })),
+      ...activeProjects.map(p => ({ id: p.id, type: "project", clientId: p.client_id, adSize: p.ad_size, status: p.status, issueId: p.issue_id, dueDate: null, artSource: p.art_source || "we_design" })),
+      ...myJobs.filter(j => !projectClientIds.has(j.clientId)).map(j => ({ id: j.id, type: "job", clientId: j.clientId, adSize: j.adSize, status: j.status, issueId: j.issueId, dueDate: j.dueDate, artSource: "we_design" })),
     ];
 
     // Filter
@@ -485,7 +485,7 @@ const RoleDashboard = memo(({
           { label: "Revisions", value: revisionProjects.length, color: revisionProjects.length > 0 ? Z.da : Z.go },
           { label: "Proofs Out", value: activeProjects.filter(p => p.status === "proof_sent").length, color: Z.wa },
           { label: "Approved (7d)", value: approvedThisWeek.length, color: Z.go },
-          { label: "Needs Brief", value: noBriefCount, color: noBriefCount > 0 ? Z.wa : Z.go },
+          { label: "Pick Up", value: adProjects.filter(p => !p.designer_id && !["approved", "signed_off", "placed"].includes(p.status)).length, color: adProjects.filter(p => !p.designer_id).length > 0 ? Z.wa : Z.go },
         ].map(s => (
           <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
@@ -516,7 +516,10 @@ const RoleDashboard = memo(({
                 return <div key={q.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${c}`, cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(q.clientId)} — {q.adSize || "Ad"}</div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{q.dueDate ? `Due ${fmtDate(q.dueDate)}` : pn((_issues || []).find(i => i.id === q.issueId)?.pubId)}</div>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 2 }}>
+                      <span style={{ fontSize: FS.xs, color: Z.tm }}>{q.dueDate ? `Due ${fmtDate(q.dueDate)}` : pn((_issues || []).find(i => i.id === q.issueId)?.pubId)}</span>
+                      <span style={{ fontSize: 9, fontWeight: FW.bold, color: q.artSource === "camera_ready" ? Z.wa : Z.ac, background: (q.artSource === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{q.artSource === "camera_ready" ? "CR" : "Design"}</span>
+                    </div>
                   </div>
                   <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: c, background: c + "15", padding: "2px 8px", borderRadius: Ri }}>{(q.status || "").replace(/_/g, " ")}</span>
                 </div>;
@@ -543,35 +546,35 @@ const RoleDashboard = memo(({
             </div>
           </div>}
 
-          {/* Upcoming Ads — closed sales needing design work */}
-          <div style={glass}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Upcoming Ads</span>
-              <div style={{ display: "flex", gap: 4 }}>
-                {["7d", "30d"].map(r => (
-                  <button key={r} onClick={() => setUpcomingRange(r)} style={{ padding: "2px 8px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 10, fontWeight: upcomingRange === r ? FW.bold : 500, background: upcomingRange === r ? Z.tx + "12" : "transparent", color: upcomingRange === r ? Z.tx : Z.td }}>{r === "7d" ? "7 Days" : "30 Days"}</button>
-                ))}
+          {/* Pickup Queue — unassigned projects */}
+          {(() => {
+            const pickupProjects = adProjects.filter(p => !p.designer_id && !["approved", "signed_off", "placed"].includes(p.status));
+            if (pickupProjects.length === 0) return null;
+            return <div style={glass}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.wa, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Available to Pick Up</span>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa }}>{pickupProjects.length}</span>
               </div>
-            </div>
-            {upcomingAds.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No ads in this window</div>
-            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
-              {upcomingAds.map(a => {
-                const d = a.issue ? daysUntil(a.issue.date) : 999;
-                const proj = adProjects.find(p => p.client_id === a.clientId && p.issue_id === a.issueId);
-                const hasNotes = proj?.design_notes && !proj.design_notes.startsWith("Auto-created");
-                return <div key={a.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${hasNotes ? Z.go : Z.wa}`, cursor: "pointer" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(a.clientId)}</div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(a.publication)} {a.issue?.label || ""} · {a.size || a.adSize || "Ad"} · {d}d</div>
-                  </div>
-                  {hasNotes
-                    ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "2px 8px", borderRadius: Ri }}>Brief Ready</span>
-                    : <button onClick={(e) => { e.stopPropagation(); pingSalesperson(a); }} disabled={pinging === a.id} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.wa}`, background: Z.wa + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{pinging === a.id ? "Sent" : "Ping Sales"}</button>
-                  }
-                </div>;
-              })}
-            </div>}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+                {pickupProjects.map(p => {
+                  const iss = _issues.find(i => i.id === p.issue_id);
+                  const d = iss?.adDeadline ? daysUntil(iss.adDeadline) : 999;
+                  const isCR = p.art_source === "camera_ready";
+                  return <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, border: `1.5px dashed ${Z.da}50` }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(p.client_id)}</div>
+                      <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {p.ad_size || "Ad"} · {d < 99 ? `${d}d` : ""}</div>
+                      <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCR ? Z.wa : Z.ac, background: (isCR ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCR ? "Camera Ready" : "We Design"}</span>
+                    </div>
+                    <Btn sm onClick={async () => {
+                      await supabase.from("ad_projects").update({ designer_id: currentUser.id, status: isCR ? "awaiting_art" : "designing", updated_at: new Date().toISOString() }).eq("id", p.id);
+                      setAdProjects(prev => prev.map(ap => ap.id === p.id ? { ...ap, designer_id: currentUser.id, status: isCR ? "awaiting_art" : "designing" } : ap));
+                    }}>Pick Up →</Btn>
+                  </div>;
+                })}
+              </div>
+            </div>;
+          })()}
         </div>
 
         {/* ═══ RIGHT COLUMN ═══ */}
