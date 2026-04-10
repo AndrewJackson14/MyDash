@@ -4,6 +4,7 @@
 // ============================================================
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 
 const C = {
   bg: "#F6F7F9", sf: "#FFFFFF", tx: "#0D0F14", tm: "#525E72", td: "#8994A7",
@@ -65,24 +66,27 @@ export default function ProposalSign() {
   if (error) return <div style={styles.page}><div style={{ ...styles.card, textAlign: "center", padding: 60 }}><div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div><div style={{ fontSize: 18, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Link Not Found</div><div style={{ fontSize: 14, color: C.tm }}>{error}</div></div></div>;
 
   const snapshot = sig.proposal_snapshot || proposal;
-  const lines = snapshot?.lines || [];
-  const total = snapshot?.total || lines.reduce((s, l) => s + (l.price || l.line_total || 0), 0);
+
+  // Load template config
+  const [templateConfig, setTemplateConfig] = useState(null);
+  useEffect(() => {
+    supabase.from("email_templates").select("config")
+      .eq("category", "proposal").eq("is_default", true).limit(1)
+      .then(({ data }) => setTemplateConfig(data?.[0]?.config || DEFAULT_PROPOSAL_CONFIG));
+  }, []);
+
+  // Generate proposal HTML (without sign button — we render our own form below)
+  const proposalHtml = templateConfig ? generateProposalHtml({
+    config: { ...(templateConfig || DEFAULT_PROPOSAL_CONFIG), signButtonText: "" },
+    proposal: snapshot || {},
+    client: { name: snapshot?.clientName, contacts: [{ name: sig.signer_name, email: sig.signer_email }] },
+    salesperson: {},
+    pubs: [],
+    forPdf: false,
+    signLink: "", // No sign button in the rendered HTML — we show our own form
+  }) : "";
 
   return <div style={styles.page}>
-    {/* Header */}
-    <div style={styles.header}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: C.tx }}>13 Stars Media Group</div>
-          <div style={{ fontSize: 12, color: C.tm }}>P.O. Box 427, Paso Robles, CA 93447 · (805) 237-6060</div>
-        </div>
-        <div style={{ fontSize: 12, color: C.tm, textAlign: "right" }}>
-          <div>Advertising Proposal</div>
-          <div>{fmtDate(snapshot?.date || sig.created_at)}</div>
-        </div>
-      </div>
-    </div>
-
     <div style={styles.body}>
       {signed ? (
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
@@ -95,43 +99,8 @@ export default function ProposalSign() {
           {sig.signed_at && <div style={{ marginTop: 16, fontSize: 12, color: C.td }}>Signed on {fmtDate(sig.signed_at)} by {sig.signer_name}</div>}
         </div>
       ) : <>
-        {/* Proposal details */}
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Prepared for: {snapshot?.clientName || sig.signer_name || "Client"}</div>
-        {snapshot?.name && <div style={{ fontSize: 13, color: C.tm, marginBottom: 16 }}>{snapshot.name}</div>}
-
-        {/* Line items table */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
-          <thead>
-            <tr style={{ background: "#f5f5f5" }}>
-              <th style={styles.th}>Publication</th>
-              <th style={styles.th}>Ad Size</th>
-              <th style={styles.th}>Issue</th>
-              <th style={{ ...styles.th, textAlign: "right" }}>Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => (
-              <tr key={i} style={{ borderBottom: `1px solid ${C.bd}` }}>
-                <td style={styles.td}>{l.pubName || l.publication || "—"}</td>
-                <td style={styles.td}>{l.adSize || l.ad_size || "—"}</td>
-                <td style={styles.td}>{l.issueLabel || l.issue_label || "—"}</td>
-                <td style={{ ...styles.td, textAlign: "right", fontWeight: 700 }}>{fmtCurrency(l.price || l.line_total)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3} style={{ ...styles.td, fontWeight: 700, fontSize: 14 }}>Total</td>
-              <td style={{ ...styles.td, textAlign: "right", fontWeight: 800, fontSize: 18, color: C.tx }}>{fmtCurrency(total)}</td>
-            </tr>
-          </tfoot>
-        </table>
-
-        {snapshot?.payPlan && snapshot?.termMonths > 1 && (
-          <div style={{ padding: "10px 14px", background: "#f0f4ff", borderRadius: 8, marginBottom: 24, fontSize: 13, color: C.tx }}>
-            Payment Plan: {snapshot.termMonths} months × {fmtCurrency(snapshot.monthly)}/month
-          </div>
-        )}
+        {/* Rendered proposal from template */}
+        <div dangerouslySetInnerHTML={{ __html: proposalHtml }} style={{ marginBottom: 32 }} />
 
         {/* Signature section */}
         <div style={{ border: `2px solid ${C.bd}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>

@@ -2,8 +2,9 @@ import { useState, useRef, useMemo, useEffect, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
-import { sendGmailEmail, initiateGmailAuth, buildProposalEmailHtml } from "../lib/gmail";
+import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
 import { supabase } from "../lib/supabase";
+import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import ClientList from "./sales/ClientList";
 import ClientProfile from "./sales/ClientProfile";
 import ClientSignals from "./sales/ClientSignals";
@@ -378,43 +379,26 @@ const SalesCRM = (props) => {
         if (sigData?.access_token) signLink = `${window.location.origin}/sign/${sigData.access_token}`;
       }
 
-      // Build branded HTML email with sign link
+      // Load proposal template config (default for this pub or fallback)
       const clientName = cn(propClient);
       const teamMember = currentUser || (props.team || []).find(t => t.permissions?.includes("admin")) || props.team?.[0];
       if (!teamMember) throw new Error("No team member found");
 
-      const lineItemsHtml = propLineItems.map(li =>
-        `<tr><td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.pubName}</td>` +
-        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.adSize}</td>` +
-        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px">${li.issueLabel}</td>` +
-        `<td style="padding:8px 14px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700">$${(li.price || 0).toLocaleString()}</td></tr>`
-      ).join("");
+      let templateConfig = { ...DEFAULT_PROPOSAL_CONFIG };
+      const pubIds = [...new Set(propLineItems.map(l => l.pubId || l.publication))];
+      const { data: templates } = await supabase.from("email_templates")
+        .select("config").eq("category", "proposal").eq("is_default", true).limit(1);
+      if (templates?.[0]?.config) templateConfig = { ...templateConfig, ...templates[0].config };
 
-      const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto">
-        <div style="border-bottom:2px solid #1a1a2e;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between">
-          <div><div style="font-size:20px;font-weight:900;color:#1a1a2e">13 Stars Media Group</div>
-          <div style="font-size:11px;color:#666;margin-top:2px">P.O. Box 427, Paso Robles, CA 93447 · (805) 237-6060</div></div>
-        </div>
-        <div style="margin-bottom:8px;font-size:11px;color:#666">
-          <strong>${teamMember.name}</strong> · ${teamMember.email}${teamMember.phone ? ` · ${teamMember.phone}` : ""}
-        </div>
-        <div style="margin-bottom:20px;font-size:14px;color:#1a1a2e;line-height:1.6;white-space:pre-wrap">${(propEmailMsg || "").replace(/\n/g, "<br>")}</div>
-        <table style="width:100%;border-collapse:collapse;margin:20px 0">
-          <thead><tr style="background:#f5f5f5">
-            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Publication</th>
-            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Ad Size</th>
-            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Issue</th>
-            <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#666;font-weight:700">Rate</th>
-          </tr></thead>
-          <tbody>${lineItemsHtml}</tbody>
-          <tfoot><tr style="border-top:2px solid #1a1a2e"><td colspan="3" style="padding:12px 14px;font-weight:700;font-size:14px">Total</td>
-            <td style="padding:12px 14px;text-align:right;font-weight:800;font-size:20px;color:#1a1a2e">$${pTotal.toLocaleString()}</td>
-          </tr></tfoot>
-        </table>
-        ${propPayPlan && monthSpan > 1 ? `<div style="padding:10px 14px;background:#f0f4ff;border-radius:6px;margin-bottom:20px;font-size:13px;color:#1a1a2e">Payment Plan: ${monthSpan} months × $${pMonthly.toLocaleString()}/month</div>` : ""}
-        ${signLink ? `<div style="text-align:center;margin:32px 0"><a href="${signLink}" style="display:inline-block;padding:14px 40px;background:#16A34A;color:#fff;font-size:16px;font-weight:800;text-decoration:none;border-radius:8px">Click to Review & Sign</a><div style="font-size:11px;color:#999;margin-top:8px">This link expires in 30 days</div></div>` : ""}
-        <div style="margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">13 Stars Media Group · Paso Robles, CA · 13stars.media</div>
-      </div>`;
+      const htmlBody = generateProposalHtml({
+        config: templateConfig,
+        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, monthly: pMonthly, termMonths: monthSpan },
+        client: cl,
+        salesperson: teamMember,
+        pubs: pubs || [],
+        introText: propEmailMsg,
+        signLink,
+      });
 
       const result = await sendGmailEmail({
         teamMemberId: teamMember.id,
