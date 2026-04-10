@@ -20,6 +20,19 @@ const SalesCRM = (props) => {
   const dropdownPubs = jurisdiction?.myPubs || pubs;
   const [tab, setTab] = useState("Pipeline");
   const [prevTab, setPrevTab] = useState("Pipeline");
+  const [proofReadyMap, setProofReadyMap] = useState({}); // { contractId: true }
+
+  // Load proof-ready signal: ad_projects where designer signed off but salesperson hasn't
+  useEffect(() => {
+    supabase.from("ad_projects").select("source_contract_id")
+      .eq("designer_signoff", true).eq("salesperson_signoff", false)
+      .not("source_contract_id", "is", null)
+      .then(({ data }) => {
+        const m = {};
+        (data || []).forEach(p => { if (p.source_contract_id) m[p.source_contract_id] = true; });
+        setProofReadyMap(m);
+      });
+  }, []);
   const [commTab, setCommTab] = useState("Overview");
   const [clientView, setClientView] = useState(jurisdiction?.isSalesperson ? "signals" : "list");
   const [sr, setSr] = useState("");
@@ -511,6 +524,7 @@ const SalesCRM = (props) => {
                 <div onClick={e => { e.stopPropagation(); navTo("Clients", s.clientId); }} style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, cursor: "pointer", marginBottom: 2, fontFamily: COND }} title="Go to profile">{cn(s.clientId)}</div>
                 {s.type !== "TBD" && <div style={{ color: Z.tm, fontSize: FS.sm, marginBottom: 2 }}>{pn(s.publication)} · {s.type}</div>}
                 {s.amount > 0 && <div style={{ fontWeight: FW.black, color: Z.su, fontSize: FS.base }}>${s.amount.toLocaleString()}</div>}
+                {s.contractId && proofReadyMap[s.contractId] && <div onClick={e => { e.stopPropagation(); onNavigate?.("adprojects"); }} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "3px 8px", background: Z.wa + "12", border: `1px solid ${Z.wa}30`, borderRadius: Ri, cursor: "pointer" }}><span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.wa }}>Proof Ready — Sign Off</span></div>}
                 {s.nextAction && <div onClick={e => { e.stopPropagation(); handleAct(s.id); }} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "4px 6px", background: `${actInfo(s.nextAction)?.color || Z.ac}10`, border: `1px solid ${actInfo(s.nextAction)?.color || Z.ac}25`, borderRadius: Ri, cursor: "pointer" }}>
                   <span style={{ fontSize: FS.sm }}>{actIcon(s)}</span>
                   <span style={{ fontSize: FS.sm, color: actInfo(s.nextAction)?.color || Z.ac, fontWeight: FW.bold, flex: 1 }}>{actLabel(s)}</span>

@@ -103,7 +103,7 @@ export function DataProvider({ children, localData }) {
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,contract_end_date,last_ad_date';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
-        const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal';
+        const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         const [pubsRes, teamRes, notifsRes, adSizesRes, c0, c1, c2, c3, issuesRes, s0, s1, s2, s3] = await Promise.all([
           supabase.from('publications').select('*').order('name'),
           supabase.from('team_members').select('*').order('name'),
@@ -162,7 +162,7 @@ export function DataProvider({ children, localData }) {
           contacts: [], comms: [], yearlySummary: [],
         })));
 
-        if (allIssuesRaw.length > 0) setIssues(allIssuesRaw.map(i => ({ id: i.id, pubId: i.pub_id, label: i.label, date: i.date, pageCount: i.page_count, adDeadline: i.ad_deadline, edDeadline: i.ed_deadline, status: i.status, revenueGoal: i.revenue_goal != null ? Number(i.revenue_goal) : null })));
+        if (allIssuesRaw.length > 0) setIssues(allIssuesRaw.map(i => ({ id: i.id, pubId: i.pub_id, label: i.label, date: i.date, pageCount: i.page_count, adDeadline: i.ad_deadline, edDeadline: i.ed_deadline, status: i.status, revenueGoal: i.revenue_goal != null ? Number(i.revenue_goal) : null, sentToPressAt: i.sent_to_press_at || null })));
 
         if (allSalesRaw.length > 0) setSales(allSalesRaw.map(s => ({
           id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id,

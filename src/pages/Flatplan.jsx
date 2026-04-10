@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
+import { supabase } from "../lib/supabase";
+
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
 const cellW = 100 / GRID_COLS;
@@ -94,6 +96,65 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const [di, setDi] = useState(null);
   const [diType, setDiType] = useState(null);
   const [zoom, setZoom] = useState(1);
+  const [sendingToPress, setSendingToPress] = useState(false);
+  const [sentToPressModal, setSentToPressModal] = useState(false);
+
+  // Send to Press handler
+  const canSendToPress = jurisdiction?.isAdmin || false; // Publisher, Admin, Layout Designer
+  const handleSendToPress = async () => {
+    const issue = issues.find(i => i.id === selIssue);
+    if (!issue || sendingToPress) return;
+
+    // Idempotency check
+    if (issue.sentToPressAt) {
+      setSentToPressModal(true);
+      return;
+    }
+    await executeSendToPress(issue);
+  };
+
+  const executeSendToPress = async (issue) => {
+    setSendingToPress(true);
+    setSentToPressModal(false);
+
+    // 1. Mark issue as sent to press
+    const now = new Date().toISOString();
+    await supabase.from("issues").update({ sent_to_press_at: now, sent_to_press_by: "publisher" }).eq("id", issue.id);
+    setIssues(prev => prev.map(i => i.id === issue.id ? { ...i, sentToPressAt: now } : i));
+
+    // 2. Find per-issue payment sales for this issue via proposal/contract linkage
+    const issueSales = (sales || []).filter(s => s.issueId === issue.id && s.status === "Closed");
+
+    // 3. For each sale, create an invoice if one doesn't exist
+    for (const sale of issueSales) {
+      // Check if invoice exists for this sale
+      const { data: existingInv } = await supabase.from("invoice_lines").select("invoice_id").eq("sale_id", sale.id).limit(1);
+      if (existingInv?.length > 0) continue; // Already invoiced
+
+      // Create invoice
+      const cn = clients.find(c => c.id === sale.clientId)?.name || "";
+      const { data: inv } = await supabase.from("invoices").insert({
+        client_id: sale.clientId,
+        invoice_number: `INV-${Date.now().toString(36).toUpperCase()}`,
+        status: "sent",
+        issue_date: now.slice(0, 10),
+        due_date: now.slice(0, 10), // Due immediately on press
+        total: sale.amount || 0,
+        balance_due: sale.amount || 0,
+      }).select("id").single();
+
+      if (inv?.id) {
+        await supabase.from("invoice_lines").insert({
+          invoice_id: inv.id,
+          sale_id: sale.id,
+          description: `${pubs.find(p => p.id === sale.publication)?.name || ""} ${issue.label} — ${sale.size || sale.type || "Ad"}`,
+          amount: sale.amount || 0,
+        });
+      }
+    }
+
+    setSendingToPress(false);
+  };
   const [showProposalAds, setShowProposalAds] = useState(false);
   const [placeholders, setPlaceholders] = useState([]);
   const [selPage, setSelPage] = useState(null);
@@ -362,6 +423,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }} onDragEnd={() => { setDi(null); setDiType(null); }}>
     <PageHeader title="Flatplan">
+      {canSendToPress && issue && <Btn sm onClick={handleSendToPress} disabled={sendingToPress} style={issue.sentToPressAt ? { background: Z.go + "15", color: Z.go, border: `1px solid ${Z.go}40` } : {}}>{sendingToPress ? "Sending..." : issue.sentToPressAt ? "✓ Sent to Press" : "Send to Press"}</Btn>}
       {issue && prevIssueExists && <Btn sm v="secondary" onClick={copyFromPrevious}>Copy Prev Issue</Btn>}
       <Btn sm v="secondary" onClick={() => setShowSectionPicker(true)}>+ Section</Btn>
       <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
@@ -466,6 +528,17 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         </div>
       </div>
     </div>}
+
+    {/* Sent to Press idempotency modal */}
+    <Modal open={sentToPressModal} onClose={() => setSentToPressModal(false)} title="Already Sent to Press" width={440}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: FS.sm, color: Z.tm }}>This issue was already sent to press on {issues.find(i => i.id === selIssue)?.sentToPressAt ? new Date(issues.find(i => i.id === selIssue).sentToPressAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"}. Send invoices again?</div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="secondary" onClick={() => setSentToPressModal(false)}>Cancel</Btn>
+          <Btn onClick={() => { const iss = issues.find(i => i.id === selIssue); if (iss) executeSendToPress(iss); }}>Resend Invoices</Btn>
+        </div>
+      </div>
+    </Modal>
   </div>;
 };
 
