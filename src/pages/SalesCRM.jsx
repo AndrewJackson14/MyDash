@@ -312,7 +312,7 @@ const SalesCRM = (props) => {
   const autoTier = getAutoTier(totalInsertions); const autoTermLabel = getAutoTermLabel(totalInsertions);
   const allIssueDates = propPubs.flatMap(pp => pp.issues.map(iss => issues.find(i => i.id === iss.issueId)?.date)).filter(Boolean).sort();
   const monthSpan = allIssueDates.length >= 2 ? Math.max(1, Math.ceil((new Date(allIssueDates[allIssueDates.length - 1]) - new Date(allIssueDates[0])) / (30.44 * 86400000)) + 1) : 1;
-  const propLineItems = propPubs.flatMap(pp => { const pub = pubs.find(p => p.id === pp.pubId); return pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return { pubId: pp.pubId, pubName: pub?.name, adSize: ad?.name, dims: ad?.dims, adW: ad?.w, adH: ad?.h, issueId: iss.issueId, issueLabel: issLabel(iss.issueId), price: ad?.[autoTier] || ad?.rate || 0 }; }); });
+  const propLineItems = propPubs.flatMap(pp => { const pub = pubs.find(p => p.id === pp.pubId); return pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; const issue = issueMap[iss.issueId]; return { pubId: pp.pubId, pubName: pub?.name, adSize: ad?.name, dims: ad?.dims, adW: ad?.w, adH: ad?.h, issueId: iss.issueId, issueLabel: issLabel(iss.issueId), issueDate: issue?.date || null, adDeadline: issue?.adDeadline || null, price: ad?.[autoTier] || ad?.rate || 0 }; }); });
   const pTotal = propLineItems.reduce((s, li) => s + li.price, 0);
   const pMonthly = monthSpan > 1 ? Math.ceil(pTotal / monthSpan) : pTotal;
   const pubSummary = (pp) => { const pub = pubs.find(p => p.id === pp.pubId); const t = pp.issues.reduce((s, iss) => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return s + (ad?.[autoTier] || ad?.rate || 0); }, 0); return `${pp.issues.length} issues · $${t.toLocaleString()}`; };
@@ -324,7 +324,7 @@ const SalesCRM = (props) => {
     if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-      lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
+      lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
       total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
@@ -353,7 +353,7 @@ const SalesCRM = (props) => {
       if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-        lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })),
+        lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
         total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
@@ -852,7 +852,7 @@ const SalesCRM = (props) => {
           {propPayTiming === "per_issue" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Client pays before each issue publishes</div>}
           {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: issueMap[li.issueId]?.date || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 

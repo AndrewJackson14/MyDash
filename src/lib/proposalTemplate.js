@@ -123,47 +123,50 @@ export function generateProposalHtml({
   <div style="font-size: 14px; line-height: 1.7; color: #333; margin-bottom: 28px; white-space: pre-line;">${introText || cfg.defaultIntro}</div>
 
   <!-- LINE ITEMS TABLE -->
-  <table>
-    <thead><tr style="background: #f5f5f5;">
-      ${cfg.showIssueDates ? '<th>Issue</th>' : ''}
-      ${cfg.showAdSize ? '<th>Ad Size</th>' : ''}
-      ${cfg.showIndividualRates ? '<th style="text-align: right;">Rate</th>' : ''}
-    </tr></thead>
-    <tbody>
-      ${cfg.groupByPublication && isMultiPub ? pubIds.map(pubId => {
-        const pub = pubs.find(p => p.id === pubId);
-        const pubLines = lines.filter(l => (l.pubId || l.publication) === pubId);
-        const pubTotal = pubLines.reduce((s, l) => s + (l.price || 0), 0);
-        return `
-          <tr class="pub-header"><td colspan="${1 + (cfg.showAdSize ? 1 : 0) + (cfg.showIndividualRates ? 1 : 0)}">${pub?.name || pubId}</td></tr>
-          ${pubLines.map(l => `<tr>
-            ${cfg.showIssueDates ? `<td>${l.issueLabel || fmtDate(l.issueDate) || ""}</td>` : ""}
-            ${cfg.showAdSize ? `<td>${l.adSize || ""}</td>` : ""}
-            ${cfg.showIndividualRates ? `<td style="text-align: right; font-weight: 600;">${fmtCurrency(l.price)}</td>` : ""}
-          </tr>`).join("")}
-          ${cfg.showSubtotals ? `<tr class="subtotal">
-            <td colspan="${(cfg.showIssueDates ? 1 : 0) + (cfg.showAdSize ? 1 : 0)}">Subtotal</td>
-            <td style="text-align: right;">${fmtCurrency(pubTotal)}</td>
-          </tr>` : ""}
-        `;
-      }).join("") : lines.map(l => `<tr>
-        ${cfg.showIssueDates ? `<td>${l.issueLabel || fmtDate(l.issueDate) || ""}</td>` : ""}
-        ${cfg.showAdSize ? `<td>${l.adSize || ""}</td>` : ""}
-        ${cfg.showIndividualRates ? `<td style="text-align: right; font-weight: 600;">${fmtCurrency(l.price)}</td>` : ""}
-      </tr>`).join("")}
-    </tbody>
-    <tfoot>
-      <tr class="grand-total">
-        <td colspan="${(cfg.showIssueDates ? 1 : 0) + (cfg.showAdSize ? 1 : 0)}">${isMultiPub ? "Campaign Total" : "Total"}</td>
-        <td style="text-align: right; font-size: 20px; color: ${brandColor};">${fmtCurrency(total)}</td>
-      </tr>
-    </tfoot>
-  </table>
+  ${(() => {
+    const colCount = (cfg.showIssueDates ? 1 : 0) + (cfg.showAdSize ? 1 : 0) + 1 + (cfg.showIndividualRates ? 1 : 0); // +1 for ad deadline
+    const renderLine = (l) => `<tr>
+      ${cfg.showIssueDates ? `<td>${l.issueLabel || fmtDate(l.issueDate) || ""}</td>` : ""}
+      ${cfg.showAdSize ? `<td>${l.adSize || ""}</td>` : ""}
+      <td style="color: #c53030; font-size: 12px;">${l.adDeadline ? fmtDate(l.adDeadline) : ""}</td>
+      ${cfg.showIndividualRates ? `<td style="text-align: right; font-weight: 600;">${fmtCurrency(l.price)}</td>` : ""}
+    </tr>`;
+
+    return `<table>
+      <thead><tr style="background: #f5f5f5;">
+        ${cfg.showIssueDates ? '<th>Issue</th>' : ''}
+        ${cfg.showAdSize ? '<th>Ad Size</th>' : ''}
+        <th>Ad Materials Due</th>
+        ${cfg.showIndividualRates ? '<th style="text-align: right;">Rate</th>' : ''}
+      </tr></thead>
+      <tbody>
+        ${cfg.groupByPublication && isMultiPub ? pubIds.map(pubId => {
+          const pub = pubs.find(p => p.id === pubId);
+          const pubLines = lines.filter(l => (l.pubId || l.publication) === pubId);
+          const pubTotal = pubLines.reduce((s, l) => s + (l.price || 0), 0);
+          return `
+            <tr class="pub-header"><td colspan="${colCount}">${pub?.name || pubId}</td></tr>
+            ${pubLines.map(renderLine).join("")}
+            ${cfg.showSubtotals ? `<tr class="subtotal">
+              <td colspan="${colCount - 1}">Subtotal</td>
+              <td style="text-align: right;">${fmtCurrency(pubTotal)}</td>
+            </tr>` : ""}
+          `;
+        }).join("") : lines.map(renderLine).join("")}
+      </tbody>
+      <tfoot>
+        <tr class="grand-total">
+          <td colspan="${colCount - 1}">${isMultiPub ? "Campaign Total" : "Total"}</td>
+          <td style="text-align: right; font-size: 20px; color: ${brandColor};">${fmtCurrency(total)}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+  })()}
 
   <!-- PAYMENT SCHEDULE -->
   ${payments.length > 0 ? `
     <div style="margin-top: 28px;">
-      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #999; margin-bottom: 10px;">Payment Schedule</div>
+      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #999; margin-bottom: 10px;">Payment Schedule${cfg.paymentTiming === "per_issue" ? " (by publish month)" : cfg.paymentTiming === "monthly" ? " (monthly installments)" : ""}</div>
       <table>
         <tbody>
           ${payments.map(p => `<tr>
@@ -211,49 +214,93 @@ export function generateProposalHtml({
 
 /**
  * Build payment schedule from line items
+ * Per-issue: groups weekly newspapers into calendar month totals
+ * Monthly: equal installments across the campaign duration
+ * Lump sum: single payment due before first issue
  */
 function buildPaymentSchedule(lines, cfg, pubs) {
+  const total = lines.reduce((s, l) => s + (l.price || 0), 0);
+  const sortedLines = [...lines].filter(l => l.issueDate).sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+  if (sortedLines.length === 0) return [];
+
+  const firstDate = sortedLines[0].issueDate;
+
+  // ── Lump Sum: single payment before first issue ──
   if (cfg.paymentTiming === "lump_sum") {
-    const total = lines.reduce((s, l) => s + (l.price || 0), 0);
-    return [{ date: lines[0]?.issueDate || new Date().toISOString().slice(0, 10), amount: total, description: "Full payment" }];
+    return [{
+      date: firstDate,
+      amount: total,
+      description: "Full payment due before first issue",
+    }];
   }
 
-  // Group by issue date
-  const byDate = {};
-  lines.forEach(l => {
-    const d = l.issueDate || "";
-    if (!d) return;
-    if (!byDate[d]) byDate[d] = { amount: 0, parts: [] };
-    byDate[d].amount += (l.price || 0);
-    const pubName = pubs.find(p => p.id === (l.pubId || l.publication))?.name || "";
-    byDate[d].parts.push(`${pubName} ${l.issueLabel || ""}`);
+  // ── Monthly: equal installments on the 1st of each month ──
+  if (cfg.paymentTiming === "monthly") {
+    const months = {};
+    sortedLines.forEach(l => {
+      const m = l.issueDate.slice(0, 7); // YYYY-MM
+      if (!months[m]) months[m] = { amount: 0, parts: [] };
+      months[m].amount += (l.price || 0);
+      months[m].parts.push(pubs.find(p => p.id === (l.pubId || l.publication))?.name || "");
+    });
+    const monthKeys = Object.keys(months).sort();
+    const monthlyAmount = Math.round(total / monthKeys.length);
+    return monthKeys.map((m, i) => ({
+      date: m + "-01",
+      amount: i === monthKeys.length - 1 ? total - (monthlyAmount * (monthKeys.length - 1)) : monthlyAmount,
+      description: `Installment ${i + 1} of ${monthKeys.length}`,
+    }));
+  }
+
+  // ── Per Issue (default): group into calendar months ──
+  // Weekly newspapers get combined into one monthly payment
+  // Magazines keep their individual payment (one per issue)
+  const monthPayments = {};
+  sortedLines.forEach(l => {
+    const pub = pubs.find(p => p.id === (l.pubId || l.publication));
+    const isWeekly = pub && (pub.frequency === "Weekly" || pub.frequency === "Bi-Weekly");
+    const pubName = pub?.name || "";
+
+    if (isWeekly) {
+      // Group by calendar month
+      const monthKey = l.issueDate.slice(0, 7);
+      const payKey = `month-${monthKey}`;
+      if (!monthPayments[payKey]) monthPayments[payKey] = { date: monthKey + "-01", amount: 0, parts: [], sortDate: monthKey + "-01" };
+      monthPayments[payKey].amount += (l.price || 0);
+      if (!monthPayments[payKey].parts.includes(pubName)) monthPayments[payKey].parts.push(pubName);
+    } else {
+      // Individual payment per issue (magazines, special pubs)
+      const payKey = `issue-${l.issueId || l.issueDate}`;
+      if (!monthPayments[payKey]) monthPayments[payKey] = { date: l.issueDate, amount: 0, parts: [], sortDate: l.issueDate };
+      monthPayments[payKey].amount += (l.price || 0);
+      monthPayments[payKey].parts.push(`${pubName} ${l.issueLabel || ""}`);
+    }
   });
 
-  if (cfg.paymentTiming === "monthly" && Object.keys(byDate).length > 1) {
-    // Monthly installments
-    const total = lines.reduce((s, l) => s + (l.price || 0), 0);
-    const months = Object.keys(byDate).length;
-    const monthly = Math.round(total / months);
-    const dates = Object.keys(byDate).sort();
-    return dates.map((d, i) => ({
-      date: d,
-      amount: i === dates.length - 1 ? total - (monthly * (months - 1)) : monthly,
-      description: `Installment ${i + 1} of ${months}`,
-    }));
-  }
-
-  // Per issue (default) — group same-day payments
+  // Combine same-month weekly and magazine payments if they fall in the same month
   if (cfg.groupPaymentsByDate) {
-    return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({
-      date, amount: data.amount,
-      description: data.parts.join(", "),
-    }));
+    const byMonth = {};
+    Object.values(monthPayments).forEach(p => {
+      const m = p.date.slice(0, 7);
+      if (!byMonth[m]) byMonth[m] = { date: p.date, amount: 0, parts: [], sortDate: p.sortDate };
+      byMonth[m].amount += p.amount;
+      byMonth[m].parts.push(...p.parts);
+      if (p.sortDate < byMonth[m].sortDate) byMonth[m].sortDate = p.sortDate;
+    });
+    return Object.values(byMonth)
+      .sort((a, b) => a.sortDate.localeCompare(b.sortDate))
+      .map(p => ({
+        date: p.date,
+        amount: p.amount,
+        description: [...new Set(p.parts)].join(", "),
+      }));
   }
 
-  // Individual per line
-  return lines.filter(l => l.issueDate).sort((a, b) => (a.issueDate || "").localeCompare(b.issueDate || "")).map(l => ({
-    date: l.issueDate,
-    amount: l.price || 0,
-    description: `${pubs.find(p => p.id === (l.pubId || l.publication))?.name || ""} ${l.issueLabel || ""}`,
-  }));
+  return Object.values(monthPayments)
+    .sort((a, b) => a.sortDate.localeCompare(b.sortDate))
+    .map(p => ({
+      date: p.date,
+      amount: p.amount,
+      description: [...new Set(p.parts)].join(", "),
+    }));
 }
