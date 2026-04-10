@@ -321,9 +321,9 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             <div style={{ fontSize: 11, color: "#666" }}>(805) 237-6060 · info@13stars.media</div>
           </div>
           <div style={{ textAlign: "right", fontSize: 11, color: "#666" }}>
-            <div>{{salesperson_name}}</div>
-            <div>{{salesperson_email}}</div>
-            <div>{{salesperson_phone}}</div>
+            <div>{"{{salesperson_name}}"}</div>
+            <div>{"{{salesperson_email}}"}</div>
+            <div>{"{{salesperson_phone}}"}</div>
           </div>
         </div>}
         <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
