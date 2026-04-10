@@ -151,7 +151,7 @@ export const glass = () => ({
   boxShadow: _isDark() ? "none" : "0 1px 3px rgba(0,0,0,0.04)",
 });
 
-export const GlassCard = ({ children, style, noPad }) => <div style={{
+export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMouseOut }) => <div onClick={onClick} onMouseOver={onMouseOver} onMouseOut={onMouseOut} style={{
   ...glass(),
   borderRadius: R, padding: noPad ? 0 : "22px 24px", ...style,
 }}>{children}</div>;
