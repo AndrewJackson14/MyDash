@@ -14,14 +14,14 @@ import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, 
 import { supabase } from "../lib/supabase";
 
 const CATEGORIES = [
-  { value: "proposal", label: "Proposals", icon: "📄" },
-  { value: "contract", label: "Contracts", icon: "📝" },
-  { value: "renewal", label: "Renewals", icon: "🔄" },
-  { value: "invoice", label: "Invoices", icon: "💰" },
-  { value: "marketing", label: "Marketing", icon: "📣" },
-  { value: "newsletter", label: "Newsletters", icon: "📰" },
-  { value: "notification", label: "Notifications", icon: "🔔" },
-  { value: "other", label: "Other", icon: "📋" },
+  { value: "proposal", label: "Proposals", icon: Ic.file },
+  { value: "contract", label: "Contracts", icon: Ic.sign },
+  { value: "renewal", label: "Renewals", icon: Ic.clock },
+  { value: "invoice", label: "Invoices", icon: Ic.invoice },
+  { value: "marketing", label: "Marketing", icon: Ic.send },
+  { value: "newsletter", label: "Newsletters", icon: Ic.mail },
+  { value: "notification", label: "Notifications", icon: Ic.bell },
+  { value: "other", label: "Other", icon: Ic.folder },
 ];
 
 const MERGE_FIELDS = {
@@ -90,7 +90,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   const [previewModal, setPreviewModal] = useState(false);
 
   // Editor form
-  const [form, setForm] = useState({ name: "", category: "proposal", subject: "", publicationId: "", includeLetterhead: true });
+  const [form, setForm] = useState({ name: "", category: "proposal", subject: "", publicationIds: [], includeLetterhead: true });
   const [saving, setSaving] = useState(false);
 
   // Load templates
@@ -125,7 +125,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
 
   // Open template for editing
   const openTemplate = (t) => {
-    setForm({ name: t.name, category: t.category, subject: t.subject, publicationId: t.publication_id || "", includeLetterhead: t.include_letterhead });
+    setForm({ name: t.name, category: t.category, subject: t.subject, publicationIds: t.publication_ids || (t.publication_id ? [t.publication_id] : []), includeLetterhead: t.include_letterhead });
     editor?.commands.setContent(t.html_body || "");
     setEditId(t.id);
   };
@@ -148,7 +148,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     const record = {
       name: form.name, category: form.category, subject: form.subject,
       html_body: htmlBody, merge_fields: fields,
-      publication_id: form.publicationId || null,
+      publication_id: form.publicationIds.length === 1 ? form.publicationIds[0] : null,
+      publication_ids: form.publicationIds.length > 0 ? form.publicationIds : null,
       include_letterhead: form.includeLetterhead,
       updated_by: currentUser?.id || null,
     };
@@ -205,8 +206,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
 
     {/* Category tabs */}
     <TabRow>
-      <TB tabs={CATEGORIES.map(c => `${c.icon} ${c.label}`)} active={`${CATEGORIES.find(c => c.value === category)?.icon} ${CATEGORIES.find(c => c.value === category)?.label}`}
-        onChange={v => { const cat = CATEGORIES.find(c => `${c.icon} ${c.label}` === v); if (cat) setCategory(cat.value); }} />
+      <TB tabs={CATEGORIES.map(c => c.label)} active={CATEGORIES.find(c => c.value === category)?.label}
+        onChange={v => { const cat = CATEGORIES.find(c => c.label === v); if (cat) setCategory(cat.value); }} />
     </TabRow>
 
     {/* Split: template list + editor */}
@@ -242,7 +243,16 @@ const EmailTemplates = ({ pubs, currentUser }) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <Inp label="Template Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Proposal — {{client_name}}" />
-            <Sel label="Publication" value={form.publicationId} onChange={e => setForm(f => ({ ...f, publicationId: e.target.value }))} options={[{ value: "", label: "All / Generic" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Publications</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {(pubs || []).map(p => {
+                  const sel = form.publicationIds.includes(p.id);
+                  return <button key={p.id} onClick={() => setForm(f => ({ ...f, publicationIds: sel ? f.publicationIds.filter(x => x !== p.id) : [...f.publicationIds, p.id] }))} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${sel ? Z.ac : Z.bd}`, background: sel ? Z.ac + "15" : Z.bg, cursor: "pointer", fontSize: FS.xs, fontWeight: sel ? FW.bold : FW.normal, color: sel ? Z.ac : Z.tm }}>{p.name}</button>;
+                })}
+                {form.publicationIds.length === 0 && <span style={{ fontSize: FS.xs, color: Z.td, padding: "4px 0" }}>All / Generic</span>}
+              </div>
+            </div>
           </div>
 
           {/* Merge fields strip */}
@@ -335,7 +345,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     <Modal open={createModal} onClose={() => setCreateModal(false)} title="New Template" width={420}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Inp label="Template Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Standard Proposal" />
-        <Sel label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} options={CATEGORIES.map(c => ({ value: c.value, label: `${c.icon} ${c.label}` }))} />
+        <Sel label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} options={CATEGORIES.map(c => ({ value: c.value, label: c.label }))} />
         <Btn onClick={openCreate} disabled={!form.name.trim()}>Create & Edit</Btn>
       </div>
     </Modal>
