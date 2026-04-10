@@ -62,154 +62,160 @@ export function generateProposalHtml({
   const pubIds = [...new Set(lines.map(l => l.pubId || l.publication))];
   const isMultiPub = pubIds.length > 1;
   const primaryPub = pubs.find(p => p.id === pubIds[0]);
-  const brandColor = isMultiPub ? PUB_COLORS.default : (PUB_COLORS[pubIds[0]] || PUB_COLORS.default);
-  const brandName = isMultiPub ? "13 Stars Media Group" : (primaryPub?.name || "13 Stars Media Group");
 
   // Client info
   const clientName = client?.name || proposal.clientName || "";
   const clientContact = client?.contacts?.[0] || {};
 
+  // Design tokens — stately editorial palette
+  const NAVY = "#1A365D";
+  const RED = "#C53030";
+  const BLACK = "#111111";
+  const GRAY = "#6B7280";
+  const GRAY_LT = "#9CA3AF";
+  const DIVIDER = "#E5E7EB";
+  const FAINT = "#F3F4F6";
+  const SERIF = "Georgia, 'Times New Roman', serif";
+  const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+
   // Payment schedule
   const payments = buildPaymentSchedule(lines, cfg, pubs);
 
-  // Build HTML
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a2e; margin: 0; padding: 0; }
-  table { border-collapse: collapse; width: 100%; }
-  th { text-align: left; font-size: 11px; text-transform: uppercase; color: #666; font-weight: 700; padding: 10px 14px; }
-  td { padding: 8px 14px; font-size: 13px; border-bottom: 1px solid #eee; }
-  .pub-header td { background: #f5f5f5; font-weight: 700; font-size: 12px; text-transform: uppercase; color: ${brandColor}; border-bottom: 2px solid ${brandColor}20; }
-  .subtotal td { font-weight: 700; border-top: 1px solid #ddd; }
-  .grand-total td { font-weight: 800; font-size: 16px; border-top: 2px solid ${brandColor}; }
-</style></head><body>
-<div style="max-width: 680px; margin: 0 auto; padding: 32px 24px;">
+  // Build HTML — email-safe table layout, all inline styles, no classes
+  // Stately editorial design: serif headings, generous whitespace, navy + red accents
 
-  <!-- HEADER -->
-  <div style="border-bottom: 3px solid ${brandColor}; padding-bottom: 20px; margin-bottom: 24px;">
-    <div style="display: flex; justify-content: space-between;">
-      <div>
-        <div style="font-size: 22px; font-weight: 900; color: ${brandColor};">${brandName}</div>
-        <div style="font-size: 11px; color: #666; margin-top: 4px;">P.O. Box 427, Paso Robles, CA 93447</div>
-        <div style="font-size: 11px; color: #666;">(805) 237-6060 &middot; info@13stars.media</div>
-      </div>
-      <div style="text-align: right;">
-        ${cfg.showSalespersonContact && salesperson ? `
-          <div style="font-size: 12px; font-weight: 700; color: #1a1a2e;">${salesperson.name || ""}</div>
-          <div style="font-size: 11px; color: #666;">${salesperson.email || ""}</div>
-          ${salesperson.phone ? `<div style="font-size: 11px; color: #666;">${salesperson.phone}</div>` : ""}
-        ` : ""}
-      </div>
-    </div>
-  </div>
+  // Column count for colspan calculations
+  const colCount = (cfg.showIssueDates ? 1 : 0) + (cfg.showAdSize ? 1 : 0) + 1 + (cfg.showIndividualRates ? 1 : 0);
 
-  <!-- TITLE + CLIENT -->
-  <div style="margin-bottom: 24px;">
-    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 4px;">
-      ${isMultiPub ? "Multi-Publication Advertising Proposal" : "Advertising Proposal"}
-    </div>
-    <div style="font-size: 12px; color: #666;">${fmtDate(proposal.date || new Date().toISOString().slice(0, 10))}</div>
-    ${cfg.showClientContact ? `
-      <div style="margin-top: 12px; padding: 12px 16px; background: #f9fafb; border-radius: 6px;">
-        <div style="font-size: 11px; text-transform: uppercase; color: #999; letter-spacing: 0.5px; margin-bottom: 4px;">Prepared For</div>
-        <div style="font-size: 14px; font-weight: 700; color: #1a1a2e;">${clientName}</div>
-        ${clientContact.name ? `<div style="font-size: 12px; color: #666;">${clientContact.name}</div>` : ""}
-        ${clientContact.email ? `<div style="font-size: 12px; color: #666;">${clientContact.email}</div>` : ""}
-      </div>
-    ` : ""}
-  </div>
+  // Render a single line item row
+  const renderLine = (l) => `<tr>
+    ${cfg.showIssueDates ? `<td style="padding:6px 14px;font-family:${SANS};font-size:13px;color:${BLACK};border-bottom:1px solid ${FAINT}">${l.issueLabel || fmtDate(l.issueDate) || ""}</td>` : ""}
+    ${cfg.showAdSize ? `<td style="padding:6px 14px;font-family:${SANS};font-size:13px;color:${BLACK};text-align:center;border-bottom:1px solid ${FAINT}">${l.adSize || ""}</td>` : ""}
+    <td style="padding:6px 14px;font-family:${SANS};font-size:12px;color:${RED};border-bottom:1px solid ${FAINT}">${l.adDeadline ? fmtDate(l.adDeadline) : ""}</td>
+    ${cfg.showIndividualRates ? `<td style="padding:6px 14px;font-family:${SANS};font-size:13px;color:${BLACK};text-align:right;border-bottom:1px solid ${FAINT}">${fmtCurrency(l.price)}</td>` : ""}
+  </tr>`;
+
+  // Render publication section
+  const renderPubSection = (pubId, idx) => {
+    const pub = pubs.find(p => p.id === pubId);
+    const pubLines = lines.filter(l => (l.pubId || l.publication) === pubId);
+    const pubTotal = pubLines.reduce((s, l) => s + (l.price || 0), 0);
+    return `
+      ${idx > 0 ? `<tr><td colspan="${colCount}" style="padding:0 24px"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-bottom:1px solid ${FAINT};height:1px;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr>` : ""}
+      <tr><td colspan="${colCount}" style="padding:16px 14px 4px;font-family:${SERIF};font-size:15px;font-weight:bold;color:${BLACK}">${pub?.name || pubId}</td></tr>
+      <tr>
+        ${cfg.showIssueDates ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};border-bottom:1px solid ${DIVIDER}">Issue</td>` : ""}
+        ${cfg.showAdSize ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};text-align:center;border-bottom:1px solid ${DIVIDER}">Size</td>` : ""}
+        <td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};border-bottom:1px solid ${DIVIDER}">Materials Due</td>
+        ${cfg.showIndividualRates ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};text-align:right;border-bottom:1px solid ${DIVIDER}">Rate</td>` : ""}
+      </tr>
+      ${pubLines.map(renderLine).join("")}
+      ${cfg.showSubtotals ? `<tr>
+        <td colspan="${colCount - 1}" style="padding:8px 14px;border-top:1px solid ${DIVIDER}">&nbsp;</td>
+        <td style="padding:8px 14px;font-family:${SANS};font-size:13px;font-weight:bold;color:${BLACK};text-align:right;border-top:1px solid ${DIVIDER}">${fmtCurrency(pubTotal)}</td>
+      </tr>` : ""}
+    `;
+  };
+
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center">
+<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;font-size:0">
+
+  <!-- NAVY TOP BAR -->
+  <tr><td style="background:${NAVY};height:4px;font-size:0;line-height:0">&nbsp;</td></tr>
+
+  <!-- MASTHEAD -->
+  <tr><td style="padding:32px 40px 0;text-align:center">
+    <div style="font-family:${SERIF};font-size:24px;color:${NAVY};font-weight:normal">13 Stars Media Group</div>
+    <div style="font-family:${SANS};font-size:13px;color:${GRAY};margin-top:6px">Advertising proposal for ${clientName}</div>
+    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};margin-top:2px">Prepared ${fmtDate(proposal.date || new Date().toISOString().slice(0, 10))}</div>
+  </td></tr>
+
+  <!-- RED ACCENT RULE -->
+  <tr><td style="padding:20px 24px 0"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-bottom:1.5px solid ${RED};height:1px;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr>
 
   <!-- INTRO -->
-  <div style="font-size: 14px; line-height: 1.7; color: #333; margin-bottom: 28px; white-space: pre-line;">${introText || cfg.defaultIntro}</div>
+  <tr><td style="padding:24px 40px 0">
+    <div style="font-family:${SANS};font-size:14px;line-height:1.7;color:#333333;white-space:pre-line">${introText || cfg.defaultIntro}</div>
+  </td></tr>
 
-  <!-- LINE ITEMS TABLE -->
-  ${(() => {
-    const colCount = (cfg.showIssueDates ? 1 : 0) + (cfg.showAdSize ? 1 : 0) + 1 + (cfg.showIndividualRates ? 1 : 0); // +1 for ad deadline
-    const renderLine = (l) => `<tr>
-      ${cfg.showIssueDates ? `<td>${l.issueLabel || fmtDate(l.issueDate) || ""}</td>` : ""}
-      ${cfg.showAdSize ? `<td>${l.adSize || ""}</td>` : ""}
-      <td style="color: #c53030; font-size: 12px;">${l.adDeadline ? fmtDate(l.adDeadline) : ""}</td>
-      ${cfg.showIndividualRates ? `<td style="text-align: right; font-weight: 600;">${fmtCurrency(l.price)}</td>` : ""}
-    </tr>`;
-
-    return `<table>
-      <thead><tr style="background: #f5f5f5;">
-        ${cfg.showIssueDates ? '<th>Issue</th>' : ''}
-        ${cfg.showAdSize ? '<th>Ad Size</th>' : ''}
-        <th>Ad Materials Due</th>
-        ${cfg.showIndividualRates ? '<th style="text-align: right;">Rate</th>' : ''}
-      </tr></thead>
-      <tbody>
-        ${cfg.groupByPublication && isMultiPub ? pubIds.map(pubId => {
-          const pub = pubs.find(p => p.id === pubId);
-          const pubLines = lines.filter(l => (l.pubId || l.publication) === pubId);
-          const pubTotal = pubLines.reduce((s, l) => s + (l.price || 0), 0);
-          return `
-            <tr class="pub-header"><td colspan="${colCount}">${pub?.name || pubId}</td></tr>
-            ${pubLines.map(renderLine).join("")}
-            ${cfg.showSubtotals ? `<tr class="subtotal">
-              <td colspan="${colCount - 1}">Subtotal</td>
-              <td style="text-align: right;">${fmtCurrency(pubTotal)}</td>
-            </tr>` : ""}
-          `;
-        }).join("") : lines.map(renderLine).join("")}
-      </tbody>
-      <tfoot>
-        <tr class="grand-total">
-          <td colspan="${colCount - 1}">${isMultiPub ? "Campaign Total" : "Total"}</td>
-          <td style="text-align: right; font-size: 20px; color: ${brandColor};">${fmtCurrency(total)}</td>
+  <!-- LINE ITEMS -->
+  <tr><td style="padding:28px 24px 0">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${cfg.groupByPublication ? pubIds.map((pubId, i) => renderPubSection(pubId, i)).join("") : `
+        <tr>
+          ${cfg.showIssueDates ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};border-bottom:1px solid ${DIVIDER}">Issue</td>` : ""}
+          ${cfg.showAdSize ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};text-align:center;border-bottom:1px solid ${DIVIDER}">Size</td>` : ""}
+          <td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};border-bottom:1px solid ${DIVIDER}">Materials Due</td>
+          ${cfg.showIndividualRates ? `<td style="padding:4px 14px;font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};text-align:right;border-bottom:1px solid ${DIVIDER}">Rate</td>` : ""}
         </tr>
-      </tfoot>
-    </table>`;
-  })()}
+        ${lines.map(renderLine).join("")}
+      `}
+    </table>
+  </td></tr>
+
+  <!-- CAMPAIGN TOTAL -->
+  <tr><td style="padding:0 24px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:14px;font-family:${SANS};font-size:16px;font-weight:bold;color:${BLACK};border-top:2px solid ${NAVY}">${isMultiPub ? "Campaign total" : "Total"}</td>
+        <td style="padding:14px;font-family:${SANS};font-size:16px;font-weight:bold;color:${BLACK};text-align:right;border-top:2px solid ${NAVY}">${fmtCurrency(total)}</td>
+      </tr>
+    </table>
+  </td></tr>
 
   <!-- PAYMENT SCHEDULE -->
   ${payments.length > 0 ? `
-    <div style="margin-top: 28px;">
-      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #999; margin-bottom: 10px;">Payment Schedule${cfg.paymentTiming === "per_issue" ? " (by publish month)" : cfg.paymentTiming === "monthly" ? " (monthly installments)" : ""}</div>
-      <table>
-        <tbody>
-          ${payments.map(p => `<tr>
-            <td style="font-weight: 600;">Due by ${fmtDate(p.date)}</td>
-            <td style="text-align: right; font-weight: 700;">${fmtCurrency(p.amount)}</td>
-            <td style="color: #999; font-size: 11px;">${p.description}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>
+  <tr><td style="padding:28px 24px 0">
+    <div style="font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};margin-bottom:10px">Payment schedule</div>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${payments.map((p, i) => `
+        <tr>
+          <td style="padding:8px 14px;font-family:${SANS};font-size:13px;color:${BLACK};border-bottom:1px solid ${FAINT}">Due by ${fmtDate(p.date)}</td>
+          <td style="padding:8px 14px;font-family:${SANS};font-size:13px;font-weight:bold;color:${BLACK};text-align:right;border-bottom:1px solid ${FAINT}">${fmtCurrency(p.amount)}</td>
+        </tr>
+        <tr><td colspan="2" style="padding:0 14px 8px;font-family:${SANS};font-size:11px;color:${GRAY_LT};border-bottom:${i < payments.length - 1 ? "1px solid " + FAINT : "none"}">${p.description}</td></tr>
+      `).join("")}
+    </table>
+  </td></tr>
   ` : ""}
 
   <!-- SIGN BUTTON -->
   ${!forPdf && signLink ? `
-    <div style="text-align: center; margin: 36px 0;">
-      <a href="${signLink}" style="display: inline-block; padding: 16px 48px; background: #16A34A; color: #fff; font-size: 17px; font-weight: 800; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px;">${cfg.signButtonText}</a>
-      <div style="font-size: 11px; color: #999; margin-top: 8px;">This proposal is valid for ${cfg.validityDays} days.</div>
-    </div>
+  <tr><td style="padding:36px 40px;text-align:center">
+    <table cellpadding="0" cellspacing="0" align="center"><tr>
+      <td style="background:${NAVY};padding:14px 48px">
+        <a href="${signLink}" style="font-family:${SANS};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.3px">${cfg.signButtonText}</a>
+      </td>
+    </tr></table>
+    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};margin-top:10px">This proposal is valid for ${cfg.validityDays} days</div>
+  </td></tr>
   ` : forPdf ? `
-    <div style="text-align: center; margin: 36px 0; padding: 20px; border: 2px solid #ddd; border-radius: 8px;">
-      <div style="font-size: 14px; font-weight: 700; color: #333;">Signature</div>
-      <div style="margin-top: 24px; border-bottom: 1px solid #333; width: 60%; display: inline-block;">&nbsp;</div>
-      <div style="font-size: 11px; color: #999; margin-top: 8px;">Date: _______________</div>
-    </div>
+  <tr><td style="padding:36px 40px;text-align:center">
+    <div style="font-family:${SANS};font-size:13px;font-weight:bold;color:${BLACK}">Signature</div>
+    <div style="margin-top:24px;border-bottom:1px solid ${BLACK};width:60%;display:inline-block">&nbsp;</div>
+    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};margin-top:8px">Date: _______________</div>
+  </td></tr>
   ` : ""}
 
   <!-- TERMS -->
   ${cfg.terms && cfg.terms.length > 0 ? `
-    <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #eee;">
-      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #999; margin-bottom: 8px;">Terms & Conditions</div>
-      <ul style="font-size: 11px; color: #666; line-height: 1.8; padding-left: 16px; margin: 0;">
-        ${cfg.terms.map(t => `<li>${t.replace("{{validity_days}}", String(cfg.validityDays))}</li>`).join("")}
-      </ul>
+  <tr><td style="padding:0 40px">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-bottom:1px solid ${DIVIDER};height:1px;font-size:0;line-height:0">&nbsp;</td></tr></table>
+    <div style="font-family:${SANS};font-size:10px;color:${GRAY_LT};line-height:1.8;margin-top:16px">
+      ${cfg.terms.map(t => `&bull; ${t.replace("{{validity_days}}", String(cfg.validityDays))}`).join("<br>")}
     </div>
+  </td></tr>
   ` : ""}
 
   <!-- FOOTER -->
-  <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #eee; text-align: center; font-size: 11px; color: #999;">
-    ${brandName} &middot; Paso Robles, CA &middot; 13stars.media
-  </div>
+  <tr><td style="padding:24px 40px 32px">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-bottom:1px solid ${DIVIDER};height:1px;font-size:0;line-height:0">&nbsp;</td></tr></table>
+    <div style="font-family:${SANS};font-size:12px;color:${GRAY_LT};text-align:center;margin-top:16px">13 Stars Media Group</div>
+    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};text-align:center;margin-top:2px">805-237-6060 &middot; PasoRoblesPress.com &middot; AtascaderoNews.com</div>
+  </td></tr>
 
-</div>
-</body></html>`;
+</table>
+</td></tr></table>`;
 }
 
 /**
