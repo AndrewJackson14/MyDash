@@ -298,14 +298,40 @@ const RoleDashboard = memo(({
     const [upcomingRange, setUpcomingRange] = useState("30d");
     const [pinging, setPinging] = useState(null);
 
-    // Load ad projects assigned to this designer
+    // Load ad projects + auto-create for upcoming sales without briefs
     useEffect(() => {
       if (!currentUser?.id || !isOnline()) return;
-      supabase.from("ad_projects").select("*").order("created_at", { ascending: false })
-        .then(({ data }) => {
-          if (data) setAdProjects(data.filter(p => p.designer_id === currentUser.id || !p.designer_id));
-        });
-    }, [currentUser?.id]);
+      (async () => {
+        const { data: projects } = await supabase.from("ad_projects").select("*").order("created_at", { ascending: false });
+        const myProjects = (projects || []).filter(p => p.designer_id === currentUser.id || !p.designer_id);
+        setAdProjects(myProjects);
+
+        // Auto-create ad projects for closed sales within 30d that have no project
+        const cutoff30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const upcomingIssueIds = new Set((_issues || []).filter(i => i.date >= today && i.date <= cutoff30).map(i => i.id));
+        const existingKeys = new Set(myProjects.map(p => `${p.client_id}|${p.issue_id}`));
+        const jobKeys = new Set((_jobs || []).map(j => `${j.clientId}|${j.issueId}`));
+
+        const needsProject = (_sales || [])
+          .filter(s => s.status === "Closed" && s.issueId && upcomingIssueIds.has(s.issueId))
+          .filter(s => !existingKeys.has(`${s.clientId}|${s.issueId}`) && !jobKeys.has(`${s.clientId}|${s.issueId}`));
+
+        if (needsProject.length > 0) {
+          const newProjects = needsProject.map(s => ({
+            client_id: s.clientId,
+            publication_id: s.publication,
+            issue_id: s.issueId,
+            ad_size: s.size || s.adSize || s.type || null,
+            designer_id: currentUser.id,
+            salesperson_id: (_clients || []).find(c => c.id === s.clientId)?.repId || null,
+            status: "brief",
+            design_notes: `Auto-created from sale. Ad size: ${s.size || s.adSize || s.type || "TBD"}`,
+          }));
+          const { data: created } = await supabase.from("ad_projects").insert(newProjects).select();
+          if (created) setAdProjects(prev => [...created, ...prev]);
+        }
+      })();
+    }, [currentUser?.id, _sales?.length, _issues?.length]);
 
     // Active projects (not placed/signed off)
     const activeProjects = adProjects.filter(p => !["signed_off", "placed"].includes(p.status));
@@ -441,14 +467,16 @@ const RoleDashboard = memo(({
             : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
               {upcomingAds.map(a => {
                 const d = a.issue ? daysUntil(a.issue.date) : 999;
-                return <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${a.hasBrief ? Z.go : Z.wa}` }}>
+                const proj = adProjects.find(p => p.client_id === a.clientId && p.issue_id === a.issueId);
+                const hasNotes = proj?.design_notes && !proj.design_notes.startsWith("Auto-created");
+                return <div key={a.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${hasNotes ? Z.go : Z.wa}`, cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(a.clientId)}</div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(a.publication)} {a.issue?.label || ""} · {a.size || a.adSize || "Ad"} · {d}d</div>
                   </div>
-                  {a.hasBrief
-                    ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "2px 8px", borderRadius: Ri }}>Brief</span>
-                    : <button onClick={() => pingSalesperson(a)} disabled={pinging === a.id} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.wa}`, background: Z.wa + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{pinging === a.id ? "Sent" : "Ping Sales"}</button>
+                  {hasNotes
+                    ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "2px 8px", borderRadius: Ri }}>Brief Ready</span>
+                    : <button onClick={(e) => { e.stopPropagation(); pingSalesperson(a); }} disabled={pinging === a.id} style={{ padding: "4px 10px", borderRadius: Ri, border: `1px solid ${Z.wa}`, background: Z.wa + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{pinging === a.id ? "Sent" : "Ping Sales"}</button>
                   }
                 </div>;
               })}
