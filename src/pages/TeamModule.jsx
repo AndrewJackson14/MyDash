@@ -98,8 +98,8 @@ const ALERT_OPTIONS = [
 // ══════════════════════════════════════════════════════════════
 // TEAM MEMBER MODAL
 // ══════════════════════════════════════════════════════════════
-const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets }) => {
-  const [tab, setTab] = useState("Profile");
+const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets, save, form, setForm }) => {
+  const [tab, setTab] = useState("Details");
   const [saving, setSaving] = useState(null);
   if (!open || !member) return null;
   const isDk = Z.bg === "#08090D";
@@ -144,16 +144,26 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{member.name}</div>
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>
-          <div style={{ fontSize: FS.xs, color: Z.tm }}>{member.email}{member.phone ? ` \u00b7 ${member.phone}` : ""}</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>{member.email}{member.phone ? ` · ${member.phone}` : ""}</div>
         </div>
-        <Btn sm v="secondary" onClick={() => { onClose(); onEdit(member); }}>Edit</Btn>
       </div>
 
       {/* Tabs */}
-      <TabRow><TB tabs={["Profile", "Workload", "Settings", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
+      <TabRow><TB tabs={["Details", "Workload", "Settings", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
 
-      {/* Profile tab — metrics, pubs, activity, Google status */}
-      {tab === "Profile" && (<>
+      {/* Details tab — edit form + metrics + Google status */}
+      {tab === "Details" && (<>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <Inp label="Name" value={form?.name ?? member.name} onChange={e => setForm?.(f => ({ ...f, name: e.target.value }))} />
+          <Sel label="Role" value={form?.role ?? member.role} onChange={e => setForm?.(f => ({ ...f, role: e.target.value }))} options={(TEAM_ROLES || []).map(r => ({ value: r, label: r }))} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <Inp label="Email" type="email" value={form?.email ?? member.email} onChange={e => setForm?.(f => ({ ...f, email: e.target.value }))} />
+          <Inp label="Phone" value={form?.phone ?? (member.phone || "")} onChange={e => setForm?.(f => ({ ...f, phone: e.target.value }))} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <Btn sm onClick={() => { if (save) save(); }}>Save Changes</Btn>
+        </div>
         {metrics.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 10 }}>
             {metrics.map(m => (
@@ -459,7 +469,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
           {byDept[dept.label].map(t => {
             const metrics = getMetrics(t);
             return <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
-              onClick={() => setMemberModal(t)}
+              onClick={() => { setMemberModal(t); setEditId(t.id); setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }); }}
               onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
               onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -561,8 +571,8 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
       </GlassCard>
     )}
 
-    {/* Edit/Add Modal */}
-    <Modal open={modal} onClose={() => setModal(false)} title={editId ? "Edit Team Member" : "Add Team Member"} width={500}>
+    {/* Add New Member Modal (separate, simple) */}
+    <Modal open={modal && !editId} onClose={() => setModal(false)} title="Add Team Member" width={500}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Inp label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -574,12 +584,12 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <Btn v="secondary" onClick={() => setModal(false)}>Cancel</Btn>
-          <Btn onClick={save} disabled={!form.name || !form.email}>{editId ? "Save" : "Add"}</Btn>
+          <Btn onClick={save} disabled={!form.name || !form.email}>Add</Btn>
         </div>
       </div>
     </Modal>
 
-    {/* Member Detail Modal */}
+    {/* Member Detail + Edit Modal (merged) */}
     <MemberModal
       open={!!memberModal}
       onClose={() => setMemberModal(null)}
@@ -588,6 +598,9 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
       updateTeamMember={updateTeamMember}
       metrics={memberModal ? getMetrics(memberModal) : []}
       onEdit={openEdit}
+      form={form}
+      setForm={setForm}
+      save={save}
       clients={clients}
       sales={sales}
       stories={stories}
