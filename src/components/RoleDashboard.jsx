@@ -37,6 +37,12 @@ const RoleDashboard = memo(({
   const pn = (pid) => (pubs || []).find(p => p.id === pid)?.name || "";
   const cn = (cid) => _clients.find(c => c.id === cid)?.name || "—";
 
+  // ─── Ad Designer state (must be top-level, not inside if block) ──
+  const [adProjects, setAdProjects] = useState([]);
+  const [adFilter, setAdFilter] = useState("all");
+  const [upcomingRange, setUpcomingRange] = useState("30d");
+  const [pinging, setPinging] = useState(null);
+
   // ─── Direction from Publisher (Sec 12.0.3) ─────────────
   const [directionNotes, setDirectionNotes] = useState([]);
   const [replyText, setReplyText] = useState("");
@@ -419,14 +425,10 @@ const RoleDashboard = memo(({
   }
 
   // ─── Ad Designer Dashboard (Jen) — Sec 12.4 ────
-  if (role === "Ad Designer" || (role === "Graphic Designer" && currentUser?.title === "Ad Designer")) {
-    const [adProjects, setAdProjects] = useState([]);
-    const [adFilter, setAdFilter] = useState("all");
-    const [upcomingRange, setUpcomingRange] = useState("30d");
-    const [pinging, setPinging] = useState(null);
-
-    // Load ad projects + auto-create for upcoming sales without briefs
-    useEffect(() => {
+  // Load ad projects for designer (runs for all roles but only acts for designers)
+  const isAdDesigner = role === "Ad Designer" || (role === "Graphic Designer" && currentUser?.title === "Ad Designer");
+  useEffect(() => {
+    if (!isAdDesigner) return;
       if (!currentUser?.id || !isOnline()) return;
       (async () => {
         const { data: projects } = await supabase.from("ad_projects").select("*").order("created_at", { ascending: false });
@@ -458,8 +460,9 @@ const RoleDashboard = memo(({
           if (created) setAdProjects(prev => [...created, ...prev]);
         }
       })();
-    }, [currentUser?.id, _sales?.length, _issues?.length]);
+  }, [isAdDesigner, currentUser?.id, _sales?.length, _issues?.length]);
 
+  if (isAdDesigner) {
     // Active projects (not placed/signed off)
     const activeProjects = adProjects.filter(p => !["signed_off", "placed"].includes(p.status));
     const revisionProjects = activeProjects.filter(p => p.status === "revising");

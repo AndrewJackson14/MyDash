@@ -702,6 +702,19 @@ const Dashboard = ({
             <span style={{ fontSize: 14 }}>🎯</span>
             <span style={{ fontSize: 12, fontWeight: FW.bold, color: ACCENT.blue }}>Pipeline clear — time to prospect</span>
           </div>}
+          {/* Oxytocin: collaborative wins */}
+          {(() => {
+            const recentSigned = (proposals || []).filter(p => p.status === "Approved/Signed" && p.signedAt && p.signedAt.slice(0, 10) >= d7ago).slice(0, 1);
+            if (recentSigned.length > 0) {
+              const p = recentSigned[0];
+              const cName = _clients.find(c => c.id === p.clientId)?.name || "";
+              return <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "10", borderRadius: 20 }}>
+                <span style={{ fontSize: 14 }}>✍️</span>
+                <span style={{ fontSize: 12, fontWeight: FW.bold, color: Z.go }}>{cName} signed!</span>
+              </div>;
+            }
+            return null;
+          })()}
         </div>;
       })()}
     </> :
