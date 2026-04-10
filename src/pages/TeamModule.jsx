@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
@@ -21,24 +21,24 @@ const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFra
 
 // ── Permission modules ───────────────────────────────────────
 const MODULES = [
-  { key: "dashboard", label: "Dashboard", icon: "\ud83d\udcca" },
-  { key: "sales", label: "Sales Pipeline", icon: "\ud83d\udcb0" },
-  { key: "clients", label: "Client Profiles", icon: "\ud83d\udc64" },
-  { key: "proposals", label: "Proposals", icon: "\ud83d\udccb" },
-  { key: "commissions", label: "Commissions", icon: "\ud83d\udcb5" },
-  { key: "stories", label: "Stories / Editorial", icon: "\u270f\ufe0f" },
-  { key: "flatplan", label: "Flatplan / Layout", icon: "\ud83d\udcd0" },
-  { key: "publications", label: "Publications / Schedule", icon: "\ud83d\udcf0" },
-  { key: "billing", label: "Billing / Invoices", icon: "\ud83e\uddfe" },
-  { key: "circulation", label: "Circulation / Subscribers", icon: "\ud83d\udcec" },
-  { key: "service_desk", label: "Service Desk", icon: "\ud83c\udfa7" },
-  { key: "legal_notices", label: "Legal Notices", icon: "\u2696\ufe0f" },
-  { key: "creative_jobs", label: "Creative Jobs", icon: "\ud83c\udfa8" },
-  { key: "calendar", label: "Calendar", icon: "\ud83d\udcc5" },
-  { key: "analytics", label: "Analytics", icon: "\ud83d\udcc8" },
-  { key: "team", label: "Team Management", icon: "\ud83d\udc65" },
-  { key: "permissions", label: "Permissions", icon: "\ud83d\udd12" },
-  { key: "integrations", label: "Integrations / Settings", icon: "\u2699\ufe0f" },
+  { key: "dashboard", label: "Dashboard" },
+  { key: "sales", label: "Sales Pipeline" },
+  { key: "clients", label: "Client Profiles" },
+  { key: "proposals", label: "Proposals" },
+  { key: "commissions", label: "Commissions" },
+  { key: "stories", label: "Stories" },
+  { key: "flatplan", label: "Flatplan" },
+  { key: "publications", label: "Publications" },
+  { key: "billing", label: "Billing" },
+  { key: "circulation", label: "Circulation" },
+  { key: "service_desk", label: "Service Desk" },
+  { key: "legal_notices", label: "Legal Notices" },
+  { key: "creative_jobs", label: "Creative Jobs" },
+  { key: "calendar", label: "Calendar" },
+  { key: "analytics", label: "Analytics" },
+  { key: "team", label: "Team" },
+  { key: "permissions", label: "Permissions" },
+  { key: "integrations", label: "Integrations" },
 ];
 
 const ROLE_DEFAULTS = {
@@ -101,6 +101,14 @@ const ALERT_OPTIONS = [
 const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets, save, form, setForm }) => {
   const [tab, setTab] = useState("Details");
   const [saving, setSaving] = useState(null);
+  const [localPerms, setLocalPerms] = useState([]);
+
+  // Sync localPerms when member changes
+  const memberPermsKey = member?.id || "";
+  useEffect(() => {
+    if (member) setLocalPerms(member.modulePermissions || member.module_permissions || []);
+  }, [memberPermsKey]);
+
   if (!open || !member) return null;
   const isDk = Z.bg === "#08090D";
 
@@ -121,16 +129,18 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
     setSaving(null);
   };
 
-  // Module permissions
-  const perms = member.modulePermissions || [];
+  // Module permissions — uses localPerms for optimistic toggle
+  const perms = localPerms;
   const toggleModule = async (moduleKey) => {
     const updated = perms.includes(moduleKey) ? perms.filter(k => k !== moduleKey) : [...perms, moduleKey];
+    setLocalPerms(updated);
     setSaving("perm_" + moduleKey);
     if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: updated });
     setSaving(null);
   };
   const resetPermDefaults = async () => {
     const defaults = ROLE_DEFAULTS[member.role] || ["dashboard", "calendar"];
+    setLocalPerms(defaults);
     setSaving("perm_reset");
     if (updateTeamMember) await updateTeamMember(member.id, { modulePermissions: defaults });
     setSaving(null);
@@ -318,7 +328,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
               border: `1px solid ${has ? Z.go + "40" : Z.bd}`, background: has ? Z.go + "10" : "transparent",
               cursor: "pointer", opacity: isSaving ? 0.5 : 1, transition: "all 0.15s",
             }}>
-              <span style={{ fontSize: FS.sm }}>{m.icon}</span>
+              <span style={{ fontSize: FS.sm, color: has ? Z.go : Z.td }}>●</span>
               <span style={{ fontSize: FS.sm, fontWeight: has ? FW.bold : FW.normal, color: has ? Z.tx : Z.tm, fontFamily: COND, flex: 1, textAlign: "left" }}>{m.label.split(" / ")[0]}</span>
               <span style={{ fontSize: FS.sm, color: has ? Z.go : "transparent" }}>{"\u2713"}</span>
             </button>;
@@ -500,7 +510,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
           <thead>
             <tr>
               <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
-              {MODULES.map(m => <th key={m.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 50 }}><div style={{ fontSize: FS.sm, marginBottom: 2 }}>{m.icon}</div>{m.label.split(" / ")[0].split(" ")[0]}</th>)}
+              {MODULES.map(m => <th key={m.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 50 }}>{m.label.split(" ")[0]}</th>)}
               <th style={{ padding: "10px 14px", textAlign: "center", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", borderBottom: `1px solid ${Z.bd}` }}>Actions</th>
             </tr>
           </thead>
