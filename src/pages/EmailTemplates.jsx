@@ -12,6 +12,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, glass } from "../components/ui";
 import { supabase } from "../lib/supabase";
+import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
 
 const CATEGORIES = [
   { value: "proposal", label: "Proposals", icon: Ic.file },
@@ -92,6 +93,12 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   // Editor form
   const [form, setForm] = useState({ name: "", category: "proposal", subject: "", publicationIds: [], includeLetterhead: true });
   const [saving, setSaving] = useState(false);
+  const [proposalCfg, setPropCfg] = useState({ ...DEFAULT_PROPOSAL_CONFIG });
+
+  // Style helpers for proposal config
+  const secHead = { fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
+  const checkLbl = { display: "flex", alignItems: "center", gap: 6, fontSize: FS.sm, color: Z.tm, cursor: "pointer" };
+  const chk = { accentColor: Z.ac };
 
   // Load templates
   useEffect(() => {
@@ -126,7 +133,11 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   // Open template for editing
   const openTemplate = (t) => {
     setForm({ name: t.name, category: t.category, subject: t.subject, publicationIds: t.publication_ids || (t.publication_id ? [t.publication_id] : []), includeLetterhead: t.include_letterhead });
-    editor?.commands.setContent(t.html_body || "");
+    if (t.category === "proposal" && t.config) {
+      setPropCfg({ ...DEFAULT_PROPOSAL_CONFIG, ...t.config });
+    } else {
+      editor?.commands.setContent(t.html_body || "");
+    }
     setEditId(t.id);
   };
 
@@ -142,15 +153,18 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   const save = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    const htmlBody = editor?.getHTML() || "";
-    const fields = (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
+    const isProposal = form.category === "proposal";
+    const htmlBody = isProposal ? "" : (editor?.getHTML() || "");
+    const fields = isProposal ? [] : (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
 
     const record = {
-      name: form.name, category: form.category, subject: form.subject,
+      name: form.name, category: form.category,
+      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : form.subject,
       html_body: htmlBody, merge_fields: fields,
+      config: isProposal ? proposalCfg : null,
       publication_id: form.publicationIds.length === 1 ? form.publicationIds[0] : null,
       publication_ids: form.publicationIds.length > 0 ? form.publicationIds : null,
-      include_letterhead: form.includeLetterhead,
+      include_letterhead: true,
       updated_by: currentUser?.id || null,
     };
 
@@ -236,13 +250,12 @@ const EmailTemplates = ({ pubs, currentUser }) => {
         ))}
       </div>
 
-      {/* RIGHT: Editor */}
+      {/* RIGHT: Editor or Config */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {editId || form.name ? <>
-          {/* Template settings bar */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {/* Template name + subject */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Inp label="Template Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Proposal — {{client_name}}" />
             <div>
               <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Publications</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -255,56 +268,112 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             </div>
           </div>
 
-          {/* Merge fields strip */}
-          <div>
-            <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Insert Merge Field</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {(MERGE_FIELDS[form.category] || []).map(f => (
-                <button key={f.key} onClick={() => insertField(f.key)} style={{
-                  padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
-                  background: Z.bg, cursor: "pointer", fontSize: 11, fontWeight: FW.semi,
-                  color: Z.ac, fontFamily: COND, transition: "background 0.1s",
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = Z.ac + "10"}
-                  onMouseLeave={e => e.currentTarget.style.background = Z.bg}
-                >{f.label}</button>
-              ))}
+          {/* PROPOSAL CONFIG FORM — structured, not freeform */}
+          {form.category === "proposal" ? <>
+            <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Header settings */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Header</div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showSalespersonContact} onChange={e => setPropCfg(c => ({ ...c, showSalespersonContact: e.target.checked }))} style={chk} /> Show salesperson contact</label>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showClientContact} onChange={e => setPropCfg(c => ({ ...c, showClientContact: e.target.checked }))} style={chk} /> Show client contact</label>
+                </div>
+              </GlassCard>
+
+              {/* Introduction */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Default Introduction</div>
+                <textarea value={proposalCfg.defaultIntro} onChange={e => setPropCfg(c => ({ ...c, defaultIntro: e.target.value }))}
+                  rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Default greeting paragraph — salesperson can override per proposal" />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Salesperson can customize this per proposal. Supports {"{{client_name}}"} merge field.</div>
+              </GlassCard>
+
+              {/* Line items table config */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Line Items Table</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.groupByPublication} onChange={e => setPropCfg(c => ({ ...c, groupByPublication: e.target.checked }))} style={chk} /> Group by publication</label>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showSubtotals} onChange={e => setPropCfg(c => ({ ...c, showSubtotals: e.target.checked }))} style={chk} /> Show subtotals per pub</label>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showIssueDates} onChange={e => setPropCfg(c => ({ ...c, showIssueDates: e.target.checked }))} style={chk} /> Show issue dates</label>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showAdSize} onChange={e => setPropCfg(c => ({ ...c, showAdSize: e.target.checked }))} style={chk} /> Show ad size</label>
+                  <label style={checkLbl}><input type="checkbox" checked={proposalCfg.showIndividualRates} onChange={e => setPropCfg(c => ({ ...c, showIndividualRates: e.target.checked }))} style={chk} /> Show individual rates</label>
+                </div>
+              </GlassCard>
+
+              {/* Payment schedule */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Payment Schedule</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  {[["per_issue", "Per issue publish date"], ["monthly", "Monthly installments"], ["lump_sum", "Lump sum upfront"]].map(([v, l]) => (
+                    <button key={v} onClick={() => setPropCfg(c => ({ ...c, paymentTiming: v }))} style={{ padding: "6px 14px", borderRadius: Ri, border: `1px solid ${proposalCfg.paymentTiming === v ? Z.ac : Z.bd}`, background: proposalCfg.paymentTiming === v ? Z.ac + "15" : Z.bg, cursor: "pointer", fontSize: FS.xs, fontWeight: proposalCfg.paymentTiming === v ? FW.bold : FW.normal, color: proposalCfg.paymentTiming === v ? Z.ac : Z.tm }}>{l}</button>
+                  ))}
+                </div>
+                <label style={checkLbl}><input type="checkbox" checked={proposalCfg.groupPaymentsByDate} onChange={e => setPropCfg(c => ({ ...c, groupPaymentsByDate: e.target.checked }))} style={chk} /> Combine same-day payments</label>
+              </GlassCard>
+
+              {/* Closing */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Closing</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 10 }}>
+                  <Inp label="Sign Button Text" value={proposalCfg.signButtonText} onChange={e => setPropCfg(c => ({ ...c, signButtonText: e.target.value }))} />
+                  <Inp label="Valid (days)" type="number" value={proposalCfg.validityDays} onChange={e => setPropCfg(c => ({ ...c, validityDays: Number(e.target.value) }))} />
+                </div>
+              </GlassCard>
+
+              {/* Terms */}
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Terms & Conditions</div>
+                <textarea value={(proposalCfg.terms || []).join("\n")} onChange={e => setPropCfg(c => ({ ...c, terms: e.target.value.split("\n").filter(l => l.trim()) }))}
+                  rows={6} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="One term per line..." />
+              </GlassCard>
             </div>
-          </div>
+          </> : <>
+            {/* NON-PROPOSAL: TipTap editor */}
+            <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Your renewal is coming up" />
 
-          {/* TipTap toolbar */}
-          <div style={{ display: "flex", gap: 2, padding: "6px 8px", background: Z.sa, borderRadius: Ri, flexWrap: "wrap", alignItems: "center" }}>
-            <TBtn icon="B" active={editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold" />
-            <TBtn icon="I" active={editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic" />
-            <TBtn icon="U" active={editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline" />
-            <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
-            <TBtn icon="H1" active={editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1" />
-            <TBtn icon="H2" active={editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2" />
-            <TBtn icon="¶" active={editor?.isActive("paragraph")} onClick={() => editor?.chain().focus().setParagraph().run()} title="Paragraph" />
-            <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
-            <TBtn icon="•" active={editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet List" />
-            <TBtn icon="1." active={editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered List" />
-            <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
-            <TBtn icon="←" active={editor?.isActive({ textAlign: "left" })} onClick={() => editor?.chain().focus().setTextAlign("left").run()} title="Left Align" />
-            <TBtn icon="↔" active={editor?.isActive({ textAlign: "center" })} onClick={() => editor?.chain().focus().setTextAlign("center").run()} title="Center" />
-            <TBtn icon="→" active={editor?.isActive({ textAlign: "right" })} onClick={() => editor?.chain().focus().setTextAlign("right").run()} title="Right Align" />
-            <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
-            <TBtn icon="🔗" onClick={() => { const url = prompt("URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }} title="Link" />
-            <TBtn icon="—" onClick={() => editor?.chain().focus().setHorizontalRule().run()} title="Horizontal Rule" />
-          </div>
+            {/* Merge fields strip */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Insert Merge Field</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {(MERGE_FIELDS[form.category] || []).map(f => (
+                  <button key={f.key} onClick={() => insertField(f.key)} style={{
+                    padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
+                    background: Z.bg, cursor: "pointer", fontSize: 11, fontWeight: FW.semi,
+                    color: Z.ac, fontFamily: COND, transition: "background 0.1s",
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = Z.ac + "10"}
+                    onMouseLeave={e => e.currentTarget.style.background = Z.bg}
+                  >{f.label}</button>
+                ))}
+              </div>
+            </div>
 
-          {/* Editor area */}
-          <div style={{ flex: 1, border: `1px solid ${Z.bd}`, borderRadius: R, background: dk ? "#12141a" : "#fff", overflow: "auto", minHeight: 350 }}>
-            <EditorContent editor={editor} />
-          </div>
+            {/* TipTap toolbar */}
+            <div style={{ display: "flex", gap: 2, padding: "6px 8px", background: Z.sa, borderRadius: Ri, flexWrap: "wrap", alignItems: "center" }}>
+              <TBtn icon="B" active={editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold" />
+              <TBtn icon="I" active={editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic" />
+              <TBtn icon="U" active={editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()} title="Underline" />
+              <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
+              <TBtn icon="H1" active={editor?.isActive("heading", { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1" />
+              <TBtn icon="H2" active={editor?.isActive("heading", { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2" />
+              <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
+              <TBtn icon="•" active={editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet List" />
+              <TBtn icon="1." active={editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered List" />
+              <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
+              <TBtn icon="🔗" onClick={() => { const url = prompt("URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }} title="Link" />
+            </div>
+
+            {/* Editor area */}
+            <div style={{ flex: 1, border: `1px solid ${Z.bd}`, borderRadius: R, background: dk ? "#12141a" : "#fff", overflow: "auto", minHeight: 350 }}>
+              <EditorContent editor={editor} />
+            </div>
+          </>}
 
           {/* Action bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", gap: 6 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.sm, color: Z.tm, cursor: "pointer" }}>
-                <input type="checkbox" checked={form.includeLetterhead} onChange={e => setForm(f => ({ ...f, includeLetterhead: e.target.checked }))} style={{ accentColor: Z.ac }} />
-                Include letterhead
-              </label>
               {editId && <Btn sm v="ghost" onClick={() => setDefault(editId)}>{activeTemplate?.is_default ? "✓ Default" : "Set as Default"}</Btn>}
               {editId && <Btn sm v="ghost" onClick={() => deleteTemplate(editId)} style={{ color: Z.da }}>Delete</Btn>}
             </div>
@@ -322,23 +391,29 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     </div>
 
     {/* Preview modal */}
-    <Modal open={previewModal} onClose={() => setPreviewModal(false)} title="Template Preview" width={700}>
-      <div style={{ padding: 20, background: "#fff", borderRadius: R, color: "#1a1a2e" }}>
-        {form.includeLetterhead && <div style={{ borderBottom: "2px solid #1a1a2e", paddingBottom: 16, marginBottom: 20, display: "flex", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: "#1a1a2e" }}>13 Stars Media Group</div>
-            <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>P.O. Box 427, Paso Robles, CA 93447</div>
-            <div style={{ fontSize: 11, color: "#666" }}>(805) 237-6060 · info@13stars.media</div>
-          </div>
-          <div style={{ textAlign: "right", fontSize: 11, color: "#666" }}>
-            <div>{"{{salesperson_name}}"}</div>
-            <div>{"{{salesperson_email}}"}</div>
-            <div>{"{{salesperson_phone}}"}</div>
-          </div>
-        </div>}
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
-        <div dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }} style={{ fontSize: 14, lineHeight: 1.6 }} />
-      </div>
+    <Modal open={previewModal} onClose={() => setPreviewModal(false)} title="Template Preview" width={720}>
+      {form.category === "proposal" ? (
+        <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: generateProposalHtml({
+            config: proposalCfg,
+            proposal: { date: new Date().toISOString().slice(0, 10), total: 5596, lines: [
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 9, 2026", issueDate: "2026-04-09", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 23, 2026", issueDate: "2026-04-23", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "May 7, 2026", issueDate: "2026-05-07", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "May 21, 2026", issueDate: "2026-05-21", price: 1399 },
+            ]},
+            client: { name: "Sample Winery", contacts: [{ name: "Jane Smith", email: "jane@samplewinery.com" }] },
+            salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
+            pubs: pubs || [],
+            signLink: "#preview",
+          }) }} />
+        </div>
+      ) : (
+        <div style={{ padding: 20, background: "#fff", borderRadius: R, color: "#1a1a2e" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
+          <div dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }} style={{ fontSize: 14, lineHeight: 1.6 }} />
+        </div>
+      )}
     </Modal>
 
     {/* New template modal */}
