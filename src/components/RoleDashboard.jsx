@@ -99,13 +99,60 @@ const RoleDashboard = memo(({
     const stuckCount = myQueue.filter(s => s.updatedAt && Math.round((new Date(today) - new Date(s.updatedAt.slice(0, 10))) / 86400000) > 3).length;
     const issuesThisWeek = _issues.filter(i => i.edDeadline && daysUntil(i.edDeadline) <= 7 && daysUntil(i.edDeadline) >= 0);
 
+    // DOSE metrics
+    const thisMonthStr = today.slice(0, 7);
+    const editedThisMonth = _stories.filter(s => s.status !== "Draft" && s.updatedAt?.startsWith(thisMonthStr)).length;
+    const recentEdited = _stories.filter(s => ["Edited", "Approved", "On Page", "Published"].includes(s.status)).slice(0, 30);
+    const firstPassRate = recentEdited.length > 0 ? Math.round(recentEdited.filter(s => s.status !== "Needs Editing").length / recentEdited.length * 100) : 100;
+    const publishedRecent = _stories.filter(s => s.status === "Published" && s.publishedAt).sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""))[0];
+    const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const last7d = _stories.filter(s => s.status === "Edited" && s.updatedAt && s.updatedAt.slice(0, 10) >= d7ago);
+    const byDay = {}; last7d.forEach(s => { const d = s.updatedAt.slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
+    const hwm = Math.max(0, ...Object.values(byDay));
+    const queueEmpty = myQueue.length === 0;
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <GlassStat label="My Editing Queue" value={myQueue.length} color={myQueue.length > 5 ? Z.wa : Z.go} />
-        <GlassStat label="Submitted Today" value={editedToday.length} color={Z.go} />
-        <GlassStat label="Stuck >3 Days" value={stuckCount} color={stuckCount > 0 ? Z.da : Z.go} />
-        <GlassStat label="Issues This Week" value={issuesThisWeek.length} />
+      {/* DOSE Eye Candy */}
+      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {hwm > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.ac + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 16 }}>📝</span>
+            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.ac }}>{hwm} in a day</div><div style={{ fontSize: 10, color: Z.tm }}>7-day best</div></div>
+          </div>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{editedThisMonth}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited This Month</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: firstPassRate >= 80 ? Z.go : Z.wa, fontFamily: DISPLAY }}>{firstPassRate}%</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Pass Rate</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: editedToday.length > 0 ? Z.go : Z.tm, fontFamily: DISPLAY }}>{editedToday.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited Today</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: myQueue.length > 5 ? Z.wa : Z.tx, fontFamily: DISPLAY }}>{myQueue.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>In Queue</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {publishedRecent && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>Your edit of "{publishedRecent.title?.slice(0, 40)}"</span> <span style={{ color: Z.tm }}>published</span></span>
+          </div>}
+          {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>Queue cleared — nice work!</span>
+          </div>}
+          {!queueEmpty && myQueue.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{myQueue.length} to go — you've got this</span>
+          </div>}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
         {/* LEFT: Queue */}
@@ -173,13 +220,56 @@ const RoleDashboard = memo(({
     const onPage = _stories.filter(s => s.printStatus === "on_page" || s.status === "On Page");
     const activeIssues = _issues.filter(i => i.date >= today && daysUntil(i.date) <= 30);
 
+    // DOSE metrics
+    const thisMonthStr = today.slice(0, 7);
+    const pagesThisMonth = onPage.length; // approximate
+    const sentToPress = _issues.filter(i => i.sentToPressAt && i.sentToPressAt.startsWith(thisMonthStr)).length;
+    const nearDeadlines = activeIssues.filter(i => i.date && daysUntil(i.date) <= 7);
+    const queueEmpty = readyForPrint.length === 0 && onPage.length === 0;
+    const recentPress = _issues.filter(i => i.sentToPressAt).sort((a, b) => (b.sentToPressAt || "").localeCompare(a.sentToPressAt || ""))[0];
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <GlassStat label="Ready for Print" value={readyForPrint.length} color={readyForPrint.length > 0 ? Z.wa : Z.go} />
-        <GlassStat label="On Page" value={onPage.length} color={ACCENT.indigo} />
-        <GlassStat label="Active Issues" value={activeIssues.length} />
-        <GlassStat label="Print Deadlines" value={activeIssues.filter(i => i.date && daysUntil(i.date) <= 7).length} color={Z.da} />
+      {/* DOSE Eye Candy */}
+      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {sentToPress > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 16 }}>🖨️</span>
+            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{sentToPress} to press</div><div style={{ fontSize: 10, color: Z.tm }}>this month</div></div>
+          </div>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: readyForPrint.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{readyForPrint.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Ready for Layout</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{onPage.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On Page</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: activeIssues.length > 0 ? Z.tx : Z.td, fontFamily: DISPLAY }}>{activeIssues.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Issues</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: nearDeadlines.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{nearDeadlines.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Deadlines (7d)</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {recentPress && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🖨️</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(recentPress.pubId)} {recentPress.label}</span> <span style={{ color: Z.tm }}>went to press</span></span>
+          </div>}
+          {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — no pages waiting</span>
+          </div>}
+          {!queueEmpty && readyForPrint.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{readyForPrint.length} waiting for layout</span>
+          </div>}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -232,13 +322,51 @@ const RoleDashboard = memo(({
     if (activeLegal.length > 0) checklist.push({ id: "legal", title: `${activeLegal.length} legal notice${activeLegal.length > 1 ? "s" : ""} pending`, dept: "Legal", page: "legalnotices", priority: 2 });
     checklist.sort((a, b) => a.priority - b.priority);
 
+    // DOSE metrics
+    const resolvedThisWeek = _tickets.filter(t => t.status === "resolved" && t.resolvedAt && t.resolvedAt.slice(0, 10) >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).length;
+    const activeSubs = _subs.filter(s => s.status === "active").length;
+    const newSubsMonth = _subs.filter(s => s.status === "active" && s.startDate?.startsWith(today.slice(0, 7))).length;
+    const allClear = openTix.length === 0 && renewalsDue.length === 0 && activeLegal.length === 0;
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <GlassStat label="Open Tickets" value={openTix.length} color={openTix.length > 0 ? Z.wa : Z.go} />
-        <GlassStat label="Renewals Due" value={renewalsDue.length} color={renewalsDue.length > 5 ? Z.wa : Z.tm} />
-        <GlassStat label="Active Subscribers" value={_subs.filter(s => s.status === "active").length} />
-        <GlassStat label="Legal Pending" value={activeLegal.length} />
+      {/* DOSE Eye Candy */}
+      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {resolvedThisWeek > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 16 }}>✅</span>
+            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{resolvedThisWeek} resolved</div><div style={{ fontSize: 10, color: Z.tm }}>this week</div></div>
+          </div>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: openTix.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTix.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Open Tickets</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: renewalsDue.length > 5 ? Z.wa : Z.tx, fontFamily: DISPLAY }}>{renewalsDue.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Renewals Due</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{activeSubs}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Subscribers</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: newSubsMonth > 0 ? Z.go : Z.td, fontFamily: DISPLAY }}>{newSubsMonth}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>New This Month</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {allClear && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — everything's handled</span>
+          </div>}
+          {!allClear && checklist.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{checklist.length} item{checklist.length !== 1 ? "s" : ""} on today's list</span>
+          </div>}
+        </div>
+      </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
