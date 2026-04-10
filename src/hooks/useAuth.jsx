@@ -70,20 +70,22 @@ export function AuthProvider({ children }) {
 
   const fetchTeamMember = async (authId) => {
     try {
-      // Try direct match
-      const { data } = await supabase
+      // Fetch all team members (fast, small table) and match client-side
+      const { data, error } = await supabase
         .from('team_members')
-        .select('*')
-        .eq('auth_id', authId)
-        .single();
+        .select('*');
 
-      if (data) {
-        setTeamMember(data);
+      if (error) {
+        console.error('fetchTeamMember query error:', error);
+        setLoading(false);
+        return;
+      }
+
+      const match = (data || []).find(t => t.auth_id === authId || String(t.auth_id) === String(authId));
+      if (match) {
+        setTeamMember(match);
       } else {
-        // Fallback: get all and match manually
-        const all = await supabase.from('team_members').select('*');
-        const match = all.data?.find(t => String(t.auth_id) === String(authId));
-        if (match) setTeamMember(match);
+        console.warn('No team member found for auth_id:', authId);
       }
     } catch (err) {
       console.error('fetchTeamMember error:', err);
