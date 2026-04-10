@@ -50,9 +50,9 @@ const ROLE_DEFAULTS = {
   "Writer/Reporter": ["dashboard", "stories", "calendar"],
   "Stringer": ["dashboard", "stories", "calendar"],
   "Copy Editor": ["dashboard", "stories", "flatplan", "calendar"],
-  "Layout Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
-  "Ad Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
-  "Graphic Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
+  "Layout Designer": ["dashboard", "flatplan", "stories", "creative_jobs", "calendar"],
+  "Ad Designer": ["dashboard", "creative_jobs", "flatplan", "calendar"],
+  "Graphic Designer": ["dashboard", "creative_jobs", "flatplan", "calendar"],
   "Office Manager": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
 };

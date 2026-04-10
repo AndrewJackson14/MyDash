@@ -257,7 +257,7 @@ export default function App() {
     medialibrary: 'stories',
     editions: 'publications',
     sitesettings: 'publications',
-    adprojects: 'sales',
+    adprojects: 'creative_jobs',
     messaging: null,
     emailtemplates: 'integrations',
   };
