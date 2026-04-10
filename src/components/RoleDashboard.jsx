@@ -389,19 +389,109 @@ const RoleDashboard = memo(({
       setPinging(null);
     };
 
-    // Stats
+    // Stats + DOSE computations
     const statusColors = { brief: Z.wa, designing: ACCENT.blue, proof_sent: Z.wa, revising: Z.da, approved: Z.go, signed_off: Z.go, placed: Z.go, not_started: Z.td, in_progress: ACCENT.blue, revision_requested: Z.da, complete: Z.go };
 
-    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+    // DOSE metrics
+    const thisMonthStr = today.slice(0, 7);
+    const allCompleted = adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status));
+    const completedThisMonth = allCompleted.filter(p => p.updated_at?.startsWith(thisMonthStr));
+    const totalDesignsCareer = allCompleted.length + _jobs.filter(j => j.status === "complete").length;
 
-      {/* Stat bar */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-        <GlassStat label="Active Designs" value={activeProjects.length + myJobs.length} color={ACCENT.blue} />
-        <GlassStat label="Revisions" value={revisionProjects.length} color={revisionProjects.length > 0 ? Z.da : Z.go} />
-        <GlassStat label="Proofs Out" value={activeProjects.filter(p => p.status === "proof_sent").length} color={Z.wa} />
-        <GlassStat label="Approved (7d)" value={approvedThisWeek.length} color={Z.go} />
-        <GlassStat label="No Brief Yet" value={noBriefCount} color={noBriefCount > 0 ? Z.wa : Z.go} />
+    // First-proof approval rate: approved without revision (revision_count <= 1)
+    const recentCompleted = allCompleted.slice(0, 30);
+    const firstProofRate = recentCompleted.length > 0 ? Math.round(recentCompleted.filter(p => (p.revision_count || 1) <= 1).length / recentCompleted.length * 100) : 100;
+
+    // On-time: completed before issue publish date
+    const onTimeCount = allCompleted.filter(p => {
+      const issue = _issues.find(i => i.id === p.issue_id);
+      return issue && p.updated_at && p.updated_at.slice(0, 10) <= issue.date;
+    }).length;
+    const onTimeRate = allCompleted.length > 0 ? Math.round(onTimeCount / allCompleted.length * 100) : 100;
+
+    // 7-day high water mark: most ads approved in a single day over the past 7 days
+    const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const last7dApproved = allCompleted.filter(p => p.updated_at && p.updated_at.slice(0, 10) >= d7ago);
+    const byDay = {};
+    last7dApproved.forEach(p => { const d = p.updated_at.slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
+    const highWaterMark = Math.max(0, ...Object.values(byDay));
+
+    // Recent placed ads (your work in print)
+    const placedAds = _sales.filter(s => s.status === "Closed" && s.page).sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 3);
+
+    // Queue clear state
+    const queueEmpty = activeProjects.length === 0 && myJobs.length === 0;
+
+    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
+
+      {/* ═══ DOSE EYE CANDY ═══ */}
+      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+        {/* Greeting + streak */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {highWaterMark > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 16 }}>🔥</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{highWaterMark} in a day</div>
+              <div style={{ fontSize: 10, color: Z.tm }}>7-day best</div>
+            </div>
+          </div>}
+        </div>
+
+        {/* Pride metrics — 4 cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{completedThisMonth.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Designs This Month</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: firstProofRate >= 80 ? Z.go : firstProofRate >= 50 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{firstProofRate}%</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Proof Approval</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: onTimeRate >= 90 ? Z.go : onTimeRate >= 70 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{onTimeRate}%</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-Time Delivery</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{totalDesignsCareer}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Total Designs</div>
+          </div>
+        </div>
+
+        {/* Oxytocin/Endorphin row — your work in print + queue status */}
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {placedAds.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>📰</span>
+            <div style={{ fontSize: FS.sm, color: Z.tx }}>
+              <span style={{ fontWeight: FW.bold }}>Your {cn(placedAds[0].clientId)} ad</span>
+              <span style={{ color: Z.tm }}> · Page {placedAds[0].page} of {pn(placedAds[0].publication)} {_issues.find(i => i.id === placedAds[0].issueId)?.label || ""}</span>
+            </div>
+          </div>}
+          {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>Queue cleared — nice work!</span>
+          </div>}
+          {!queueEmpty && activeProjects.length + myJobs.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{activeProjects.length + myJobs.length} to go today — you've got this</span>
+          </div>}
+        </div>
+      </div>
+
+      {/* ═══ OPERATIONAL STATS (smaller, below eye candy) ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+        {[
+          { label: "Active", value: activeProjects.length + myJobs.length, color: ACCENT.blue },
+          { label: "Revisions", value: revisionProjects.length, color: revisionProjects.length > 0 ? Z.da : Z.go },
+          { label: "Proofs Out", value: activeProjects.filter(p => p.status === "proof_sent").length, color: Z.wa },
+          { label: "Approved (7d)", value: approvedThisWeek.length, color: Z.go },
+          { label: "Needs Brief", value: noBriefCount, color: noBriefCount > 0 ? Z.wa : Z.go },
+        ].map(s => (
+          <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
+            <span style={{ fontSize: 16, fontWeight: FW.black, color: s.color }}>{s.value}</span>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16 }}>
