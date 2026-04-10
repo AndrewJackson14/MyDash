@@ -132,7 +132,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
 
   // Create new
   const openCreate = () => {
-    setForm({ name: "", category, subject: "", publicationId: "", includeLetterhead: true });
+    if (!form.name.trim()) return;
     editor?.commands.setContent("<p>Start writing your template...</p>");
     setEditId(null);
     setCreateModal(false);
@@ -306,7 +306,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
         </> : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, color: Z.td }}>
           <div style={{ fontSize: 48 }}>📧</div>
           <div style={{ fontSize: FS.md, fontWeight: FW.bold }}>Select a template or create a new one</div>
-          <Btn sm onClick={() => { openCreate(); }}><Ic.plus size={13} /> New Template</Btn>
+          <Btn sm onClick={() => setCreateModal(true)}><Ic.plus size={13} /> New Template</Btn>
         </div>}
       </div>
     </div>
