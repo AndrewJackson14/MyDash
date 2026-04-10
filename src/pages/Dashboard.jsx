@@ -548,8 +548,8 @@ const Dashboard = ({
   // ─── Render ─────────────────────────────────────────────
   return <><div style={{ display: "flex", flexDirection: "column" }}>
 
-    {/* FROSTED GLASS STICKY HEADER — greeting + briefing */}
-    <div style={{
+    {/* FROSTED GLASS STICKY HEADER — greeting + briefing (publisher/salesperson only) */}
+    {!isTeamMember && <div style={{
       position: "sticky", top: 0, zIndex: ZI.dropdown,
       padding: "48px 28px 32px",
     }}>
@@ -571,7 +571,7 @@ const Dashboard = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>}
 
     {/* Main content */}
     <div style={{ padding: "0 28px 28px", display: "flex", flexDirection: "column", gap: SP.pageGap }}>
@@ -678,9 +678,9 @@ const Dashboard = ({
         </div>
       </div>}
     </> :
-    /* ═══ PUBLISHER'S COMMAND CENTER ═══ */
-    <>
-    {/* ═══ STAT CARDS — always visible ═══ */}
+    /* ═══ PUBLISHER'S COMMAND CENTER (not shown for team members) ═══ */
+    !isTeamMember ? <>
+    {/* ═══ STAT CARDS ═══ */}
     <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10 }}>
       {/* ISSUE READINESS — large card, 3 newspapers */}
       <div style={{ ...glass, padding: "16px 20px" }}>
@@ -761,10 +761,11 @@ const Dashboard = ({
       ))}
     </div>
 
-    </>}
+    </> : null}
 
     {/* TWO COLUMNS — role-specific */}
-    {isSalesperson ? <>
+    {isTeamMember ? <RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={_stories} setStories={setStories} clients={_clients} sales={_sales} issues={_issues} team={team} invoices={_inv} payments={_pay} subscribers={_subs} tickets={_tickets} legalNotices={_legal} creativeJobs={_jobs} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />
+    : isSalesperson ? <>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {/* LEFT: Next Actions + Deadline Countdown */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -895,7 +896,6 @@ const Dashboard = ({
         </div>
       </div>
     </>
-    : isTeamMember ? <RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={_stories} setStories={setStories} clients={_clients} sales={_sales} issues={_issues} team={team} invoices={_inv} payments={_pay} subscribers={_subs} tickets={_tickets} legalNotices={_legal} creativeJobs={_jobs} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />
     : /* ═══ PUBLISHER'S COMMAND CENTER — 3-COLUMN LAYOUT ═══ */
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
 
