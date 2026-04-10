@@ -99,9 +99,9 @@ const ALERT_OPTIONS = [
 // TEAM MEMBER MODAL
 // ══════════════════════════════════════════════════════════════
 const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets }) => {
-  if (!open || !member) return null;
   const [tab, setTab] = useState("Profile");
   const [saving, setSaving] = useState(null);
+  if (!open || !member) return null;
   const isDk = Z.bg === "#08090D";
 
   // Alert preferences (stored as JSONB on team_members)
