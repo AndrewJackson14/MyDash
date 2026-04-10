@@ -119,7 +119,7 @@ const RoleDashboard = memo(({
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       {/* DOSE Eye Candy */}
-      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
           {hwm > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.ac + "12", borderRadius: 20 }}>
@@ -236,7 +236,7 @@ const RoleDashboard = memo(({
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       {/* DOSE Eye Candy */}
-      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
           {sentToPress > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
@@ -336,7 +336,7 @@ const RoleDashboard = memo(({
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       {/* DOSE Eye Candy */}
-      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
           {resolvedThisWeek > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
@@ -555,7 +555,7 @@ const RoleDashboard = memo(({
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
 
       {/* ═══ DOSE EYE CANDY ═══ */}
-      <div style={{ ...glass(), borderRadius: R, padding: "28px 32px" }}>
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         {/* Greeting + streak */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
