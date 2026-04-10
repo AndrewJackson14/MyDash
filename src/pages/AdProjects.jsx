@@ -199,13 +199,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{cn(viewProject.client_id)} — {pn(viewProject.publication_id)}</div>
-          <div style={{ fontSize: FS.sm, color: Z.tm }}>
-            Salesperson: <span style={{ fontWeight: FW.bold, color: Z.tx }}>{spName || "—"}</span>
-            {" · "}Designer: <span style={{ fontWeight: FW.bold, color: Z.tx }}>{tn(viewProject.designer_id)}</span>
-          </div>
-        </div>
+        <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{cn(viewProject.client_id)} — {pn(viewProject.publication_id)}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {viewProject.status === "brief" && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
           <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
@@ -247,85 +241,94 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
         {/* LEFT: Brief with hero proof + history */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* Design Brief + Current Proof Hero */}
-          <GlassCard>
-            {/* Brief header: ad size, issue, client contact, revisions */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Design Brief</span>
-              {viewProject.client_contact_name && <span style={{ fontSize: FS.xs, color: Z.tm }}>Client: {viewProject.client_contact_name}{viewProject.client_contact_email ? ` · ${viewProject.client_contact_email}` : ""}{viewProject.client_contact_phone ? ` · ${viewProject.client_contact_phone}` : ""}</span>}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: FS.sm, marginBottom: 14 }}>
-              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
-              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || "—" : "—"}</div></div>
-              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(viewProject.publication_id)}</div></div>
-              <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
-            </div>
-
-            {/* Current Proof — hero display */}
-            <div style={{ marginBottom: 14, padding: 16, background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, minHeight: 120 }}>
-              {latestProof ? <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div>
-                    <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>Proof v{latestProof.version}</span>
-                    <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{fmtDate(latestProof.created_at)}</span>
-                    {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready for Sales", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent to Client" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 8px", borderRadius: Ri, marginLeft: 8 }}>{lbl}</span>; })()}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <Btn sm v="ghost" onClick={() => window.open(latestProof.proof_url, "_blank")}>View Full</Btn>
-                    {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }}>Mark Ready</Btn>}
-                    {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }}>Request Edit</Btn>}
-                    {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved") && <Btn sm onClick={() => copyApprovalLink(latestProof)}>Send to Client</Btn>}
-                  </div>
+          {/* Design Brief — left 2/3 brief, right 1/3 proof */}
+          <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", minHeight: 400 }}>
+              {/* LEFT 2/3: Brief content */}
+              <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Design Brief</span>
+                  {viewProject.client_contact_name && <span style={{ fontSize: FS.xs, color: Z.tm }}>{viewProject.client_contact_name}{viewProject.client_contact_email ? ` · ${viewProject.client_contact_email}` : ""}</span>}
                 </div>
-                {/* Proof preview */}
-                {latestProof.proof_url && (latestProof.proof_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-                  ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} style={{ maxWidth: "100%", maxHeight: 400, borderRadius: Ri, display: "block", margin: "0 auto" }} />
-                  : <div style={{ textAlign: "center", padding: 20, color: Z.tm, fontSize: FS.sm }}>PDF proof — <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open in new tab</a></div>
-                )}
-                {latestProof.designer_notes && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 8 }}>Designer notes: {latestProof.designer_notes}</div>}
-                {latestProof.client_feedback && <div style={{ fontSize: FS.xs, color: Z.tx, marginTop: 4, padding: "6px 10px", background: Z.wa + "10", borderRadius: Ri, borderLeft: `2px solid ${Z.wa}` }}>Client feedback: {latestProof.client_feedback}</div>}
-              </> : <>
-                <div style={{ textAlign: "center", padding: "24px 0" }}>
-                  <div style={{ fontSize: FS.sm, color: Z.td, marginBottom: 10 }}>No proof uploaded yet</div>
-                  <Btn onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={13} /> Upload First Proof</Btn>
+
+                {/* Team + specs row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Salesperson</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{spName || "—"}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Designer</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{tn(viewProject.designer_id)}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
                 </div>
-              </>}
-            </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || "—" : "—"}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(viewProject.publication_id)}</div></div>
+                </div>
 
-            {/* Upload new version (when proof exists) */}
-            {latestProof && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-              <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload New Version</Btn>
-            </div>}
-
-            {/* Brief fields — structured */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              {[
-                { label: "Key Message / Headline", value: viewProject.brief_headline, key: "brief_headline" },
-                { label: "Colors to Use / Avoid", value: viewProject.brief_colors, key: "brief_colors" },
-              ].map(f => (
-                <div key={f.key}>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{f.label}</div>
-                  {f.value ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 36 }}>{f.value}</div>
+                {/* Key Message */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Key Message / Headline</div>
+                  {viewProject.brief_headline ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_headline}</div>
                     : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
                 </div>
-              ))}
+
+                {/* Style Direction — full width, generous room */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Style Direction</div>
+                  {viewProject.brief_style ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 80, lineHeight: 1.6 }}>{viewProject.brief_style}</div>
+                    : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
+                </div>
+
+                {/* Colors + Special Instructions side by side */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Colors to Use / Avoid</div>
+                    {viewProject.brief_colors ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_colors}</div>
+                      : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Special Instructions</div>
+                    {viewProject.brief_instructions ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_instructions}</div>
+                      : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
+                  </div>
+                </div>
+
+                {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
+                  <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
+                </div>}
+              </div>
+
+              {/* RIGHT 1/3: Current proof — vertical hero */}
+              <div style={{ borderLeft: `1px solid ${Z.bd}`, background: Z.bg, display: "flex", flexDirection: "column" }}>
+                {latestProof ? <>
+                  <div style={{ padding: "12px 14px", borderBottom: `1px solid ${Z.bd}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx }}>v{latestProof.version}</span>
+                      {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: 10, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 6px", borderRadius: Ri }}>{lbl}</span>; })()}
+                    </div>
+                    <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(latestProof.created_at)}</div>
+                  </div>
+                  {/* Image preview */}
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, overflow: "hidden" }}>
+                    {latestProof.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                      ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} style={{ maxWidth: "100%", maxHeight: 320, borderRadius: Ri, objectFit: "contain" }} />
+                      : <div style={{ textAlign: "center", color: Z.tm, fontSize: FS.sm }}>PDF · <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open</a></div>
+                    }
+                  </div>
+                  {latestProof.client_feedback && <div style={{ padding: "8px 14px", borderTop: `1px solid ${Z.bd}`, fontSize: FS.xs, color: Z.tx, background: Z.wa + "08", borderLeft: `2px solid ${Z.wa}` }}>Client: {latestProof.client_feedback}</div>}
+                  {/* Actions */}
+                  <div style={{ padding: "10px 14px", borderTop: `1px solid ${Z.bd}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <Btn sm v="ghost" onClick={() => window.open(latestProof.proof_url, "_blank")} style={{ flex: 1 }}>View Full</Btn>
+                    {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }} style={{ flex: 1 }}>Mark Ready</Btn>}
+                    {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }} style={{ flex: 1 }}>Request Edit</Btn>}
+                    {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved") && <Btn sm onClick={() => copyApprovalLink(latestProof)} style={{ flex: 1 }}>Send to Client</Btn>}
+                    <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading} style={{ flex: 1 }}><Ic.up size={11} /> New Version</Btn>
+                  </div>
+                </> : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 24 }}>
+                  <div style={{ fontSize: FS.sm, color: Z.td }}>No proof yet</div>
+                  <Btn sm onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload Proof</Btn>
+                </div>}
+              </div>
             </div>
-            {/* Style direction — full width, more room */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Style Direction</div>
-              {viewProject.brief_style ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 60, lineHeight: 1.6 }}>{viewProject.brief_style}</div>
-                : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
-            </div>
-            {/* Special instructions — full width */}
-            <div>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Special Instructions</div>
-              {viewProject.brief_instructions ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 40, lineHeight: 1.6 }}>{viewProject.brief_instructions}</div>
-                : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
-            </div>
-            {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
-              <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
-            </div>}
           </GlassCard>
 
           {/* Proof Version History (previous versions) */}
