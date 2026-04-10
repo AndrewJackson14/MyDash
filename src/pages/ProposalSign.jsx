@@ -24,6 +24,14 @@ export default function ProposalSign() {
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [templateConfig, setTemplateConfig] = useState(null);
+
+  // Load template config on mount
+  useEffect(() => {
+    supabase.from("email_templates").select("config")
+      .eq("category", "proposal").eq("is_default", true).limit(1)
+      .then(({ data }) => setTemplateConfig(data?.[0]?.config || DEFAULT_PROPOSAL_CONFIG));
+  }, []);
 
   useEffect(() => {
     if (!token) { setError("Invalid signature link."); setLoading(false); return; }
@@ -37,15 +45,13 @@ export default function ProposalSign() {
       setSignerName(sigData.signer_name || "");
       setSignerTitle(sigData.signer_title || "");
 
-      // Record view
-      await supabase.from("proposal_signatures").update({
+      // Record view (anon can update proposal_signatures)
+      supabase.from("proposal_signatures").update({
         viewed_at: sigData.viewed_at || new Date().toISOString(),
         view_count: (sigData.view_count || 0) + 1,
-      }).eq("id", sigData.id);
+      }).eq("id", sigData.id).then(() => {});
 
-      // Load proposal
-      const { data: propData } = await supabase.from("proposals").select("*").eq("id", sigData.proposal_id).single();
-      if (propData) setProposal(propData);
+      // Proposal data comes from the snapshot — no need to query proposals table
       setLoading(false);
     })();
   }, [token]);
@@ -65,18 +71,9 @@ export default function ProposalSign() {
   if (loading) return <div style={styles.page}><div style={styles.card}><div style={{ textAlign: "center", padding: 60, color: C.tm }}>Loading proposal...</div></div></div>;
   if (error) return <div style={styles.page}><div style={{ ...styles.card, textAlign: "center", padding: 60 }}><div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div><div style={{ fontSize: 18, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Link Not Found</div><div style={{ fontSize: 14, color: C.tm }}>{error}</div></div></div>;
 
-  const snapshot = sig.proposal_snapshot || proposal;
-
-  // Load template config
-  const [templateConfig, setTemplateConfig] = useState(null);
-  useEffect(() => {
-    supabase.from("email_templates").select("config")
-      .eq("category", "proposal").eq("is_default", true).limit(1)
-      .then(({ data }) => setTemplateConfig(data?.[0]?.config || DEFAULT_PROPOSAL_CONFIG));
-  }, []);
+  const snapshot = sig?.proposal_snapshot || proposal;
 
   // Generate proposal HTML (without sign button — we render our own form below)
-  // Use the payment timing the salesperson selected for this deal
   const dealPayTiming = snapshot?.payTiming || "per_issue";
   const proposalHtml = templateConfig ? generateProposalHtml({
     config: { ...(templateConfig || DEFAULT_PROPOSAL_CONFIG), signButtonText: "", paymentTiming: dealPayTiming },
