@@ -5,6 +5,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
+import { generateContractHtml } from "../lib/contractTemplate";
 
 const C = {
   bg: "#F6F7F9", sf: "#FFFFFF", tx: "#0D0F14", tm: "#525E72", td: "#8994A7",
@@ -84,6 +85,26 @@ export default function ProposalSign() {
       type: "system",
       link: "/sales?tab=Closed",
     });
+
+    // 5. Send contract confirmation email
+    try {
+      const contractHtml = generateContractHtml({
+        proposal: snapshot,
+        signature: { signerName: signerName.trim(), signerTitle: signerTitle.trim(), signedAt: new Date().toISOString() },
+        salesperson: {},
+        pubs: [],
+      });
+      await supabase.functions.invoke("contract-email", {
+        body: {
+          signature_id: sig.id,
+          html_body: contractHtml,
+          subject: `Contract Confirmed — ${snapshot.name || snapshot.clientName || ""}`,
+          to_email: sig.signer_email || "",
+        },
+      });
+    } catch (emailErr) {
+      console.error("Contract email error:", emailErr);
+    }
 
     setSigned(true);
     setSubmitting(false);
