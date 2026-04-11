@@ -33,15 +33,9 @@ const AI_ACTIONS = [
   { id: "lede", label: "Write a Lede", prompt: "Write a compelling opening paragraph (lede) for the following article. Make it hook the reader and summarize the key news:" },
 ];
 
-async function callClaude(systemPrompt, userText) {
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: systemPrompt, messages: [{ role: "user", content: userText }] })
-    });
-    const data = await res.json();
-    return data.content?.map(c => c.text || "").join("\n") || "No response";
-  } catch (e) { return "Error: " + e.message; }
+// AI writing assist — requires backend proxy edge function (not yet deployed)
+async function callClaude(_systemPrompt, _userText) {
+  return "AI assist requires a backend proxy. Deploy an ai-proxy edge function to enable this feature.";
 }
 
 const Editorial = ({ stories, setStories, pubs, notifications, setNotifications, jurisdiction, publishStory, unpublishStory }) => {

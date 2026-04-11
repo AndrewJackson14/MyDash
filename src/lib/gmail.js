@@ -1,7 +1,5 @@
 // lib/gmail.js — Gmail send/draft utility via gmail-api edge function
-import { supabase } from "./supabase";
-
-const SUPABASE_URL = "https://hqywacyhpllapdwccmaw.supabase.co";
+import { supabase, EDGE_FN_URL } from "./supabase";
 
 // Encode string to base64url (Gmail API format)
 function toBase64Url(str) {
@@ -51,7 +49,7 @@ export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode
     : { message: { raw } };
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail-api`, {
+    const res = await fetch(`${EDGE_FN_URL}/gmail-api`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +81,7 @@ export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode
 
 export async function initiateGmailAuth(teamMemberId) {
   const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/gmail-auth`, {
+  const res = await fetch(`${EDGE_FN_URL}/gmail-auth`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

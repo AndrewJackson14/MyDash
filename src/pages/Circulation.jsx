@@ -728,7 +728,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div><div style={{ fontSize: FS.xs, color: Z.td }}>Start</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{fmtDate(sub.startDate)}</div></div>
             <div><div style={{ fontSize: FS.xs, color: Z.td }}>Expiry</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{fmtDate(sub.expiryDate)}</div></div>
-            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Renewal</div><div style={{ fontSize: FS.sm, color: Z.tx, color: sub.renewalDate && sub.renewalDate < today ? Z.da : Z.tx }}>{fmtDate(sub.renewalDate)}</div></div>
+            <div><div style={{ fontSize: FS.xs, color: Z.td }}>Renewal</div><div style={{ fontSize: FS.sm, color: sub.renewalDate && sub.renewalDate < today ? Z.da : Z.tx }}>{fmtDate(sub.renewalDate)}</div></div>
           </div>
           {/* Payment History */}
           <div>

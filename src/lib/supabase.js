@@ -20,3 +20,6 @@ export const supabase = supabaseUrl && supabaseAnonKey
   : null;
 
 export const isOnline = () => !!supabase;
+
+// Centralized edge function base URL — use this instead of hardcoding
+export const EDGE_FN_URL = supabaseUrl ? `${supabaseUrl}/functions/v1` : "";

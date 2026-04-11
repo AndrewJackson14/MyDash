@@ -3,10 +3,10 @@
 // No auth required — accessed via /approve/:access_token
 // ============================================================
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 const CDN_BASE = "https://cdn.13stars.media";
-const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 
 // ─── Minimal standalone theme (no auth dependency) ──────────
 const C = {

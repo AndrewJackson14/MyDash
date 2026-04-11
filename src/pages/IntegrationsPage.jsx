@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, TB, Stat, Modal, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { SITES } from "../constants";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
-const AUTH_BASE = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1";
+const AUTH_BASE = EDGE_FN_URL;
 
 // ─── Integration status helpers ─────────────────────────────
 const STATUS = { connected: { label: "Connected", color: Z.su }, disconnected: { label: "Not Connected", color: Z.da }, configured: { label: "Configured", color: Z.wa }, syncing: { label: "Syncing...", color: Z.pu } };

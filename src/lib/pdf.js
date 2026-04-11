@@ -1,6 +1,6 @@
-import { supabase } from "./supabase";
+import { supabase, EDGE_FN_URL } from "./supabase";
 
-const FUNCTION_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/generate-pdf";
+const FUNCTION_URL = EDGE_FN_URL + "/generate-pdf";
 
 /**
  * Generate a PDF for an invoice or contract via edge function.

@@ -9,7 +9,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import MediaModal from "./MediaModal";
 
 // ── Constants ────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ async function uploadImage(file, path) {
   const filename = Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
-  const res = await fetch("https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/upload-image", {
+  const res = await fetch(EDGE_FN_URL + "/upload-image", {
     method: "POST",
     headers: { "Authorization": "Bearer " + session.access_token, "x-upload-path": path || "uploads", "x-file-name": filename, "x-content-type": file.type || "image/jpeg" },
     body: file,

@@ -6,8 +6,9 @@
 import { useState, useEffect, memo } from "react";
 import { Z, FS, FW, Ri, R, COND } from "../lib/theme";
 import { Ic, Btn } from "../components/ui";
+import { EDGE_FN_URL } from "../lib/supabase";
 
-const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);

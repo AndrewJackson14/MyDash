@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB, Pill } from "../components/ui";
-import { supabase, isOnline } from "../lib/supabase";
+import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 
-const GCAL_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/gcal-api";
+const GCAL_URL = EDGE_FN_URL + "/gcal-api";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 7);
 

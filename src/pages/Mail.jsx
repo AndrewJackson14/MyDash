@@ -11,11 +11,11 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
 import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill } from "../components/ui";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────
-const PROXY = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/gmail-api";
-const AUTH_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/gmail-auth";
+const PROXY = EDGE_FN_URL + "/gmail-api";
+const AUTH_URL = EDGE_FN_URL + "/gmail-auth";
 
 // ── API helpers ──────────────────────────────────────────────
 async function getAuthHeader() {

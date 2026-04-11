@@ -6,11 +6,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, PageHeader, GlassCard, DataTable, SB, Badge, FilterBar, Pill } from "../components/ui";
-import { supabase, isOnline } from "../lib/supabase";
+import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
-const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 
 // Publication ID → CDN folder slug
 const PUB_SLUG_MAP = {

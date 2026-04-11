@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill } from "../components/ui";
-import { supabase, isOnline } from "../lib/supabase";
+import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
 import AssetPanel from "../components/AssetPanel";
 
@@ -18,7 +18,7 @@ const STATUSES = {
 
 const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"];
 
-const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "\u2014";
@@ -344,7 +344,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                   {/* Image preview */}
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, overflow: "hidden" }}>
                     {latestProof.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-                      ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} style={{ maxWidth: "100%", maxHeight: 320, borderRadius: Ri, objectFit: "contain" }} />
+                      ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} loading="lazy" style={{ maxWidth: "100%", maxHeight: 320, borderRadius: Ri, objectFit: "contain" }} />
                       : <div style={{ textAlign: "center", color: Z.tm, fontSize: FS.sm }}>PDF · <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open</a></div>
                     }
                   </div>
@@ -552,7 +552,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(p.client_id)}</div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
-                  {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
+                  {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                 </div>
                 {/* Overdue / incomplete-after-press flags */}
                 {iss && iss.date < today && !["approved", "signed_off", "placed"].includes(p.status) && <div style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "2px 6px", borderRadius: Ri, marginTop: 4, display: "inline-block" }}>INCOMPLETE — PAST PRESS</div>}

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
 import { Ic, Btn, SB, Pill } from "../components/ui";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
-const PROXY_URL = "https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/bunny-storage";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 
 // ── Helpers ──────────────────────────────────────────────────────
 const fmtSize = (bytes) => {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Card, glass } from "../components/ui";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 const ProfilePanel = ({ user, team, pubs, onClose }) => {
   const [gmailStatus, setGmailStatus] = useState(null); // null = loading, { connected, email } = loaded
@@ -28,7 +28,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
     if (!supabase) { alert("Supabase not connected"); return; }
     setGmailLoading(true);
     try {
-      const res = await fetch(`https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/gmail-auth`, {
+      const res = await fetch(`${EDGE_FN_URL}/gmail-auth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ team_member_id: me.id }),
