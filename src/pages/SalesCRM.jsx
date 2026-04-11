@@ -91,6 +91,7 @@ const SalesCRM = (props) => {
   ]);
   const [actFilter, setActFilter] = useState("all");
   const [closedRange, setClosedRange] = useState("30days");
+  const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
@@ -627,8 +628,25 @@ const SalesCRM = (props) => {
       const d30 = new Date(now); d30.setDate(d30.getDate() - 30); const d30s = d30.toISOString().slice(0,10);
       let filtered = closedSales.filter(s => { if (closedRange === "7days") return s.date >= d7s; if (closedRange === "30days") return s.date >= d30s; if (closedRange === "month") return s.date?.startsWith(thisMonth); if (closedRange === "quarter") return s.date >= qStart; if (closedRange === "year") return s.date?.startsWith(thisYear); return true; });
       if (fPub !== "all") filtered = filtered.filter(s => s.publication === fPub);
-      const filtRev = filtered.reduce((s,x) => s + x.amount, 0);
+      // Sort
+      const sortKey = closedSort.key;
+      const sortDir = closedSort.dir === "asc" ? 1 : -1;
       const repName = (cid) => { const c = clients.find(x => x.id === cid); return c?.repId ? ((props.team || []).find(x => x.id === c.repId)?.name || "\u2014") : "\u2014"; };
+      const getSortVal = (s) => {
+        if (sortKey === "client") return cn(s.clientId);
+        if (sortKey === "pub") return pn(s.publication);
+        if (sortKey === "size") return s.size || s.type || "";
+        if (sortKey === "amount") return s.amount || 0;
+        if (sortKey === "date") return s.date || "";
+        if (sortKey === "rep") return repName(s.clientId);
+        return "";
+      };
+      filtered.sort((a, b) => {
+        const av = getSortVal(a), bv = getSortVal(b);
+        if (typeof av === "number") return (av - bv) * sortDir;
+        return String(av).localeCompare(String(bv)) * sortDir;
+      });
+      const filtRev = filtered.reduce((s,x) => s + x.amount, 0);
       const repRevs = {}; filtered.forEach(s => { const rn = repName(s.clientId); repRevs[rn] = (repRevs[rn] || 0) + (s.amount || 0); });
       const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
       return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -645,7 +663,7 @@ const SalesCRM = (props) => {
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
           <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            {["Client", "Publication", "Ad Size", "Amount", "Date", "Salesperson", ""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: h === "Amount" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>{h}</th>)}
+            {[["Client","client"],["Publication","pub"],["Ad Size","size"],["Amount","amount"],["Date","date"],["Salesperson","rep"],["",""]].map(([label, key]) => <th key={label||"dl"} onClick={key ? () => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" })) : undefined} style={{ padding: "8px 12px", textAlign: label === "Amount" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: key ? "pointer" : "default", userSelect: "none" }}>{label}{closedSort.key === key ? (closedSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}</th>)}
           </tr></thead>
           <tbody>
             {filtered.slice(0, 100).map(s => <tr key={s.id} onClick={() => navTo("Clients", s.clientId)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
