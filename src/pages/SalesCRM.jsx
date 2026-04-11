@@ -515,7 +515,7 @@ const SalesCRM = (props) => {
       {/* Inquiries + Renewals inline alerts */}
       {(() => {
         const newInqs = (adInquiries || []).filter(i => i.status === "new");
-        const urgentRens = renewalClients.filter(c => c.contractEndDate && c.contractEndDate <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+        const urgentRens = (clients || []).filter(c => (c.status === "Renewal" || c.status === "Lapsed") && c.contractEndDate && c.contractEndDate <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
         if (newInqs.length === 0 && urgentRens.length === 0) return null;
         return <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           {newInqs.length > 0 && <div onClick={() => { if (loadInquiries && !inquiriesLoaded) loadInquiries(); setTab("Pipeline"); }} style={{ flex: 1, padding: "8px 14px", background: Z.da + "10", borderLeft: `3px solid ${Z.da}`, borderRadius: Ri, cursor: "pointer" }}>
