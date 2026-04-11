@@ -1,12 +1,12 @@
 // proposalTemplate.js — Generates branded proposal HTML from template config + proposal data
 // Used by: sendProposalEmail (SalesCRM), ProposalSign page, PDF export
 
+import { fmtCurrencyWhole as fmtCurrency, fmtDate } from "./formatters";
+
 const PUB_COLORS = {
   PRP: "#1B3A5C", AN: "#2C5F2D", MT: "#0077B6", MBL: "#8B5E3C",
   default: "#111318",
 };
-
-import { fmtCurrencyWhole as fmtCurrency, fmtDate } from "./formatters";
 
 // Default template config
 export const DEFAULT_PROPOSAL_CONFIG = {
