@@ -311,7 +311,7 @@ const Dashboard = ({
     const h24ago = new Date(now - 24 * 3600000).toISOString();
     const h48ago = new Date(now - 48 * 3600000).toISOString();
     supabase.from("page_views").select("site_id", { count: "exact", head: false })
-      .gte("created_at", h24ago).then(({ data }) => {
+      .gte("created_at", h24ago).limit(50000).then(({ data }) => {
         if (!data) return;
         const bysite = {}; data.forEach(r => { bysite[r.site_id] = (bysite[r.site_id] || 0) + 1; });
         const top = Object.entries(bysite).sort((a, b) => b[1] - a[1])[0];
