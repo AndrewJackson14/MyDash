@@ -17,7 +17,7 @@ const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFra
 
 const StatusBadge = ({ status, map }) => {
   const c = (map || SUB_STATUS_COLORS)[status] || { bg: Z.sa, text: Z.tm };
-  return <span style={{ display: "inline-flex", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap" }}>{status}</span>;
+  return <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap", textTransform: "capitalize" }}>{status}</span>;
 };
 
 // ─── Module ─────────────────────────────────────────────────
@@ -25,6 +25,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
   const [subFilter, setSubFilter] = useState("all");
+  const [subType, setSubType] = useState("print");
   const [pubFilter, setPubFilter] = useState("all");
   const [subModal, setSubModal] = useState(false);
   const [locModal, setLocModal] = useState(false);
@@ -66,7 +67,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
   const [driverForm, setDriverForm] = useState(blankDriver);
   const [routeForm, setRouteForm] = useState(blankRoute);
 
-  const pn = (pid) => pubs.find(p => p.id === pid)?.name || "";
+  const pn = (pid) => { const n = pubs.find(p => p.id === pid)?.name || ""; return n.replace(/^The /, ""); };
   const pubColor = (pid) => Z.tm;
 
   // ─── Computed Stats ─────────────────────────────────────
@@ -174,9 +175,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
   // ─── Filtering ──────────────────────────────────────────
   let filteredSubs = subs;
-  // Filter by print/digital based on active tab
-  if (tab === "Print Subscribers") filteredSubs = filteredSubs.filter(s => s.type === "print" || !s.type);
-  if (tab === "Digital Subscribers") filteredSubs = filteredSubs.filter(s => s.type === "digital");
+  if (tab === "Subscribers") filteredSubs = filteredSubs.filter(s => subType === "print" ? (s.type === "print" || !s.type) : s.type === "digital");
   if (subFilter !== "all") filteredSubs = filteredSubs.filter(s => s.status === subFilter);
   if (pubFilter !== "all") filteredSubs = filteredSubs.filter(s => s.publicationId === pubFilter);
   if (sr) {
@@ -187,33 +186,32 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="Circulation">
-      {(tab === "Print Subscribers" || tab === "Digital Subscribers" || tab === "Drop Locations") && <SB value={sr} onChange={setSr} placeholder={tab.includes("Subscribers") ? "Search subscribers..." : "Search locations..."} />}
-      {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />}
-      {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <><Btn sm v="secondary" onClick={() => setExportModal(true)}>Export List</Btn><Btn sm v="secondary" onClick={() => setRenewalModal(true)}>Send Renewals</Btn><Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn></>}
+      {(tab === "Subscribers" || tab === "Drop Locations") && <SB value={sr} onChange={setSr} placeholder={tab === "Subscribers" ? "Search subscribers..." : "Search locations..."} />}
+      {tab === "Subscribers" && <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: pn(p.id) }))]} />}
+      {tab === "Subscribers" && <><Btn sm v="secondary" onClick={() => setExportModal(true)}>Export List</Btn><Btn sm v="secondary" onClick={() => setRenewalModal(true)}>Send Renewals</Btn><Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn></>}
       {tab === "Drop Locations" && <Btn sm onClick={() => openLocModal(null)}><Ic.plus size={13} /> New Location</Btn>}
       {tab === "Routes" && <><Btn sm v="secondary" onClick={() => setDriverModal(true)}><Ic.plus size={13} /> New Driver</Btn><Btn sm onClick={() => setRouteModal(true)}><Ic.plus size={13} /> New Route</Btn></>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Print Subscribers", "Digital Subscribers", "Drop Locations", "Routes"]} active={tab} onChange={setTab} />{(tab === "Print Subscribers" || tab === "Digital Subscribers") && <><TabPipe /><TB tabs={["All", ...SUB_STATUSES.map(s => s.label)]} active={subFilter === "all" ? "All" : SUB_STATUSES.find(s => s.value === subFilter)?.label || "All"} onChange={v => setSubFilter(v === "All" ? "all" : SUB_STATUSES.find(s => s.label === v)?.value || "all")} /></>}</TabRow>
+    <TabRow>
+      <TB tabs={["Overview", "Subscribers", "Drop Locations", "Routes"]} active={tab} onChange={setTab} />
+      {tab === "Subscribers" && <><TabPipe /><TB tabs={["Print", "Digital"]} active={subType === "print" ? "Print" : "Digital"} onChange={v => setSubType(v === "Print" ? "print" : "digital")} /><TabPipe /><TB tabs={["All", ...SUB_STATUSES.map(s => s.label)]} active={subFilter === "all" ? "All" : SUB_STATUSES.find(s => s.value === subFilter)?.label || "All"} onChange={v => setSubFilter(v === "All" ? "all" : SUB_STATUSES.find(s => s.label === v)?.value || "all")} /></>}
+    </TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
-      {/* Newspaper print subscribers broken out */}
-      {(() => {
-        const newspapers = pubs.filter(p => p.type === "Newspaper");
-        return <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(newspapers.length + 1, 5)}, 1fr)`, gap: 12 }}>
-          {newspapers.map(p => {
-            const ct = subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length;
-            return <GlassStat key={p.id} label={p.name} value={ct.toLocaleString()} sub="Print subscribers" color={Z.tm} />;
-          })}
-          <GlassStat label="Digital (All)" value={activeDigital.length.toLocaleString()} sub="Newsletter subscribers" />
-        </div>;
-      })()}
+      {/* Per-publication subscriber stats */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(pubs.length + 1, 5)}, 1fr)`, gap: 12 }}>
+        {pubs.map(p => {
+          const ct = subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length;
+          return <GlassStat key={p.id} label={pn(p.id)} value={ct.toLocaleString()} sub="Print subscribers" color={Z.tm} />;
+        })}
+        <GlassStat label="Digital (All)" value={activeDigital.length.toLocaleString()} sub="Newsletter subscribers" />
+      </div>
 
-      {/* Renewals due per newspaper */}
+      {/* Renewals due */}
       {(() => {
-        const newspapers = pubs.filter(p => p.type === "Newspaper");
-        const renewalsByPub = newspapers.map(p => ({
+        const renewalsByPub = pubs.map(p => ({
           pub: p,
           count: subs.filter(s => s.publicationId === p.id && s.status === "active" && s.renewalDate && s.renewalDate <= new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().slice(0, 10) && s.renewalDate >= today).length,
         }));
@@ -223,7 +221,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(renewalsByPub.length, 5)}, 1fr)`, gap: 10 }}>
             {renewalsByPub.map(r => <div key={r.pub.id} style={{ textAlign: "center", padding: 10, background: Z.bg, borderRadius: R }}>
               <div style={{ fontSize: 22, fontWeight: FW.black, color: r.count > 0 ? Z.wa : Z.su, fontFamily: DISPLAY }}>{r.count}</div>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx }}>{r.pub.name}</div>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx }}>{pn(r.pub.id)}</div>
             </div>)}
           </div>
         </GlassCard> : <GlassCard><div style={{ padding: 10, textAlign: "center", color: Z.su, fontSize: FS.md, fontWeight: FW.bold }}>No renewals due in the next 30 days</div></GlassCard>;
@@ -237,7 +235,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
             const total = p.print + p.drops;
             return <div key={p.pub.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr 90px 90px 90px 90px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R }}>
               <div style={{ width: 10, height: 10, borderRadius: Ri, background: Z.tm }} />
-              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{p.pub.name}</div>
+              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{pn(p.pub.id)}</div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.print}</div><div style={{ fontSize: FS.micro, color: Z.td }}>PRINT</div></div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.digital}</div><div style={{ fontSize: FS.micro, color: Z.td }}>DIGITAL</div></div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.drops}</div><div style={{ fontSize: FS.micro, color: Z.td }}>DROPS</div></div>
@@ -266,7 +264,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
           {[
             { step: 1, label: "Filter subscribers", desc: "Select publication and status, choose columns", action: "Open Export", onClick: () => setExportModal(true) },
             { step: 2, label: "Download list", desc: "Export as CSV or Excel for printer", action: "Export", onClick: () => setExportModal(true) },
-            { step: 3, label: "Email to printer", desc: "Attach list and send to print partner", action: "Draft Email", onClick: () => alert("Gmail draft integration — coming in Phase 3 build") },
+            { step: 3, label: "Email to printer", desc: "Attach list and send to print partner", action: "Coming Soon", onClick: null },
           ].map(s => (
             <div key={s.step} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: Z.ac + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.sm, fontWeight: FW.black, color: Z.ac, flexShrink: 0 }}>{s.step}</div>
@@ -274,7 +272,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{s.label}</div>
                 <div style={{ fontSize: FS.xs, color: Z.td }}>{s.desc}</div>
               </div>
-              <Btn sm v="secondary" onClick={s.onClick}>{s.action}</Btn>
+              <Btn sm v="secondary" onClick={s.onClick} disabled={!s.onClick}>{s.action}</Btn>
             </div>
           ))}
         </div>
@@ -286,14 +284,14 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
     </>}
 
     {/* ════════ SUBSCRIBERS ════════ */}
-    {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <>
+    {tab === "Subscribers" && <>
       <div style={{ fontSize: FS.sm, color: Z.td }}>{filteredSubs.length} subscriber{filteredSubs.length !== 1 ? "s" : ""}</div>
 
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <DataTable>
           <thead>
             <tr>
-              {["Name", "Type", "Publication", "City/Zip", "Renewal", "Status", ""].map(h =>
+              {["Name", "Publication", "City/Zip", "Start", "Renewal", "Status", ""].map(h =>
                 <th key={h} style={{ textAlign: "left", fontWeight: FW.heavy, color: Z.tm, fontSize: FS.xs, textTransform: "uppercase" }}>{h}</th>
               )}
             </tr>
@@ -306,9 +304,9 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
                   <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{s.firstName} {s.lastName}</div>
                   {s.email && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.email}</div>}
                 </td>
-                <td style={{ fontSize: FS.sm, fontWeight: FW.semi, color: s.type === "print" ? Z.ac : Z.pu }}>{s.type === "print" ? "Print" : "Digital"}</td>
                 <td style={{ padding: "8px 10px" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: pubColor(s.publicationId), fontFamily: COND }}>{pn(s.publicationId)}</span></td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{s.city}{s.city && s.zip ? ", " : ""}{s.zip}</td>
+                <td style={{ fontSize: FS.sm, color: Z.tm }}>{fmtDate(s.startDate)}</td>
                 <td style={{ fontSize: FS.sm, color: s.renewalDate && s.renewalDate <= today ? Z.da : Z.tm }}>{fmtDate(s.renewalDate)}</td>
                 <td style={{ padding: "8px 10px" }}><StatusBadge status={s.status} /></td>
                 <td style={{ padding: "8px 10px" }}>
