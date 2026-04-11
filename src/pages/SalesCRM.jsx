@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/t
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
+import { generatePdf } from "../lib/pdf";
 import { supabase } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import ClientList from "./sales/ClientList";
@@ -634,7 +635,7 @@ const SalesCRM = (props) => {
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
           <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            {["Client", "Publication", "Ad Size", "Amount", "Date", "Salesperson"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: h === "Amount" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>{h}</th>)}
+            {["Client", "Publication", "Ad Size", "Amount", "Date", "Salesperson", ""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: h === "Amount" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {filtered.slice(0, 100).map(s => <tr key={s.id} onClick={() => navTo("Clients", s.clientId)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
@@ -645,6 +646,7 @@ const SalesCRM = (props) => {
               <td style={{ padding: "8px 12px", fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(s.amount || 0).toLocaleString()}</td>
               <td style={{ padding: "8px 12px", color: Z.tm }}>{s.date}</td>
               <td style={{ padding: "8px 12px", color: Z.tm }}>{repName(s.clientId)}</td>
+              <td style={{ padding: "8px 4px" }}><Btn sm v="ghost" onClick={e => { e.stopPropagation(); generatePdf("contract", s.id); }}><Ic.download size={12} /></Btn></td>
             </tr>)}
           </tbody>
         </table>

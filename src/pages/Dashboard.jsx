@@ -34,6 +34,31 @@ const Dashboard = ({
   const daysUntil = (d) => d ? Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000) : 999;
   const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  // ─── Ad Project alerts (overdue / incomplete past press) ───
+  const [adProjectAlerts, setAdProjectAlerts] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("ad_projects").select("id, status, client_id, publication_id, issue_id, ad_size").not("status", "in", '("approved","signed_off","placed")');
+      if (cancelled || !data) return;
+      const issueMap = {};
+      (_issues || []).forEach(i => { issueMap[i.id] = i; });
+      const alerts = [];
+      for (const p of data) {
+        const iss = issueMap[p.issue_id];
+        if (!iss) continue;
+        const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
+        if (iss.date < today && !["approved", "signed_off", "placed"].includes(p.status)) {
+          alerts.push({ ...p, flag: "INCOMPLETE — PAST PRESS", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+        } else if (adDl <= 0) {
+          alerts.push({ ...p, flag: "OVERDUE", color: Z.wa, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+        }
+      }
+      if (!cancelled) setAdProjectAlerts(alerts);
+    })();
+    return () => { cancelled = true; };
+  }, [_issues, today]);
+
   const [dayFilter, setDayFilter] = useState("all");
   const [focusMode, setFocusMode] = useState("all");
   const [selMember, setSelMember] = useState(null);
@@ -972,6 +997,19 @@ const Dashboard = ({
 
       {/* ════ LEFT COLUMN ════ */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* AD PROJECT ALERTS — overdue / incomplete past press */}
+        {adProjectAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase", letterSpacing: 1 }}>Design Studio Alerts ({adProjectAlerts.length})</div>
+          {adProjectAlerts.slice(0, 6).map(a => (
+            <div key={a.id} onClick={() => onNavigate?.("design-studio")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+              <Ic.alert size={13} color={a.color} />
+              <span style={{ fontSize: FS.xs, fontWeight: FW.black, color: a.color, whiteSpace: "nowrap" }}>{a.flag}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{cn(a.client_id)} · {pn(a.pubId)} {a.issueLabel} · {a.ad_size}</span>
+            </div>
+          ))}
+          {adProjectAlerts.length > 6 && <div style={{ fontSize: FS.xs, color: Z.td, paddingLeft: 14 }}>+{adProjectAlerts.length - 6} more</div>}
+        </div>}
+
         {/* DEADLINE ALERTS — auto-hides when empty */}
         {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {deadlineAlerts.map(a => (

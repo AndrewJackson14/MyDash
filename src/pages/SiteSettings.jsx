@@ -479,6 +479,23 @@ export default function SiteSettings({ pubs, setPubs }) {
 
   const site = sites.find(s => s.id === selectedId);
 
+  // ─── Site Errors ────────────────────────────────────────
+  const [siteErrors, setSiteErrors] = useState([]);
+  const [errorsLoading, setErrorsLoading] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
+
+  useEffect(() => {
+    if (!selectedId || !isOnline()) return;
+    setErrorsLoading(true);
+    supabase.from("site_errors").select("*").eq("publication_id", selectedId).eq("resolved", showResolved).order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => { setSiteErrors(data || []); setErrorsLoading(false); });
+  }, [selectedId, showResolved]);
+
+  const resolveError = async (errorId) => {
+    await supabase.from("site_errors").update({ resolved: true, resolved_at: new Date().toISOString() }).eq("id", errorId);
+    setSiteErrors(prev => prev.filter(e => e.id !== errorId));
+  };
+
   const websitePubs = (pubs || []).filter(p => p.hasWebsite);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading sites...</div>;
@@ -503,6 +520,42 @@ export default function SiteSettings({ pubs, setPubs }) {
       </div>
 
       {draft && selectedId && <SiteAnalytics siteId={selectedId} />}
+
+      {/* ─── Site Errors Panel ─── */}
+      {selectedId && (
+        <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Ic.alert size={16} color={siteErrors.length > 0 && !showResolved ? "#DC2626" : Z.tm} />
+              <span style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Site Errors</span>
+              {!showResolved && siteErrors.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#DC2626", background: "#DC262615", padding: "2px 8px", borderRadius: 10 }}>{siteErrors.length} unresolved</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <Toggle checked={showResolved} onChange={setShowResolved} label={showResolved ? "Showing resolved" : "Showing open"} />
+            </div>
+          </div>
+          {errorsLoading ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: 12 }}>Loading...</div>
+          : siteErrors.length === 0 ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: 12, fontFamily: COND }}>{showResolved ? "No resolved errors" : "No errors — all clear"}</div>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
+              {siteErrors.map(e => {
+                const typeColors = { runtime: "#DC2626", "404": "#D97706", api: "#7C3AED", render: "#2563EB", network: "#6B7280" };
+                const tc = typeColors[e.error_type] || Z.tm;
+                return <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: 4, borderLeft: "3px solid " + tc }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: tc, textTransform: "uppercase", fontFamily: COND }}>{e.error_type}</span>
+                      {e.status_code && <span style={{ fontSize: 10, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{e.status_code}</span>}
+                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>{new Date(e.created_at || e.first_detected_at).toLocaleString()}</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.message || "No message"}</div>
+                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.url}</div>
+                  </div>
+                  {!e.resolved && <Btn sm v="ghost" onClick={() => resolveError(e.id)} style={{ flexShrink: 0 }}>Resolve</Btn>}
+                </div>;
+              })}
+            </div>}
+        </div>
+      )}
 
       {draft && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>

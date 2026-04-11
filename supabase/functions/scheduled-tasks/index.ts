@@ -190,6 +190,55 @@ serve(async (req: Request) => {
     }
   }
 
+  // ═══ TASK 3: CLIENT ASSET CLEANUP (30-day auto-delete for project-specific assets) ═══
+  if (task === "all" || task === "asset_cleanup") {
+    const BUNNY_API_KEY = Deno.env.get("BUNNY_STORAGE_API_KEY") || Deno.env.get("BUNNY_API_KEY") || "";
+    const STORAGE_ZONE = Deno.env.get("BUNNY_STORAGE_ZONE") || "stellarpress-media";
+    const BUNNY_BASE = `https://ny.storage.bunnycdn.com/${STORAGE_ZONE}`;
+
+    try {
+      // Find completed ad projects older than 30 days that have a client_assets_path
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: projects } = await admin.from("ad_projects")
+        .select("id, client_assets_path, status, updated_at")
+        .in("status", ["approved", "signed_off", "placed"])
+        .not("client_assets_path", "is", null)
+        .lt("updated_at", cutoff);
+
+      let cleaned = 0;
+      for (const proj of (projects || [])) {
+        if (!proj.client_assets_path) continue;
+        const assetsPath = proj.client_assets_path;
+
+        // List files in the project-specific asset folder
+        const listRes = await fetch(`${BUNNY_BASE}/${assetsPath}/`, {
+          method: "GET",
+          headers: { AccessKey: BUNNY_API_KEY, Accept: "application/json" },
+        });
+        if (!listRes.ok) continue;
+
+        const files = await listRes.json();
+        if (!Array.isArray(files) || files.length === 0) continue;
+
+        // Delete each file in the folder
+        for (const file of files) {
+          if (file.IsDirectory) continue;
+          await fetch(`${BUNNY_BASE}/${assetsPath}/${file.ObjectName}`, {
+            method: "DELETE",
+            headers: { AccessKey: BUNNY_API_KEY },
+          });
+        }
+
+        // Clear the path reference on the project
+        await admin.from("ad_projects").update({ client_assets_path: null }).eq("id", proj.id);
+        cleaned++;
+      }
+      results.asset_cleanup = { cleaned };
+    } catch (err) {
+      results.asset_cleanup = { error: (err as Error).message };
+    }
+  }
+
   return new Response(
     JSON.stringify({ success: true, timestamp: new Date().toISOString(), results }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, glass } from "../components/ui";
 import { COMPANY } from "../constants";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
+import { generatePdf } from "../lib/pdf";
 import { sendGmailEmail } from "../lib/gmail";
 import { supabase } from "../lib/supabase";
 
@@ -373,6 +374,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           <Ic.check size={13} /> Record Payment
         </Btn>}
         {viewInv.status !== "void" && viewInv.status !== "paid" && <Btn v="ghost" onClick={() => { voidInvoice(viewInv.id); setViewInvId(null); }}>Void</Btn>}
+        <Btn v="secondary" onClick={() => generatePdf("invoice", viewInv.id)}><Ic.download size={13} /> Download PDF</Btn>
       </div>
 
       {/* Line Items */}
