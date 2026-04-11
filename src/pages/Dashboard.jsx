@@ -741,7 +741,7 @@ const Dashboard = ({
                 </svg>
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, color: pctColor }}>{ir.blended}%</div>
               </div>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, textAlign: "center" }}>{ir.pub.name.split(" ")[0]}</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, textAlign: "center" }}>{ir.pub.name.replace(/^The /, "").split(" ").slice(0, 2).join(" ")}</div>
               <div style={{ fontSize: 11, fontWeight: FW.black, color: dColor }}>{ir.daysOut}d</div>
               <div style={{ fontSize: FS.micro, color: Z.tm }}>{ir.storyCount} stories · {ir.adCount} ads</div>
               <div style={{ fontSize: FS.micro, color: Z.tm }}>{fmtCurrency(ir.rev)} / {fmtCurrency(ir.goal)}</div>
@@ -790,7 +790,7 @@ const Dashboard = ({
     <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
       {[
         { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
-        { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: Z.ac, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
+        { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: ACCENT.blue, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
         { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
         { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
         { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
@@ -1035,7 +1035,7 @@ const Dashboard = ({
                   <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads · {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
                 </div>
                 <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
-                <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date}</div>
+                <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</div>
                 <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
               </div>;
             })}
@@ -1155,7 +1155,7 @@ const Dashboard = ({
               <div style={{ padding: "6px 0 0", borderTop: `1px solid ${Z.bd}15`, marginTop: 4 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.xs, color: Z.tx, fontWeight: FW.bold, marginBottom: 2 }}>
                   <span>Monthly Total</span>
-                  <span>{fmtCurrency(stg.monthlyTotal)} / {fmtCurrency(stg.monthlyGoal)} <span style={{ color: barColor(stg.monthlyPct) }}>{stg.monthlyPct}%</span></span>
+                  <span>{fmtCurrency(stg.monthlyTotal)}{stg.monthlyGoal > 0 ? ` / ${fmtCurrency(stg.monthlyGoal)}` : ""} <span style={{ color: stg.monthlyGoal > 0 ? barColor(stg.monthlyPct) : Z.td }}>{stg.monthlyGoal > 0 ? `${stg.monthlyPct}%` : "No goal"}</span></span>
                 </div>
                 <div style={{ height: 8, background: Z.bd, borderRadius: 4 }}>
                   <div style={{ height: 8, borderRadius: 4, background: barColor(stg.monthlyPct), width: `${Math.min(stg.monthlyPct, 100)}%`, transition: "width 0.3s" }} />
