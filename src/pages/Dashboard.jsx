@@ -93,7 +93,12 @@ const Dashboard = ({
   const thisMonth = today.slice(0, 7);
   const thisYear = today.slice(0, 4);
   const adRevMTD = useMemo(() => _sales.filter(s => s.status === "Closed" && s.date?.startsWith(thisMonth)).reduce((s, x) => s + (x.amount || 0), 0), [_sales, thisMonth]);
-  const subRevYTD = useMemo(() => (_pay || []).filter(p => p.receivedAt?.startsWith(thisYear)).reduce((s, p) => s + (p.amount || 0), 0), [_pay, thisYear]);
+  // Total revenue for issues publishing this month (regardless of when the sale closed)
+  const issueRevThisMonth = useMemo(() => {
+    const monthIssueIds = new Set((_issues || []).filter(i => i.date?.startsWith(thisMonth)).map(i => i.id));
+    return _sales.filter(s => s.status === "Closed" && s.issueId && monthIssueIds.has(s.issueId)).reduce((s, x) => s + (x.amount || 0), 0);
+  }, [_sales, _issues, thisMonth]);
+  const monthlyIssueCount = useMemo(() => (_issues || []).filter(i => i.date?.startsWith(thisMonth)).length, [_issues, thisMonth]);
   const outstandingAR = useMemo(() => _inv.filter(i => ["overdue", "sent"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
   const overdueInvCount = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length, [_inv, today]);
   const pipelineValue = useMemo(() => _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
@@ -436,8 +441,8 @@ const Dashboard = ({
 
     // Revenue
     l.push("═══ REVENUE ═══");
-    l.push(`Ad Revenue MTD: ${fmtCurrency(adRevMTD)}`);
-    l.push(`Subscription Revenue YTD: ${fmtCurrency(subRevYTD)}`);
+    l.push(`Ad Revenue MTD (closed): ${fmtCurrency(adRevMTD)}`);
+    l.push(`Issue Revenue (publishing this month): ${fmtCurrency(issueRevThisMonth)}`);
     l.push(`Outstanding AR: ${fmtCurrency(outstandingAR)}${overdueInvCount > 0 ? ` (${overdueInvCount} overdue)` : ""}`);
     l.push(`Pipeline: ${fmtCurrency(pipelineValue)} (${pipelineCount} deals)`);
     if (uninvoicedContracts > 0) l.push(`Uninvoiced: ${fmtCurrency(uninvoicedContracts)}`);
@@ -785,7 +790,7 @@ const Dashboard = ({
     <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
       {[
         { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
-        { label: "Sub Revenue YTD", value: fmtCurrency(subRevYTD), color: Z.ac, tags: ["financials", "admin"], onClick: () => onNavigate?.("circulation") },
+        { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: Z.ac, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
         { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
         { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
         { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
