@@ -18,7 +18,7 @@ function escHtml(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function generateNewsletterHtml({ stories, pubId, subject, introText }) {
+export function generateNewsletterHtml({ stories, pubId, subject, introText, adSlots = [] }) {
   const pub = getPubConfig(pubId);
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const included = (stories || []).filter(s => s.included !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -67,10 +67,25 @@ export function generateNewsletterHtml({ stories, pubId, subject, introText }) {
       <div style="font-size: 15px; color: #333; line-height: 1.6; border-left: 3px solid ${pub.color}; padding-left: 14px; font-style: italic;">${escHtml(introText)}</div>
     </td></tr>` : ""}
 
-    <!-- LOCAL STORIES -->
+    <!-- LOCAL STORIES + AD SLOTS -->
     <tr><td style="padding: 24px 32px 0;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        ${local.map(s => storyBlock(s)).join("")}
+        ${local.map((s, i) => {
+          let block = storyBlock(s);
+          // Insert ad slot after 2nd story
+          const adSlot = adSlots.find(a => a.position === i + 1);
+          if (adSlot) {
+            block += `<tr><td style="padding: 8px 0 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #f9f9f9; border: 1px solid #eee;">
+                <tr><td style="padding: 16px; text-align: center;">
+                  ${adSlot.imageUrl ? `<a href="${escHtml(adSlot.linkUrl || "#")}"><img src="${escHtml(adSlot.imageUrl)}" alt="${escHtml(adSlot.altText || "Advertisement")}" width="536" style="max-width:100%;display:block;margin:0 auto;" /></a>` : `<div style="font-size: 12px; color: #999;">Advertisement</div>`}
+                </td></tr>
+              </table>
+              <div style="font-size: 9px; color: #ccc; text-align: right; margin-top: 2px;">SPONSORED</div>
+            </td></tr>`;
+          }
+          return block;
+        }).join("")}
       </table>
     </td></tr>
 
