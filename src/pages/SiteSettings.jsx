@@ -142,22 +142,26 @@ const SiteAnalytics = ({ siteId }) => {
   }, [siteId, range]);
 
   async function loadStats() {
+    try {
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
     const since = new Date(Date.now() - days * 86400000).toISOString();
     const prevSince = new Date(Date.now() - days * 2 * 86400000).toISOString();
     const prevUntil = since;
 
-    const [{ data: rows }, { data: prevRows }] = await Promise.all([
+    const results = await Promise.all([
       supabase.from("page_views").select("path, session_id, referrer, screen_width, created_at").eq("site_id", siteId).gte("created_at", since).order("created_at", { ascending: false }).limit(50000),
       supabase.from("page_views").select("session_id, created_at").eq("site_id", siteId).gte("created_at", prevSince).lt("created_at", prevUntil).limit(50000),
     ]);
 
-    if (!rows) { setStats(null); return; }
+    const rows = results[0]?.data || [];
+    const prevRows = results[1]?.data || [];
+
+    if (!rows.length) { setStats(null); return; }
 
     const views = rows.length;
     const sessions = new Set(rows.map(r => r.session_id).filter(Boolean)).size;
     const prevViews = prevRows?.length || 0;
-    const prevSessions = new Set((prevRows || []).map(r => r.session_id).filter(Boolean)).size;
+    const prevSessions = new Set(prevRows.map(r => r.session_id).filter(Boolean)).size;
 
     // Daily chart
     const now = new Date();
@@ -193,6 +197,7 @@ const SiteAnalytics = ({ siteId }) => {
       mobilePercent: Math.round(mobile / (rows.length || 1) * 100),
       desktopPercent: Math.round(desktop / (rows.length || 1) * 100),
     });
+    } catch (e) { console.error("Analytics load error:", e); setStats(null); }
   }
 
   if (!stats) return null;
