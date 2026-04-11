@@ -91,7 +91,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const isDk = Z.bg === "#08090D";
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Stories" count={fl.length}>
+    <PageHeader title="Stories" count={fl.length}>
       <SB value={sr} onChange={setSr} placeholder="Search..." />
       <Sel value={fPub} onChange={e => { setFPub(e.target.value); setFIssue("all"); }} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name })), { value: "none", label: "No Publication" }]} />
       <Btn sm onClick={addNew}><Ic.plus size={13} /> New Story</Btn>

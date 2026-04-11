@@ -265,7 +265,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Legal Notices">
+    <PageHeader title="Legal Notices">
       {(tab === "Active" || tab === "All") && <SB value={sr} onChange={setSr} placeholder="Search notices..." />}
       <Btn sm onClick={openNew}><Ic.plus size={13} /> New Legal Notice</Btn>
     </PageHeader>

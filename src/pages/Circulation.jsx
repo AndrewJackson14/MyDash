@@ -186,7 +186,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Circulation">
+    <PageHeader title="Circulation">
       {(tab === "Print Subscribers" || tab === "Digital Subscribers" || tab === "Drop Locations") && <SB value={sr} onChange={setSr} placeholder={tab.includes("Subscribers") ? "Search subscribers..." : "Search locations..."} />}
       {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />}
       {(tab === "Print Subscribers" || tab === "Digital Subscribers") && <><Btn sm v="secondary" onClick={() => setExportModal(true)}>Export List</Btn><Btn sm v="secondary" onClick={() => setRenewalModal(true)}>Send Renewals</Btn><Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn></>}

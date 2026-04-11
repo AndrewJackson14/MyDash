@@ -230,7 +230,7 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Creative Services">
+    <PageHeader title="Creative Services">
       {tab === "List" && <SB value={sr} onChange={setSr} placeholder="Search jobs..." />}
       <Btn sm onClick={openNew}><Ic.plus size={13} /> New Job</Btn>
     </PageHeader>

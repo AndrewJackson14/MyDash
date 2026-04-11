@@ -116,7 +116,7 @@ const Editorial = ({ stories, setStories, pubs, notifications, setNotifications,
   };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Editorial">
+    <PageHeader title="Editorial">
       <SB value={edSearch} onChange={setEdSearch} placeholder="Search stories..." />
       {sel && (sel.sentToWeb ? <Btn v="secondary" disabled style={{ opacity: 0.5 }}><Ic.pub size={12} /> Published</Btn> : <Btn onClick={openPublish}><Ic.pub size={12} /> Publish to Web</Btn>)}
     </PageHeader>

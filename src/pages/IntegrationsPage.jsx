@@ -123,7 +123,7 @@ const IntegrationsPage = ({ pubs }) => {
 
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Integrations" />
+    <PageHeader title="Integrations" />
 
     <TabRow><TB tabs={["Overview", "QuickBooks", "Google Workspace", "StellarPress", "Database"]} active={tab} onChange={setTab} /></TabRow>
 

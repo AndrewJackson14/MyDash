@@ -506,7 +506,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <PageHeader title="My Team" count={filtered.length} />
+      <PageHeader title="Team" count={filtered.length} />
       <div style={{ display: "flex", gap: 8 }}>
         <SB value={sr} onChange={setSr} placeholder="Search team..." />
         <Btn sm onClick={openNew}><Ic.plus size={13} /> Add Member</Btn>

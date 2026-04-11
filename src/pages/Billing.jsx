@@ -429,7 +429,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Billing">
+    <PageHeader title="Billing">
       {tab === "Invoices" && <SB value={sr} onChange={setSr} placeholder="Search invoices..." />}
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>

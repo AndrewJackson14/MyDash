@@ -116,7 +116,7 @@ const Analytics = ({
   const selPL = plPub === "all" ? null : pubPL.find(p => p.pub.id === plPub);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Analytics" />
+    <PageHeader title="Analytics" />
 
     <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Web"]} active={tab} onChange={setTab} /></TabRow>
 

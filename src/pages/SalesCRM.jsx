@@ -473,7 +473,7 @@ const SalesCRM = (props) => {
   const actColors = { pipeline: Z.ac, proposal: Z.pu, opp: Z.su, comm: Z.wa };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Sales">
+    <PageHeader title="Sales">
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}

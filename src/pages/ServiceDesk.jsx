@@ -276,7 +276,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Service Desk">
+    <PageHeader title="Service Desk">
       {tab === "List" && <><SB value={sr} onChange={setSr} placeholder="Search tickets..." /><Sel value={catFilter} onChange={e => setCatFilter(e.target.value)} options={[{ value: "all", label: "All Categories" }, ...CATEGORIES]} /></>}
       <Btn sm onClick={openNewTicket}><Ic.plus size={13} /> New Ticket</Btn>
     </PageHeader>

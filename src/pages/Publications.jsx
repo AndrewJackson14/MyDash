@@ -46,7 +46,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   if (showEZSchedule) return <EZSchedule pubs={pubs} issues={issues} setIssues={setIssues} insertIssuesBatch={insertIssuesBatch} onClose={() => setShowEZSchedule(false)} />;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="My Publications">
+    <PageHeader title="Publications">
       <Btn sm v="secondary" onClick={() => setShowEZSchedule(true)}>MyWizard</Btn>
       <Btn sm onClick={() => setShowAddPub(true)}><Ic.plus size={13} /> Publication</Btn>
     </PageHeader>
