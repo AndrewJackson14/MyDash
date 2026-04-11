@@ -351,8 +351,11 @@ export default function SiteSettings({ pubs, setPubs }) {
   const loadHouseAds = async (siteId) => {
     const { data: zones } = await supabase.from("ad_zones").select("id, slug, name").eq("publication_id", siteId).eq("is_active", true);
     if (!zones?.length) { setAdLocations(DEFAULT_AD_LOCATIONS); setHouseAds({}); return; }
-    // Build ad locations from this site's actual zones
-    const locs = zones.map(z => ({ slug: z.slug, name: z.name, width: z.slug.includes("leaderboard") || z.slug.includes("header") ? 728 : 300, height: z.slug.includes("leaderboard") || z.slug.includes("header") || z.slug.includes("footer") || z.slug.includes("banner") ? 90 : 250 }));
+    // Build ad locations from this site's actual zones, using DEFAULT_AD_LOCATIONS for dimensions
+    const locs = zones.map(z => {
+      const def = DEFAULT_AD_LOCATIONS.find(d => d.slug === z.slug);
+      return { slug: z.slug, name: z.name, width: def?.width || 300, height: def?.height || 250 };
+    });
     setAdLocations(locs);
     const zoneMap = {};
     zones.forEach(z => { zoneMap[z.slug] = { zone_id: z.id, placements: [] }; });
