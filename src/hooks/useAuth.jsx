@@ -105,26 +105,16 @@ export function AuthProvider({ children }) {
     setLoading(false);
   };
 
-  // Failsafe: if auth check takes more than 6 seconds, retry once then stop loading
+  // Failsafe: hard cutoff — never show spinner for more than 5 seconds
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (!loading) return;
-      console.warn('[auth] Timeout — retrying getSession...');
-      try {
-        const { data: { session: s } } = await supabase.auth.getSession();
-        if (s?.user) {
-          console.log('[auth] Retry found session for', s.user.email);
-          setSession(s);
-          setUser(s.user);
-          await fetchTeamMember(s.user.id);
-          return;
-        }
-      } catch (e) { console.error('[auth] Retry error:', e); }
-      console.warn('[auth] No session found — showing login');
-      setLoading(false);
-    }, 6000);
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.warn('[auth] Hard timeout — forcing login screen');
+        setLoading(false);
+      }
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [loading]);
+  }, []);
 
   // Auth methods
   const signInWithGoogle = async () => {
