@@ -446,32 +446,43 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
   const byDept = {};
   filtered.forEach(t => { const dept = getDept(t.role); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
 
+  const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const getMetrics = (t) => {
     const role = t.role;
+    const myClientIds = new Set((clients || []).filter(c => c.repId === t.id).map(c => c.id));
     if (["Sales Manager", "Salesperson"].includes(role)) {
-      const closed = _sales.filter(s => s.status === "Closed");
+      const mySales = _sales.filter(s => myClientIds.has(s.clientId));
+      const closed = mySales.filter(s => s.status === "Closed");
       const revenue = closed.reduce((s, x) => s + (x.amount || 0), 0);
-      const active = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).length;
-      return [{ label: "Closed Deals", value: closed.length }, { label: "Revenue", value: fmtCurrency(revenue) }, { label: "Active Pipeline", value: active }];
+      const active = mySales.filter(s => !["Closed", "Follow-up"].includes(s.status)).length;
+      return [{ label: "Closed Deals", value: closed.length }, { label: "Revenue", value: fmtCurrency(revenue) }, { label: "Pipeline", value: active }];
     }
     if (["Writer/Reporter", "Stringer"].includes(role)) {
       const my = _stories.filter(s => s.author === t.name);
-      const done = my.filter(s => ["Approved", "On Page", "Sent to Web"].includes(s.status)).length;
-      return [{ label: "Stories", value: my.length }, { label: "Completed", value: done }, { label: "In Progress", value: my.length - done }];
+      const done = my.filter(s => ["Approved", "On Page", "Sent to Web", "Published"].includes(s.status)).length;
+      return [{ label: "Stories", value: my.length }, { label: "Published", value: done }];
     }
-    if (["Editor", "Managing Editor", "Copy Editor", "Editor-in-Chief"].includes(role)) {
-      const edited = _stories.filter(s => ["Edited", "Approved", "On Page", "Sent to Web"].includes(s.status)).length;
-      const needs = _stories.filter(s => s.status === "Needs Editing").length;
-      return [{ label: "Edited", value: edited }, { label: "Awaiting Edit", value: needs }];
+    if (["Editor", "Managing Editor", "Copy Editor", "Editor-in-Chief", "Content Editor"].includes(role)) {
+      const queue = _stories.filter(s => s.status === "Needs Editing").length;
+      const edited = _stories.filter(s => s.status === "Edited").length;
+      return [{ label: "In Queue", value: queue }, { label: "Edited", value: edited }];
     }
-    if (["Graphic Designer", "Photo Editor", "Ad Designer", "Layout Designer"].includes(role)) {
-      const jobs = _jobs.filter(j => j.assignedTo === t.id);
-      return [{ label: "Creative Jobs", value: jobs.length }, { label: "Completed", value: jobs.filter(j => ["complete", "billed"].includes(j.status)).length }];
+    if (["Graphic Designer", "Photo Editor", "Ad Designer", "Layout Designer", "Production Manager"].includes(role)) {
+      // Use ad_projects assigned to this designer
+      const myProjects = (window.__adProjectsCache || []).filter(p => p.designer_id === t.id);
+      const active = myProjects.filter(p => !["approved", "signed_off", "placed"].includes(p.status)).length;
+      const completed = myProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status)).length;
+      return [{ label: "Active", value: active }, { label: "Completed", value: completed }];
     }
     if (["Office Manager", "Office Administrator"].includes(role)) {
-      const resolved = _tickets.filter(tk => tk.status === "resolved").length;
       const open = _tickets.filter(tk => ["open", "in_progress"].includes(tk.status)).length;
-      return [{ label: "Tickets Resolved", value: resolved }, { label: "Open", value: open }, { label: "Subscribers", value: _subs.filter(s => s.status === "active").length }];
+      const activeSubs = _subs.filter(s => s.status === "active").length;
+      return [{ label: "Open Tickets", value: open }, { label: "Subscribers", value: activeSubs }];
+    }
+    if (["Publisher"].includes(role)) {
+      const totalRev = _sales.filter(s => s.status === "Closed").reduce((s, x) => s + (x.amount || 0), 0);
+      const teamSize = (team || []).filter(m => m.isActive !== false && !m.isHidden).length;
+      return [{ label: "Total Revenue", value: fmtCurrency(totalRev) }, { label: "Team Size", value: teamSize }];
     }
     return [];
   };
