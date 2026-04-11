@@ -13,8 +13,6 @@ export const supabase = supabaseUrl && supabaseAnonKey
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: 'mydash-auth',
-        storage: window.localStorage,
       },
     })
   : null;
