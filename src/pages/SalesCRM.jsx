@@ -628,7 +628,7 @@ const SalesCRM = (props) => {
       let filtered = closedSales.filter(s => { if (closedRange === "7days") return s.date >= d7s; if (closedRange === "30days") return s.date >= d30s; if (closedRange === "month") return s.date?.startsWith(thisMonth); if (closedRange === "quarter") return s.date >= qStart; if (closedRange === "year") return s.date?.startsWith(thisYear); return true; });
       if (fPub !== "all") filtered = filtered.filter(s => s.publication === fPub);
       const filtRev = filtered.reduce((s,x) => s + x.amount, 0);
-      const repName = (cid) => { const c = clients.find(x => x.id === cid); return c?.repId ? ((team || []).find(x => x.id === c.repId)?.name || "\u2014") : "\u2014"; };
+      const repName = (cid) => { const c = clients.find(x => x.id === cid); return c?.repId ? ((props.team || []).find(x => x.id === c.repId)?.name || "\u2014") : "\u2014"; };
       const repRevs = {}; filtered.forEach(s => { const rn = repName(s.clientId); repRevs[rn] = (repRevs[rn] || 0) + (s.amount || 0); });
       const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
       return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
