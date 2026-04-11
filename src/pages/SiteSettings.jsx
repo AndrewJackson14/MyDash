@@ -31,7 +31,9 @@ const PUB_CDN_FOLDER = {
 
 // ── Default Ad Locations (used when creating zones for a new site) ──
 const DEFAULT_AD_LOCATIONS = [
+  { slug: "hero-ads", name: "Hero Ads", width: 120, height: 80 },
   { slug: "leaderboard", name: "Leaderboard", width: 728, height: 90 },
+  { slug: "section-ads", name: "Section Ads", width: 300, height: 250 },
   { slug: "sidebar", name: "Sidebar", width: 300, height: 250 },
   { slug: "in-article", name: "In-Article", width: 300, height: 250 },
 ];
