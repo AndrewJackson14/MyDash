@@ -246,28 +246,13 @@ export default function App() {
 
   // ─── Nav Config (with permission keys) ────────────────
   // Map nav IDs to module permission keys
-  const NAV_PERM_MAP = {
-    dashboard: 'dashboard', sales: 'sales', contracts: 'sales', billing: 'billing',
-    stories: 'stories', editorial: 'stories', flatplan: 'flatplan',
-    circulation: 'circulation', servicedesk: 'service_desk',
-    legalnotices: 'legal_notices', creativejobs: 'creative_jobs',
-    calendar: 'calendar', team: 'team', publications: 'publications',
-    schedule: 'publications', analytics: 'analytics', integrations: 'integrations',
-    permissions: 'permissions', dataimport: 'integrations',
-    medialibrary: 'stories',
-    editions: 'publications',
-    sitesettings: 'publications',
-    adprojects: 'creative_jobs',
-    messaging: null,
-    emailtemplates: 'integrations',
-  };
-
-  // Get current user's module permissions (from impersonated user or real user)
+  // Each nav item is its own permission — granular control
   const userModules = currentUser?.module_permissions || currentUser?.modulePermissions || [];
   const hasModule = (navId) => {
-    if (isAdmin && !impersonating) return true; // real admin sees everything
-    const perm = NAV_PERM_MAP[navId];
-    return !perm || userModules.includes(perm);
+    if (isAdmin && !impersonating) return true;
+    // Always visible
+    if (["messaging", "mail"].includes(navId)) return true;
+    return userModules.includes(navId);
   };
 
   const NAV = [
