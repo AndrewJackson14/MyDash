@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal } from "../../components/ui";
+import AssetPanel from "../../components/AssetPanel";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
 
@@ -345,6 +346,10 @@ const ClientProfile = ({
           {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: Z.tm }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
           {clientProposals.length > 0 && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Proposals</div>{clientProposals.map(p => <div key={p.id} onClick={() => { if (onNavTo) onNavTo("Proposals"); if (onSetViewPropId) setTimeout(() => onSetViewPropId(p.id), 50); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, background: p.status === "Draft" ? Z.wa + "08" : "transparent", borderLeft: p.status === "Draft" ? `3px solid ${Z.wa}` : "none", paddingLeft: p.status === "Draft" ? 6 : 0 }}><div><span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span>{p.status === "Draft" && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, marginLeft: 6 }}>PENDING</span>}</div><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.ac }}>${p.total?.toLocaleString()}</span></div>)}</div>}
         </Card>
+        {/* Client Asset Library */}
+        {client?.clientCode && <Card style={{ marginTop: 10 }}>
+          <AssetPanel path={`clients/${client.clientCode}/assets`} title="Asset Library" />
+        </Card>}
       </div>
     </div>
   </div>;

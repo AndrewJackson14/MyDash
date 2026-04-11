@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
+import AssetPanel from "../components/AssetPanel";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -348,6 +349,19 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
               </div>
             </div>
           </GlassCard>
+
+          {/* Assets — project-specific + global client library */}
+          {(() => {
+            const client = (clients || []).find(c => c.id === viewProject.client_id);
+            const clientCode = client?.clientCode || client?.client_code;
+            if (!clientCode) return null;
+            return <GlassCard>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <AssetPanel path={`clients/${clientCode}/projects/${viewProject.id}`} title="Project Assets" compact />
+                <AssetPanel path={`clients/${clientCode}/assets`} title="Client Library" compact />
+              </div>
+            </GlassCard>;
+          })()}
 
           {/* Proof Version History (previous versions) */}
           {viewProofs.length > 1 && <GlassCard>
