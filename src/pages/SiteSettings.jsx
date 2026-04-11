@@ -436,34 +436,32 @@ export default function SiteSettings({ pubs, setPubs }) {
     if (!error) {
       setSites(prev => prev.map(s => s.id === selectedId ? { ...s, logo_url: draft.logo_url, favicon_url: draft.favicon_url, settings: merged } : s));
 
-      // Save house ads
+      // Save house ads — only for zones that have placements edited
       try {
-        for (const loc of adLocations) {
-          const ads = houseAds[loc.slug] || [];
-          // Ensure zone exists
-          let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
-          if (!zone) {
-            const { data: newZone } = await supabase.from("ad_zones").insert({ publication_id: selectedId, name: loc.name, slug: loc.slug, zone_type: "display", is_active: true }).select("id").single();
-            zone = newZone;
-          }
-          if (!zone) continue;
-          // Get existing placements for this zone
-          const { data: existing } = await supabase.from("ad_placements").select("id").eq("ad_zone_id", zone.id).eq("is_active", true);
-          const existingIds = (existing || []).map(e => e.id);
-          const keepIds = ads.filter(a => a.id).map(a => a.id);
-          // Deactivate removed placements
-          const removeIds = existingIds.filter(id => !keepIds.includes(id));
-          if (removeIds.length) await supabase.from("ad_placements").update({ is_active: false }).in("id", removeIds);
-          // Upsert placements
-          for (const ad of ads) {
-            if (ad.id) {
-              await supabase.from("ad_placements").update({ creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text }).eq("id", ad.id);
-            } else if (ad.creative_url) {
-              await supabase.from("ad_placements").insert({ ad_zone_id: zone.id, creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text, start_date: new Date().toISOString().split("T")[0], end_date: "2027-12-31", is_active: true });
+        const hasAnyAds = Object.values(houseAds).some(arr => arr?.length > 0);
+        if (hasAnyAds) {
+          await Promise.all(adLocations.map(async (loc) => {
+            const ads = houseAds[loc.slug] || [];
+            if (!ads.length) return;
+            // Ensure zone exists
+            let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
+            if (!zone) {
+              const { data: newZone, error: zErr } = await supabase.from("ad_zones").insert({ publication_id: selectedId, name: loc.name, slug: loc.slug, zone_type: "display", is_active: true }).select("id").single();
+              if (zErr) { console.error("Zone create error:", zErr); return; }
+              zone = newZone;
             }
-          }
+            if (!zone) return;
+            // Upsert placements
+            await Promise.all(ads.map(async (ad) => {
+              if (ad.id) {
+                await supabase.from("ad_placements").update({ creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text }).eq("id", ad.id);
+              } else if (ad.creative_url) {
+                await supabase.from("ad_placements").insert({ ad_zone_id: zone.id, creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text, start_date: new Date().toISOString().split("T")[0], end_date: "2027-12-31", is_active: true });
+              }
+            }));
+          }));
+          loadHouseAds(selectedId);
         }
-        await loadHouseAds(selectedId);
       } catch (e) { console.error("House ads save error:", e); }
 
       setSaved(true);
