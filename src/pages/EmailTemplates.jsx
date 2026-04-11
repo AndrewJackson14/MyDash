@@ -16,6 +16,7 @@ import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTe
 import { generateMarketingHtml } from "../lib/marketingTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
 import { generateRenewalHtml } from "../lib/renewalTemplate";
+import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { sendGmailEmail } from "../lib/gmail";
 
 const CATEGORIES = [
@@ -123,6 +124,15 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     paymentInstructions: "By phone: (805) 237-6060\nBy mail: Send check to 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447\nBy email: subscriptions@13stars.media",
   };
   const [renewalCfg, setRenewalCfg] = useState({ ...DEFAULT_RENEWAL_CONFIG });
+  const DEFAULT_INVOICE_CONFIG = {
+    paymentInstructions: "Mail check to: 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447\nPhone: (805) 237-6060\nEmail: billing@13stars.media",
+    firstReminderMessage: "This is a friendly reminder that your invoice is past due. Please remit payment at your earliest convenience.",
+    secondReminderMessage: "This is a second notice regarding your outstanding balance. Please contact us if you need to discuss payment arrangements.",
+    finalReminderMessage: "FINAL NOTICE: Your account is significantly past due. Immediate payment is required to avoid service interruption.",
+    showPastDueBalance: true,
+    billingContact: "billing@13stars.media",
+  };
+  const [invoiceCfg, setInvoiceCfg] = useState({ ...DEFAULT_INVOICE_CONFIG });
 
   // Style helpers for proposal config
   const secHead = { fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
@@ -168,6 +178,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
       setContractCfg({ ...DEFAULT_CONTRACT_CONFIG, ...t.config });
     } else if (t.category === "renewal" && t.config) {
       setRenewalCfg({ ...DEFAULT_RENEWAL_CONFIG, ...t.config });
+    } else if (t.category === "invoice" && t.config) {
+      setInvoiceCfg({ ...DEFAULT_INVOICE_CONFIG, ...t.config });
     } else {
       editor?.commands.setContent(t.html_body || "");
     }
@@ -189,15 +201,16 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     const isProposal = form.category === "proposal";
     const isContract = form.category === "contract";
     const isRenewal = form.category === "renewal";
-    const isStructured = isProposal || isContract || isRenewal;
+    const isInvoice = form.category === "invoice";
+    const isStructured = isProposal || isContract || isRenewal || isInvoice;
     const htmlBody = isStructured ? "" : (editor?.getHTML() || "");
     const fields = isStructured ? [] : (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
 
     const record = {
       name: form.name, category: form.category,
-      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : isContract ? "Contract Confirmed — {{client_name}}" : isRenewal ? "Your {{publication_name}} subscription" : form.subject,
+      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : isContract ? "Contract Confirmed — {{client_name}}" : isRenewal ? "Your {{publication_name}} subscription" : isInvoice ? "Invoice {{invoice_number}} — 13 Stars Media Group" : form.subject,
       html_body: htmlBody, merge_fields: fields,
-      config: isProposal ? proposalCfg : isContract ? contractCfg : isRenewal ? renewalCfg : null,
+      config: isProposal ? proposalCfg : isContract ? contractCfg : isRenewal ? renewalCfg : isInvoice ? invoiceCfg : null,
       publication_id: form.publicationIds.length === 1 ? form.publicationIds[0] : null,
       publication_ids: form.publicationIds.length > 0 ? form.publicationIds : null,
       include_letterhead: true,
@@ -436,6 +449,43 @@ const EmailTemplates = ({ pubs, currentUser }) => {
                 <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown below the renew button as alternative options.</div>
               </GlassCard>
             </div>
+          </> : form.category === "invoice" ? <>
+            {/* INVOICE CONFIG FORM */}
+            <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Payment Instructions</div>
+                <textarea value={invoiceCfg.paymentInstructions} onChange={e => setInvoiceCfg(c => ({ ...c, paymentInstructions: e.target.value }))}
+                  rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Mail check to: ...\nPhone: ...\nEmail: ..." />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown at the bottom of every invoice email.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Billing Contact</div>
+                <Inp value={invoiceCfg.billingContact} onChange={e => setInvoiceCfg(c => ({ ...c, billingContact: e.target.value }))} placeholder="billing@13stars.media" />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown in the invoice footer as the reply-to contact.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Overdue Reminder Messages</div>
+                {[
+                  { key: "firstReminderMessage", label: "First Reminder (7 days past due)", color: "#D97706" },
+                  { key: "secondReminderMessage", label: "Second Reminder (14 days past due)", color: "#C53030" },
+                  { key: "finalReminderMessage", label: "Final Notice (30 days past due)", color: "#C53030" },
+                ].map(r => (
+                  <div key={r.key} style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: r.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{r.label}</div>
+                    <textarea value={invoiceCfg[r.key]} onChange={e => setInvoiceCfg(c => ({ ...c, [r.key]: e.target.value }))}
+                      rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                ))}
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Display Options</div>
+                <label style={checkLbl}><input type="checkbox" checked={invoiceCfg.showPastDueBalance} onChange={e => setInvoiceCfg(c => ({ ...c, showPastDueBalance: e.target.checked }))} style={chk} /> Show past due balance on invoices (carry-forward from previous unpaid invoices)</label>
+              </GlassCard>
+            </div>
           </> : <>
             {/* OTHER CATEGORIES: TipTap editor */}
             <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Your renewal is coming up" />
@@ -529,6 +579,17 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
             pubs: pubs || [],
             config: contractCfg,
+          }) }} />
+        </div>
+      ) : form.category === "invoice" ? (
+        <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: generateInvoiceHtml({
+            invoice: { invoiceNumber: "INV-01234", issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), total: 2798, balanceDue: 2798, lines: [
+              { description: "Paso Robles Press Apr 9, 2026 — Full Page", amount: 1399 },
+              { description: "Paso Robles Press Apr 23, 2026 — Full Page", amount: 1399 },
+            ]},
+            clientName: "Sample Winery",
+            config: invoiceCfg,
           }) }} />
         </div>
       ) : form.category === "renewal" ? (

@@ -21,16 +21,18 @@ const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
  * @param {number} params.pastDueBalance - any carried-forward balance
  * @param {string} params.reminderLevel - null | 'first' | 'second' | 'final'
  */
-export function generateInvoiceHtml({ invoice, clientName, pastDueBalance = 0, reminderLevel = null }) {
+export function generateInvoiceHtml({ invoice, clientName, pastDueBalance = 0, reminderLevel = null, config = {} }) {
   const lines = invoice?.lines || [];
   const isOverdue = reminderLevel !== null;
   const accentColor = isOverdue ? RED : NAVY;
 
   const reminderText = {
-    first: "This is a friendly reminder that your invoice is past due. Please remit payment at your earliest convenience.",
-    second: "This is a second notice regarding your outstanding balance. Please contact us if you need to discuss payment arrangements.",
-    final: "FINAL NOTICE: Your account is significantly past due. Immediate payment is required to avoid service interruption.",
+    first: config?.firstReminderMessage || "This is a friendly reminder that your invoice is past due. Please remit payment at your earliest convenience.",
+    second: config?.secondReminderMessage || "This is a second notice regarding your outstanding balance. Please contact us if you need to discuss payment arrangements.",
+    final: config?.finalReminderMessage || "FINAL NOTICE: Your account is significantly past due. Immediate payment is required to avoid service interruption.",
   };
+  const billingContact = config?.billingContact || "billing@13stars.media";
+  const showPastDue = config?.showPastDueBalance !== false;
 
   return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center">
 <table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;font-size:0">
@@ -104,7 +106,7 @@ export function generateInvoiceHtml({ invoice, clientName, pastDueBalance = 0, r
   <!-- TOTALS -->
   <tr><td style="padding:0 24px">
     <table width="100%" cellpadding="0" cellspacing="0">
-      ${pastDueBalance > 0 ? `<tr>
+      ${showPastDue && pastDueBalance > 0 ? `<tr>
         <td style="padding:8px 14px;font-family:${SANS};font-size:13px;color:${RED}">Past due balance</td>
         <td style="padding:8px 14px;font-family:${SANS};font-size:13px;color:${RED};text-align:right;font-weight:bold">${fmtCurrency(pastDueBalance)}</td>
       </tr>` : ""}
@@ -119,9 +121,7 @@ export function generateInvoiceHtml({ invoice, clientName, pastDueBalance = 0, r
   <tr><td style="padding:24px 40px 0">
     <div style="font-family:${SANS};font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${GRAY_LT};margin-bottom:8px">Payment options</div>
     <div style="font-family:${SANS};font-size:12px;color:${GRAY};line-height:1.8">
-      <strong>Mail check to:</strong> 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447<br>
-      <strong>Phone:</strong> (805) 237-6060<br>
-      <strong>Email:</strong> billing@13stars.media
+      ${(config?.paymentInstructions || "Mail check to: 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447\nPhone: (805) 237-6060\nEmail: billing@13stars.media").split("\n").map(l => l.replace(/^([^:]+):/, "<strong>$1:</strong>")).join("<br>")}
     </div>
   </td></tr>
 
@@ -129,7 +129,7 @@ export function generateInvoiceHtml({ invoice, clientName, pastDueBalance = 0, r
   <tr><td style="padding:24px 40px 32px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-bottom:1px solid ${DIVIDER};height:1px;font-size:0;line-height:0">&nbsp;</td></tr></table>
     <div style="font-family:${SANS};font-size:12px;color:${GRAY_LT};text-align:center;margin-top:16px">13 Stars Media Group</div>
-    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};text-align:center;margin-top:2px">805-237-6060 &middot; billing@13stars.media</div>
+    <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};text-align:center;margin-top:2px">805-237-6060 &middot; ${billingContact}</div>
   </td></tr>
 
 </table>
