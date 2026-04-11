@@ -1,6 +1,8 @@
 import { useState, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { generateRenewalHtml, getRenewalSubject } from "../lib/renewalTemplate";
+import { sendGmailEmail } from "../lib/gmail";
 
 // ─── Constants ──────────────────────────────────────────────
 const SUB_TYPES = [{ value: "print", label: "Print" }, { value: "digital", label: "Digital" }];
@@ -666,7 +668,29 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
           ))}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Btn v="secondary" onClick={() => setRenewalModal(false)}>Cancel</Btn>
-            <Btn onClick={() => { alert(`Renewal notices generated for ${expiring.length} subscribers. PDF merge + email draft feature coming soon.`); setRenewalModal(false); }}>Generate Notices ({expiring.length})</Btn>
+            <Btn onClick={async () => {
+              let sent = 0;
+              for (const sub of expiring) {
+                if (!sub.email) continue;
+                const daysToExpiry = Math.ceil((new Date(sub.renewalDate + "T12:00:00") - new Date()) / 86400000);
+                const touch = daysToExpiry <= 7 ? "third" : daysToExpiry <= 14 ? "second" : "first";
+                const pubName = pn(sub.publicationId) || "your publication";
+                const htmlBody = generateRenewalHtml({
+                  subscriberName: `${sub.firstName} ${sub.lastName}`.trim(),
+                  publicationName: pubName,
+                  expiryDate: sub.renewalDate,
+                  renewalAmount: sub.amountPaid || 0,
+                  renewLink: "",
+                  touch,
+                });
+                try {
+                  await sendGmailEmail({ teamMemberId: null, to: [sub.email], subject: getRenewalSubject(pubName, touch), htmlBody, mode: "send" });
+                  sent++;
+                } catch (err) { console.error("Renewal email error:", err); }
+              }
+              setRenewalModal(false);
+              alert(`${sent} renewal notice${sent !== 1 ? "s" : ""} sent.`);
+            }}>Send Notices ({expiring.length})</Btn>
           </div>
         </div>;
       })()}

@@ -13,6 +13,8 @@ import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme
 import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, glass } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
+import { generateMarketingHtml } from "../lib/marketingTemplate";
+import { sendGmailEmail } from "../lib/gmail";
 
 const CATEGORIES = [
   { value: "proposal", label: "Proposals", icon: Ic.file },
@@ -89,6 +91,12 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   const [editId, setEditId] = useState(null);
   const [createModal, setCreateModal] = useState(false);
   const [previewModal, setPreviewModal] = useState(false);
+  const [composeModal, setComposeModal] = useState(false);
+  const [composeRecipients, setComposeRecipients] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeHeroUrl, setComposeHeroUrl] = useState("");
+  const [composeSending, setComposeSending] = useState(false);
+  const [composeResult, setComposeResult] = useState(null);
 
   // Editor form
   const [form, setForm] = useState({ name: "", category: "proposal", subject: "", publicationIds: [], includeLetterhead: true });
@@ -375,6 +383,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <Btn sm v="secondary" onClick={() => setPreviewModal(true)}>Preview</Btn>
+              {editId && form.category !== "proposal" && <Btn sm v="secondary" onClick={() => { setComposeSubject(form.subject); setComposeRecipients(""); setComposeHeroUrl(""); setComposeResult(null); setComposeModal(true); }}>Compose & Send</Btn>}
               <Btn sm onClick={save} disabled={saving || !form.name.trim()}>{saving ? "Saving..." : editId ? "Save Changes" : "Create Template"}</Btn>
             </div>
           </div>
@@ -418,6 +427,54 @@ const EmailTemplates = ({ pubs, currentUser }) => {
         <Inp label="Template Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Standard Proposal" />
         <Sel label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} options={CATEGORIES.map(c => ({ value: c.value, label: c.label }))} />
         <Btn onClick={openCreate} disabled={!form.name.trim()}>Create & Edit</Btn>
+      </div>
+    </Modal>
+
+    {/* Compose & Send modal */}
+    <Modal open={composeModal} onClose={() => setComposeModal(false)} title="Compose & Send" width={560}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Inp label="Recipients (comma-separated)" value={composeRecipients} onChange={e => setComposeRecipients(e.target.value)} placeholder="email@example.com, another@example.com" />
+        <Inp label="Subject" value={composeSubject} onChange={e => setComposeSubject(e.target.value)} />
+        {form.category === "marketing" && <Inp label="Hero Image URL" value={composeHeroUrl} onChange={e => setComposeHeroUrl(e.target.value)} placeholder="https://cdn.13stars.media/..." />}
+        {composeResult && <div style={{ padding: "8px 12px", borderRadius: Ri, fontSize: FS.sm, background: composeResult.success ? Z.go + "10" : Z.da + "10", color: composeResult.success ? Z.go : Z.da }}>{composeResult.message || composeResult.error}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="secondary" onClick={() => setComposeModal(false)}>Cancel</Btn>
+          <Btn disabled={!composeRecipients.trim() || !composeSubject.trim() || composeSending} onClick={async () => {
+            setComposeSending(true); setComposeResult(null);
+            const recipients = composeRecipients.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+            const bodyContent = editor?.getHTML() || "";
+            let htmlBody;
+            if (form.category === "marketing") {
+              htmlBody = generateMarketingHtml({
+                headline: composeSubject,
+                heroImageUrl: composeHeroUrl,
+                bodyHtml: bodyContent,
+                ctaText: "",
+                ctaUrl: "",
+                publicationName: form.publicationIds?.length === 1 ? (pubs || []).find(p => p.id === form.publicationIds[0])?.name : "13 Stars Media Group",
+                unsubscribeUrl: "#unsubscribe",
+              });
+            } else {
+              // Generic: wrap TipTap content in email-safe layout
+              htmlBody = `<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center">
+                <table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff">
+                <tr><td style="background:#1A365D;height:4px;font-size:0;line-height:0">&nbsp;</td></tr>
+                <tr><td style="padding:32px 40px 0;text-align:center"><div style="font-family:Georgia,serif;font-size:24px;color:#1A365D">13 Stars Media Group</div></td></tr>
+                <tr><td style="padding:20px 24px 0"><table width="100%"><tr><td style="border-bottom:1.5px solid #C53030;height:1px;font-size:0">&nbsp;</td></tr></table></td></tr>
+                <tr><td style="padding:24px 40px"><div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#111;line-height:1.7">${bodyContent}</div></td></tr>
+                <tr><td style="padding:24px 40px 32px"><table width="100%"><tr><td style="border-bottom:1px solid #E5E7EB;height:1px;font-size:0">&nbsp;</td></tr></table>
+                <div style="font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#9CA3AF;text-align:center;margin-top:16px">13 Stars Media Group &middot; 805-237-6060</div></td></tr>
+                </table></td></tr></table>`;
+            }
+            try {
+              await sendGmailEmail({ teamMemberId: null, to: recipients, subject: composeSubject, htmlBody, mode: "send" });
+              setComposeResult({ success: true, message: `Sent to ${recipients.length} recipient${recipients.length !== 1 ? "s" : ""}` });
+            } catch (err) {
+              setComposeResult({ error: err.message || "Send failed" });
+            }
+            setComposeSending(false);
+          }}>{composeSending ? "Sending..." : "Send Now"}</Btn>
+        </div>
       </div>
     </Modal>
   </div>;

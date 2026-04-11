@@ -2,6 +2,9 @@ import { useState, useRef, useMemo, memo, useEffect, useCallback } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, glass } from "../components/ui";
 import { COMPANY } from "../constants";
+import { generateInvoiceHtml } from "../lib/invoiceTemplate";
+import { sendGmailEmail } from "../lib/gmail";
+import { supabase } from "../lib/supabase";
 
 // ─── Invoice Status Colors ──────────────────────────────────
 const INV_COLORS = {
@@ -240,10 +243,30 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     setInvModal(false);
   };
 
-  const sendInvoice = (invId) => {
+  const sendInvoice = async (invId) => {
     const inv = processedInvoices.find(i => i.id === invId);
+    if (!inv) return;
     setInvoices(prev => (prev || []).map(i => i.id === invId ? { ...i, status: "sent" } : i));
-    if (bus && inv) bus.emit("invoice.sent", { invoiceId: invId, clientId: inv.clientId });
+    if (bus) bus.emit("invoice.sent", { invoiceId: invId, clientId: inv.clientId });
+
+    // Generate and send invoice email
+    const client = (clients || []).find(c => c.id === inv.clientId);
+    const clientEmail = client?.contacts?.[0]?.email;
+    if (clientEmail) {
+      const htmlBody = generateInvoiceHtml({
+        invoice: inv,
+        clientName: client?.name || "",
+      });
+      try {
+        await sendGmailEmail({
+          teamMemberId: null,
+          to: [clientEmail],
+          subject: `Invoice ${inv.invoiceNumber} — 13 Stars Media Group`,
+          htmlBody,
+          mode: "send",
+        });
+      } catch (err) { console.error("Invoice email error:", err); }
+    }
   };
 
   const voidInvoice = (invId) => {
