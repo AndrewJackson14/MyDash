@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow, Pill } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
+import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -16,7 +17,6 @@ const DEPARTMENTS = [
 const getDept = (role) => DEPARTMENTS.find(d => d.roles.includes(role))?.label || "Other";
 const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
 
-import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 
 // ── Permission modules ───────────────────────────────────────
 // Matches nav IDs exactly — each item independently toggleable

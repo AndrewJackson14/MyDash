@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
 
 // ─── Constants ──────────────────────────────────────────────
 const JOB_TYPES = [
@@ -21,7 +22,6 @@ const STATUS_COLORS = {
 };
 const TYPE_ICONS = { design: "🎨", layout: "📐", printing: "🖨", mixed: "📦" };
 
-import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
 
 const today = new Date().toISOString().slice(0, 10);
 

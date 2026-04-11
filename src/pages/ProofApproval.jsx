@@ -4,6 +4,7 @@
 // ============================================================
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { fmtDateLong as fmtDate } from "../lib/formatters";
 
 const CDN_BASE = "https://cdn.13stars.media";
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
@@ -14,8 +15,6 @@ const C = {
   bd: "#E2E6ED", ac: "#2563EB", go: "#16A34A", da: "#DC2626", wa: "#D97706",
   sa: "#F1F3F6", pu: "#7C3AED",
 };
-
-import { fmtDateLong as fmtDate } from "../lib/formatters";
 
 export default function ProofApproval() {
   const token = window.location.pathname.split("/approve/")[1];

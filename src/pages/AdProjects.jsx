@@ -4,6 +4,7 @@ import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB,
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
 import AssetPanel from "../components/AssetPanel";
+import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -21,7 +22,6 @@ const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"]
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
-import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const [tab, setTab] = useState("Active");

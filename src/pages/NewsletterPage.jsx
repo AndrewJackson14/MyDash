@@ -6,10 +6,10 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { generateNewsletterHtml, getPubConfig } from "../utils/newsletterTemplate";
+import { fmtDate, fmtTime } from "../lib/formatters";
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 const STATUS_BADGE = { draft: "Draft", approved: "Approved", sent: "Sent", failed: "Failed" };
-import { fmtDate, fmtTime } from "../lib/formatters";
 
 // ── Sortable Story Card ──────────────────────────────────
 const SortableStory = ({ story, onUpdate, onRemove }) => {

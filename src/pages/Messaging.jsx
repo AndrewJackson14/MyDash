@@ -7,6 +7,7 @@ import { Z, COND, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Modal, SB, PageHeader } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
+import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
 const THREAD_TYPES = {
   direct: { label: "Direct", icon: "user", color: Z.ac },
@@ -17,7 +18,6 @@ const THREAD_TYPES = {
   client: { label: "Client", color: Z.ac },
 };
 
-import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
 const Messaging = memo(({ team, currentUser }) => {
   const [threads, setThreads] = useState([]);

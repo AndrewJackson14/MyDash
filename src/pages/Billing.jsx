@@ -6,6 +6,7 @@ import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { generatePdf } from "../lib/pdf";
 import { sendGmailEmail } from "../lib/gmail";
 import { supabase } from "../lib/supabase";
+import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
 
 // ─── Invoice Status Colors ──────────────────────────────────
 const INV_COLORS = {
@@ -31,7 +32,6 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
-import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
 
 const today = new Date().toISOString().slice(0, 10);
 
