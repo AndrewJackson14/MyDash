@@ -201,17 +201,20 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
       {/* Per-publication subscriber stats */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(pubs.length + 1, 5)}, 1fr)`, gap: 12 }}>
-        {pubs.map(p => {
-          const ct = subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length;
-          return <GlassStat key={p.id} label={pn(p.id)} value={ct.toLocaleString()} sub="Print subscribers" color={Z.tm} />;
-        })}
-        <GlassStat label="Digital (All)" value={activeDigital.length.toLocaleString()} sub="Newsletter subscribers" />
-      </div>
+      {(() => {
+        const activePubs = pubs.filter(p => subs.some(s => s.publicationId === p.id && s.status === "active"));
+        return <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(activePubs.length + (activeDigital.length > 0 ? 1 : 0), 5)}, 1fr)`, gap: 12 }}>
+          {activePubs.map(p => {
+            const ct = subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length;
+            return <GlassStat key={p.id} label={pn(p.id)} value={ct.toLocaleString()} sub="Print subscribers" color={Z.tm} />;
+          })}
+          {activeDigital.length > 0 && <GlassStat label="Digital (All)" value={activeDigital.length.toLocaleString()} sub="Newsletter subscribers" />}
+        </div>;
+      })()}
 
       {/* Renewals due */}
       {(() => {
-        const renewalsByPub = pubs.map(p => ({
+        const renewalsByPub = pubs.filter(p => subs.some(s => s.publicationId === p.id && s.status === "active")).map(p => ({
           pub: p,
           count: subs.filter(s => s.publicationId === p.id && s.status === "active" && s.renewalDate && s.renewalDate <= new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().slice(0, 10) && s.renewalDate >= today).length,
         }));
@@ -231,7 +234,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
       <GlassCard>
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Circulation by Publication</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {pubSubCounts.map(p => {
+          {pubSubCounts.filter(p => p.print + p.digital + p.drops > 0).map(p => {
             const total = p.print + p.drops;
             return <div key={p.pub.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr 90px 90px 90px 90px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R }}>
               <div style={{ width: 10, height: 10, borderRadius: Ri, background: Z.tm }} />
