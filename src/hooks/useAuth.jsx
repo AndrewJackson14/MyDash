@@ -45,7 +45,12 @@ export function AuthProvider({ children }) {
     );
 
     // Then check for existing session in storage
+    // Debug: check what keys are in localStorage
+    const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
+    console.log('[auth] localStorage sb- keys:', sbKeys);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[auth] getSession result:', session ? session.user?.email : 'no session');
       if (session?.user) {
         setSession(session);
         setUser(session.user);
@@ -61,7 +66,7 @@ export function AuthProvider({ children }) {
         }, 500);
       }
     }).catch((err) => {
-      console.error('Auth session error:', err);
+      console.error('[auth] getSession error:', err);
       setLoading(false);
     });
 
