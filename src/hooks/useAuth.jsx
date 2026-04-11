@@ -81,11 +81,20 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      const match = (data || []).find(t => t.auth_id === authId || String(t.auth_id) === String(authId));
+      let match = (data || []).find(t => t.auth_id === authId || String(t.auth_id) === String(authId));
+      if (!match && user?.email) {
+        // Fallback: match by email and auto-link auth_id
+        match = (data || []).find(t => t.email === user.email);
+        if (match && !match.auth_id) {
+          await supabase.from('team_members').update({ auth_id: authId }).eq('id', match.id);
+          match.auth_id = authId;
+          console.log('Auto-linked auth_id for', user.email);
+        }
+      }
       if (match) {
         setTeamMember(match);
       } else {
-        console.warn('No team member found for auth_id:', authId);
+        console.warn('No team member found for auth_id:', authId, 'or email:', user?.email);
       }
     } catch (err) {
       console.error('fetchTeamMember error:', err);

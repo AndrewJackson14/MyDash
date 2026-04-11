@@ -111,6 +111,8 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
   const [tab, setTab] = useState("Details");
   const [saving, setSaving] = useState(null);
   const [localPerms, setLocalPerms] = useState([]);
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
 
   // Sync localPerms when member changes
   const memberPermsKey = member?.id || "";
@@ -165,7 +167,27 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>
           <div style={{ fontSize: FS.xs, color: Z.tm }}>{member.email}{member.phone ? ` · ${member.phone}` : ""}</div>
         </div>
+        {member.auth_id
+          ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "4px 10px", borderRadius: Ri }}>Active</span>
+          : <Btn sm v="secondary" disabled={inviting} onClick={async () => {
+              setInviting(true); setInviteResult(null);
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const res = await fetch("https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/invite-user", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token || ""}` },
+                  body: JSON.stringify({ email: member.email, team_member_id: member.id }),
+                });
+                const result = await res.json();
+                setInviteResult(result);
+              } catch (err) { setInviteResult({ error: err.message }); }
+              setInviting(false);
+            }}>{inviting ? "Sending..." : "Invite to MyDash"}</Btn>
+        }
       </div>
+      {inviteResult && <div style={{ fontSize: FS.xs, padding: "6px 10px", borderRadius: Ri, background: inviteResult.success ? Z.go + "10" : Z.da + "10", color: inviteResult.success ? Z.go : Z.da }}>
+        {inviteResult.success ? inviteResult.message : `Error: ${inviteResult.error}`}
+      </div>}
 
       {/* Tabs */}
       <TabRow><TB tabs={["Details", "Workload", "Settings", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
