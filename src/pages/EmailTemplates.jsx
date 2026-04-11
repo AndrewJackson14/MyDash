@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase";
 import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
 import { generateMarketingHtml } from "../lib/marketingTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
+import { generateRenewalHtml } from "../lib/renewalTemplate";
 import { sendGmailEmail } from "../lib/gmail";
 
 const CATEGORIES = [
@@ -111,6 +112,17 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     inheritProposalSettings: true,
   };
   const [contractCfg, setContractCfg] = useState({ ...DEFAULT_CONTRACT_CONFIG });
+  const DEFAULT_RENEWAL_CONFIG = {
+    firstTouchMessage: "Your subscription is expiring soon. Renew today to keep receiving your favorite local news without interruption.",
+    secondTouchMessage: "We noticed your subscription is expiring soon and we haven't heard from you yet. We'd hate for you to miss out on the local stories that matter most.",
+    thirdTouchMessage: "This is your final reminder — your subscription expires in just a few days. Act now to continue receiving your newspaper at home.",
+    firstButtonText: "Renew Now",
+    secondButtonText: "Renew Today",
+    thirdButtonText: "Renew Before It's Too Late",
+    subscriberPortalPath: "/subscribe",
+    paymentInstructions: "By phone: (805) 237-6060\nBy mail: Send check to 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447\nBy email: subscriptions@13stars.media",
+  };
+  const [renewalCfg, setRenewalCfg] = useState({ ...DEFAULT_RENEWAL_CONFIG });
 
   // Style helpers for proposal config
   const secHead = { fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
@@ -154,6 +166,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
       setPropCfg({ ...DEFAULT_PROPOSAL_CONFIG, ...t.config });
     } else if (t.category === "contract" && t.config) {
       setContractCfg({ ...DEFAULT_CONTRACT_CONFIG, ...t.config });
+    } else if (t.category === "renewal" && t.config) {
+      setRenewalCfg({ ...DEFAULT_RENEWAL_CONFIG, ...t.config });
     } else {
       editor?.commands.setContent(t.html_body || "");
     }
@@ -174,15 +188,16 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     setSaving(true);
     const isProposal = form.category === "proposal";
     const isContract = form.category === "contract";
-    const isStructured = isProposal || isContract;
+    const isRenewal = form.category === "renewal";
+    const isStructured = isProposal || isContract || isRenewal;
     const htmlBody = isStructured ? "" : (editor?.getHTML() || "");
     const fields = isStructured ? [] : (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
 
     const record = {
       name: form.name, category: form.category,
-      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : isContract ? "Contract Confirmed — {{client_name}}" : form.subject,
+      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : isContract ? "Contract Confirmed — {{client_name}}" : isRenewal ? "Your {{publication_name}} subscription" : form.subject,
       html_body: htmlBody, merge_fields: fields,
-      config: isProposal ? proposalCfg : isContract ? contractCfg : null,
+      config: isProposal ? proposalCfg : isContract ? contractCfg : isRenewal ? renewalCfg : null,
       publication_id: form.publicationIds.length === 1 ? form.publicationIds[0] : null,
       publication_ids: form.publicationIds.length > 0 ? form.publicationIds : null,
       include_letterhead: true,
@@ -385,6 +400,42 @@ const EmailTemplates = ({ pubs, currentUser }) => {
                 <div style={{ fontSize: FS.sm, color: Z.tm }}>Line items, payment schedule, ad deadline column, and terms & conditions are inherited from your default Proposal template. Changes to the proposal template automatically apply to contracts.</div>
               </GlassCard>
             </div>
+          </> : form.category === "renewal" ? <>
+            {/* RENEWAL CONFIG FORM */}
+            <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              {[
+                { key: "first", label: "First Touch (30 days)", msgKey: "firstTouchMessage", btnKey: "firstButtonText", color: "#1A365D" },
+                { key: "second", label: "Second Touch (14 days)", msgKey: "secondTouchMessage", btnKey: "secondButtonText", color: "#D97706" },
+                { key: "third", label: "Third Touch (7 days)", msgKey: "thirdTouchMessage", btnKey: "thirdButtonText", color: "#C53030" },
+              ].map(touch => (
+                <GlassCard key={touch.key} style={{ padding: "16px 20px", borderLeft: `3px solid ${touch.color}` }}>
+                  <div style={secHead}>{touch.label}</div>
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Message</div>
+                    <textarea value={renewalCfg[touch.msgKey]} onChange={e => setRenewalCfg(c => ({ ...c, [touch.msgKey]: e.target.value }))}
+                      rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Button Text</div>
+                    <Inp value={renewalCfg[touch.btnKey]} onChange={e => setRenewalCfg(c => ({ ...c, [touch.btnKey]: e.target.value }))} />
+                  </div>
+                </GlassCard>
+              ))}
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Subscriber Portal</div>
+                <Inp label="Portal Path (appended to publication domain)" value={renewalCfg.subscriberPortalPath} onChange={e => setRenewalCfg(c => ({ ...c, subscriberPortalPath: e.target.value }))} placeholder="/subscribe" />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>The "Renew" button links to https://{"{{publication_domain}}"}{renewalCfg.subscriberPortalPath}</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Alternative Payment Instructions</div>
+                <textarea value={renewalCfg.paymentInstructions} onChange={e => setRenewalCfg(c => ({ ...c, paymentInstructions: e.target.value }))}
+                  rows={4} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="By phone: ...\nBy mail: ...\nBy email: ..." />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown below the renew button as alternative options.</div>
+              </GlassCard>
+            </div>
           </> : <>
             {/* OTHER CATEGORIES: TipTap editor */}
             <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Your renewal is coming up" />
@@ -478,6 +529,18 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
             pubs: pubs || [],
             config: contractCfg,
+          }) }} />
+        </div>
+      ) : form.category === "renewal" ? (
+        <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: generateRenewalHtml({
+            subscriberName: "Jane Smith",
+            publicationName: "Paso Robles Press",
+            expiryDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+            renewalAmount: 59.99,
+            renewLink: "https://pasoroblespress.com" + (renewalCfg.subscriberPortalPath || "/subscribe"),
+            touch: "first",
+            config: renewalCfg,
           }) }} />
         </div>
       ) : (

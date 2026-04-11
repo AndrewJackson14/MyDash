@@ -47,8 +47,15 @@ const TOUCH_CONFIG = {
  * @param {string} params.renewLink - URL for self-service renewal
  * @param {string} params.touch - 'first' | 'second' | 'third'
  */
-export function generateRenewalHtml({ subscriberName, publicationName, expiryDate, renewalAmount, renewLink, touch = "first" }) {
+export function generateRenewalHtml({ subscriberName, publicationName, expiryDate, renewalAmount, renewLink, touch = "first", config = {} }) {
   const cfg = TOUCH_CONFIG[touch] || TOUCH_CONFIG.first;
+  // Override with config if provided
+  if (config) {
+    const msgKeys = { first: "firstTouchMessage", second: "secondTouchMessage", third: "thirdTouchMessage" };
+    const btnKeys = { first: "firstButtonText", second: "secondButtonText", third: "thirdButtonText" };
+    if (config[msgKeys[touch]]) cfg.tone = config[msgKeys[touch]];
+    if (config[btnKeys[touch]]) cfg.buttonText = config[btnKeys[touch]];
+  }
 
   return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center">
 <table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;font-size:0">
