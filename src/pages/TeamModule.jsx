@@ -173,9 +173,10 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
               setInviting(true); setInviteResult(null);
               try {
                 const { data: { session } } = await supabase.auth.getSession();
+                const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxeXdhY3locGxsYXBkd2NjbWF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NzIwNjEsImV4cCI6MjA5MDI0ODA2MX0.ODwap_OFuMmFCYkDwhA1RI-F7dlrfi4qqSe64O6k2-Q";
                 const res = await fetch("https://hqywacyhpllapdwccmaw.supabase.co/functions/v1/invite-user", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token || ""}` },
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token || ""}`, "apikey": anonKey },
                   body: JSON.stringify({ email: member.email, team_member_id: member.id }),
                 });
                 const result = await res.json();
