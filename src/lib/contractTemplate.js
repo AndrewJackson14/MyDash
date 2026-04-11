@@ -121,10 +121,15 @@ export function generateContractHtml({ proposal, signature, salesperson, pubs = 
 
   <!-- CONTRACT CONFIRMED -->
   <tr><td style="padding:28px 40px 0;text-align:center">
-    <div style="font-family:${SANS};font-size:13px;color:${GRAY}">Advertising contract confirmed for</div>
+    <div style="font-family:${SANS};font-size:13px;color:${GRAY}">${config?.confirmationMessage || "Your advertising contract is confirmed"}</div>
     <div style="font-family:${SERIF};font-size:28px;color:${NAVY};margin-top:6px">${clientName}</div>
     <div style="font-family:${SANS};font-size:12px;color:${GRAY_LT};margin-top:4px">${fmtDate(signature?.signedAt?.slice?.(0, 10) || new Date().toISOString().slice(0, 10))}</div>
   </td></tr>
+
+  <!-- CLIENT NOTE (new or returning) -->
+  ${config?.newClientNote || config?.returningClientNote ? `<tr><td style="padding:16px 40px 0">
+    <div style="font-family:${SANS};font-size:13px;color:${GRAY};line-height:1.6;font-style:italic;text-align:center">${config.newClientNote || config.returningClientNote}</div>
+  </td></tr>` : ""}
 
   <!-- SIGNED BY -->
   <tr><td style="padding:20px 40px 0;text-align:center">
@@ -182,6 +187,11 @@ export function generateContractHtml({ proposal, signature, salesperson, pubs = 
       ${terms.map(t => `&bull; ${t}`).join("<br>")}
     </div>
   </td></tr>
+
+  <!-- LEGAL DISCLAIMER -->
+  ${config?.legalDisclaimer ? `<tr><td style="padding:12px 40px 0">
+    <div style="font-family:${SANS};font-size:10px;color:${GRAY_LT};line-height:1.8">${config.legalDisclaimer}</div>
+  </td></tr>` : ""}
 
   <!-- SAVE FOR RECORDS -->
   <tr><td style="padding:24px 40px 0;text-align:center">

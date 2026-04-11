@@ -14,6 +14,7 @@ import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, 
 import { supabase } from "../lib/supabase";
 import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
 import { generateMarketingHtml } from "../lib/marketingTemplate";
+import { generateContractHtml } from "../lib/contractTemplate";
 import { sendGmailEmail } from "../lib/gmail";
 
 const CATEGORIES = [
@@ -102,6 +103,14 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   const [form, setForm] = useState({ name: "", category: "proposal", subject: "", publicationIds: [], includeLetterhead: true });
   const [saving, setSaving] = useState(false);
   const [proposalCfg, setPropCfg] = useState({ ...DEFAULT_PROPOSAL_CONFIG });
+  const DEFAULT_CONTRACT_CONFIG = {
+    confirmationMessage: "Your advertising contract is confirmed",
+    newClientNote: "Welcome to the 13 Stars Media Group family! We're excited to help your business reach our readers across the Central Coast.",
+    returningClientNote: "Thank you for continuing to advertise with us. We value your partnership and look forward to another successful campaign.",
+    legalDisclaimer: "",
+    inheritProposalSettings: true,
+  };
+  const [contractCfg, setContractCfg] = useState({ ...DEFAULT_CONTRACT_CONFIG });
 
   // Style helpers for proposal config
   const secHead = { fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
@@ -143,6 +152,8 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     setForm({ name: t.name, category: t.category, subject: t.subject, publicationIds: t.publication_ids || (t.publication_id ? [t.publication_id] : []), includeLetterhead: t.include_letterhead });
     if (t.category === "proposal" && t.config) {
       setPropCfg({ ...DEFAULT_PROPOSAL_CONFIG, ...t.config });
+    } else if (t.category === "contract" && t.config) {
+      setContractCfg({ ...DEFAULT_CONTRACT_CONFIG, ...t.config });
     } else {
       editor?.commands.setContent(t.html_body || "");
     }
@@ -162,14 +173,16 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     if (!form.name.trim()) return;
     setSaving(true);
     const isProposal = form.category === "proposal";
-    const htmlBody = isProposal ? "" : (editor?.getHTML() || "");
-    const fields = isProposal ? [] : (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
+    const isContract = form.category === "contract";
+    const isStructured = isProposal || isContract;
+    const htmlBody = isStructured ? "" : (editor?.getHTML() || "");
+    const fields = isStructured ? [] : (MERGE_FIELDS[form.category] || []).filter(f => htmlBody.includes(f.key) || form.subject.includes(f.key)).map(f => f.key);
 
     const record = {
       name: form.name, category: form.category,
-      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : form.subject,
+      subject: isProposal ? "Proposal: {{proposal_name}} — {{client_name}}" : isContract ? "Contract Confirmed — {{client_name}}" : form.subject,
       html_body: htmlBody, merge_fields: fields,
-      config: isProposal ? proposalCfg : null,
+      config: isProposal ? proposalCfg : isContract ? contractCfg : null,
       publication_id: form.publicationIds.length === 1 ? form.publicationIds[0] : null,
       publication_ids: form.publicationIds.length > 0 ? form.publicationIds : null,
       include_letterhead: true,
@@ -333,8 +346,47 @@ const EmailTemplates = ({ pubs, currentUser }) => {
                   placeholder="One term per line..." />
               </GlassCard>
             </div>
+          </> : form.category === "contract" ? <>
+            <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Confirmation Message</div>
+                <textarea value={contractCfg.confirmationMessage} onChange={e => setContractCfg(c => ({ ...c, confirmationMessage: e.target.value }))}
+                  rows={2} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Your advertising contract is confirmed" />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Displayed prominently at the top of the contract email.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>New Client Welcome Note</div>
+                <textarea value={contractCfg.newClientNote} onChange={e => setContractCfg(c => ({ ...c, newClientNote: e.target.value }))}
+                  rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Welcome message for first-time advertisers..." />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown only for clients who have never advertised with you before.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Returning Client Note</div>
+                <textarea value={contractCfg.returningClientNote} onChange={e => setContractCfg(c => ({ ...c, returningClientNote: e.target.value }))}
+                  rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Thank you message for repeat advertisers..." />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Shown for clients who have advertised with you before.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Legal Disclaimer</div>
+                <textarea value={contractCfg.legalDisclaimer} onChange={e => setContractCfg(c => ({ ...c, legalDisclaimer: e.target.value }))}
+                  rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  placeholder="Additional legal language (optional)..." />
+                <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Appended after the standard terms & conditions. Leave blank if not needed.</div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "16px 20px" }}>
+                <div style={secHead}>Inherited Settings</div>
+                <div style={{ fontSize: FS.sm, color: Z.tm }}>Line items, payment schedule, ad deadline column, and terms & conditions are inherited from your default Proposal template. Changes to the proposal template automatically apply to contracts.</div>
+              </GlassCard>
+            </div>
           </> : <>
-            {/* NON-PROPOSAL: TipTap editor */}
+            {/* OTHER CATEGORIES: TipTap editor */}
             <Inp label="Email Subject" value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Your renewal is coming up" />
 
             {/* Merge fields strip */}
@@ -411,6 +463,21 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
             pubs: pubs || [],
             signLink: "#preview",
+          }) }} />
+        </div>
+      ) : form.category === "contract" ? (
+        <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
+          <div dangerouslySetInnerHTML={{ __html: generateContractHtml({
+            proposal: { date: new Date().toISOString().slice(0, 10), clientName: "Sample Winery", total: 5596, payTiming: "per_issue", lines: [
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 9, 2026", issueDate: "2026-04-09", adDeadline: "2026-04-04", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 23, 2026", issueDate: "2026-04-23", adDeadline: "2026-04-18", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "May 7, 2026", issueDate: "2026-05-07", adDeadline: "2026-05-02", price: 1399 },
+              { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "May 21, 2026", issueDate: "2026-05-21", adDeadline: "2026-05-16", price: 1399 },
+            ]},
+            signature: { signerName: "Jane Smith", signerTitle: "Marketing Director", signedAt: new Date().toISOString() },
+            salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
+            pubs: pubs || [],
+            config: contractCfg,
           }) }} />
         </div>
       ) : (
