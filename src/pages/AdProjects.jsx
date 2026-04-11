@@ -70,14 +70,29 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   }, []);
 
   // ── Filtered list ──────────────────────────────────────
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff30d = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+
   const filtered = useMemo(() => {
     let list = projects;
-    if (tab === "Active") list = list.filter(p => !["signed_off", "placed"].includes(p.status));
-    else if (tab === "Completed") list = list.filter(p => ["signed_off", "placed"].includes(p.status));
+    if (tab === "Active") {
+      list = list.filter(p => {
+        if (["signed_off", "placed"].includes(p.status)) return false;
+        const iss = (issues || []).find(i => i.id === p.issue_id);
+        // Show if: issue within 30 days, OR overdue (past deadline and not complete), OR no issue linked
+        if (!iss) return true;
+        if (iss.date <= cutoff30d) return true;
+        // Past press but incomplete — flag these
+        if (iss.date < today && !["approved", "signed_off", "placed"].includes(p.status)) return true;
+        return false;
+      });
+    } else if (tab === "Completed") {
+      list = list.filter(p => ["signed_off", "placed"].includes(p.status));
+    }
     if (fPub !== "all") list = list.filter(p => p.publication_id === fPub);
     if (sr) { const q = sr.toLowerCase(); list = list.filter(p => cn(p.client_id).toLowerCase().includes(q)); }
     return list;
-  }, [projects, tab, fPub, sr, clients]);
+  }, [projects, tab, fPub, sr, clients, issues, today, cutoff30d]);
 
   // ── Create project ─────────────────────────────────────
   const createProject = async () => {
@@ -431,7 +446,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
 
   // ── LIST VIEW ──────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <PageHeader title="Ad Projects">
+    <PageHeader title="Design Studio">
       <SB value={sr} onChange={setSr} placeholder="Search clients..." />
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
       <Btn sm onClick={() => setCreateModal(true)}><Ic.plus size={13} /> New Project</Btn>
@@ -452,10 +467,10 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     /* ═══ STATS BAR ═══ */
     <><div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
       {[
-        { label: "Active Designs", value: filtered.filter(p => !["signed_off", "placed", "approved"].includes(p.status)).length, color: Z.ac },
-        { label: "Proofs Out", value: filtered.filter(p => p.status === "proof_sent").length, color: Z.pu },
-        { label: "Awaiting Client", value: filtered.filter(p => p.status === "proof_sent" || p.status === "revising").length, color: Z.wa },
-        { label: "Approved (7d)", value: projects.filter(p => p.status === "approved" && p.updated_at && Math.ceil((new Date() - new Date(p.updated_at)) / 86400000) <= 7).length, color: Z.go },
+        { label: "In Queue", value: filtered.filter(p => p.status === "brief" || p.status === "awaiting_art").length, color: Z.tm },
+        { label: "In Progress", value: filtered.filter(p => p.status === "designing").length, color: ACCENT.blue },
+        { label: "Proofs Out", value: filtered.filter(p => p.status === "proof_sent" || p.status === "revising").length, color: Z.wa },
+        { label: "Approved", value: filtered.filter(p => p.status === "approved").length, color: Z.go },
         { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["approved", "signed_off", "placed"].includes(p.status); }).length, color: Z.da },
       ].map(s => (
         <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -470,20 +485,27 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
       const activePubs = (pubs || []).filter(p => p.isActive !== false);
       const today = new Date().toISOString().slice(0, 10);
       return <div style={{ marginBottom: 14, padding: "12px 16px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
-        <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: COND }}>Deadline Heatmap</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Deadline Heatmap</span>
+          <span style={{ fontSize: 9, color: Z.td }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#DC2626", marginRight: 3 }}></span>≤3d
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#D97706", marginLeft: 8, marginRight: 3 }}></span>4-7d
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#16A34A", marginLeft: 8, marginRight: 3 }}></span>8+d
+          </span>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {activePubs.map(pub => {
-            const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+            const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today && i.date <= cutoff30d).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
             if (pubIssues.length === 0) return null;
             return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 140, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub.name}</span>
+              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub.name}</span>
               <div style={{ display: "flex", gap: 6 }}>
                 {pubIssues.map(iss => {
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
                   const count = filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
-                  const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#E24B4A" : adDl <= 7 ? "#EF9F27" : "#97C459";
+                  const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#DC2626" : adDl <= 7 ? "#D97706" : "#16A34A";
                   const isActive = heatmapFilter?.pubId === pub.id && heatmapFilter?.issueId === iss.id;
-                  return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: 22, height: 22, borderRadius: "50%", background: isActive ? dotColor : dotColor + (count > 0 ? "30" : "18"), border: `2px solid ${isActive ? dotColor : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: count > 0 ? dotColor : "transparent", transition: "all 0.15s" }}>{count > 0 ? count : ""}</div>;
+                  return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: 26, height: 26, borderRadius: "50%", background: count > 0 ? dotColor : Z.sa, border: `2px solid ${isActive ? Z.tx : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: count > 0 ? "#fff" : Z.td, transition: "all 0.15s" }}>{count > 0 ? count : "·"}</div>;
                 })}
               </div>
             </div>;
@@ -528,14 +550,17 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(p.client_id)}</div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {p.ad_size || "Ad"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
                   {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                {/* Overdue / incomplete-after-press flags */}
+                {iss && iss.date < today && !["approved", "signed_off", "placed"].includes(p.status) && <div style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "2px 6px", borderRadius: Ri, marginTop: 4, display: "inline-block" }}>INCOMPLETE — PAST PRESS</div>}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    {adDl < 99 && <span style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor }}>{adDl <= 0 ? "OVERDUE" : `${adDl}d`}</span>}
-                    <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCameraReady ? Z.wa : Z.ac, background: (isCameraReady ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCameraReady ? "Camera Ready" : "We Design"}</span>
+                    {adDl < 99 && adDl > 0 && <span style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor }}>{adDl}d</span>}
+                    {adDl <= 0 && !(iss && iss.date < today) && <span style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "1px 5px", borderRadius: Ri }}>OVERDUE</span>}
+                    <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCameraReady ? Z.wa : Z.ac, background: (isCameraReady ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCameraReady ? "CR" : "Design"}</span>
                   </div>
                   {isUnassigned
                     ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da }}>Unassigned</span>
