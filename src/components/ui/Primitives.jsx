@@ -2,6 +2,7 @@
 // Shared UI Primitives — MyDash Editorial Monochrome
 // R = 5px card radius, Ri = 3px internal radius, SP = spacing
 // ============================================================
+import { Component } from "react";
 import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, isDark as _isDark } from "../../lib/theme";
 import Ic from "./Icons";
 
@@ -231,7 +232,6 @@ export const GlassDivider = () => <div style={{ height: 1, background: _isDark()
 // ============================================================
 // ErrorBoundary — catches render errors in lazy-loaded pages
 // ============================================================
-import { Component } from "react";
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props);

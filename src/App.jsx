@@ -14,6 +14,7 @@ import {
   buildAllIssues, generateSampleSales, generateSampleProposals,
   INIT_NOTIFICATIONS,
 } from "./data/seed";
+import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
 // Eagerly loaded (always needed on boot)
 import Dashboard from "./pages/Dashboard";
@@ -48,8 +49,6 @@ const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
 const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
-
-import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 

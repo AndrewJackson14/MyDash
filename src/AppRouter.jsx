@@ -2,12 +2,10 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { DataProvider } from './hooks/useAppData';
 import App from './App';
+import { buildLocalData } from './data/local';
 
 // Lazy-load LoginPage (pulls in framer-motion — only needed before auth)
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-
-// Import local data generators for offline fallback
-import { buildLocalData } from './data/local';
 
 export default function AppRouter() {
   const { teamMember, loading, isOnline } = useAuth();
