@@ -74,19 +74,21 @@ export default function ProposalSign() {
     }).eq("id", sig.proposal_id);
 
     // 3. Auto-convert to contract + create sales orders
-    const { data: convResult } = await supabase.rpc("convert_proposal_to_contract", {
+    const { data: convResult, error: convError } = await supabase.rpc("convert_proposal_to_contract", {
       p_proposal_id: sig.proposal_id,
     });
+    if (convError) console.error("RPC error:", convError);
+    if (convResult?.error) console.warn("Conversion skipped:", convResult.error);
 
     // 4. Create a notification for the salesperson
     const snapshot = sig.proposal_snapshot || {};
     await supabase.from("notifications").insert({
-      title: `${signerName.trim()} signed "${snapshot.name || "Proposal"}" — contract created`,
+      title: `${signerName.trim()} signed "${snapshot.name || "Proposal"}"${convResult?.success ? " — contract created" : ""}`,
       type: "system",
       link: "/sales?tab=Closed",
     });
 
-    // 5. Send contract confirmation email
+    // 5. Send contract confirmation email via edge function (no JWT needed — function uses service role)
     try {
       const contractHtml = generateContractHtml({
         proposal: snapshot,
@@ -94,13 +96,15 @@ export default function ProposalSign() {
         salesperson: {},
         pubs: [],
       });
-      await supabase.functions.invoke("contract-email", {
-        body: {
+      await fetch(`${EDGE_FN_URL}/contract-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           signature_id: sig.id,
           html_body: contractHtml,
           subject: `Contract Confirmed — ${snapshot.name || snapshot.clientName || ""}`,
           to_email: sig.signer_email || "",
-        },
+        }),
       });
     } catch (emailErr) {
       console.error("Contract email error:", emailErr);

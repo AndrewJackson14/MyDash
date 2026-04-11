@@ -38,7 +38,17 @@ serve(async (req: Request) => {
       salespersonAuthId = sp?.auth_id;
     }
 
-    // Try to send via salesperson's Gmail, fall back to notification
+    // If no salesperson assigned, fall back to any admin with Gmail tokens
+    if (!salespersonAuthId) {
+      const { data: admins } = await admin.from("team_members")
+        .select("auth_id").not("auth_id", "is", null).limit(5);
+      for (const a of (admins || [])) {
+        const { data: t } = await admin.from("google_tokens").select("user_id").eq("user_id", a.auth_id).single();
+        if (t) { salespersonAuthId = a.auth_id; break; }
+      }
+    }
+
+    // Try to send via Gmail
     if (salespersonAuthId) {
       const { data: tokens } = await admin.from("google_tokens").select("*").eq("user_id", salespersonAuthId).single();
 
