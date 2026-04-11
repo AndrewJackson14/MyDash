@@ -156,7 +156,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
   };
 
   return <Modal open={open} onClose={onClose} title={member.name} width={640}>
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: 560 }}>
       {/* Header */}
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
         <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(member.name)}</div>
@@ -170,6 +170,9 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
       {/* Tabs */}
       <TabRow><TB tabs={["Details", "Workload", "Settings", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
 
+      {/* Scrollable tab content */}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+
       {/* Details tab — edit form + metrics + Google status */}
       {tab === "Details" && (<>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -179,9 +182,6 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <Inp label="Email" type="email" value={form?.email ?? member.email} onChange={e => setForm?.(f => ({ ...f, email: e.target.value }))} />
           <Inp label="Phone" value={form?.phone ?? (member.phone || "")} onChange={e => setForm?.(f => ({ ...f, phone: e.target.value }))} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-          <Btn sm onClick={() => { if (save) save(); }}>Save Changes</Btn>
         </div>
         {metrics.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 10 }}>
@@ -369,6 +369,12 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
           </div>;
         })}
       </>)}
+      </div>{/* end scrollable tab content */}
+
+      {/* Persistent Save footer */}
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 12, borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
+        <Btn onClick={() => { if (save) save(); }}>Save Changes</Btn>
+      </div>
     </div>
   </Modal>;
 };
