@@ -6,8 +6,7 @@ const PUB_COLORS = {
   default: "#111318",
 };
 
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+import { fmtCurrencyWhole as fmtCurrency, fmtDate } from "./formatters";
 
 // Default template config
 export const DEFAULT_PROPOSAL_CONFIG = {

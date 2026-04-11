@@ -34,8 +34,7 @@ const PRIORITIES = [
 ];
 const STATUS_LABELS = { open: "Open", in_progress: "In Progress", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const fmtTime = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+import { fmtDate, fmtTime } from "../lib/formatters";
 const fmtAgo = (d) => {
   if (!d) return "";
   const mins = Math.round((Date.now() - new Date(d).getTime()) / 60000);

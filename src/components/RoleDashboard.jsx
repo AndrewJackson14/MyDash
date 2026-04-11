@@ -7,12 +7,10 @@ import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, INV } from "../lib/t
 import { Ic, Btn, Pill, GlassCard, GlassStat, glass as glassStyle } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
+import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil, initials as ini } from "../lib/formatters";
+
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
-const daysUntil = (d) => d ? Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000) : 999;
-const ini = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
 
 const RoleDashboard = memo(({
   role, currentUser, pubs, stories, setStories, clients, sales, issues,

@@ -8,6 +8,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
+import DOMPurify from "dompurify";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
 import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill } from "../components/ui";
@@ -667,7 +668,7 @@ const Mail = () => {
               <div style={{ flex: 1, padding: "16px 20px", overflowY: "auto" }}>
                 <div
                   style={{ fontSize: FS.base, lineHeight: 1.6, color: Z.tx, wordBreak: "break-word" }}
-                  dangerouslySetInnerHTML={{ __html: getBody(selectedFull) }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(getBody(selectedFull)) }}
                 />
               </div>
             </>

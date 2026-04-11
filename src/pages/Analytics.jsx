@@ -3,7 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+import { fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 const fmtK = (n) => "$" + ((n || 0) / 1000).toFixed(1) + "K";
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);

@@ -21,8 +21,7 @@ const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"]
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "\u2014";
-const fmtTime = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const [tab, setTab] = useState("Active");

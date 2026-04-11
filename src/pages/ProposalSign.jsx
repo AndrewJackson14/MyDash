@@ -6,13 +6,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
+import DOMPurify from "dompurify";
 
 const C = {
   bg: "#F6F7F9", sf: "#FFFFFF", tx: "#0D0F14", tm: "#525E72", td: "#8994A7",
   bd: "#E2E6ED", ac: "#2563EB", go: "#16A34A", da: "#DC2626", wa: "#D97706",
 };
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+import { fmtCurrencyWhole as fmtCurrency, fmtDateLong as fmtDate } from "../lib/formatters";
 
 export default function ProposalSign() {
   const token = window.location.pathname.split("/sign/")[1];
@@ -153,7 +153,7 @@ export default function ProposalSign() {
         </div>
       ) : <>
         {/* Rendered proposal from template */}
-        <div dangerouslySetInnerHTML={{ __html: proposalHtml }} style={{ marginBottom: 32 }} />
+        <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(proposalHtml) }} style={{ marginBottom: 32 }} />
 
         {/* Signature section */}
         <div style={{ border: `2px solid ${C.bd}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>

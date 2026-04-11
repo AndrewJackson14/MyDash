@@ -8,7 +8,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
 import { isOnline } from "./lib/supabase";
 import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV } from "./lib/theme";
-import { Ic, ThemeToggle, BackBtn } from "./components/ui";
+import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
 import {
   INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
   buildAllIssues, generateSampleSales, generateSampleProposals,
@@ -451,6 +451,7 @@ export default function App() {
         </div>
 
         {/* All other pages — lazy-mounted on first visit, hidden when not active, code-split */}
+        <ErrorBoundary name="page">
         <Suspense fallback={<LazyFallback />}>
         {show("publications") && <div style={vis("publications")}><Publications pubs={pubs} setPubs={setPubs} issues={jIssues} setIssues={setIssues} sales={jSales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} /></div>}
@@ -479,6 +480,7 @@ export default function App() {
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
         </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
 

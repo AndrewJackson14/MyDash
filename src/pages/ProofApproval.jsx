@@ -15,7 +15,7 @@ const C = {
   sa: "#F1F3F6", pu: "#7C3AED",
 };
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+import { fmtDateLong as fmtDate } from "../lib/formatters";
 
 export default function ProofApproval() {
   const token = window.location.pathname.split("/approve/")[1];

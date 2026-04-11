@@ -4,6 +4,120 @@ import { Ic, Badge, Btn, Card, Stat, Modal, FilterBar, Pill, glass as glassStyle
 import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 import { supabase, isOnline } from "../lib/supabase";
 import RoleDashboard from "../components/RoleDashboard";
+import { fmtCurrencyWhole as fmtCurrency, daysUntil, initials as ini } from "../lib/formatters";
+
+/* ═══ MEMOIZED SUB-COMPONENTS ═══ */
+
+const RevenueCommandBar = memo(({ cards, glass }) => (
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+    {cards.map(c => (
+      <div key={c.label} onClick={c.onClick} style={{ ...glass, padding: "12px 16px", cursor: "pointer", borderBottom: `2px solid ${c.color}` }}>
+        <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{c.label}</div>
+        <div style={{ fontSize: 22, fontWeight: FW.black, color: c.color, fontFamily: DISPLAY, marginTop: 4 }}>{c.value}</div>
+        {c.sub && <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{c.sub}</div>}
+      </div>
+    ))}
+  </div>
+));
+
+const IssueCountdownList = memo(({ magIssues, pn, setIssueDetailId, onNavigate, glass }) => {
+  if (magIssues.length === 0) return null;
+  return <div style={{ ...glass, padding: "18px 22px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Magazine Countdown</span>
+      <Btn sm v="ghost" onClick={() => onNavigate?.("schedule")}>View Schedule</Btn>
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {magIssues.slice(0, 8).map(iss => {
+        const ringColor = iss.pct >= 80 ? Z.go : iss.pct >= 50 ? Z.wa : Z.da;
+        const daysColor = iss.daysOut <= 3 ? Z.da : iss.daysOut <= 7 ? Z.wa : Z.td;
+        const r = 14; const stroke = 3; const circ = 2 * Math.PI * r; const offset = circ - (iss.pct / 100) * circ;
+        return <div key={iss.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(iss.id); }} style={{ display: "grid", gridTemplateColumns: "40px 1fr 60px 60px 40px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
+          <div style={{ position: "relative", width: 34, height: 34 }}>
+            <svg width="34" height="34" style={{ transform: "rotate(-90deg)" }}>
+              <circle cx="17" cy="17" r={r} fill="none" stroke={Z.bd} strokeWidth={stroke} />
+              <circle cx="17" cy="17" r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.black, color: ringColor }}>{iss.pct}%</div>
+          </div>
+          <div>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+            <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads · {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
+          </div>
+          <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
+          <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</div>
+          <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
+        </div>;
+      })}
+    </div>
+  </div>;
+});
+
+const AdProjectAlerts = memo(({ adProjectAlerts, cn, pn, onNavigate }) => {
+  if (adProjectAlerts.length === 0) return null;
+  return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase", letterSpacing: 1 }}>Design Studio Alerts ({adProjectAlerts.length})</div>
+    {adProjectAlerts.slice(0, 6).map(a => (
+      <div key={a.id} onClick={() => onNavigate?.("design-studio")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+        <Ic.alert size={13} color={a.color} />
+        <span style={{ fontSize: FS.xs, fontWeight: FW.black, color: a.color, whiteSpace: "nowrap" }}>{a.flag}</span>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{cn(a.client_id)} · {pn(a.pubId)} {a.issueLabel} · {a.ad_size}</span>
+      </div>
+    ))}
+    {adProjectAlerts.length > 6 && <div style={{ fontSize: FS.xs, color: Z.td, paddingLeft: 14 }}>+{adProjectAlerts.length - 6} more</div>}
+  </div>;
+});
+
+const DeadlineAlerts = memo(({ deadlineAlerts, setIssueDetailId, onNavigate }) => {
+  if (deadlineAlerts.length === 0) return null;
+  return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    {deadlineAlerts.map(a => (
+      <div key={a.id} onClick={() => {
+        if (a.type === "ad" && setIssueDetailId) { const issId = a.id.replace("ad-", ""); setIssueDetailId(issId); }
+        else if (a.type === "ed") onNavigate?.("editorial");
+        else onNavigate?.("schedule");
+      }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
+        <Ic.clock size={14} color={a.color} />
+        <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
+      </div>
+    ))}
+  </div>;
+});
+
+const DoseStrip = memo(({ closedThisMonth, topSeller, teamEdited, allDeadlinesMet, fmtCurrency }) => {
+  const isDark = Z.bg === DARK.bg;
+  return <>
+    {closedThisMonth.count > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
+      <span style={{ fontSize: 12 }}>💰</span>
+      <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>{closedThisMonth.count} deals closed MTD · {fmtCurrency(closedThisMonth.total)}</span>
+    </div>}
+    {topSeller && topSeller.monthlyTotal > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.ac + "10", borderRadius: 20 }}>
+      <span style={{ fontSize: 12 }}>⭐</span>
+      <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac }}>{topSeller.sp.name?.split(" ")[0]}: {fmtCurrency(topSeller.monthlyTotal)} MTD</span>
+    </div>}
+    {teamEdited > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: ACCENT.blue + "10", borderRadius: 20 }}>
+      <span style={{ fontSize: 12 }}>📝</span>
+      <span style={{ fontSize: 11, fontWeight: FW.bold, color: ACCENT.blue }}>{teamEdited} stories edited this month</span>
+    </div>}
+    {allDeadlinesMet && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
+      <span style={{ fontSize: 12 }}>✨</span>
+      <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>All deadlines met</span>
+    </div>}
+  </>;
+});
+
+const MorningBriefing = memo(({ briefingText, copyBriefing, onClose, glass: glassObj }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <Btn sm v="secondary" onClick={copyBriefing}>Copy to Clipboard</Btn>
+      <Btn sm onClick={() => { copyBriefing(); onClose(); }}>Copy & Close</Btn>
+    </div>
+    <pre style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad, fontSize: FS.sm, color: Z.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "'Source Sans 3', monospace", maxHeight: 500, overflowY: "auto", margin: 0 }}>{briefingText}</pre>
+  </div>
+));
+
+/* ═══ END MEMOIZED SUB-COMPONENTS ═══ */
 
 const Dashboard = ({
   pubs, stories, setStories, clients, sales, issues, proposals, team,
@@ -31,8 +145,6 @@ const Dashboard = ({
   const _pubs = jurisdiction?.myPubs || pubs || [];
   const _stories = jurisdiction?.myStories || stories || [];
 
-  const daysUntil = (d) => d ? Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000) : 999;
-  const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   // ─── Ad Project alerts (overdue / incomplete past press) ───
   const [adProjectAlerts, setAdProjectAlerts] = useState([]);
@@ -68,7 +180,6 @@ const Dashboard = ({
   const [noteSending, setNoteSending] = useState(false);
   const [briefingModal, setBriefingModal] = useState(false);
   const [showOnTrack, setShowOnTrack] = useState(false);
-  const ini = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
   const openMemberPanel = (t) => {
     setSelMember(t);
     setTimeout(() => setPanelOpen(true), 10);
@@ -812,21 +923,13 @@ const Dashboard = ({
     </div>
 
     {/* ═══ REVENUE COMMAND BAR — 5 stat cards (Sec 3.2) ═══ */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-      {[
-        { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
-        { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: ACCENT.blue, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
-        { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
-        { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
-        { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
-      ].filter(c => showInFocus(c.tags)).map(c => (
-        <div key={c.label} onClick={c.onClick} style={{ ...glass, padding: "12px 16px", cursor: "pointer", borderBottom: `2px solid ${c.color}` }}>
-          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{c.label}</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: c.color, fontFamily: DISPLAY, marginTop: 4 }}>{c.value}</div>
-          {c.sub && <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{c.sub}</div>}
-        </div>
-      ))}
-    </div>
+    <RevenueCommandBar glass={glass} cards={[
+      { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
+      { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: ACCENT.blue, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
+      { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
+      { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
+      { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
+    ].filter(c => showInFocus(c.tags))} />
 
     </> : null}
 
@@ -970,27 +1073,15 @@ const Dashboard = ({
       {(() => {
         const closedThisMonth = _sales.filter(s => s.status === "Closed" && s.date?.startsWith(today.slice(0, 7)));
         const teamEdited = _stories.filter(s => s.status !== "Draft" && s.updatedAt?.startsWith(today.slice(0, 7))).length;
-        const issuesOnTime = _issues.filter(i => i.sentToPressAt && i.date >= today.slice(0, 7) + "-01").length;
         const allDeadlinesMet = deadlineAlerts.length === 0;
         const topSeller = salesToGoal.sort((a, b) => b.monthlyTotal - a.monthlyTotal)[0];
-        return <>
-          {closedThisMonth.length > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
-            <span style={{ fontSize: 12 }}>💰</span>
-            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>{closedThisMonth.length} deals closed MTD · {fmtCurrency(closedThisMonth.reduce((s, x) => s + (x.amount || 0), 0))}</span>
-          </div>}
-          {topSeller && topSeller.monthlyTotal > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.ac + "10", borderRadius: 20 }}>
-            <span style={{ fontSize: 12 }}>⭐</span>
-            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac }}>{topSeller.sp.name?.split(" ")[0]}: {fmtCurrency(topSeller.monthlyTotal)} MTD</span>
-          </div>}
-          {teamEdited > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: ACCENT.blue + "10", borderRadius: 20 }}>
-            <span style={{ fontSize: 12 }}>📝</span>
-            <span style={{ fontSize: 11, fontWeight: FW.bold, color: ACCENT.blue }}>{teamEdited} stories edited this month</span>
-          </div>}
-          {allDeadlinesMet && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: Z.go + "10", borderRadius: 20 }}>
-            <span style={{ fontSize: 12 }}>✨</span>
-            <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.go }}>All deadlines met</span>
-          </div>}
-        </>;
+        return <DoseStrip
+          closedThisMonth={{ count: closedThisMonth.length, total: closedThisMonth.reduce((s, x) => s + (x.amount || 0), 0) }}
+          topSeller={topSeller}
+          teamEdited={teamEdited}
+          allDeadlinesMet={allDeadlinesMet}
+          fmtCurrency={fmtCurrency}
+        />;
       })()}
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
@@ -998,32 +1089,10 @@ const Dashboard = ({
       {/* ════ LEFT COLUMN ════ */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {/* AD PROJECT ALERTS — overdue / incomplete past press */}
-        {adProjectAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase", letterSpacing: 1 }}>Design Studio Alerts ({adProjectAlerts.length})</div>
-          {adProjectAlerts.slice(0, 6).map(a => (
-            <div key={a.id} onClick={() => onNavigate?.("design-studio")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
-              <Ic.alert size={13} color={a.color} />
-              <span style={{ fontSize: FS.xs, fontWeight: FW.black, color: a.color, whiteSpace: "nowrap" }}>{a.flag}</span>
-              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{cn(a.client_id)} · {pn(a.pubId)} {a.issueLabel} · {a.ad_size}</span>
-            </div>
-          ))}
-          {adProjectAlerts.length > 6 && <div style={{ fontSize: FS.xs, color: Z.td, paddingLeft: 14 }}>+{adProjectAlerts.length - 6} more</div>}
-        </div>}
+        <AdProjectAlerts adProjectAlerts={adProjectAlerts} cn={cn} pn={pn} onNavigate={onNavigate} />
 
         {/* DEADLINE ALERTS — auto-hides when empty */}
-        {deadlineAlerts.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {deadlineAlerts.map(a => (
-            <div key={a.id} onClick={() => {
-              if (a.type === "ad" && setIssueDetailId) { const issId = a.id.replace("ad-", ""); setIssueDetailId(issId); }
-              else if (a.type === "ed") onNavigate?.("editorial");
-              else onNavigate?.("schedule");
-            }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: a.color + "12", borderLeft: `3px solid ${a.color}`, borderRadius: Ri, cursor: "pointer" }}>
-              <Ic.clock size={14} color={a.color} />
-              <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: a.color }}>{a.days <= 0 ? "TODAY" : a.days === 1 ? "TOMORROW" : `${a.days}d`}</span>
-              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.label}</span>
-            </div>
-          ))}
-        </div>}
+        <DeadlineAlerts deadlineAlerts={deadlineAlerts} setIssueDetailId={setIssueDetailId} onNavigate={onNavigate} />
 
         {/* MY DAY */}
         {showInFocus(["editorial", "sales", "admin"]) && <div style={glass}>
@@ -1050,35 +1119,8 @@ const Dashboard = ({
         {showInFocus(["editorial", "sales"]) && (() => {
           const d30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
           const magIssues = issueCountdown.filter(iss => { const pub = pubMap[iss.pubId]; return pub && pub.type !== "Newspaper" && iss.date <= d30; });
-          return magIssues.length > 0 ? <div style={{ ...glass, padding: "18px 22px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Magazine Countdown</span>
-            <Btn sm v="ghost" onClick={() => onNavigate?.("schedule")}>View Schedule</Btn>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {magIssues.slice(0, 8).map(iss => {
-              const ringColor = iss.pct >= 80 ? Z.go : iss.pct >= 50 ? Z.wa : Z.da;
-              const daysColor = iss.daysOut <= 3 ? Z.da : iss.daysOut <= 7 ? Z.wa : Z.td;
-              const r = 14; const stroke = 3; const circ = 2 * Math.PI * r; const offset = circ - (iss.pct / 100) * circ;
-              return <div key={iss.id} onClick={() => { if (setIssueDetailId) setIssueDetailId(iss.id); }} style={{ display: "grid", gridTemplateColumns: "40px 1fr 60px 60px 40px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
-                <div style={{ position: "relative", width: 34, height: 34 }}>
-                  <svg width="34" height="34" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="17" cy="17" r={r} fill="none" stroke={Z.bd} strokeWidth={stroke} />
-                    <circle cx="17" cy="17" r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
-                  </svg>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: FW.black, color: ringColor }}>{iss.pct}%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
-                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.adSold} ads · {fmtCurrency(iss.rev)} / {fmtCurrency(iss.goal)}</div>
-                </div>
-                <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor }}>{fmtCurrency(iss.rev)}</div>
-                <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</div>
-                <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: daysColor }}>{iss.daysOut}d</div>
-              </div>;
-            })}
-          </div>
-        </div> : null; })()}
+          return <IssueCountdownList magIssues={magIssues} pn={pn} setIssueDetailId={setIssueDetailId} onNavigate={onNavigate} glass={glass} />;
+        })()}
 
         {/* SUBSCRIPTION HEALTH */}
         {showInFocus(["admin", "financials"]) && <div style={glass}>
@@ -1324,13 +1366,7 @@ const Dashboard = ({
 
     {/* BRIEFING MODAL */}
     <Modal open={briefingModal} onClose={() => setBriefingModal(false)} title="Daily Briefing" width={640}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <Btn sm v="secondary" onClick={copyBriefing}>Copy to Clipboard</Btn>
-          <Btn sm onClick={() => { copyBriefing(); setBriefingModal(false); }}>Copy & Close</Btn>
-        </div>
-        <pre style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad, fontSize: FS.sm, color: Z.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", fontFamily: "'Source Sans 3', monospace", maxHeight: 500, overflowY: "auto", margin: 0 }}>{generateBriefing()}</pre>
-      </div>
+      <MorningBriefing briefingText={generateBriefing()} copyBriefing={copyBriefing} onClose={() => setBriefingModal(false)} />
     </Modal>
 
     {/* END-OF-DAY WRAP-UP */}

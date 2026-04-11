@@ -39,7 +39,7 @@ export default function LoginPage({ onSkip }) {
       >
         {/* Logo image — springs in big */}
         <motion.img
-          src="/logo.png"
+          src="/logo.webp"
           alt="13 Stars Media"
           style={{ width: 200, height: 200, objectFit: 'contain' }}
           initial={{ scale: 0.2, opacity: 0 }}

@@ -32,8 +32,9 @@ const COMPRESSION_PRESETS = {
   custom:     { label: "Custom",           dpi: 150, quality: 0.75, targetMB: 0,  desc: "Set your own DPI, quality, and target size" },
 };
 
+import { fmtDate } from "../lib/formatters";
+
 // ── Helpers ──────────────────────────────────────────────────
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 const fmtSize = (bytes) => {
   if (!bytes) return "—";
   if (bytes < 1024) return bytes + " B";

@@ -9,8 +9,7 @@ import { generateNewsletterHtml, getPubConfig } from "../utils/newsletterTemplat
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 const STATUS_BADGE = { draft: "Draft", approved: "Approved", sent: "Sent", failed: "Failed" };
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "\u2014";
-const fmtTime = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+import { fmtDate, fmtTime } from "../lib/formatters";
 
 // ── Sortable Story Card ──────────────────────────────────
 const SortableStory = ({ story, onUpdate, onRemove }) => {

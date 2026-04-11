@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { STORY_STATUSES } from "../constants";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 const PUB_CATEGORIES = {
   "pub-paso-robles-press": ["News", "Sports", "Business", "Opinion", "Events", "Obituaries", "Crime", "Community", "Education", "Best of North SLO County"],
@@ -33,9 +34,18 @@ const AI_ACTIONS = [
   { id: "lede", label: "Write a Lede", prompt: "Write a compelling opening paragraph (lede) for the following article. Make it hook the reader and summarize the key news:" },
 ];
 
-// AI writing assist — requires backend proxy edge function (not yet deployed)
-async function callClaude(_systemPrompt, _userText) {
-  return "AI assist requires a backend proxy. Deploy an ai-proxy edge function to enable this feature.";
+async function callClaude(systemPrompt, userText) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return "Not authenticated";
+    const res = await fetch(EDGE_FN_URL + "/ai-proxy", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+      body: JSON.stringify({ system: systemPrompt, prompt: userText }),
+    });
+    const data = await res.json();
+    return data.text || data.error || "No response";
+  } catch (e) { return "Error: " + e.message; }
 }
 
 const Editorial = ({ stories, setStories, pubs, notifications, setNotifications, jurisdiction, publishStory, unpublishStory }) => {

@@ -1,8 +1,7 @@
 // invoiceTemplate.js — Generates invoice email HTML
 // Sent on invoice creation + Sent to Press trigger + overdue reminders
 
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+import { fmtCurrency, fmtDateLong as fmtDate } from "./formatters";
 
 const NAVY = "#1A365D";
 const RED = "#C53030";

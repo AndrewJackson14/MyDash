@@ -1,8 +1,7 @@
 // renewalTemplate.js — Generates renewal notice email HTML
 // 3-touch drip: 30d (friendly), 14d (reminder), 7d (urgent)
 
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { fmtDateLong as fmtDate, fmtCurrency } from "./formatters";
 
 const NAVY = "#1A365D";
 const RED = "#C53030";

@@ -9,4 +9,5 @@ export {
   GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, GlassDivider,
   TabRow, TabPipe, DataTable,
   ListCard, ListDivider, ListGrid, glass,
+  ErrorBoundary,
 } from "./Primitives";

@@ -21,10 +21,9 @@ const STATUS_COLORS = {
 };
 const TYPE_ICONS = { design: "🎨", layout: "📐", printing: "🖨", mixed: "📦" };
 
+import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
+
 const today = new Date().toISOString().slice(0, 10);
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const daysUntil = (d) => d ? Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000) : null;
 
 const JobBadge = ({ status }) => {
   const c = STATUS_COLORS[status] || STATUS_COLORS.quoted;

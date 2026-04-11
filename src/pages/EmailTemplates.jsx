@@ -8,6 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
+import DOMPurify from "dompurify";
 import TextAlign from "@tiptap/extension-text-align";
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, glass } from "../components/ui";
@@ -552,7 +553,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
     <Modal open={previewModal} onClose={() => setPreviewModal(false)} title="Template Preview" width={720}>
       {form.category === "proposal" ? (
         <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
-          <div dangerouslySetInnerHTML={{ __html: generateProposalHtml({
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generateProposalHtml({
             config: proposalCfg,
             proposal: { date: new Date().toISOString().slice(0, 10), total: 5596, lines: [
               { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 9, 2026", issueDate: "2026-04-09", price: 1399 },
@@ -564,11 +565,11 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
             pubs: pubs || [],
             signLink: "#preview",
-          }) }} />
+          })) }} />
         </div>
       ) : form.category === "contract" ? (
         <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
-          <div dangerouslySetInnerHTML={{ __html: generateContractHtml({
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generateContractHtml({
             proposal: { date: new Date().toISOString().slice(0, 10), clientName: "Sample Winery", total: 5596, payTiming: "per_issue", lines: [
               { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 9, 2026", issueDate: "2026-04-09", adDeadline: "2026-04-04", price: 1399 },
               { pubId: "PRP", pubName: "Paso Robles Press", adSize: "Full Page", issueLabel: "Apr 23, 2026", issueDate: "2026-04-23", adDeadline: "2026-04-18", price: 1399 },
@@ -579,22 +580,22 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             salesperson: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 555-1234" },
             pubs: pubs || [],
             config: contractCfg,
-          }) }} />
+          })) }} />
         </div>
       ) : form.category === "invoice" ? (
         <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
-          <div dangerouslySetInnerHTML={{ __html: generateInvoiceHtml({
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generateInvoiceHtml({
             invoice: { invoiceNumber: "INV-01234", issueDate: new Date().toISOString().slice(0, 10), dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10), total: 2798, balanceDue: 2798, lines: [
               { description: "Paso Robles Press Apr 9, 2026 — Full Page", amount: 1399 },
               { description: "Paso Robles Press Apr 23, 2026 — Full Page", amount: 1399 },
             ]},
             clientName: "Sample Winery",
             config: invoiceCfg,
-          }) }} />
+          })) }} />
         </div>
       ) : form.category === "renewal" ? (
         <div style={{ background: "#fff", borderRadius: R, overflow: "auto", maxHeight: "70vh" }}>
-          <div dangerouslySetInnerHTML={{ __html: generateRenewalHtml({
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(generateRenewalHtml({
             subscriberName: "Jane Smith",
             publicationName: "Paso Robles Press",
             expiryDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
@@ -602,12 +603,12 @@ const EmailTemplates = ({ pubs, currentUser }) => {
             renewLink: "https://pasoroblespress.com" + (renewalCfg.subscriberPortalPath || "/subscribe"),
             touch: "first",
             config: renewalCfg,
-          }) }} />
+          })) }} />
         </div>
       ) : (
         <div style={{ padding: 20, background: "#fff", borderRadius: R, color: "#1a1a2e" }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
-          <div dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }} style={{ fontSize: 14, lineHeight: 1.6 }} />
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editor?.getHTML() || "") }} style={{ fontSize: 14, lineHeight: 1.6 }} />
         </div>
       )}
     </Modal>

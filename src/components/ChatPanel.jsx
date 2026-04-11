@@ -7,17 +7,7 @@ import { Z, FS, FW, Ri, R, COND } from "../lib/theme";
 import { Ic } from "./ui";
 import { supabase } from "../lib/supabase";
 
-const fmtTime = (d) => {
-  if (!d) return "";
-  const dt = new Date(d);
-  const now = new Date();
-  const diff = now - dt;
-  if (diff < 60000) return "now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
-  if (diff < 86400000 && dt.getDate() === now.getDate()) return dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  if (diff < 172800000) return "Yesterday " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-};
+import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
 const ChatPanel = memo(({ threadId, currentUser, height = 400, placeholder = "Type a message...", onNewMessage }) => {
   const [messages, setMessages] = useState([]);

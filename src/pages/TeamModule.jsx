@@ -16,8 +16,7 @@ const DEPARTMENTS = [
 const getDept = (role) => DEPARTMENTS.find(d => d.roles.includes(role))?.label || "Other";
 const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
 
-const ini = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 
 // ── Permission modules ───────────────────────────────────────
 // Matches nav IDs exactly — each item independently toggleable
@@ -446,7 +445,6 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
   const byDept = {};
   filtered.forEach(t => { const dept = getDept(t.role); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
 
-  const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const getMetrics = (t) => {
     const role = t.role;
     const myClientIds = new Set((clients || []).filter(c => c.repId === t.id).map(c => c.id));

@@ -227,3 +227,29 @@ export const SectionTitle = ({ children }) => <div style={{ fontSize: FS.lg, fon
 
 // Glass divider — translucent line inside glass cards
 export const GlassDivider = () => <div style={{ height: 1, background: _isDark() ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />;
+
+// ============================================================
+// ErrorBoundary — catches render errors in lazy-loaded pages
+// ============================================================
+import { Component } from "react";
+export class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 60, gap: 16, background: Z.bg, borderRadius: R, minHeight: 200 }}>
+        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.da, fontFamily: COND }}>Something went wrong</div>
+        <div style={{ fontSize: FS.base, color: Z.tx, fontFamily: COND, textAlign: "center", maxWidth: 420, opacity: 0.7 }}>
+          {this.props.name ? `The ${this.props.name} module failed to load.` : "A module failed to load."}
+        </div>
+        <button onClick={() => window.location.reload()} style={{ marginTop: 8, padding: "8px 20px", borderRadius: R, border: "none", background: Z.ac, color: "#fff", fontSize: FS.base, fontWeight: FW.bold, fontFamily: COND, cursor: "pointer" }}>Try Again</button>
+      </div>
+    );
+  }
+}

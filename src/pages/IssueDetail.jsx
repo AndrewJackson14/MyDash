@@ -4,9 +4,7 @@
 // ============================================================
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Badge, GlassCard, glass } from "../components/ui";
-
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 
 const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, onNavigate }) => {
   const issue = issues.find(i => i.id === issueId);
@@ -15,7 +13,6 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
   const pub = pubs.find(p => p.id === issue.pubId);
   const cn = id => clients.find(c => c.id === id)?.name || "—";
   const today = new Date().toISOString().slice(0, 10);
-  const daysUntil = (d) => d ? Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000) : null;
   const isDark = Z.bg === DARK.bg;
 
   // ─── Data ─────────────────────────────────────────────

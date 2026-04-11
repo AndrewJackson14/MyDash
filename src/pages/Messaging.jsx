@@ -17,16 +17,7 @@ const THREAD_TYPES = {
   client: { label: "Client", color: Z.ac },
 };
 
-const fmtTime = (d) => {
-  if (!d) return "";
-  const dt = new Date(d);
-  const now = new Date();
-  const diff = now - dt;
-  if (diff < 60000) return "now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
-  if (diff < 86400000 && dt.getDate() === now.getDate()) return dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-};
+import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
 const Messaging = memo(({ team, currentUser }) => {
   const [threads, setThreads] = useState([]);

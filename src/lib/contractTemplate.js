@@ -2,8 +2,7 @@
 // Sent automatically when client signs proposal via ProposalSign page
 // Same editorial design as proposal template (navy bar, Georgia headings)
 
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+import { fmtCurrencyWhole as fmtCurrency, fmtDateLong as fmtDate } from "./formatters";
 
 const NAVY = "#1A365D";
 const RED = "#C53030";

@@ -22,9 +22,9 @@ const STATUS_COLORS = {
   billed: { bg: Z.sa, text: Z.td },
 };
 
+import { fmtDate, fmtCurrency } from "../lib/formatters";
+
 const today = new Date().toISOString().slice(0, 10);
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const NoticeBadge = ({ status }) => {
   const c = STATUS_COLORS[status] || STATUS_COLORS.received;

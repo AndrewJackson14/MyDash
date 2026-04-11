@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, GlassCard, GlassStat, SolidTabs, glass } from "../../components/ui";
 
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 
 const ENTRY_STATUSES = [
   { value: "queued", label: "Queued", color: Z.td },

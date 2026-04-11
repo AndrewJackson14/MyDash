@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { generateRenewalHtml, getRenewalSubject } from "../lib/renewalTemplate";
 import { sendGmailEmail } from "../lib/gmail";
+import { fmtDate, fmtCurrency } from "../lib/formatters";
 
 // ─── Constants ──────────────────────────────────────────────
 const SUB_TYPES = [{ value: "print", label: "Print" }, { value: "digital", label: "Digital" }];
@@ -12,8 +13,6 @@ const LOC_TYPES = ["newsstand", "coffee_shop", "hotel", "business_center", "rest
 const ROUTE_FREQS = [{ value: "weekly", label: "Weekly" }, { value: "bi_weekly", label: "Bi-Weekly" }, { value: "monthly", label: "Monthly" }, { value: "per_issue", label: "Per Issue" }];
 
 const today = new Date().toISOString().slice(0, 10);
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const StatusBadge = ({ status, map }) => {
   const c = (map || SUB_STATUS_COLORS)[status] || { bg: Z.sa, text: Z.tm };

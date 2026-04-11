@@ -31,10 +31,9 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
+
 const today = new Date().toISOString().slice(0, 10);
-const fmtCurrency = (n) => "$" + (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
-const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 
 const InvBadge = ({ status }) => {
   const c = INV_COLORS[status] || INV_COLORS.draft;
