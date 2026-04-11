@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, memo } from "react";
-import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
+import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
@@ -480,7 +480,7 @@ const SalesCRM = (props) => {
       {tab === "Proposals" && <Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions", "Inquiries"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && <><TabPipe /><TB tabs={["My Pipeline", "All Pipeline"]} active={myPipeline ? "My Pipeline" : "All Pipeline"} onChange={v => setMyPipeline(v === "My Pipeline")} /><TabPipe /><TB tabs={["My Actions", "Full Pipeline"]} active={pipeView === "actions" ? "My Actions" : "Full Pipeline"} onChange={v => setPipeView(v === "My Actions" ? "actions" : "all")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"7days":"Past 7 Days","30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}{tab === "Commissions" && <><TabPipe /><TB tabs={["Overview", "Rate Tables", "Goals", "Assignments"]} active={commTab} onChange={setCommTab} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"7days":"Past 7 Days","30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -505,14 +505,36 @@ const SalesCRM = (props) => {
         if (!goalRows.length) return null;
         return <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           {goalRows.map(g => <div key={g.pub.id} style={{ flex: "1 1 120px", padding: "8px 12px", background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", borderRadius: R, border: `1px solid ${Z.bd}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, marginBottom: 4 }}><span>{g.pub.name}</span><span style={{ color: g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da }}>{g.pct}%</span></div>
-            <div style={{ height: 4, background: Z.sa, borderRadius: Ri, marginBottom: 3 }}><div style={{ height: "100%", borderRadius: Ri, width: `${g.pct}%`, background: g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da, transition: "width 0.3s" }} /></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, marginBottom: 4 }}><span>{g.pub.name.replace(/^The /, "").split(" ").slice(0, 2).join(" ")}</span><span style={{ color: g.pct > 100 ? ACCENT.blue : g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da }}>{g.pct}%</span></div>
+            <div style={{ height: 4, background: Z.sa, borderRadius: Ri, marginBottom: 3 }}><div style={{ height: "100%", borderRadius: Ri, width: `${Math.min(g.pct, 100)}%`, background: g.pct > 100 ? ACCENT.blue : g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da, transition: "width 0.3s" }} /></div>
             <div style={{ fontSize: FS.micro, color: Z.td }}>${Math.round(g.myRev / 1000)}K / ${Math.round(g.myGoal / 1000)}K goal</div>
           </div>)}
         </div>;
       })()}
+      {/* Inquiries + Renewals inline alerts */}
+      {(() => {
+        const newInqs = (adInquiries || []).filter(i => i.status === "new");
+        const urgentRens = renewalClients.filter(c => c.contractEndDate && c.contractEndDate <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+        if (newInqs.length === 0 && urgentRens.length === 0) return null;
+        return <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {newInqs.length > 0 && <div onClick={() => { if (loadInquiries && !inquiriesLoaded) loadInquiries(); setTab("Pipeline"); }} style={{ flex: 1, padding: "8px 14px", background: Z.da + "10", borderLeft: `3px solid ${Z.da}`, borderRadius: Ri, cursor: "pointer" }}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>{newInqs.length} new inquir{newInqs.length > 1 ? "ies" : "y"}</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>Hot leads — respond now</span>
+          </div>}
+          {urgentRens.length > 0 && <div style={{ flex: 1, padding: "8px 14px", background: Z.wa + "10", borderLeft: `3px solid ${Z.wa}`, borderRadius: Ri }}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa }}>{urgentRens.length} renewal{urgentRens.length > 1 ? "s" : ""} expiring soon</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{urgentRens.slice(0, 3).map(c => c.name).join(", ")}</span>
+          </div>}
+        </div>;
+      })()}
+
+      {activeSales.length === 0 ? <div style={{ padding: "40px 20px", textAlign: "center", background: Z.sf, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+        <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, marginBottom: 8 }}>Pipeline is clear</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 16 }}>Time to prospect — find your next deal.</div>
+        <Btn onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>
+      </div> :
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
-        {PIPELINE.map(stage => { const ss = (pipeView === "actions" ? actionSales : activeSales).filter(s => {
+        {PIPELINE.map(stage => { const ss = activeSales.filter(s => {
           if (stage === "Closed") return s.status === "Closed" && s.date >= sevenDaysAgo;
           if (stage === "Follow-up") return s.status === "Follow-up" || (s.status === "Closed" && s.date < sevenDaysAgo);
           return s.status === stage;
@@ -543,14 +565,22 @@ const SalesCRM = (props) => {
               </div>)}
             </div>
           </div>; })}
-      </div>
+      </div>}
       {/* TODAY'S ACTIONS + ACTIVITY */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <GlassCard><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><h4 style={{ margin: 0, fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>My Actions</h4><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: todaysActions.length > 0 ? Z.da : Z.su }}>{todaysActions.length}</span></div>{todaysActions.length === 0 ? <div style={{ padding: 16, textAlign: "center", color: Z.su, fontSize: FS.base }}>All caught up!</div> : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 240, overflowY: "auto" }}>{todaysActions.slice(0, 10).map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: Z.bg, borderRadius: Ri }}><div style={{ flex: 1 }}><div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</div><div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.sm, color: Z.tx }}><span>{actIcon(s)}</span><span style={{ fontWeight: FW.semi }}>{actLabel(s)}</span>{s.nextActionDate < today && <span style={{ color: Z.da, fontWeight: FW.heavy }}>ACTION NEEDED</span>}</div></div><button onClick={() => handleAct(s.id)} style={{ padding: "6px 12px", borderRadius: Ri, border: `1px solid ${(actInfo(s.nextAction)?.color || Z.ac)}40`, background: `${actInfo(s.nextAction)?.color || Z.ac}10`, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.heavy, color: actInfo(s.nextAction)?.color || Z.ac }}>{actVerb(s)}</button></div>)}</div>}</GlassCard>
-        <GlassCard><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><h4 style={{ margin: 0, fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>My Activity</h4>
-          <div style={{ display: "flex", gap: 3 }}>{[["all","All"],["pipeline","Pipeline"],["proposal","Proposals"],["opp","Opps"],["comm","Comms"]].map(([k,l]) => <button key={k} onClick={() => setActFilter(k)} style={{ padding: "3px 6px", borderRadius: Ri, border: "none", background: actFilter === k ? Z.sa : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: actFilter === k ? Z.tx : Z.td }}>{l}</button>)}</div></div>{(() => { const fl = actFilter === "all" ? activityLog : activityLog.filter(a => a.type === actFilter); const gr = {}; fl.forEach(a => { const k = a.clientName || "?"; if (!gr[k]) gr[k] = { clientId: a.clientId, clientName: k, entries: [] }; gr[k].entries.push(a); }); return <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 240, overflowY: "auto" }}>{Object.values(gr).slice(0, 8).map(g => { const lt = g.entries[0]; const io = actExpanded === g.clientName; return <div key={g.clientName}>
-          <div onClick={() => setActExpanded(io ? null : g.clientName)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: Ri, cursor: "pointer", background: io ? Z.sa : "transparent" }}><div style={{ width: 6, height: 6, borderRadius: Ri, background: actColors[lt.type] || Z.tm, flexShrink: 0 }} />
-          <div style={{ flex: 1 }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{g.clientName}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{io ? "▾" : "▸"}</span></div><div style={{ fontSize: FS.sm, color: actColors[lt.type], fontWeight: FW.semi }}>{lt.text}</div></div></div>{io && <div style={{ marginLeft: 18, borderLeft: `2px solid ${Z.bd}`, paddingLeft: 10, marginBottom: 4 }}>{g.entries.slice(0, 5).map(a => <div key={a.id} onClick={e => { e.stopPropagation(); if (a.type === "proposal") navTo("Proposals"); else if (a.clientId) navTo("Clients", a.clientId); }} style={{ display: "flex", gap: 5, padding: "3px 5px", cursor: "pointer", borderRadius: Ri }} onMouseEnter={e => e.currentTarget.style.background = Z.bg} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><span style={{ fontSize: FS.sm, color: Z.tx, flex: 1 }}>{a.text}</span><span style={{ fontSize: FS.sm, color: Z.td }}>{a.time}</span></div>)}</div>}</div>; })}</div>; })()}</GlassCard>
+        <GlassCard>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 6 }}>Recent Activity</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {activityLog.slice(0, 4).map(a => (
+              <div key={a.id} onClick={() => { if (a.clientId) navTo("Clients", a.clientId); }} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15`, cursor: a.clientId ? "pointer" : "default" }}>
+                <div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{a.clientName}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>{a.text}</div></div>
+                <span style={{ fontSize: FS.xs, color: Z.td, flexShrink: 0 }}>{a.time}</span>
+              </div>
+            ))}
+            {activityLog.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No recent activity</div>}
+          </div>
+        </GlassCard>
       </div>
     </>}
 
