@@ -704,23 +704,26 @@ export function DataProvider({ children, localData }) {
 
   const insertProposal = useCallback(async (proposal) => {
     if (isOnline()) {
-      const { data } = await supabase.from('proposals').insert({
+      const { data, error } = await supabase.from('proposals').insert({
         client_id: proposal.clientId, name: proposal.name, term: proposal.term,
         term_months: proposal.termMonths, total: proposal.total, pay_plan: proposal.payPlan,
         monthly: proposal.monthly, status: proposal.status || 'Draft', date: proposal.date,
         renewal_date: proposal.renewalDate || null, sent_to: proposal.sentTo || [],
         assigned_to: proposal.assignedTo || null, discount_pct: proposal.discountPct || 0,
-        sent_at: proposal.sentAt || null,
+        sent_at: proposal.sentAt || null, art_source: proposal.artSource || null,
       }).select().single();
+      if (error) { console.error("insertProposal error:", error); throw new Error(error.message); }
       if (data && proposal.lines?.length) {
-        await supabase.from('proposal_lines').insert(proposal.lines.map((l, i) => ({
+        const { error: lineErr } = await supabase.from('proposal_lines').insert(proposal.lines.map((l, i) => ({
           proposal_id: data.id, publication_id: l.pubId, pub_name: l.pubName,
           ad_size: l.adSize, dims: l.dims || '', ad_width: l.adW || 0, ad_height: l.adH || 0,
           issue_id: l.issueId, issue_label: l.issueLabel, issue_date: l.issueDate || null,
           price: l.price, sort_order: i, notes: l.notes || null,
         })));
+        if (lineErr) console.error("insertProposal lines error:", lineErr);
         const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]); return np;
       }
+      if (data) { const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]); return np; }
     }
     const np = { ...proposal, id: 'prop' + Date.now() }; setProposals(pr => [...pr, np]); return np;
   }, []);
