@@ -30,12 +30,13 @@ export function AuthProvider({ children }) {
     // Listen for auth changes FIRST — this catches OAuth redirects
     // and token refreshes before getSession resolves
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth event:', event, session?.user?.email);
         setSession(session);
         if (session?.user) {
           setUser(session.user);
-          await fetchTeamMember(session.user.id);
+          // Don't await — let team member load in background while app renders
+          fetchTeamMember(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setTeamMember(null);

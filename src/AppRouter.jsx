@@ -8,14 +8,14 @@ import { buildLocalData } from './data/local';
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 export default function AppRouter() {
-  const { teamMember, loading, isOnline } = useAuth();
+  const { user, teamMember, loading, isOnline } = useAuth();
   const [splashDone, setSplashDone] = useState(false);
 
   // Auto-skip splash: offline after 3.8s animation, online immediately on auth
   useEffect(() => {
     if (!loading && !splashDone) {
-      if (teamMember) {
-        // Authenticated — go straight to app
+      if (user || teamMember) {
+        // Authenticated — go straight to app (teamMember may still be loading)
         setSplashDone(true);
         return;
       }
@@ -25,10 +25,10 @@ export default function AppRouter() {
         return () => clearTimeout(timer);
       }
     }
-  }, [loading, teamMember, isOnline, splashDone]);
+  }, [loading, user, teamMember, isOnline, splashDone]);
 
   // Show app after auth resolved AND user is authenticated/offline
-  if (splashDone && !loading && (teamMember || !isOnline)) {
+  if (splashDone && !loading && (user || teamMember || !isOnline)) {
     return (
       <DataProvider localData={buildLocalData()}>
         <App />
@@ -45,6 +45,14 @@ export default function AppRouter() {
     </div>;
   }
 
-  // Auth checked, no user — show LoginPage
+  // Auth checked, no user — show LoginPage (unless user exists but teamMember still loading)
+  if (user) {
+    return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#08090D" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 36, height: 36, borderRadius: 4, background: "#E8ECF2", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 17, color: "#08090D" }}>13</div>
+        <div style={{ marginTop: 12, color: "#525E72", fontSize: 12 }}>Loading your workspace...</div>
+      </div>
+    </div>;
+  }
   return <Suspense fallback={null}><LoginPage onSkip={() => setSplashDone(true)} /></Suspense>;
 }
