@@ -138,6 +138,18 @@ export default function ProposalSign() {
             Our team will follow up with design and scheduling details.
           </div>
           {sig.signed_at && <div style={{ marginTop: 16, fontSize: 12, color: C.td }}>Signed on {fmtDate(sig.signed_at)} by {sig.signer_name}</div>}
+          <button onClick={() => {
+            const contractHtml = generateContractHtml({
+              proposal: snapshot || {}, signature: { signerName: sig.signer_name, signerTitle: sig.signer_title, signedAt: sig.signed_at },
+              salesperson: {}, pubs: [], config: templateConfig,
+            });
+            const w = window.open("", "_blank");
+            w.document.write(contractHtml);
+            w.document.close();
+            setTimeout(() => w.print(), 500);
+          }} style={{ marginTop: 20, padding: "10px 24px", border: `1px solid ${C.bd}`, borderRadius: 6, background: C.sf, cursor: "pointer", fontSize: 13, fontWeight: 700, color: C.tx, fontFamily: "inherit" }}>
+            Download Contract PDF
+          </button>
         </div>
       ) : <>
         {/* Rendered proposal from template */}
