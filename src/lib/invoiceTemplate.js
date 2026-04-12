@@ -38,7 +38,7 @@ export function generateInvoiceHtml({ invoice, clientName, clientCode = "", past
   const isOverdue = reminderLevel !== null;
   const accentColor = isOverdue ? RED : NAVY;
 
-  const portalLink = portalUrl || (clientCode ? `https://mydash.media/portal/${clientCode}` : "");
+  const portalLink = portalUrl || "https://mydash.media/portal";
   const payLink = payUrl || (invoice?.invoiceNumber ? `https://mydash.media/pay/${invoice.invoiceNumber}` : "");
 
   const reminderText = {
