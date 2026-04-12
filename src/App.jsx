@@ -425,8 +425,8 @@ export default function App() {
             <Ic.clock size={18} />
             {unreadCount > 0 && <span style={{ position: "absolute", top: -2, right: -4, background: Z.da, color: INV.light, fontSize: 9, fontWeight: 900, borderRadius: 3, padding: "1px 4px" }}>{unreadCount}</span>}
           </button>
-          {showNotifs && <div onClick={() => setShowNotifs(false)} style={{ position: "fixed", inset: 0, zIndex: ZI.top }} />}
-          {showNotifs && <div style={{ position: "absolute", right: 0, top: 34, width: 320, maxHeight: 400, overflowY: "auto", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 3, zIndex: ZI.top + 1, boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+          {showNotifs && <div onClick={() => setShowNotifs(false)} style={{ position: "fixed", inset: 0, zIndex: 9998 }} />}
+          {showNotifs && <div style={{ position: "fixed", right: 20, top: 44, width: 320, maxHeight: 400, overflowY: "auto", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 6, zIndex: 9999, boxShadow: "0 12px 40px rgba(0,0,0,0.35)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${Z.bd}` }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: Z.tx }}>My Alerts</span>
               {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: Z.tx, textDecoration: "underline", textUnderlineOffset: 3 }}>Mark all read</button>}
