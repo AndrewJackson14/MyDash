@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
 import { STORY_STATUSES } from "../constants";
+import { supabase } from "../lib/supabase";
 import StoryEditor from "./StoryEditor";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -241,6 +242,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const updateStory = (id, updates) => {
     setStories(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     if (selected?.id === id) setSelected(s => ({ ...s, ...updates }));
+    // Auto-save to DB (fire-and-forget)
+    if (!id) return;
+    const dbFields = {};
+    if (updates.title !== undefined) dbFields.title = updates.title;
+    if (updates.author !== undefined) dbFields.author = updates.author;
+    if (updates.category !== undefined) dbFields.category = updates.category;
+    if (updates.status !== undefined) dbFields.status = updates.status;
+    if (updates.page !== undefined) dbFields.page = updates.page;
+    if (updates.page_number !== undefined) dbFields.page = updates.page_number;
+    if (updates.web_status !== undefined) dbFields.web_status = updates.web_status;
+    if (updates.published_at !== undefined) dbFields.published_at = updates.published_at;
+    if (Object.keys(dbFields).length === 0) return;
+
+    if (id.startsWith("story-")) {
+      // New story — need to insert. Get the full story from local state.
+      const full = storiesRaw.find(s => s.id === id) || {};
+      supabase.from("stories").insert({
+        title: full.title || updates.title || "",
+        author: full.author || "",
+        status: full.status || "Draft",
+        category: full.category || "News",
+        publication: full.publication_id || full.publication || null,
+        issue_id: full.print_issue_id || full.issue_id || full.issueId || null,
+        page: full.page || full.page_number || null,
+        ...dbFields,
+      }).select("id").single().then(({ data }) => {
+        if (data?.id) {
+          // Replace temp ID with real DB ID in local state
+          setStories(prev => prev.map(s => s.id === id ? { ...s, id: data.id } : s));
+        }
+      }).catch(() => {});
+    } else {
+      dbFields.updated_at = new Date().toISOString();
+      supabase.from("stories").update(dbFields).eq("id", id).then(() => {}).catch(() => {});
+    }
   };
 
   const publishToWeb = (story) => {
