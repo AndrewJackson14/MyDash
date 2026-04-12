@@ -80,6 +80,21 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     inp.click();
   };
 
+  // Download via proxy (cross-origin CDN URLs don't support download attribute)
+  const downloadAsset = async (asset) => {
+    try {
+      const res = await fetch(PROXY_URL, {
+        headers: { "x-action": "get", "x-path": `${path}/${asset.name}` },
+      });
+      if (!res.ok) { window.open(asset.url, "_blank"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = asset.name; a.click();
+      URL.revokeObjectURL(url);
+    } catch { window.open(asset.url, "_blank"); }
+  };
+
   if (loading) return <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>Loading assets...</div>;
 
   return <div>
@@ -91,13 +106,13 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     {assets.length === 0 ? <div style={{ padding: compact ? 8 : 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No assets yet</div>
     : <div style={{ display: "grid", gridTemplateColumns: compact ? "repeat(auto-fill, minmax(60px, 1fr))" : "repeat(auto-fill, minmax(100px, 1fr))", gap: 6 }}>
       {assets.map(a => (
-        <a key={a.name} href={a.url} target="_blank" rel="noopener noreferrer" download style={{ textDecoration: "none" }}>
-          <div style={{ background: Z.bg, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s", cursor: "pointer" }}
+        <div key={a.name} onClick={() => downloadAsset(a)} style={{ textDecoration: "none", cursor: "pointer" }}>
+          <div style={{ background: Z.bg, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }}
             onMouseEnter={e => e.currentTarget.style.borderColor = Z.ac}
             onMouseLeave={e => e.currentTarget.style.borderColor = Z.bd}
           >
             {isImage(a.name) ? (
-              <img src={a.url} alt={a.name} style={{ width: "100%", height: compact ? 50 : 80, objectFit: "cover", display: "block" }} />
+              <img src={a.url} alt={a.name} loading="lazy" style={{ width: "100%", height: compact ? 50 : 80, objectFit: "cover", display: "block" }} />
             ) : (
               <div style={{ width: "100%", height: compact ? 50 : 80, display: "flex", alignItems: "center", justifyContent: "center", background: Z.sa }}>
                 <span style={{ fontSize: compact ? 16 : 24, color: Z.td }}>{isPdf(a.name) ? "PDF" : "FILE"}</span>
@@ -108,7 +123,7 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
               <div style={{ fontSize: 9, color: Z.td }}>{fmtSize(a.size)}</div>
             </div>}
           </div>
-        </a>
+        </div>
       ))}
     </div>}
   </div>;

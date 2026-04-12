@@ -195,6 +195,12 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     inp.click();
   };
 
+  // ── Inline field edit (brief fields) ────────────────────
+  const saveBriefField = async (projectId, field, value) => {
+    await supabase.from("ad_projects").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", projectId);
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, [field]: value } : p));
+  };
+
   // ── Sign off ───────────────────────────────────────────
   const signOff = async (projectId, role) => {
     const updates = role === "designer"
@@ -296,37 +302,28 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                   <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(viewProject.publication_id)}</div></div>
                 </div>
 
-                {/* Key Message */}
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Key Message / Headline</div>
-                  {viewProject.brief_headline ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_headline}</div>
-                    : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
-                </div>
+                {/* Editable brief fields — click to edit, save on blur */}
+                {[
+                  ["brief_headline", "Key Message / Headline", false],
+                  ["brief_style", "Style Direction", true],
+                ].map(([field, label, tall]) => <div key={field} style={tall ? { flex: 1 } : {}}>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+                  <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={tall ? 4 : 2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }} />
+                </div>)}
 
-                {/* Style Direction — full width, generous room */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Style Direction</div>
-                  {viewProject.brief_style ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "10px 12px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap", minHeight: 80, lineHeight: 1.6 }}>{viewProject.brief_style}</div>
-                    : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "10px 12px" }}>Not provided yet</div>}
-                </div>
-
-                {/* Colors + Special Instructions side by side */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Colors to Use / Avoid</div>
-                    {viewProject.brief_colors ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_colors}</div>
-                      : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Special Instructions</div>
-                    {viewProject.brief_instructions ? <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.brief_instructions}</div>
-                      : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "8px 10px" }}>Not provided yet</div>}
-                  </div>
+                  {[
+                    ["brief_colors", "Colors to Use / Avoid"],
+                    ["brief_instructions", "Special Instructions"],
+                  ].map(([field, label]) => <div key={field}>
+                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+                    <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
+                  </div>)}
                 </div>
 
                 {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div>
                   <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
-                  <div style={{ fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, whiteSpace: "pre-wrap" }}>{viewProject.design_notes}</div>
+                  <textarea defaultValue={viewProject.design_notes} onBlur={e => { if (e.target.value !== viewProject.design_notes) saveBriefField(viewProject.id, "design_notes", e.target.value); }} rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
                 </div>}
               </div>
 
