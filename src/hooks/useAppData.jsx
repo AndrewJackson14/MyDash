@@ -758,52 +758,18 @@ export function DataProvider({ children, localData }) {
       contractId: s.contract_id || null,
     })));
 
-    // Auto-create ad_projects for each unique pub+adSize in the proposal
-    const proposal = proposals.find(p => p.id === proposalId);
-    if (proposal?.lines?.length) {
-      const seen = new Set();
-      const uniqueAds = proposal.lines.filter(l => {
-        const key = `${l.pubId || l.publication}|${l.adSize}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      const artSource = proposal.artSource || proposal.art_source || 'we_design';
-      let adProjectsCreated = 0;
-
-      for (const ad of uniqueAds) {
-        // Create message thread
-        const clientName = clients.find(c => c.id === proposal.clientId)?.name || '';
-        const pubName = pubs.find(p => p.id === (ad.pubId || ad.publication))?.name || '';
-        const { data: thread } = await supabase.from('message_threads').insert({
-          type: 'ad_project', title: `Ad: ${clientName} — ${pubName} ${ad.adSize || ''}`,
-          participants: [proposal.assignedTo || null].filter(Boolean),
-        }).select('id').single();
-
-        // Create ad project
-        await supabase.from('ad_projects').insert({
-          client_id: proposal.clientId,
-          publication_id: ad.pubId || ad.publication,
-          ad_size: ad.adSize,
-          art_source: artSource,
-          salesperson_id: proposal.assignedTo || null,
-          source_contract_id: data.contract_id,
-          source_proposal_id: proposalId,
-          status: artSource === 'camera_ready' ? 'awaiting_art' : 'brief',
-          thread_id: thread?.id || null,
-        });
-        adProjectsCreated++;
+    // Ad projects + message threads are now created inside the RPC
+    // Just update client art source locally
+    if (data.ad_projects_created > 0) {
+      const proposal = proposals.find(p => p.id === proposalId);
+      if (proposal) {
+        const artSource = proposal.artSource || proposal.art_source || 'we_design';
+        setClients(cl => cl.map(c => c.id === proposal.clientId ? { ...c, lastArtSource: artSource } : c));
       }
-
-      // Update client's last art source memory
-      await supabase.from('clients').update({ last_art_source: artSource }).eq('id', proposal.clientId);
-      setClients(cl => cl.map(c => c.id === proposal.clientId ? { ...c, lastArtSource: artSource } : c));
-
-      data.ad_projects_created = adProjectsCreated;
     }
 
     return data;
-  }, [proposals, clients, pubs]);
+  }, [proposals]);
 
   const addComm = useCallback(async (clientId, comm) => {
     setClients(cl => cl.map(c => c.id === clientId ? { ...c, comms: [...(c.comms || []), comm] } : c));
