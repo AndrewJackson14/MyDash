@@ -264,6 +264,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           subject: `Invoice ${inv.invoiceNumber} — 13 Stars Media Group`,
           htmlBody,
           mode: "send",
+          emailType: "invoice", clientId: inv.clientId, refId: inv.id, refType: "invoice",
         });
       } catch (err) { console.error("Invoice email error:", err); }
     }

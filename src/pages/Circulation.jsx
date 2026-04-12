@@ -686,7 +686,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
                   touch,
                 });
                 try {
-                  await sendGmailEmail({ teamMemberId: null, to: [sub.email], subject: getRenewalSubject(pubName, touch), htmlBody, mode: "send" });
+                  await sendGmailEmail({ teamMemberId: null, to: [sub.email], subject: getRenewalSubject(pubName, touch), htmlBody, mode: "send", emailType: "renewal", refId: sub.id, refType: "subscriber" });
                   sent++;
                 } catch (err) { console.error("Renewal email error:", err); }
               }

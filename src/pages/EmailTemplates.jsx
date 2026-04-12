@@ -661,7 +661,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
                 </table></td></tr></table>`;
             }
             try {
-              await sendGmailEmail({ teamMemberId: null, to: recipients, subject: composeSubject, htmlBody, mode: "send" });
+              await sendGmailEmail({ teamMemberId: null, to: recipients, subject: composeSubject, htmlBody, mode: "send", emailType: "marketing" });
               setComposeResult({ success: true, message: `Sent to ${recipients.length} recipient${recipients.length !== 1 ? "s" : ""}` });
             } catch (err) {
               setComposeResult({ error: err.message || "Send failed" });

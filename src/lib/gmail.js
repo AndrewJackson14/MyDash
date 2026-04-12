@@ -35,7 +35,7 @@ function buildRawMessage({ to, subject, htmlBody, from }) {
   return toBase64Url(raw);
 }
 
-export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode = "draft" }) {
+export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode = "draft", emailType = "other", clientId = null, refId = null, refType = null }) {
   // Get current session token for auth
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) {
@@ -47,6 +47,8 @@ export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode
   const body = action === "send"
     ? { raw }
     : { message: { raw } };
+
+  const recipients = Array.isArray(to) ? to : [to];
 
   try {
     const res = await fetch(`${EDGE_FN_URL}/gmail-api`, {
@@ -60,23 +62,43 @@ export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode
     });
 
     if (res.status === 401 || res.status === 403) {
+      logEmail({ recipients, subject, status: "failed", error: "Gmail not connected", emailType, teamMemberId, clientId, refId, refType });
       return { success: false, needs_auth: true, error: "Gmail not connected" };
     }
 
     const result = await res.json();
 
     if (result.error) {
-      // Token expired or not connected
+      logEmail({ recipients, subject, status: "failed", error: result.error, emailType, teamMemberId, clientId, refId, refType });
       if (result.error.includes("not connected") || result.error.includes("refresh token")) {
         return { success: false, needs_auth: true, error: result.error };
       }
       return { success: false, error: result.error };
     }
 
+    logEmail({ recipients, subject, status: mode === "draft" ? "draft" : "sent", emailType, teamMemberId, clientId, refId, refType, gmailMessageId: result.id });
     return { success: true, data: result };
   } catch (err) {
+    logEmail({ recipients, subject, status: "failed", error: err.message, emailType, teamMemberId, clientId, refId, refType });
     return { success: false, error: err.message || "Failed to send email" };
   }
+}
+
+// Log email to email_log table (fire-and-forget)
+function logEmail({ recipients, subject, status, error, emailType, teamMemberId, clientId, refId, refType, gmailMessageId }) {
+  const rows = (recipients || []).map(email => ({
+    type: emailType || "other",
+    to_email: email,
+    subject: subject || "",
+    status,
+    error_message: error || null,
+    sent_by: teamMemberId || null,
+    client_id: clientId || null,
+    ref_id: refId || null,
+    ref_type: refType || null,
+    gmail_message_id: gmailMessageId || null,
+  }));
+  supabase.from("email_log").insert(rows).then(() => {}).catch(() => {});
 }
 
 export async function initiateGmailAuth(teamMemberId) {

@@ -460,6 +460,7 @@ const SalesCRM = (props) => {
         to: propEmailRecipients,
         subject: `Proposal: ${propName} \u2014 ${clientName}`,
         htmlBody, mode,
+        emailType: "proposal", clientId: propClient, refId: proposalId, refType: "proposal",
       });
       console.log("[proposal] Gmail result:", result);
 
