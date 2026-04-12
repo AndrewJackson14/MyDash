@@ -30,7 +30,7 @@ const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community
 
 const TABS = [
   { id: "workflow", label: "Workflow", icon: "flat" },
-  { id: "stories", label: "Stories", icon: "pub" },
+  { id: "stories", label: "Issue Planning", icon: "pub" },
   { id: "web", label: "Web Queue", icon: "send" },
 ];
 
@@ -359,9 +359,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
           <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
           <Btn sm onClick={() => {
             const id = "story-" + Date.now();
-            const newStory = { id, title: "New Story", status: "Draft", author: "", publication_id: fPub !== "all" ? fPub : pubs[0]?.id, category: "News", priority: "normal", web_status: "none", print_status: "none", created_at: new Date().toISOString() };
+            const issueId = selIssue || "";
+            const pubId = issueId ? (issues.find(i => i.id === issueId)?.publicationId || issues.find(i => i.id === issueId)?.pubId || "") : (fPub !== "all" ? fPub : pubs[0]?.id || "");
+            const newStory = { id, title: "", status: "Draft", author: "", publication_id: pubId, publication: pubId, issueId, issue_id: issueId, print_issue_id: issueId, category: "News", priority: "normal", web_status: "none", print_status: "none", created_at: new Date().toISOString() };
             setStories(prev => [newStory, ...prev]);
-            openDetail(newStory);
           }}><Ic.plus size={12} /> New Story</Btn>
         </div>
       </div>
@@ -442,10 +443,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                   border: `1px solid ${isSelected ? Z.ac : Z.bd}`,
                   borderLeft: `3px solid ${pColor(iss.publicationId || iss.pubId, pubs)}`,
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{iss.label || iss.title || "Issue"}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pn(iss.publicationId || iss.pubId, pubs)}</div>
                   <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
-                    {pn(iss.publicationId || iss.pubId, pubs)} · {stCount} stories
-                    {iss.date && ` · ${new Date(iss.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                    {iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : iss.label || "Issue"} · {stCount} stories
                   </div>
                 </div>
               );
@@ -509,7 +509,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                       )}
                       {issueStories.map(s => (
                         <tr key={s.id} onClick={() => openDetail(s)} style={{ borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "08"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                          <td style={{ padding: "7px 10px", fontWeight: 700, color: Z.tx, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "Untitled"}</td>
+                          <td style={{ padding: "7px 10px", fontWeight: 700, color: s.title ? Z.ac : Z.td, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || <em style={{ fontWeight: 400 }}>Untitled — click to edit</em>}</td>
                           <td style={{ padding: "7px 10px", color: Z.tm }}>{s.author || tn(s.assigned_to, team)}</td>
                           <td style={{ padding: "7px 10px", color: Z.tm }}>{s.category || "—"}</td>
                           <td style={{ padding: "7px 10px" }}><Badge status={s.status} small /></td>
