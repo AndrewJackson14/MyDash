@@ -288,12 +288,13 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
     ...pubs.map(p => ({ value: p.id, label: p.name })),
   ], [pubs]);
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Editions" count={filtered.length}>
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
       <SB value={search} onChange={setSearch} placeholder="Search editions..." />
       <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={pubOptions} />
       <Btn sm onClick={openNew}><Ic.plus size={13} /> Upload New Edition</Btn>
-    </PageHeader>
+      <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{filtered.length} editions</span>
+    </div>
 
     {filtered.length === 0 && (
       <GlassCard>

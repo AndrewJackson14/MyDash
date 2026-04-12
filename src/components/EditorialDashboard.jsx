@@ -5,6 +5,7 @@ import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import StoryEditor from "./StoryEditor";
+import EditionManager from "../pages/EditionManager";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 const KANBAN_COLS = [
@@ -34,6 +35,7 @@ const TABS = [
   { id: "workflow", label: "Workflow", icon: "flat" },
   { id: "stories", label: "Issue Planning", icon: "pub" },
   { id: "web", label: "Web Queue", icon: "send" },
+  { id: "editions", label: "Editions", icon: "pub" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -168,7 +170,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions }) => {
   const stories = storiesRaw || [];
   const dialog = useDialog();
 
@@ -664,6 +666,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             );
           })}
         </div>
+      )}
+
+      {/* EDITIONS */}
+      {tab === "editions" && (
+        <EditionManager pubs={pubs} editions={editions} setEditions={setEditions} />
       )}
 
       {/* Pulse animation for republish badge */}

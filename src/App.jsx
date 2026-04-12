@@ -45,7 +45,6 @@ const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
-const EditionManager = lazy(() => import("./pages/EditionManager"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 
@@ -275,7 +274,6 @@ export default function App() {
     { id: "_content", section: true, label: "Content" },
     { id: "editorial", label: "Editorial", icon: Ic.list, badge: storiesInEdit || null },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
-    { id: "editions", label: "Editions", icon: Ic.pub },
     { id: "newsletters", label: "Newsletters", icon: Ic.mail },
     { id: "sitesettings", label: "MyWebsites", icon: Ic.globe },
     { id: "adprojects", label: "Design Studio", icon: Ic.paintbrush },
@@ -467,12 +465,11 @@ export default function App() {
         {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={jClients} sales={jSales} pubs={pubs} issues={jIssues} proposals={jProposals} invoices={jInvoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} team={team} subscribers={subscribers} subscriptionPayments={appData.subscriptionPayments || []} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={jClients} sales={jSales} issues={jIssues} pubs={pubs} team={team} currentUser={currentUser} stories={jStories} bus={bus} onNavigate={handleNav} /></div>}
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan jurisdiction={jurisdiction} pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} stories={jStories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} /></div>}
-        {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} /></div>}
+        {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={jSales} clients={jClients} issues={jIssues} stories={jStories} invoices={jInvoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
         {show("messaging") && <div style={vis("messaging")}><Messaging team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail /></div>}
-        {show("editions") && <div style={vis("editions")}><EditionManager pubs={pubs} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage pubs={pubs} currentUser={currentUser} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings pubs={pubs} setPubs={setPubs} /></div>}
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates pubs={pubs} currentUser={currentUser} /></div>}
