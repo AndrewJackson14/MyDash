@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ACCENT } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill } from "../components/ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
