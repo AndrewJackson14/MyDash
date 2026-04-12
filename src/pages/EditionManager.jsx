@@ -24,17 +24,6 @@ const PUB_SLUG_MAP = {
   "pub-the-malibu-times": "malibu-times",
 };
 
-// ── Publication ID → CDN folder slug ────────────────────────
-const PUB_SLUG_MAP = {
-  "pub-paso-robles-press": "paso-robles-press",
-  "pub-atascadero-news": "atascadero-news",
-  "pub-paso-robles-magazine": "paso-robles-magazine",
-  "pub-atascadero-news-maga": "atascadero-news-magazine",
-  "pub-morro-bay-life": "morro-bay-life",
-  "pub-santa-ynez-valley-st": "santa-ynez-valley-star",
-  "pub-the-malibu-times": "malibu-times",
-};
-
 // ── Compression presets ─────────────────────────────────────
 const COMPRESSION_PRESETS = {
   none:       { label: "None (Original)",  dpi: 0,   quality: 0,    targetMB: 0,  desc: "Upload the original PDF without compression" },

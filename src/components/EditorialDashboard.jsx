@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import StoryEditor from "./StoryEditor";
+import StoriesModule from "../pages/StoriesModule";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 const KANBAN_COLS = [
@@ -30,6 +31,7 @@ const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community
 
 const TABS = [
   { id: "kanban", label: "Workflow", icon: "flat" },
+  { id: "table", label: "Stories", icon: "story" },
   { id: "issues", label: "Issue Planning", icon: "pub" },
   { id: "web", label: "Web Queue", icon: "send" },
 ];
@@ -166,7 +168,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, globalPageStories, setGlobalPageStories }) => {
   const stories = storiesRaw || [];
   const [tab, setTab] = useState("kanban");
   const [fPub, setFPub] = useState("all");
@@ -408,6 +410,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             />
           ))}
         </div>
+      )}
+
+      {/* STORIES TABLE VIEW */}
+      {tab === "table" && (
+        <StoriesModule stories={stories} setStories={setStories} pubs={pubs} issues={issues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} />
       )}
 
       {/* ISSUE PLANNING VIEW */}

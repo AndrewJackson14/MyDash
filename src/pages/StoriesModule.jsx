@@ -92,12 +92,14 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
   const isDk = Z.bg === "#08090D";
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Stories" count={fl.length}>
-      <SB value={sr} onChange={setSr} placeholder="Search..." />
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    {/* Filter bar (no PageHeader since this is embedded in EditorialDashboard) */}
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <SB value={sr} onChange={setSr} placeholder="Search stories..." />
       <Sel value={fPub} onChange={e => { setFPub(e.target.value); setFIssue("all"); }} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name })), { value: "none", label: "No Publication" }]} />
       <Btn sm onClick={addNew}><Ic.plus size={13} /> New Story</Btn>
-    </PageHeader>
+      <span style={{ fontSize: FS.xs, color: Z.td, marginLeft: 4 }}>{fl.length} stories</span>
+    </div>
 
     <TabRow>
       <TB tabs={["All Status", ...STORY_STATUSES]} active={fStatus === "all" ? "All Status" : fStatus} onChange={v => setFStatus(v === "All Status" ? "all" : v)} />
