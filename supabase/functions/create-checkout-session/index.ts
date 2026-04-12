@@ -23,6 +23,45 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
+
+    // ─── INVOICE PAYMENT MODE ───
+    if (body.mode === "invoice_payment") {
+      const { invoice_id, invoice_number, amount, client_name, client_id } = body;
+      if (!invoice_number || !amount) {
+        return new Response(JSON.stringify({ error: "Missing invoice details" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        line_items: [{
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `Invoice ${invoice_number}`,
+              description: `Payment for ${client_name || "advertising services"} — 13 Stars Media Group`,
+            },
+            unit_amount: Math.round(amount * 100), // cents
+          },
+          quantity: 1,
+        }],
+        success_url: `${req.headers.get("origin") || "https://mydash.media"}/pay/${invoice_number}?paid=true`,
+        cancel_url: `${req.headers.get("origin") || "https://mydash.media"}/pay/${invoice_number}`,
+        metadata: {
+          type: "invoice_payment",
+          invoice_id: invoice_id || "",
+          invoice_number,
+          client_id: client_id || "",
+        },
+      });
+
+      return new Response(JSON.stringify({ url: session.url }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─── SUBSCRIPTION MODE (StellarPress) ───
     const {
       stripe_price_id,
       tier_id,

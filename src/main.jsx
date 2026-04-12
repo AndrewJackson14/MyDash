@@ -7,9 +7,11 @@ import AppRouter from "./AppRouter";
 const isApprovalPage = window.location.pathname.startsWith("/approve/");
 const isSignPage = window.location.pathname.startsWith("/sign/");
 const isPortalPage = window.location.pathname.startsWith("/portal");
+const isPayPage = window.location.pathname.startsWith("/pay/");
 const ProofApproval = isApprovalPage ? lazy(() => import("./pages/ProofApproval")) : null;
 const ProposalSign = isSignPage ? lazy(() => import("./pages/ProposalSign")) : null;
 const ClientPortal = isPortalPage ? lazy(() => import("./pages/ClientPortal")) : null;
+const PayInvoice = isPayPage ? lazy(() => import("./pages/PayInvoice")) : null;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -19,6 +21,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Suspense fallback={null}><ProposalSign /></Suspense>
     ) : isPortalPage ? (
       <Suspense fallback={null}><ClientPortal /></Suspense>
+    ) : isPayPage ? (
+      <Suspense fallback={null}><PayInvoice /></Suspense>
     ) : (
       <AuthProvider>
         <AppRouter />
