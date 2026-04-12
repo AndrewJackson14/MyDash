@@ -4,6 +4,7 @@ import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard
 import { generateRenewalHtml, getRenewalSubject } from "../lib/renewalTemplate";
 import { sendGmailEmail } from "../lib/gmail";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
+import { useDialog } from "../hooks/useDialog";
 
 // ─── Constants ──────────────────────────────────────────────
 const SUB_TYPES = [{ value: "print", label: "Print" }, { value: "digital", label: "Digital" }];
@@ -21,6 +22,7 @@ const StatusBadge = ({ status, map }) => {
 
 // ─── Module ─────────────────────────────────────────────────
 const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions, setSubscriptions, subscriptionPayments, mailingLists, setMailingLists, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs, drivers, setDrivers, driverRoutes, setDriverRoutes, routeStops, setRouteStops, bus, team, currentUser }) => {
+  const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
   const [subFilter, setSubFilter] = useState("all");
@@ -689,7 +691,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
                 } catch (err) { console.error("Renewal email error:", err); }
               }
               setRenewalModal(false);
-              alert(`${sent} renewal notice${sent !== 1 ? "s" : ""} sent.`);
+              await dialog.alert(`${sent} renewal notice${sent !== 1 ? "s" : ""} sent.`);
             }}>Send Notices ({expiring.length})</Btn>
           </div>
         </div>;

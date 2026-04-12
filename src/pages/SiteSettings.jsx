@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 
 // ── Upload via Edge Function ─────────────────────────────────────
 async function uploadImage(file, path) {
@@ -104,6 +105,7 @@ const OrderableList = ({ items, onChange, placeholder, showSlug }) => {
 
 // ── Image Upload Field ──────────────────────────────────────────
 const ImageField = ({ value, onChange, uploadPath, label }) => {
+  const dialog = useDialog();
   const [uploading, setUploading] = useState(false);
   const handleUpload = async () => {
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
@@ -111,7 +113,7 @@ const ImageField = ({ value, onChange, uploadPath, label }) => {
       const f = e.target.files[0]; if (!f) return;
       setUploading(true);
       try { const url = await uploadImage(f, uploadPath || "sites"); onChange(url); }
-      catch (err) { alert("Upload failed: " + err.message); }
+      catch (err) { await dialog.alert("Upload failed: " + err.message); }
       setUploading(false);
     };
     inp.click();
@@ -284,6 +286,7 @@ const SiteAnalytics = ({ siteId }) => {
 // SITE SETTINGS PAGE
 // ══════════════════════════════════════════════════════════════════
 export default function SiteSettings({ pubs, setPubs }) {
+  const dialog = useDialog();
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -472,10 +475,10 @@ export default function SiteSettings({ pubs, setPubs }) {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } else {
-      alert("Save failed: " + error.message);
+      await dialog.alert("Save failed: " + error.message);
     }
     setSaving(false);
-  }, [selectedId, draft, sites, houseAds, adLocations]);
+  }, [selectedId, draft, sites, houseAds, adLocations, dialog]);
 
   const site = sites.find(s => s.id === selectedId);
 
@@ -681,7 +684,7 @@ export default function SiteSettings({ pubs, setPubs }) {
                             if (!res.ok) throw new Error("Upload failed: " + res.status);
                             const result = await res.json();
                             updateAd(i, "creative_url", result.cdnUrl || `https://cdn.13stars.media/${uploadPath}/${fname}`);
-                          } catch (err) { alert("Upload failed: " + err.message); }
+                          } catch (err) { await dialog.alert("Upload failed: " + err.message); }
                           setAdUploading(null);
                         };
                         inp.click();

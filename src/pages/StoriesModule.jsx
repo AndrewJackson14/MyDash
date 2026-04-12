@@ -2,8 +2,10 @@ import { useState, useRef } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { STORY_STATUSES, STORY_AUTHORS } from "../constants";
+import { useDialog } from "../hooks/useDialog";
 
 const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, setGlobalPageStories }) => {
+  const dialog = useDialog();
   const [storySort, setStorySort] = useState({ col: "Page", dir: "asc" });
   const [sr, setSr] = useState("");
   const [fPub, setFPub] = useState("all");
@@ -58,11 +60,11 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
     setStories(st => [copy, ...st]);
   };
 
-  const executeBulk = (action) => {
+  const executeBulk = async (action) => {
     if (selectedIds.size === 0) return;
     const ids = [...selectedIds];
     if (action === "delete") {
-      if (!confirm(`Delete ${ids.length} stories permanently?`)) return;
+      if (!await dialog.confirm(`Delete ${ids.length} stories permanently?`)) return;
       setStories(st => st.filter(s => !selectedIds.has(s.id)));
     } else if (action === "publish") {
       setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Published", sentToWeb: true, published_at: s.published_at || new Date().toISOString() } : s));
@@ -71,7 +73,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
     } else if (action === "review") {
       setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Needs Editing" } : s));
     } else if (action === "kill") {
-      if (!confirm(`Kill ${ids.length} stories?`)) return;
+      if (!await dialog.confirm(`Kill ${ids.length} stories?`)) return;
       setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Killed" } : s));
     } else if (action === "featured_on") {
       setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, is_featured: true } : s));
@@ -170,7 +172,7 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
               <td style={cellS}>{isEd ? <input type="date" value={s.dueDate} onChange={e => upd(s.id, "dueDate", e.target.value)} style={inpS} /> : <span style={{ color: !s.dueDate ? Z.td : s.dueDate < _today ? Z.da : s.dueDate <= _tomorrow ? Z.wa : s.dueDate <= _nextWeek ? Z.su : Z.tm, fontSize: FS.xs, fontWeight: s.dueDate && s.dueDate <= _today ? 800 : 500 }}>{s.dueDate || "—"}</span>}</td>
               <td style={cellS}>{isEd ? <input type="number" value={s.wordCount} onChange={e => upd(s.id, "wordCount", +e.target.value)} style={{ ...inpS, width: 60 }} /> : <span style={{ color: Z.tm }}>{s.wordCount}</span>}</td>
               <td style={cellS}>{isEd ? <div style={{ textAlign: "center", color: Z.tx, fontSize: FS.xs, cursor: "pointer" }} onClick={e => { e.stopPropagation(); upd(s.id, "images", (s.images || 0) + 1); }}>+{s.images || 0}</div> : <span style={{ color: Z.tm }}>{s.images}</span>}</td>
-              <td style={cellS}>{isEd && <div style={{ display: "flex", gap: 3 }}><button onClick={e => { e.stopPropagation(); setEditingId(null); }} style={{ background: Z.go, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }} title="Save">{"✓"}</button><button onClick={e => { e.stopPropagation(); duplicate(s); }} style={{ background: Z.ac + "20", border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: Z.ac, fontSize: FS.xs, fontWeight: FW.bold }} title="Duplicate">{"⧉"}</button><button onClick={e => { e.stopPropagation(); if (window.confirm("Are you sure you want to delete this story?")) remove(s.id); }} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }} title="Delete">{"✕"}</button></div>}</td>
+              <td style={cellS}>{isEd && <div style={{ display: "flex", gap: 3 }}><button onClick={e => { e.stopPropagation(); setEditingId(null); }} style={{ background: Z.go, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }} title="Save">{"✓"}</button><button onClick={e => { e.stopPropagation(); duplicate(s); }} style={{ background: Z.ac + "20", border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: Z.ac, fontSize: FS.xs, fontWeight: FW.bold }} title="Duplicate">{"⧉"}</button><button onClick={async e => { e.stopPropagation(); if (!await dialog.confirm("Are you sure you want to delete this story?")) return; remove(s.id); }} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }} title="Delete">{"✕"}</button></div>}</td>
             </tr>;
           })}
         </tbody>

@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { DataProvider } from './hooks/useAppData';
+import { DialogProvider } from './hooks/useDialog';
 import App from './App';
 import { buildLocalData } from './data/local';
 
@@ -30,9 +31,11 @@ export default function AppRouter() {
   // Show app after auth resolved AND user is authenticated/offline
   if (splashDone && !loading && (user || teamMember || !isOnline)) {
     return (
-      <DataProvider localData={buildLocalData()}>
-        <App />
-      </DataProvider>
+      <DialogProvider>
+        <DataProvider localData={buildLocalData()}>
+          <App />
+        </DataProvider>
+      </DialogProvider>
     );
   }
 

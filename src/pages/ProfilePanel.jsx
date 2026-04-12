@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Card, glass } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 
 const ProfilePanel = ({ user, team, pubs, onClose }) => {
+  const dialog = useDialog();
   const [gmailStatus, setGmailStatus] = useState(null); // null = loading, { connected, email } = loaded
   const [gmailLoading, setGmailLoading] = useState(false);
 
@@ -25,7 +27,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
   }, [me.id]);
 
   const connectGmail = async () => {
-    if (!supabase) { alert("Supabase not connected"); return; }
+    if (!supabase) { await dialog.alert("Supabase not connected"); return; }
     setGmailLoading(true);
     try {
       const res = await fetch(`${EDGE_FN_URL}/gmail-auth`, {
@@ -35,25 +37,25 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
       });
       if (!res.ok) {
         const errText = await res.text();
-        alert(`Gmail auth failed (${res.status}): ${errText}`);
+        await dialog.alert(`Gmail auth failed (${res.status}): ${errText}`);
         setGmailLoading(false);
         return;
       }
       const result = await res.json();
       if (result.error) {
-        alert(`Gmail auth error: ${result.error}`);
+        await dialog.alert(`Gmail auth error: ${result.error}`);
         setGmailLoading(false);
         return;
       }
       if (!result.auth_url) {
-        alert(`No auth URL returned. Response: ${JSON.stringify(result)}`);
+        await dialog.alert(`No auth URL returned. Response: ${JSON.stringify(result)}`);
         setGmailLoading(false);
         return;
       }
       if (result.auth_url) {
         const popup = window.open(result.auth_url, "gmail-auth", "width=500,height=600,left=200,top=200");
         if (!popup) {
-          alert("Popup blocked — please allow popups for this site and try again.");
+          await dialog.alert("Popup blocked — please allow popups for this site and try again.");
           setGmailLoading(false);
           return;
         }
@@ -72,18 +74,18 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
         // Failsafe: stop polling after 2 minutes
         setTimeout(() => { clearInterval(interval); setGmailLoading(false); }, 120000);
       } else {
-        alert("Failed to get Gmail authorization URL.");
+        await dialog.alert("Failed to get Gmail authorization URL.");
         setGmailLoading(false);
       }
     } catch (err) {
       console.error("Gmail auth error:", err);
-      alert(`Gmail connection error: ${err.message}`);
+      await dialog.alert(`Gmail connection error: ${err.message}`);
       setGmailLoading(false);
     }
   };
 
   const disconnectGmail = async () => {
-    if (!confirm("Disconnect Gmail? You won't be able to send emails from MyDash until you reconnect.")) return;
+    if (!await dialog.confirm("Disconnect Gmail? You won't be able to send emails from MyDash until you reconnect.")) return;
     await supabase.from("google_tokens").delete().eq("team_member_id", me.id);
     setGmailStatus({ connected: false });
   };

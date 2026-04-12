@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
 import { Ic, Btn, SB, Pill } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
@@ -95,6 +96,7 @@ const PUB_FOLDERS = [
 // DETAIL PANEL
 // ══════════════════════════════════════════════════════════════════
 const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMode }) => {
+  const dialog = useDialog();
   const [copied, setCopied] = useState(false);
   const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
 
@@ -140,7 +142,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
         {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
-        <button onClick={() => { if (confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={async () => { if (await dialog.confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
           Delete
         </button>
       </div>
@@ -230,6 +232,7 @@ async function scanForOrphans(referencedUrls, onProgress, onOrphanBatch, signal)
 }
 
 const UnusedImagesPanel = ({ onClose }) => {
+  const dialog = useDialog();
   const [phase, setPhase] = useState("idle"); // idle | scanning | done | deleting
   const [progress, setProgress] = useState(null); // { message, totalFiles, referencedCount, orphanCount, orphanBytes, currentPub }
   const [orphans, setOrphans] = useState([]);
@@ -292,7 +295,7 @@ const UnusedImagesPanel = ({ onClose }) => {
 
   const deleteSelected = async () => {
     const count = selectedOrphans.size;
-    if (!confirm(`Permanently delete ${count} unused image${count !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    if (!await dialog.confirm(`Permanently delete ${count} unused image${count !== 1 ? "s" : ""}? This cannot be undone.`)) return;
     setPhase("deleting");
     let done = 0;
     const toDelete = orphans.filter(f => selectedOrphans.has(f.ObjectName));
@@ -451,6 +454,7 @@ const UnusedImagesPanel = ({ onClose }) => {
 // MEDIA LIBRARY
 // ══════════════════════════════════════════════════════════════════
 export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
+  const dialog = useDialog();
   const [showUnused, setShowUnused] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -574,7 +578,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
 
   // Bulk delete
   const bulkDelete = async () => {
-    if (!confirm(`Delete ${selectedItems.size} files permanently?`)) return;
+    if (!await dialog.confirm(`Delete ${selectedItems.size} files permanently?`)) return;
     const toDelete = files.filter(f => selectedItems.has(f.ObjectName));
     for (const item of toDelete) {
       try { await handleDelete(item); } catch (err) { console.error("Delete failed:", item.ObjectName, err); }

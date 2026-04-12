@@ -13,6 +13,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, glass } from "../components/ui";
 import { supabase } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
 import { generateMarketingHtml } from "../lib/marketingTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
@@ -88,6 +89,7 @@ const MERGE_FIELDS = {
 const isDark = () => Z.bg === DARK.bg;
 
 const EmailTemplates = ({ pubs, currentUser }) => {
+  const dialog = useDialog();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("proposal");
@@ -239,7 +241,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
 
   // Delete
   const deleteTemplate = async (id) => {
-    if (!confirm("Delete this template?")) return;
+    if (!await dialog.confirm("Delete this template?")) return;
     await supabase.from("email_templates").delete().eq("id", id);
     setTemplates(prev => prev.filter(t => t.id !== id));
     if (editId === id) { setEditId(null); editor?.commands.setContent(""); }
@@ -520,7 +522,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
               <TBtn icon="•" active={editor?.isActive("bulletList")} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet List" />
               <TBtn icon="1." active={editor?.isActive("orderedList")} onClick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered List" />
               <div style={{ width: 1, height: 18, background: Z.bd, margin: "0 4px" }} />
-              <TBtn icon="🔗" onClick={() => { const url = prompt("URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }} title="Link" />
+              <TBtn icon="🔗" onClick={async () => { const url = await dialog.prompt("URL:"); if (url) editor?.chain().focus().setLink({ href: url }).run(); }} title="Link" />
             </div>
 
             {/* Editor area */}

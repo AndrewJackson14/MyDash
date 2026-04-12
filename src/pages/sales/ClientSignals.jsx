@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, ACCENT } from "../../lib/theme";
 import { Btn, SB, glass } from "../../components/ui";
 import { THRESHOLDS, DAYS_PER_MONTH } from "../../constants";
+import { useDialog } from "../../hooks/useDialog";
 
 const fmtK = n => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0).toLocaleString();
 
@@ -29,6 +30,7 @@ export default function ClientSignals({
   clients, sales, pubs, issues, currentUser, jurisdiction,
   myPriorities, priorityHelpers, onSelectClient,
 }) {
+  const dialog = useDialog();
   const [signalFilter, setSignalFilter] = useState("all");
   const [expandedPanels, setExpandedPanels] = useState(new Set());
   const togglePanel = (key) => setExpandedPanels(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -344,7 +346,7 @@ export default function ClientSignals({
   const handleAdd = async (clientId, signal, detail) => {
     if (!currentUser?.id || !priorityHelpers?.addPriority) return;
     const result = await priorityHelpers.addPriority(currentUser.id, clientId, signal, detail);
-    if (result?.error) alert(result.error);
+    if (result?.error) await dialog.alert(result.error);
   };
 
   const handleRemove = async (priorityId) => {

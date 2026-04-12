@@ -5,6 +5,7 @@ import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
 import AssetPanel from "../components/AssetPanel";
 import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
+import { useDialog } from "../hooks/useDialog";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -24,6 +25,7 @@ const CDN_BASE = "https://cdn.13stars.media";
 
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
+  const dialog = useDialog();
   const [tab, setTab] = useState("Active");
   const [projects, setProjects] = useState([]);
   const [proofs, setProofs] = useState([]);
@@ -187,7 +189,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
             if (msg) setMessages(prev => [...prev, msg]);
           }
         }
-      } catch (err) { alert("Upload failed: " + err.message); }
+      } catch (err) { await dialog.alert("Upload failed: " + err.message); }
       setUploading(false);
       setProofForm({ designerNotes: "" });
       setProofModal(false);

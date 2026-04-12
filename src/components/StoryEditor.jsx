@@ -11,6 +11,7 @@ import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import MediaModal from "./MediaModal";
+import { useDialog } from "../hooks/useDialog";
 
 // ── Constants ────────────────────────────────────────────────────
 const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "On Page", "Approved"];
@@ -108,6 +109,7 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
 // STORY EDITOR
 // ══════════════════════════════════════════════════════════════════
 const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publishStory, unpublishStory }) => {
+  const dialog = useDialog();
   const [meta, setMeta] = useState({ ...story });
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
@@ -336,7 +338,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       const ps = selectedPubs[0] ? pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "-") : "general";
       const url = await uploadImage(file, "articles/" + ps + "/" + new Date().getFullYear());
       setPendingImageUrl(url); setImageCaption(""); setImageModalOpen(true);
-    } catch (err) { console.error("Image upload failed:", err); alert("Image upload failed: " + err.message); }
+    } catch (err) { console.error("Image upload failed:", err); await dialog.alert("Image upload failed: " + err.message); }
     setImageUploading(false);
   };
 
@@ -349,7 +351,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
   const setFeaturedImage = async () => {
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
-    inp.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setImageUploading(true); try { const ps = selectedPubs[0] ? pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "-") : "general"; const url = await uploadImage(f, "featured/" + ps); await saveMeta("featured_image_url", url); } catch (err) { alert("Upload failed: " + err.message); } setImageUploading(false); };
+    inp.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setImageUploading(true); try { const ps = selectedPubs[0] ? pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "-") : "general"; const url = await uploadImage(f, "featured/" + ps); await saveMeta("featured_image_url", url); } catch (err) { await dialog.alert("Upload failed: " + err.message); } setImageUploading(false); };
     inp.click();
   };
 
@@ -548,7 +550,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Author */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
-            <select value={meta.author || ""} onChange={e => { if (e.target.value === "__custom") { const name = prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <select value={meta.author || ""} onChange={async e => { if (e.target.value === "__custom") { const name = await dialog.prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
               <option value="">Select author...</option>
               {authors.map(a => <option key={a.id} value={a.name}>{(a.name || "").replace(/[\u2013\u2014]/g, "-")} ({a.is_freelance ? "Freelance" : "Staff"}{a.role ? ", " + a.role : ""})</option>)}
               {freelancers.map(f => <option key={f.id} value={f.name}>{f.name} (Freelance{f.specialty ? ", " + f.specialty : ""})</option>)}
@@ -560,10 +562,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Freelancers</div>
-              <button onClick={() => {
-                const name = prompt("Freelancer name:");
+              <button onClick={async () => {
+                const name = await dialog.prompt("Freelancer name:");
                 if (!name) return;
-                const specialty = prompt("Specialty (Writer, Photographer, etc.):");
+                const specialty = await dialog.prompt("Specialty (Writer, Photographer, etc.):");
                 addFreelancer(name, specialty || "Writer");
               }} style={{ fontSize: 10, fontWeight: 700, color: Z.ac, background: "none", border: "none", cursor: "pointer", fontFamily: COND }}>+ Add</button>
             </div>
@@ -628,7 +630,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Delete story */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <Btn sm v="danger" style={{ width: "100%" }} onClick={async () => {
-              if (!confirm("Are you sure you want to delete this story? This cannot be undone.")) return;
+              if (!await dialog.confirm("Are you sure you want to delete this story? This cannot be undone.")) return;
               const { error } = await supabase.from("stories").delete().eq("id", story.id);
               if (!error) { onUpdate(story.id, { _deleted: true }); onClose(); }
             }}>Delete Story</Btn>

@@ -5,6 +5,7 @@ import { ACTION_TYPES, THRESHOLDS, MS_PER_DAY } from "../constants";
 import { supabase, isOnline } from "../lib/supabase";
 import RoleDashboard from "../components/RoleDashboard";
 import { fmtCurrencyWhole as fmtCurrency, daysUntil, initials as ini } from "../lib/formatters";
+import { useDialog } from "../hooks/useDialog";
 
 /* ═══ MEMOIZED SUB-COMPONENTS ═══ */
 
@@ -126,6 +127,7 @@ const Dashboard = ({
   onNavigate, setIssueDetailId, userName, currentUser, salespersonPubAssignments, jurisdiction,
   myPriorities, priorityHelpers, outreachCampaigns, outreachEntries, commissionGoals,
 }) => {
+  const dialog = useDialog();
   const today = new Date().toISOString().slice(0, 10);
   const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c; }); return m; }, [clients]);
   const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p; }); return m; }, [pubs]);
@@ -1187,10 +1189,9 @@ const Dashboard = ({
           return <div style={glass}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Web Publishing Queue</span>
-              {readyStories.length > 1 && <Btn sm v="secondary" onClick={() => {
-                if (confirm(`Publish all ${readyStories.length} stories to web?`)) {
-                  readyStories.forEach(s => { if (setStories) setStories(prev => prev.map(x => x.id === s.id ? { ...x, webStatus: "published", publishedAt: new Date().toISOString() } : x)); });
-                }
+              {readyStories.length > 1 && <Btn sm v="secondary" onClick={async () => {
+                if (!await dialog.confirm(`Publish all ${readyStories.length} stories to web?`)) return;
+                readyStories.forEach(s => { if (setStories) setStories(prev => prev.map(x => x.id === s.id ? { ...x, webStatus: "published", publishedAt: new Date().toISOString() } : x)); });
               }}>Publish All ({readyStories.length})</Btn>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
