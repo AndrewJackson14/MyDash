@@ -110,8 +110,8 @@ function PortalDashboard({ user }) {
 
       const clientIds = [...new Set(contacts.map(c => c.client_id))];
 
-      // Load client info
-      const { data: clients } = await supabase.from("clients").select("id, name, client_code, status").in("id", clientIds);
+      // Load client info (include card details)
+      const { data: clients } = await supabase.from("clients").select("id, name, client_code, status, card_last4, card_brand, card_exp, stripe_customer_id").in("id", clientIds);
       setClientData(clients || []);
 
       // Load invoices
@@ -180,7 +180,7 @@ function PortalDashboard({ user }) {
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {["invoices", "contracts", "payments"].map(t => <button key={t} onClick={() => setTab(t)} style={s.tab(tab === t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+        {["invoices", "contracts", "payments", "payment method"].map(t => <button key={t} onClick={() => setTab(t)} style={s.tab(tab === t)}>{t.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}</button>)}
       </div>
 
       {/* INVOICES TAB — card-based for mobile */}
@@ -263,6 +263,28 @@ function PortalDashboard({ user }) {
             </div>;
           })}
         </div>}
+      </div>}
+
+      {/* PAYMENT METHOD TAB */}
+      {tab === "payment method" && <div style={s.card}>
+        <div style={s.cardTitle}>Payment Method</div>
+        {(() => {
+          const cl = clientData?.[0];
+          if (!cl) return null;
+          const hasCard = cl.card_last4;
+          return <div>
+            {hasCard ? <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0" }}>
+              <div style={{ width: 56, height: 36, borderRadius: 4, background: BORDER, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: GRAY, textTransform: "uppercase" }}>{cl.card_brand || "Card"}</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: BLACK }}>•••• •••• •••• {cl.card_last4}</div>
+                <div style={{ fontSize: 12, color: GRAY }}>Expires {cl.card_exp}</div>
+              </div>
+            </div> : <div style={{ padding: 16, color: GRAY, textAlign: "center" }}>No card on file</div>}
+            <div style={{ marginTop: 16, fontSize: 12, color: GRAY_LT }}>
+              To update your payment method, please contact <a href="mailto:billing@13stars.media" style={{ color: NAVY }}>billing@13stars.media</a> or call (805) 237-6060.
+            </div>
+          </div>;
+        })()}
       </div>}
 
       {/* FOOTER */}

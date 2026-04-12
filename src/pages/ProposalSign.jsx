@@ -2,8 +2,10 @@
 // ProposalSign.jsx — Public proposal signature page
 // No auth required — accessed via /sign/:access_token
 // ============================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
 import DOMPurify from "dompurify";
@@ -57,6 +59,15 @@ export default function ProposalSign() {
     })();
   }, [token]);
 
+  const [needsCard, setNeedsCard] = useState(false);
+  const [cardClientSecret, setCardClientSecret] = useState(null);
+  const isPaymentPlan = sig?.proposal_snapshot?.payPlan === true;
+
+  const stripePromise = useMemo(() => {
+    const key = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+    return key ? loadStripe(key) : null;
+  }, []);
+
   const handleSign = async () => {
     if (!agreed || !signerName.trim() || submitting) return;
     setSubmitting(true);
@@ -68,10 +79,43 @@ export default function ProposalSign() {
       signed_ip: "", signed_user_agent: navigator.userAgent,
     }).eq("id", sig.id);
 
-    // 2. Mark proposal signed_at (status will be set by the RPC)
+    // 2. Mark proposal signed_at
     await supabase.from("proposals").update({
       signed_at: new Date().toISOString(),
     }).eq("id", sig.proposal_id);
+
+    // 3. If payment plan, collect card before converting
+    if (isPaymentPlan && stripePromise) {
+      try {
+        const snapshot = sig.proposal_snapshot || {};
+        const res = await fetch(`${EDGE_FN_URL}/stripe-card`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create_setup_intent",
+            client_id: snapshot.clientId,
+            client_name: snapshot.clientName || "",
+            client_email: sig.signer_email || "",
+          }),
+        });
+        const data = await res.json();
+        if (data.client_secret) {
+          setCardClientSecret(data.client_secret);
+          setNeedsCard(true);
+          setSubmitting(false);
+          return; // Stop here — card form will call completeConversion after card saved
+        }
+      } catch (err) {
+        console.error("Setup intent error:", err);
+      }
+    }
+
+    // No payment plan or Stripe not configured — convert immediately
+    await completeConversion();
+  };
+
+  const completeConversion = async () => {
+    setSubmitting(true);
 
     // 3. Auto-convert to contract + create sales orders
     const { data: convResult, error: convError } = await supabase.rpc("convert_proposal_to_contract", {
@@ -88,7 +132,7 @@ export default function ProposalSign() {
       link: "/sales?tab=Closed",
     });
 
-    // 5. Send contract confirmation email via edge function (no JWT needed — function uses service role)
+    // 5. Send contract confirmation email
     try {
       const contractHtml = generateContractHtml({
         proposal: snapshot,
@@ -111,6 +155,7 @@ export default function ProposalSign() {
     }
 
     setSigned(true);
+    setNeedsCard(false);
     setSubmitting(false);
   };
 
@@ -131,9 +176,77 @@ export default function ProposalSign() {
     signLink: "", // No sign button in the rendered HTML — we show our own form
   }) : "";
 
+  // Card collection form component
+  const CardForm = () => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [cardError, setCardError] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const handleSubmitCard = async () => {
+      if (!stripe || !elements || saving) return;
+      setSaving(true);
+      setCardError("");
+
+      const { error, setupIntent } = await stripe.confirmCardSetup(cardClientSecret, {
+        payment_method: { card: elements.getElement(CardElement) },
+      });
+
+      if (error) {
+        setCardError(error.message);
+        setSaving(false);
+        return;
+      }
+
+      // Confirm card saved on server
+      const snapshot = sig.proposal_snapshot || {};
+      await fetch(`${EDGE_FN_URL}/stripe-card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm_card",
+          client_id: snapshot.clientId,
+          setup_intent_id: setupIntent.id,
+        }),
+      });
+
+      // Now complete the conversion
+      await completeConversion();
+    };
+
+    return <div style={{ padding: "40px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: C.tx, marginBottom: 8 }}>Set Up Payment Plan</div>
+      <div style={{ fontSize: 14, color: C.tm, lineHeight: 1.6, marginBottom: 24 }}>
+        Your monthly payment of <strong>{fmtCurrency(sig.proposal_snapshot?.monthly || 0)}</strong> will be automatically charged each month.
+        Please enter your card details below.
+      </div>
+      <div style={{ maxWidth: 400, margin: "0 auto", textAlign: "left" }}>
+        <div style={{ padding: "12px 16px", border: `1px solid ${C.bd}`, borderRadius: 6, background: C.sf, marginBottom: 16 }}>
+          <CardElement options={{
+            style: {
+              base: { fontSize: "16px", color: C.tx, fontFamily: "'Helvetica Neue', sans-serif", "::placeholder": { color: C.td } },
+              invalid: { color: "#C53030" },
+            },
+          }} />
+        </div>
+        {cardError && <div style={{ color: "#C53030", fontSize: 13, marginBottom: 12 }}>{cardError}</div>}
+        <button onClick={handleSubmitCard} disabled={saving || !stripe} style={{ width: "100%", padding: "14px 24px", background: "#16A34A", color: "#fff", fontSize: 15, fontWeight: 700, border: "none", borderRadius: 6, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Saving card..." : "Save Card & Complete"}
+        </button>
+        <div style={{ fontSize: 11, color: C.td, marginTop: 12, textAlign: "center" }}>
+          Your card will be securely saved for monthly billing. Powered by Stripe.
+        </div>
+      </div>
+    </div>;
+  };
+
   return <div style={styles.page}>
     <div style={styles.body}>
-      {signed ? (
+      {needsCard && cardClientSecret && stripePromise ? (
+        <Elements stripe={stripePromise} options={{ clientSecret: cardClientSecret }}>
+          <CardForm />
+        </Elements>
+      ) : signed ? (
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: C.tx, marginBottom: 8 }}>Proposal Signed</div>

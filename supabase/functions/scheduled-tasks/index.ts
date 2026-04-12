@@ -239,6 +239,65 @@ serve(async (req: Request) => {
     }
   }
 
+  // ═══ TASK 4: AUTO-CHARGE PAYMENT PLAN INVOICES ═══
+  if (task === "all" || task === "auto_charge") {
+    const STRIPE_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+
+    try {
+      // Find invoices due today or past due with cards on file, max 3 attempts
+      const { data: dueInvoices } = await admin.from("invoices")
+        .select("id, client_id, invoice_number, total, balance_due, due_date, auto_charge_attempts, last_charge_attempt")
+        .in("status", ["draft", "sent"])
+        .lte("due_date", today)
+        .lt("auto_charge_attempts", 3);
+
+      let charged = 0;
+      let failed = 0;
+
+      for (const inv of (dueInvoices || [])) {
+        // Skip if charged recently (within 2 days)
+        if (inv.last_charge_attempt) {
+          const lastAttempt = new Date(inv.last_charge_attempt);
+          if (Date.now() - lastAttempt.getTime() < 2 * 86400000) continue;
+        }
+
+        // Check if client has card on file
+        const { data: client } = await admin.from("clients")
+          .select("stripe_customer_id, stripe_payment_method_id, name")
+          .eq("id", inv.client_id).single();
+
+        if (!client?.stripe_customer_id || !client?.stripe_payment_method_id) continue;
+
+        // Charge via stripe-card edge function
+        const chargeRes = await fetch(`${SUPABASE_URL}/functions/v1/stripe-card`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+          body: JSON.stringify({ action: "charge_invoice", invoice_id: inv.id }),
+        });
+        const chargeData = await chargeRes.json();
+
+        if (chargeData.success) {
+          charged++;
+        } else {
+          failed++;
+          // Send payment failure notification
+          await admin.from("notifications").insert({
+            title: `Payment failed for ${client.name}: Invoice ${inv.invoice_number} (attempt ${(inv.auto_charge_attempts || 0) + 1}/3)`,
+            type: "system",
+            link: "/billing",
+          });
+          // Send failure email to client on final attempt
+          if ((inv.auto_charge_attempts || 0) >= 2) {
+            // Could send email here via gmail — skipping for now
+          }
+        }
+      }
+      results.auto_charge = { charged, failed };
+    } catch (err) {
+      results.auto_charge = { error: (err as Error).message };
+    }
+  }
+
   return new Response(
     JSON.stringify({ success: true, timestamp: new Date().toISOString(), results }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
