@@ -488,7 +488,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const [title, setTitle] = useState(edition?.title || "");
   const [slug, setSlug] = useState(edition?.slug || "");
   const [publishDate, setPublishDate] = useState(edition?.publishDate || today());
-  const [isFeatured, setIsFeatured] = useState(edition?.isFeatured || false);
+  const [isFeatured, setIsFeatured] = useState(edition ? edition.isFeatured : true);
   const [pageCount, setPageCount] = useState(edition?.pageCount || 0);
   const [pdfUrl, setPdfUrl] = useState(edition?.pdfUrl || "");
   const [coverImageUrl, setCoverImageUrl] = useState(edition?.coverImageUrl || "");
