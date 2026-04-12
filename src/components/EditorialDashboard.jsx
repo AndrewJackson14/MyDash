@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe } from "./ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import StoryEditor from "./StoryEditor";
-import StoriesModule from "../pages/StoriesModule";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 const KANBAN_COLS = [
@@ -30,9 +29,8 @@ const STORY_TYPES = ["article", "column", "letter", "obituary", "legal_notice", 
 const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community", "ai_assisted"];
 
 const TABS = [
-  { id: "kanban", label: "Workflow", icon: "flat" },
-  { id: "table", label: "Stories", icon: "story" },
-  { id: "issues", label: "Issue Planning", icon: "pub" },
+  { id: "workflow", label: "Workflow", icon: "flat" },
+  { id: "stories", label: "Stories", icon: "pub" },
   { id: "web", label: "Web Queue", icon: "send" },
 ];
 
@@ -168,25 +166,27 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, globalPageStories, setGlobalPageStories }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory }) => {
   const stories = storiesRaw || [];
-  const [tab, setTab] = useState("kanban");
+  const [tab, setTab] = useState("workflow");
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
-  const [fPriority, setFPriority] = useState("all");
+
   const [sr, setSr] = useState("");
   const [selected, setSelected] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
+  const [showPublished, setShowPublished] = useState(false);
+  const [sortCol, setSortCol] = useState("title");
+  const [sortDir, setSortDir] = useState("asc");
 
   // ── Filtered stories ────────────────────────────────────────
   const filtered = useMemo(() => {
     return stories.filter(s => {
       if (fPub !== "all" && (s.publication_id || s.publication) !== fPub) return false;
       if (fAssignee !== "all" && s.assigned_to !== fAssignee) return false;
-      if (fPriority !== "all" && (s.priority || "normal") !== fPriority) return false;
       if (sr) {
         const q = sr.toLowerCase();
         const match = (s.title || "").toLowerCase().includes(q) ||
@@ -196,7 +196,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       }
       return true;
     });
-  }, [stories, fPub, fAssignee, fPriority, sr]);
+  }, [stories, fPub, fAssignee, sr]);
 
   // ── Group stories by kanban column ──────────────────────────
   const kanbanData = useMemo(() => {
@@ -254,16 +254,28 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
   // ── Issues for planning tab ─────────────────────────────────
   const futureIssues = useMemo(() => {
-    return (issues || [])
-      .filter(i => !i.sentToPress && (fPub === "all" || i.publicationId === fPub))
-      .sort((a, b) => new Date(a.date || a.deadline) - new Date(b.date || b.deadline))
-      .slice(0, 20);
+    const byPub = {};
+    (issues || [])
+      .filter(i => !i.sentToPress && i.date >= new Date().toISOString().slice(0, 10) && (fPub === "all" || i.publicationId === fPub || i.pubId === fPub))
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .forEach(i => {
+        const pk = i.publicationId || i.pubId;
+        if (!byPub[pk]) byPub[pk] = [];
+        if (byPub[pk].length < 2) byPub[pk].push(i);
+      });
+    return Object.values(byPub).flat().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [issues, fPub]);
 
   const issueStories = useMemo(() => {
     if (!selIssue) return [];
-    return stories.filter(s => s.print_issue_id === selIssue || s.issue_id === selIssue);
-  }, [stories, selIssue]);
+    return stories
+      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || (s.status !== "Published" && s.status !== "Sent to Web")))
+      .sort((a, b) => {
+        const av = a[sortCol] || "", bv = b[sortCol] || "";
+        const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [stories, selIssue, showPublished, sortCol, sortDir]);
 
   // ── Web queue: stories that need web action ─────────────────
   const webQueue = useMemo(() => {
@@ -291,14 +303,32 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   }, [stories, team]);
 
   // ── Stats ───────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    total: filtered.length,
-    drafts: filtered.filter(s => s.status === "Draft").length,
-    inProgress: filtered.filter(s => ["Needs Editing", "Edited", "Approved"].includes(s.status)).length,
-    published: filtered.filter(s => s.status === "Published" || s.status === "Sent to Web").length,
-    needsRepublish: filtered.filter(s => needsRepublish(s)).length,
-    urgent: filtered.filter(s => s.priority === "urgent" || s.priority === "high").length,
-  }), [filtered]);
+  const stats = useMemo(() => {
+    const now = new Date();
+    const weekFromNow = new Date(); weekFromNow.setDate(weekFromNow.getDate() + 7);
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const needsEditCount = filtered.filter(s => s.status === "Needs Editing").length;
+    const dueThisWeek = filtered.filter(s => {
+      if (!s.due_date || s.status === "Published" || s.status === "Sent to Web") return false;
+      const d = new Date(s.due_date);
+      return d <= weekFromNow;
+    });
+    const dueThisWeekCount = dueThisWeek.length;
+    const hasOverdue = dueThisWeek.some(s => new Date(s.due_date) < now);
+    const readyForWebCount = filtered.filter(s => s.status === "Approved" && s.web_status !== "published").length;
+    const publishedThisWeekCount = filtered.filter(s => (s.status === "Published" || s.status === "Sent to Web") && s.published_at && new Date(s.published_at) >= weekAgo).length;
+
+    return {
+      needsEditCount,
+      dueThisWeekCount,
+      hasOverdue,
+      readyForWebCount,
+      publishedThisWeekCount,
+      needsRepublish: filtered.filter(s => needsRepublish(s)).length,
+    };
+  }, [filtered]);
 
   // ── If editor is open, render full-page StoryEditor ─────
   if (editorOpen && selected) {
@@ -337,20 +367,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       </div>
 
       {/* ── Stats bar ─────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        {[
-          { label: "Total", value: stats.total, color: Z.tx },
-          { label: "Drafts", value: stats.drafts, color: ACCENT.grey },
-          { label: "In Progress", value: stats.inProgress, color: ACCENT.indigo },
-          { label: "Published", value: stats.published, color: Z.su || "#22c55e" },
-          ...(stats.needsRepublish > 0 ? [{ label: "Needs Republish", value: stats.needsRepublish, color: Z.wa }] : []),
-          ...(stats.urgent > 0 ? [{ label: "Urgent", value: stats.urgent, color: Z.da }] : []),
-        ].map(s => (
-          <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: DISPLAY }}>{s.value}</span>
-            <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND, fontWeight: 600 }}>{s.label}</span>
-          </div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <GlassStat label="Needs Editing" value={stats.needsEditCount} color={Z.wa} />
+        <GlassStat label="Due This Week" value={stats.dueThisWeekCount} color={stats.hasOverdue ? Z.da : Z.wa} />
+        <GlassStat label="Ready for Web" value={stats.readyForWebCount} color={Z.ac} />
+        <GlassStat label="Published This Week" value={stats.publishedThisWeekCount} color={Z.su} />
       </div>
 
       {/* ── Tab bar + filters ─────────────────────────────── */}
@@ -382,21 +403,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
               {assignees.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           )}
-          {/* Priority filter */}
-          <select value={fPriority} onChange={e => setFPriority(e.target.value)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
-            <option value="all">All Priority</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="normal">Normal</option>
-            <option value="low">Low</option>
-          </select>
         </div>
       </div>
 
       {/* ── Tab Content ───────────────────────────────────── */}
 
       {/* KANBAN VIEW */}
-      {tab === "kanban" && (
+      {tab === "workflow" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", minHeight: 400, paddingBottom: 8 }}>
           {KANBAN_COLS.map(col => (
             <KanbanCol
@@ -412,15 +425,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         </div>
       )}
 
-      {/* STORIES TABLE VIEW */}
-      {tab === "table" && (
-        <StoriesModule stories={stories} setStories={setStories} pubs={pubs} issues={issues} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} />
-      )}
-
-      {/* ISSUE PLANNING VIEW */}
-      {tab === "issues" && (
-        <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, minHeight: 400 }}>
-          {/* Issue list */}
+      {/* STORIES VIEW (merged Issue Planning + Stories table) */}
+      {tab === "stories" && (
+        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, minHeight: 400 }}>
+          {/* Issue sidebar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, padding: "4px 0", marginBottom: 4 }}>Upcoming Issues</div>
             {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
@@ -432,11 +440,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                   padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
                   background: isSelected ? Z.ac + "12" : Z.sf,
                   border: `1px solid ${isSelected ? Z.ac : Z.bd}`,
-                  borderLeft: `3px solid ${pColor(iss.publicationId, pubs)}`,
+                  borderLeft: `3px solid ${pColor(iss.publicationId || iss.pubId, pubs)}`,
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{iss.label || iss.title || "Issue"}</div>
                   <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
-                    {pn(iss.publicationId, pubs)} · {stCount} stories
+                    {pn(iss.publicationId || iss.pubId, pubs)} · {stCount} stories
                     {iss.date && ` · ${new Date(iss.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
                   </div>
                 </div>
@@ -444,7 +452,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             })}
           </div>
 
-          {/* Issue detail / story list */}
+          {/* Issue detail / story data table */}
           <div>
             {!selIssue ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontSize: 13 }}>
@@ -456,7 +464,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                   <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND }}>
                     Stories for {issues.find(i => i.id === selIssue)?.label || "this issue"}
                   </h3>
-                  <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: Z.tm, fontFamily: COND, cursor: "pointer" }}>
+                      <input type="checkbox" checked={showPublished} onChange={e => setShowPublished(e.target.checked)} style={{ accentColor: Z.ac }} />
+                      Show Published
+                    </label>
+                    <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
+                  </div>
                 </div>
                 {/* Print status pipeline */}
                 <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
@@ -470,12 +484,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     );
                   })}
                 </div>
-                {/* Story cards */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {issueStories.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 16, textAlign: "center" }}>No stories assigned to this issue yet</div>}
-                  {issueStories.map(s => (
-                    <StoryCard key={s.id} story={s} pubs={pubs} team={team} onClick={openDetail} />
-                  ))}
+                {/* Data table */}
+                <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: COND }}>
+                    <thead>
+                      <tr style={{ background: Z.sa, borderBottom: `1px solid ${Z.bd}` }}>
+                        {[
+                          { key: "title", label: "Title" },
+                          { key: "author", label: "Author" },
+                          { key: "category", label: "Section" },
+                          { key: "status", label: "Status" },
+                          { key: "page_number", label: "Page" },
+                          { key: "due_date", label: "Due" },
+                        ].map(col => (
+                          <th key={col.key} onClick={() => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } }} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                            {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {issueStories.length === 0 && (
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                      )}
+                      {issueStories.map(s => (
+                        <tr key={s.id} onClick={() => openDetail(s)} style={{ borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "08"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                          <td style={{ padding: "7px 10px", fontWeight: 700, color: Z.tx, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "Untitled"}</td>
+                          <td style={{ padding: "7px 10px", color: Z.tm }}>{s.author || tn(s.assigned_to, team)}</td>
+                          <td style={{ padding: "7px 10px", color: Z.tm }}>{s.category || "—"}</td>
+                          <td style={{ padding: "7px 10px" }}><Badge status={s.status} small /></td>
+                          <td style={{ padding: "7px 10px", color: Z.tm, textAlign: "center" }}>{s.page_number || "—"}</td>
+                          <td style={{ padding: "7px 10px", color: s.due_date && new Date(s.due_date) < new Date() ? Z.da : Z.tm, fontWeight: s.due_date && new Date(s.due_date) < new Date() ? 700 : 400 }}>{s.due_date ? new Date(s.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
