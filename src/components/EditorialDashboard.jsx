@@ -484,7 +484,27 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     );
                   })}
                 </div>
-                {/* Data table */}
+                {/* Mini flatplan */}
+                {(() => {
+                  const mfIssue = issues.find(i => i.id === selIssue);
+                  if (!mfIssue) return null;
+                  const mfPages = Array.from({ length: mfIssue.pageCount || 16 }, (_, i) => i + 1);
+                  const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); });
+                  return <div style={{ background: Z.sa, borderRadius: Ri, padding: "8px 10px", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Page Map</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                      {mfPages.map(pg => {
+                        const pgStories = getStories(pg);
+                        const hasContent = pgStories.length > 0;
+                        return <div key={pg} style={{ width: 40, height: 48, border: `1px solid ${Z.bd}`, borderRadius: 2, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 1, overflow: "hidden" }}>
+                          <div style={{ fontSize: 8, fontWeight: 700, color: Z.td }}>{pg}</div>
+                          {pgStories.slice(0, 2).map(s => <div key={s.id} style={{ fontSize: 6, fontWeight: 600, color: Z.ac, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center" }}>{(s.title || "").slice(0, 10)}</div>)}
+                        </div>;
+                      })}
+                    </div>
+                  </div>;
+                })()}
+                {/* Data table with inline editing */}
                 <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: COND }}>
                     <thead>
@@ -495,7 +515,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           { key: "category", label: "Section" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
-                          { key: "due_date", label: "Due" },
                         ].map(col => (
                           <th key={col.key} onClick={() => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } }} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                             {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
@@ -505,18 +524,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     </thead>
                     <tbody>
                       {issueStories.length === 0 && (
-                        <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                        <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
-                      {issueStories.map(s => (
-                        <tr key={s.id} onClick={() => openDetail(s)} style={{ borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "08"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                          <td style={{ padding: "7px 10px", fontWeight: 700, color: s.title ? Z.ac : Z.td, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || <em style={{ fontWeight: 400 }}>Untitled — click to edit</em>}</td>
-                          <td style={{ padding: "7px 10px", color: Z.tm }}>{s.author || tn(s.assigned_to, team)}</td>
-                          <td style={{ padding: "7px 10px", color: Z.tm }}>{s.category || "—"}</td>
-                          <td style={{ padding: "7px 10px" }}><Badge status={s.status} small /></td>
-                          <td style={{ padding: "7px 10px", color: Z.tm, textAlign: "center" }}>{s.page_number || "—"}</td>
-                          <td style={{ padding: "7px 10px", color: s.due_date && new Date(s.due_date) < new Date() ? Z.da : Z.tm, fontWeight: s.due_date && new Date(s.due_date) < new Date() ? 700 : 400 }}>{s.due_date ? new Date(s.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</td>
-                        </tr>
-                      ))}
+                      {issueStories.map(s => {
+                        const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
+                        const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
+                        const hasSavedTitle = s.title && s.title !== "";
+                        return <tr key={s.id} style={{ borderBottom: `1px solid ${Z.bd}` }}>
+                          <td style={{ padding: "5px 8px", maxWidth: 260 }}>
+                            {hasSavedTitle
+                              ? <span onClick={() => openDetail(s)} style={{ fontWeight: 700, color: Z.ac, cursor: "pointer", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+                              : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => updateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
+                            }
+                          </td>
+                          <td style={{ padding: "5px 8px" }}>
+                            <select value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} style={selS}>
+                              <option value="">—</option>
+                              {[...new Set(stories.map(x => x.author).filter(Boolean))].sort().map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: "5px 8px" }}>
+                            <select value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} style={selS}>
+                              <option value="">—</option>
+                              {["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: "5px 8px" }}>
+                            <select value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} style={selS}>
+                              {STORY_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: "5px 8px", width: 60 }}>
+                            <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />
+                          </td>
+                        </tr>;
+                      })}
                     </tbody>
                   </table>
                 </div>
