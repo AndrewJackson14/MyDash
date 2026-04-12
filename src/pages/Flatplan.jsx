@@ -200,9 +200,10 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   };
 
   const sendInvoiceEmail = async (inv, issue) => {
-    // Find client contact email
+    // Fetch client contact email directly from DB (contacts may not be in local state)
     const client = clients.find(c => c.id === inv.client_id);
-    const clientEmail = client?.contacts?.[0]?.email;
+    const { data: contactRows } = await supabase.from("client_contacts").select("email").eq("client_id", inv.client_id).limit(1);
+    const clientEmail = contactRows?.[0]?.email;
     if (!clientEmail) return;
 
     const htmlBody = generateInvoiceHtml({
