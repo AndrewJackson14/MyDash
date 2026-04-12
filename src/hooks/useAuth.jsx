@@ -28,10 +28,12 @@ export function AuthProvider({ children }) {
     }
 
     // Listen for auth changes FIRST — this catches OAuth redirects
-    // and token refreshes before getSession resolves
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth event:', event, session?.user?.email);
+        // Clear URL hash after auth processes it (prevents 403 on refresh)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
         setSession(session);
         if (session?.user) {
           setUser(session.user);
