@@ -474,6 +474,16 @@ const SalesCRM = (props) => {
         addNotif(mode === "send" ? `Proposal emailed to ${propEmailRecipients.join(", ")}` : `Gmail draft created — check your drafts`);
         logActivity(`Proposal "${propName}" — $${pTotal.toLocaleString()} (${mode === "send" ? "emailed" : "draft"})`, "proposal", propClient, cn(propClient));
         setPropStep("sent");
+        // Log history event
+        if (proposalId) {
+          supabase.from("proposals").update({
+            history: supabase.rpc ? undefined : undefined, // Can't append JSONB client-side easily, use raw SQL
+          }).eq("id", proposalId); // handled by RPC on conversion; manual append for sent:
+          const { data: propRow } = await supabase.from("proposals").select("history").eq("id", proposalId).single();
+          const hist = Array.isArray(propRow?.history) ? propRow.history : [];
+          hist.push({ event: "sent", date: new Date().toISOString(), detail: `Sent to ${propEmailRecipients.join(", ")}` });
+          await supabase.from("proposals").update({ history: hist }).eq("id", proposalId);
+        }
       } else {
         addNotif(`Email failed: ${result.error || "Unknown error"}`);
       }
@@ -645,7 +655,37 @@ const SalesCRM = (props) => {
       return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{p.name}</h2><div style={{ fontSize: FS.base, color: Z.tm }}>{cn(p.clientId)} · {p.term} · {p.date}</div><div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 3 }}>{propPubNames(p)}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div><Badge status={p.status} />{p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}</div></div>{Object.entries(grouped).map(([pub, lines]) => <GlassCard key={pub}><h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub}</h4><div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{lines.map((li, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{li.issueLabel}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{li.adSize}</span><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${li.price.toLocaleString()}</span></div>)}</div></GlassCard>)}<div style={{ background: Z.sa, borderRadius: R, padding: 12, border: `1px solid ${Z.bd}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Items</div><div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{p.lines.length}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Tier</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.term}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Contract</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.termMonths} months</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>{p.payPlan ? "Monthly" : "Payment"}</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.payPlan ? `$${p.monthly?.toLocaleString()}/mo` : `$${p.total.toLocaleString()}`}</div></div></div>
       {p.sentTo?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tm }}>Sent to: {p.sentTo.join(", ")}</div>}
       {p.renewalDate && <div style={{ fontSize: FS.sm, color: Z.wa }}>Renewal: {p.renewalDate}</div>}
-      <div style={{ display: "flex", gap: 5 }}>{p.status === "Sent" && <Btn v="success" onClick={async () => { await signProposal(p.id); setViewPropId(null); }}>Client Signed → Contract</Btn>}{(p.status === "Sent" || p.status === "Draft") && <Btn v="secondary" onClick={() => editProposal(p.id)}><Ic.edit size={12} /> {p.status === "Draft" ? "Edit Draft" : "Edit & Resend"}</Btn>}{p.status === "Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Converted to Contract</span>}{p.status !== "Converted" && p.status !== "Cancelled" && <Btn v="ghost" onClick={async () => { if (!await dialog.confirm("Cancel this proposal? It will be archived.")) return; await updateProposal(p.id, { status: "Cancelled" }); setViewPropId(null); }} style={{ color: Z.da }}>Cancel Proposal</Btn>}{p.status === "Cancelled" && <span style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.bold }}>Cancelled</span>}</div></div>; })()}
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {p.status === "Sent" && <Btn v="success" onClick={async () => { await signProposal(p.id); setViewPropId(null); }}>Client Signed → Contract</Btn>}
+        {(p.status === "Sent" || p.status === "Draft") && <Btn v="secondary" onClick={() => editProposal(p.id)}><Ic.edit size={12} /> {p.status === "Draft" ? "Edit Draft" : "Edit & Resend"}</Btn>}
+        {p.status === "Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Converted to Contract</span>}
+        {(p.status === "Converted" || p.status === "Cancelled") && <Btn v="secondary" onClick={async () => {
+          // Create copy: duplicate proposal without past-published issues
+          const today = new Date().toISOString().slice(0, 10);
+          const futureLines = (p.lines || []).filter(l => !l.issueDate || l.issueDate >= today);
+          if (futureLines.length === 0) { await dialog.alert("No future issues to copy — all issues have already published."); return; }
+          const newTotal = futureLines.reduce((s, l) => s + (l.price || 0), 0);
+          const copy = { ...p, name: p.name + " (Copy)", status: "Draft", lines: futureLines, total: newTotal, date: today, sentAt: null, signedAt: null, convertedAt: null, contractId: null };
+          delete copy.id; delete copy.history;
+          const result = await insertProposal(copy);
+          if (result?.id) { await dialog.alert(`Copy created with ${futureLines.length} future items ($${newTotal.toLocaleString()}). ${(p.lines || []).length - futureLines.length} past issues removed.`); setViewPropId(result.id); }
+        }}><Ic.file size={12} /> Create Copy</Btn>}
+        {p.status !== "Converted" && p.status !== "Cancelled" && <Btn v="ghost" onClick={async () => { if (!await dialog.confirm("Cancel this proposal? It will be archived.")) return; await updateProposal(p.id, { status: "Cancelled" }); setViewPropId(null); }} style={{ color: Z.da }}>Cancel Proposal</Btn>}
+        {p.status === "Cancelled" && <span style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.bold }}>Cancelled</span>}
+      </div>
+
+      {/* History Timeline */}
+      {p.history?.length > 0 && <GlassCard>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>History</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {(p.history || []).map((h, i) => <div key={i} style={{ display: "flex", gap: 10, padding: "4px 0", borderBottom: i < p.history.length - 1 ? `1px solid ${Z.bd}15` : "none" }}>
+            <span style={{ fontSize: FS.xs, color: Z.tm, minWidth: 90 }}>{h.date ? new Date(h.date).toLocaleDateString() : ""}</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}>{h.detail || h.event}</span>
+          </div>)}
+        </div>
+      </GlassCard>}
+      </div>; })()}
 
     {/* CLOSED — RECENT WINS (quick view, deep research on Contracts page) */}
     {tab === "Closed" && (() => {

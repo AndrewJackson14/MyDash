@@ -295,6 +295,9 @@ export function DataProvider({ children, localData }) {
         id: p.id, clientId: p.client_id, name: p.name, term: p.term, termMonths: p.term_months,
         total: Number(p.total), payPlan: p.pay_plan, monthly: Number(p.monthly),
         status: p.status, date: p.date, renewalDate: p.renewal_date, closedAt: p.closed_at, sentTo: p.sent_to || [],
+        assignedTo: p.assigned_to, artSource: p.art_source, contractId: p.contract_id,
+        signedAt: p.signed_at, convertedAt: p.converted_at, sentAt: p.sent_at,
+        history: p.history || [],
         lines: propLinesRes.data.filter(l => l.proposal_id === p.id).map(l => ({
           pubId: l.publication_id, pubName: l.pub_name, adSize: l.ad_size, dims: l.dims,
           adW: Number(l.ad_width), adH: Number(l.ad_height),
