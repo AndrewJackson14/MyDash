@@ -90,9 +90,8 @@ const SalesCRM = (props) => {
     { id: "al3", text: "New opportunity via Referral", time: "Yesterday", type: "opp", clientId: "c22", clientName: "Five Star Rain Gutters" },
   ]);
   const [actFilter, setActFilter] = useState("all");
-  const [closedRange, setClosedRange] = useState("all");
+  const [closedRange, setClosedRange] = useState("month");
   const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
-  const [viewContractId, setViewContractId] = useState(null);
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
@@ -493,7 +492,7 @@ const SalesCRM = (props) => {
       {tab === "Proposals" && <Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "Past 30 Days", "This Month", "This Quarter", "This Year", "All Time"]} active={{"7days":"Past 7 Days","30days":"Past 30 Days","month":"This Month","quarter":"This Quarter","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","Past 30 Days":"30days","This Month":"month","This Quarter":"quarter","This Year":"year","All Time":"all"}[v])} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "This Month", "This Year", "All Time"]} active={{"7days":"Past 7 Days","month":"This Month","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","This Month":"month","This Year":"year","All Time":"all"}[v])} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -621,63 +620,42 @@ const SalesCRM = (props) => {
       {p.renewalDate && <div style={{ fontSize: FS.sm, color: Z.wa }}>Renewal: {p.renewalDate}</div>}
       <div style={{ display: "flex", gap: 5 }}>{p.status === "Sent" && <Btn v="success" onClick={async () => { await signProposal(p.id); setViewPropId(null); }}>Client Signed → Contract</Btn>}{(p.status === "Sent" || p.status === "Draft") && <Btn v="secondary" onClick={() => editProposal(p.id)}><Ic.edit size={12} /> {p.status === "Draft" ? "Edit Draft" : "Edit & Resend"}</Btn>}{p.status === "Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Converted to Contract</span>}</div></div>; })()}
 
-    {/* CLOSED — CONTRACTS VIEW */}
+    {/* CLOSED — RECENT WINS (quick view, deep research on Contracts page) */}
     {tab === "Closed" && (() => {
       // Load contracts on first visit
       if (!contractsLoaded && loadContracts) loadContracts();
 
       const repName = (tid) => (props.team || []).find(t => t.id === tid)?.name || "\u2014";
       const now = new Date(); const thisMonth = now.toISOString().slice(0,7); const thisYear = now.toISOString().slice(0,4);
-      const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1).toISOString().slice(0,10);
-      const d30s = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0,10);
+      const d7s = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0,10);
 
-      // Also build contracts from closed sales that have no contract_id (legacy/manual sales)
-      const contractedSaleIds = new Set();
-      (contracts || []).forEach(c => { closedSales.filter(s => s.contractId === c.id).forEach(s => contractedSaleIds.add(s.id)); });
-      const orphanSales = closedSales.filter(s => !contractedSaleIds.has(s.id) && !s.contractId);
-
-      // Build unified list: real contracts + synthetic ones from orphan sales grouped by client
-      const allContracts = [...(contracts || [])];
-      if (orphanSales.length > 0) {
-        const byClient = {};
-        orphanSales.forEach(s => { if (!byClient[s.clientId]) byClient[s.clientId] = []; byClient[s.clientId].push(s); });
-        Object.entries(byClient).forEach(([cid, ss]) => {
-          allContracts.push({
-            id: "orphan-" + cid,
-            clientId: cid,
-            name: cn(cid) + " \u2014 Ad Orders",
-            status: "active",
-            totalValue: ss.reduce((sum, s) => sum + (s.amount || 0), 0),
-            startDate: ss.sort((a,b) => a.date.localeCompare(b.date))[0]?.date || "",
-            endDate: ss[ss.length - 1]?.date || "",
-            assignedTo: null,
-            paymentTerms: "per_issue",
-            lines: ss.map(s => ({ pubId: s.publication, adSize: s.size || s.type || "", rate: s.amount || 0, quantity: 1, lineTotal: s.amount || 0 })),
-            _orphanSales: ss,
-          });
-        });
-      }
+      // Build deal list from contracts with closed date + pub abbreviations
+      const deals = (contracts || []).map(c => {
+        const pubIds = [...new Set((c.lines || []).map(l => l.pubId))];
+        const pubAbbrevs = pubIds.map(pid => { const n = pn(pid); return n.length > 15 ? n.split(" ").map(w => w[0]).join("") : n; }).join(", ");
+        const closedDate = c.startDate || "";
+        return { ...c, pubAbbrevs, pubIds, closedDate };
+      });
 
       // Filter by date range
-      let filtered = allContracts.filter(c => {
-        const d = c.startDate || "";
-        if (closedRange === "30days") return d >= d30s;
+      let filtered = deals.filter(c => {
+        const d = c.closedDate || "";
+        if (closedRange === "7days") return d >= d7s;
         if (closedRange === "month") return d?.startsWith(thisMonth);
-        if (closedRange === "quarter") return d >= qStart;
         if (closedRange === "year") return d?.startsWith(thisYear);
         return true;
       });
-      if (fPub !== "all") filtered = filtered.filter(c => (c.lines || []).some(l => l.pubId === fPub));
+      if (fPub !== "all") filtered = filtered.filter(c => c.pubIds.includes(fPub));
 
       // Sort
       const sortDir = closedSort.dir === "asc" ? 1 : -1;
       const getSortVal = (c) => {
         if (closedSort.key === "client") return cn(c.clientId);
         if (closedSort.key === "amount") return c.totalValue || 0;
-        if (closedSort.key === "date") return c.startDate || "";
+        if (closedSort.key === "date") return c.closedDate || "";
         if (closedSort.key === "rep") return repName(c.assignedTo);
-        if (closedSort.key === "status") return c.status || "";
-        return c.name || "";
+        if (closedSort.key === "pubs") return c.pubAbbrevs || "";
+        return "";
       };
       filtered.sort((a, b) => {
         const av = getSortVal(a), bv = getSortVal(b);
@@ -686,87 +664,35 @@ const SalesCRM = (props) => {
       });
 
       const totalRev = filtered.reduce((s, c) => s + (c.totalValue || 0), 0);
-      const pubsInContracts = [...new Set(filtered.flatMap(c => (c.lines || []).map(l => l.pubId)))];
-
-      // Contract detail view
-      const viewContract = viewContractId ? filtered.find(c => c.id === viewContractId) : null;
-      if (viewContract) {
-        const contractSales = closedSales.filter(s => s.contractId === viewContract.id);
-        const pubGroups = {};
-        (viewContract.lines || []).forEach(l => {
-          const pk = l.pubId || "other";
-          if (!pubGroups[pk]) pubGroups[pk] = [];
-          pubGroups[pk].push(l);
-        });
-        return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <Btn sm v="ghost" onClick={() => setViewContractId(null)}>{"\u2190"} Back to Contracts</Btn>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{viewContract.name}</h2>
-              <div style={{ fontSize: FS.base, color: Z.tm }}>{cn(viewContract.clientId)} {viewContract.assignedTo ? `\u00B7 ${repName(viewContract.assignedTo)}` : ""}</div>
-              <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>{viewContract.startDate} \u2014 {viewContract.endDate} \u00B7 {viewContract.paymentTerms?.replace("_", " ")}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>${(viewContract.totalValue || 0).toLocaleString()}</div>
-              <Badge status={viewContract.status} />
-              <div style={{ marginTop: 6 }}><Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> PDF</Btn></div>
-            </div>
-          </div>
-          {/* Line items by publication */}
-          {Object.entries(pubGroups).map(([pubId, lines]) => <GlassCard key={pubId}>
-            <h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pn(pubId) || pubId}</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {lines.map((l, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}>
-                <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{l.adSize}</span>
-                <span style={{ fontSize: FS.sm, color: Z.tm, textAlign: "center" }}>{"\u00D7"}{l.quantity || 1}</span>
-                <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(l.lineTotal || l.rate || 0).toLocaleString()}</span>
-              </div>)}
-            </div>
-          </GlassCard>)}
-          {/* Related sales orders */}
-          {contractSales.length > 0 && <GlassCard>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Sales Orders ({contractSales.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {contractSales.map(s => <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 80px", gap: 6, padding: "4px 8px", background: Z.bg, borderRadius: R, fontSize: FS.sm }}>
-                <span style={{ color: Z.tm }}>{pn(s.publication)}</span>
-                <span style={{ color: Z.tm }}>{s.size || s.type}</span>
-                <span style={{ color: Z.tm }}>{s.date}</span>
-                <span style={{ fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(s.amount || 0).toLocaleString()}</span>
-              </div>)}
-            </div>
-          </GlassCard>}
-        </div>;
-      }
+      const repRevs = {}; filtered.forEach(c => { if (c.assignedTo) { const rn = repName(c.assignedTo); repRevs[rn] = (repRevs[rn] || 0) + (c.totalValue || 0); } });
+      const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
 
       return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* STATS CARDS */}
+      {/* STATS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {[
-          ["Contract Value", "$" + (totalRev >= 1000 ? (totalRev/1000).toFixed(0) + "K" : totalRev.toLocaleString()), Z.go],
-          ["Contracts", String(filtered.length), Z.ac],
-          ["Avg Contract", "$" + Math.round(totalRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
-          ["Publications", String(pubsInContracts.length), Z.ac],
-        ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
+          ["Revenue", "$" + (totalRev >= 1000 ? (totalRev/1000).toFixed(0) + "K" : totalRev.toLocaleString()), Z.go],
+          ["Deals Closed", String(filtered.length), Z.ac],
+          ["Avg Deal", "$" + Math.round(totalRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
+          ["Top Seller", topRep ? topRep[0].split(" ")[0] : "\u2014", Z.ac],
+        ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Seller" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
       </div>
-      {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading contracts...</div>}
-      {/* CONTRACT TABLE */}
+      {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>}
+      {/* TABLE */}
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
           <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            {[["Contract","name"],["Client","client"],["Value","amount"],["Start","date"],["End",""],["Terms",""],["Salesperson","rep"],["Status","status"]].map(([label, key]) => <th key={label} onClick={key ? () => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" })) : undefined} style={{ padding: "8px 12px", textAlign: label === "Value" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: key ? "pointer" : "default", userSelect: "none" }}>{label}{closedSort.key === key ? (closedSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}</th>)}
+            {[["Client","client"],["Publications","pubs"],["Value","amount"],["Closed","date"],["Salesperson","rep"]].map(([label, key]) => <th key={label} onClick={() => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "8px 12px", textAlign: label === "Value" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>{label}{closedSort.key === key ? (closedSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}</th>)}
           </tr></thead>
           <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: Z.td }}>No contracts found</td></tr>
-            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => setViewContractId(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
+            {filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No deals in this period</td></tr>
+            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => onNavigate?.("contracts")} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
               onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{c.name}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{cn(c.clientId)}</td>
+              <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{cn(c.clientId)}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm, fontSize: FS.xs }}>{c.pubAbbrevs}</td>
               <td style={{ padding: "8px 12px", fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(c.totalValue || 0).toLocaleString()}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.startDate}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.endDate}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.paymentTerms?.replace("_", " ")}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.closedDate}</td>
               <td style={{ padding: "8px 12px", color: Z.tm }}>{c.assignedTo ? repName(c.assignedTo) : "\u2014"}</td>
-              <td style={{ padding: "8px 12px" }}><Badge status={c.status} small /></td>
             </tr>)}
           </tbody>
         </table>
