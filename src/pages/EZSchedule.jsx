@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, R, Ri, FS, FW, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Badge, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import { useDialog } from "../hooks/useDialog";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -167,6 +168,7 @@ function makeIssue(pub, date, adCloseDays, edCloseDays) {
 }
 
 const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => {
+  const dialog = useDialog();
   const isDk = Z.bg === "#08090D";
 
   // Wizard state
@@ -398,7 +400,7 @@ const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => 
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm v="secondary" onClick={() => setStep(1)}>← Edit Pattern</Btn>
-            <Btn sm onClick={() => { if (willDelete > 0 && !window.confirm(`This will replace ${willDelete} existing issue${willDelete !== 1 ? "s" : ""} from ${startDate} forward. Continue?`)) return; saveIssues(); }}>✓ Save {previewIssues.length} Issues</Btn>
+            <Btn sm onClick={async () => { if (willDelete > 0 && !await dialog.confirm(`This will replace ${willDelete} existing issue${willDelete !== 1 ? "s" : ""} from ${startDate} forward. Continue?`)) return; saveIssues(); }}>✓ Save {previewIssues.length} Issues</Btn>
           </div>
         </div>
       </GlassCard>

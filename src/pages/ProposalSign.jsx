@@ -3,7 +3,7 @@
 // No auth required — accessed via /sign/:access_token
 // ============================================================
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
 import DOMPurify from "dompurify";
