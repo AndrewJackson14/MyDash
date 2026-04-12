@@ -205,7 +205,7 @@ export default function App() {
     if (pg === 'servicedesk') { loads.push(appData.loadTickets?.(), appData.loadCirculation?.()); }
     if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
-    if (pg === 'editions') loads.push(appData.loadEditions?.());
+    if (pg === 'editorial') loads.push(appData.loadEditions?.());
     if (loads.length > 0) Promise.all(loads.filter(Boolean));
   }, [pg, online]);
 
