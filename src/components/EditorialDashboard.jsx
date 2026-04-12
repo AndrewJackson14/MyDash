@@ -272,12 +272,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     }
 
     if (id.startsWith("story-")) {
-      // New story — INSERT with correct DB column names
+      // New story — only INSERT once it has a title
       const full = storiesRaw.find(s => s.id === id) || {};
+      const titleVal = updates.title || full.title || "";
+      if (!titleVal.trim()) return; // Don't persist untitled stories yet
       const pubId = full.publication_id || full.publication || null;
       const issId = full.print_issue_id || full.issue_id || full.issueId || null;
       supabase.from("stories").insert({
-        title: full.title || updates.title || "Untitled",
+        title: titleVal,
         author: full.author || null,
         status: "Draft",
         category: full.category || "News",
