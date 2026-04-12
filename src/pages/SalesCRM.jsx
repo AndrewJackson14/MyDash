@@ -711,6 +711,16 @@ const SalesCRM = (props) => {
           </GlassCard>}
           <div style={{ display: "flex", gap: 6 }}>
             <Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> Download PDF</Btn>
+            {viewContract.status === "active" && <Btn sm v="ghost" onClick={async () => {
+              const reason = prompt("Cancellation reason:");
+              if (!reason) return;
+              const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
+              if (error) { alert("Error: " + error.message); return; }
+              if (data?.error) { alert(data.error); return; }
+              alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices affected.`);
+              setViewContractId(null);
+            }} style={{ color: Z.da }}>Cancel Contract</Btn>}
+            {viewContract.status === "cancelled" && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>Cancelled</span>}
           </div>
         </div>;
       }
