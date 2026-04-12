@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 import StoryEditor from "./StoryEditor";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -169,6 +170,15 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory }) => {
   const stories = storiesRaw || [];
+  const dialog = useDialog();
+
+  const deleteStory = async (id) => {
+    if (!await dialog.confirm("Delete this story? This cannot be undone.")) return;
+    setStories(prev => prev.filter(s => s.id !== id));
+    if (!id.startsWith("story-")) {
+      supabase.from("stories").delete().eq("id", id).then(() => {}).catch(() => {});
+    }
+  };
   const [tab, setTab] = useState("workflow");
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
@@ -551,8 +561,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           { key: "category", label: "Section" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
+                          { key: "_delete", label: "" },
                         ].map(col => (
-                          <th key={col.key} onClick={() => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } }} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                          <th key={col.key} onClick={col.key !== "_delete" ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: col.key !== "_delete" ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: col.key === "_delete" ? 32 : undefined }}>
                             {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
                           </th>
                         ))}
@@ -560,7 +571,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     </thead>
                     <tbody>
                       {issueStories.length === 0 && (
-                        <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
                       {issueStories.map(s => {
                         const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
@@ -592,6 +603,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           </td>
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />
+                          </td>
+                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
+                            <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
                           </td>
                         </tr>;
                       })}
