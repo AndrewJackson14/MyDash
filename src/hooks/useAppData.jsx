@@ -1418,24 +1418,30 @@ export function DataProvider({ children, localData }) {
     sortOrder: cl.sort_order, notes: cl.notes || '',
   });
 
-  // Fast load: recent contracts only (last 90 days) — for Closed tab
+  // Fast load: recent contracts (90 days) + ALL monthly payment plan contracts
   const loadContracts = useCallback(async () => {
     if (contractsLoaded || !isOnline()) return;
     const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-    const [{ data: recentContracts }, { data: recentLines }] = await Promise.all([
+    const [{ data: recentContracts }, { data: monthlyContracts }] = await Promise.all([
       supabase.from('contracts').select('*').gte('start_date', cutoff).order('start_date', { ascending: false }).limit(200),
-      supabase.from('contract_lines').select('*').in('contract_id',
-        (await supabase.from('contracts').select('id').gte('start_date', cutoff).limit(200)).data?.map(c => c.id) || []
-      ),
+      supabase.from('contracts').select('*').eq('payment_terms', 'monthly').eq('status', 'active'),
     ]);
-    if (recentContracts?.length) {
+    // Merge and deduplicate
+    const allMap = {};
+    (recentContracts || []).forEach(c => { allMap[c.id] = c; });
+    (monthlyContracts || []).forEach(c => { allMap[c.id] = c; });
+    const merged = Object.values(allMap);
+    const mergedIds = merged.map(c => c.id);
+
+    const { data: allLines } = await supabase.from('contract_lines').select('*').in('contract_id', mergedIds);
+    if (merged.length) {
       const linesByContract = {};
-      (recentLines || []).forEach(cl => {
+      (allLines || []).forEach(cl => {
         if (!linesByContract[cl.contract_id]) linesByContract[cl.contract_id] = [];
         linesByContract[cl.contract_id].push(mapContractLine(cl));
       });
-      setContracts(recentContracts.map(c => mapContract(c, linesByContract)));
-      setContractLines((recentLines || []).map(cl => ({ id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id, adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total) })));
+      setContracts(merged.map(c => mapContract(c, linesByContract)));
+      setContractLines((allLines || []).map(cl => ({ id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id, adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total) })));
     }
     setContractsLoaded(true);
   }, [contractsLoaded]);
