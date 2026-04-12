@@ -413,7 +413,7 @@ export default function App() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
       {/* ── Top Bar — hidden on dashboard ─────────────── */}
-      {pg !== "dashboard" && <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: `1px solid ${Z.bd}`, background: isDark ? "rgba(14,16,24,0.7)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0 }}>
+      {pg !== "dashboard" && <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: `1px solid ${Z.bd}`, background: isDark ? "rgba(14,16,24,0.7)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
         <div>
           <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
             onMouseOver={e => e.currentTarget.style.color = Z.tx}
