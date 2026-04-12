@@ -89,6 +89,24 @@ export function DataProvider({ children, localData }) {
         const n = payload.new;
         setNotifications(prev => [{ id: n.id, text: n.title || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || '' }, ...prev]);
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contracts' }, (payload) => {
+        const c = payload.new;
+        setContracts(prev => {
+          if (prev.some(x => x.id === c.id)) return prev;
+          return [{ id: c.id, clientId: c.client_id, name: c.name, status: c.status, startDate: c.start_date, endDate: c.end_date, totalValue: Number(c.total_value), totalPaid: Number(c.total_paid), discountPct: Number(c.discount_pct), paymentTerms: c.payment_terms, assignedTo: c.assigned_to, notes: c.notes || '', isSynthetic: c.is_synthetic, lines: [] }, ...prev];
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contracts' }, (payload) => {
+        const c = payload.new;
+        setContracts(prev => prev.map(x => x.id === c.id ? { ...x, status: c.status, totalPaid: Number(c.total_paid), notes: c.notes || '' } : x));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, (payload) => {
+        const s = payload.new;
+        setSales(prev => {
+          if (prev.some(x => x.id === s.id)) return prev;
+          return [{ id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id, type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height), amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at, contractId: s.contract_id || null, proposalId: s.proposal_id, productType: s.product_type || 'display_print' }, ...prev];
+        });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
