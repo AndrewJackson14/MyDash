@@ -92,6 +92,7 @@ const SalesCRM = (props) => {
   const [actFilter, setActFilter] = useState("all");
   const [closedRange, setClosedRange] = useState("month");
   const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
+  const [viewContractId, setViewContractId] = useState(null);
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
@@ -667,6 +668,53 @@ const SalesCRM = (props) => {
       const repRevs = {}; filtered.forEach(c => { if (c.assignedTo) { const rn = repName(c.assignedTo); repRevs[rn] = (repRevs[rn] || 0) + (c.totalValue || 0); } });
       const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
 
+      // Contract detail view
+      const viewContract = viewContractId ? (contracts || []).find(c => c.id === viewContractId) : null;
+      if (viewContract) {
+        const contractSales = closedSales.filter(s => s.contractId === viewContract.id);
+        const pubGroups = {};
+        (viewContract.lines || []).forEach(l => { const pk = l.pubId || "other"; if (!pubGroups[pk]) pubGroups[pk] = []; pubGroups[pk].push(l); });
+        return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Btn sm v="ghost" onClick={() => setViewContractId(null)}>{"\u2190"} Back</Btn>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+            {[
+              ["Client", cn(viewContract.clientId)],
+              ["Status", (viewContract.status || "").charAt(0).toUpperCase() + (viewContract.status || "").slice(1)],
+              ["Term", `${viewContract.startDate || "?"} \u2192 ${viewContract.endDate || "?"}`],
+              ["Value", `$${(viewContract.totalValue || 0).toLocaleString()}`],
+              ["Salesperson", viewContract.assignedTo ? repName(viewContract.assignedTo) : "\u2014"],
+            ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: 12 }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</div>
+              <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, marginTop: 4 }}>{v}</div>
+            </div>)}
+          </div>
+          {Object.entries(pubGroups).map(([pubId, lines]) => <GlassCard key={pubId}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>{pn(pubId) || pubId}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {lines.map((l, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}>
+                <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{l.adSize}</span>
+                <span style={{ fontSize: FS.sm, color: Z.tm, textAlign: "center" }}>{"\u00D7"}{l.quantity || 1}</span>
+                <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(l.lineTotal || l.rate || 0).toLocaleString()}</span>
+              </div>)}
+            </div>
+          </GlassCard>)}
+          {contractSales.length > 0 && <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Sales Orders ({contractSales.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {contractSales.sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(s => <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 80px", gap: 6, padding: "4px 8px", background: Z.bg, borderRadius: R, fontSize: FS.sm }}>
+                <span style={{ color: Z.tm }}>{pn(s.publication)}</span>
+                <span style={{ color: Z.tm }}>{s.size || s.type}</span>
+                <span style={{ color: Z.tm }}>{s.date}</span>
+                <span style={{ fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(s.amount || 0).toLocaleString()}</span>
+              </div>)}
+            </div>
+          </GlassCard>}
+          <div style={{ display: "flex", gap: 6 }}>
+            <Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> Download PDF</Btn>
+          </div>
+        </div>;
+      }
+
       return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* STATS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
@@ -686,7 +734,7 @@ const SalesCRM = (props) => {
           </tr></thead>
           <tbody>
             {filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No deals in this period</td></tr>
-            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => onNavigate?.("contracts")} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
+            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => setViewContractId(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
               onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
               <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{cn(c.clientId)}</td>
               <td style={{ padding: "8px 12px", color: Z.tm, fontSize: FS.xs }}>{c.pubAbbrevs}</td>
