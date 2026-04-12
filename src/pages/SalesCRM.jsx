@@ -90,9 +90,10 @@ const SalesCRM = (props) => {
     { id: "al3", text: "New opportunity via Referral", time: "Yesterday", type: "opp", clientId: "c22", clientName: "Five Star Rain Gutters" },
   ]);
   const [actFilter, setActFilter] = useState("all");
-  const [closedRange, setClosedRange] = useState("month");
   const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
   const [viewContractId, setViewContractId] = useState(null);
+  const [closedSearch, setClosedSearch] = useState("");
+  const [closedRep, setClosedRep] = useState("all");
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
@@ -491,9 +492,10 @@ const SalesCRM = (props) => {
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
       {tab === "Proposals" && <Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn>}
+      {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /></>}
     </PageHeader>
 
-    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}{tab === "Closed" && <><TabPipe /><TB tabs={["Past 7 Days", "This Month", "This Year", "All Time"]} active={{"7days":"Past 7 Days","month":"This Month","year":"This Year","all":"All Time"}[closedRange]} onChange={v => setClosedRange({"Past 7 Days":"7days","This Month":"month","This Year":"year","All Time":"all"}[v])} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -627,8 +629,7 @@ const SalesCRM = (props) => {
       if (!contractsLoaded && loadContracts) loadContracts();
 
       const repName = (tid) => (props.team || []).find(t => t.id === tid)?.name || "\u2014";
-      const now = new Date(); const thisMonth = now.toISOString().slice(0,7); const thisYear = now.toISOString().slice(0,4);
-      const d7s = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0,10);
+      const d30s = new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
 
       // Build deal list from contracts with closed date + pub abbreviations
       const deals = (contracts || []).map(c => {
@@ -638,15 +639,14 @@ const SalesCRM = (props) => {
         return { ...c, pubAbbrevs, pubIds, closedDate };
       });
 
-      // Filter by date range
-      let filtered = deals.filter(c => {
-        const d = c.closedDate || "";
-        if (closedRange === "7days") return d >= d7s;
-        if (closedRange === "month") return d?.startsWith(thisMonth);
-        if (closedRange === "year") return d?.startsWith(thisYear);
-        return true;
-      });
+      // Filter: last 30 days + pub + rep + search
+      let filtered = deals.filter(c => (c.closedDate || "") >= d30s);
       if (fPub !== "all") filtered = filtered.filter(c => c.pubIds.includes(fPub));
+      if (closedRep !== "all") filtered = filtered.filter(c => c.assignedTo === closedRep);
+      if (closedSearch) {
+        const q = closedSearch.toLowerCase();
+        filtered = filtered.filter(c => cn(c.clientId).toLowerCase().includes(q) || c.pubAbbrevs.toLowerCase().includes(q) || (c.name || "").toLowerCase().includes(q));
+      }
 
       // Sort
       const sortDir = closedSort.dir === "asc" ? 1 : -1;
