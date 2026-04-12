@@ -251,11 +251,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
     // Generate and send invoice email
     const client = (clients || []).find(c => c.id === inv.clientId);
-    const clientEmail = client?.contacts?.[0]?.email;
+    const { data: contactRows } = await supabase.from("client_contacts").select("email").eq("client_id", inv.clientId).limit(1);
+    const clientEmail = contactRows?.[0]?.email || client?.contacts?.[0]?.email;
     if (clientEmail) {
       const htmlBody = generateInvoiceHtml({
         invoice: inv,
         clientName: client?.name || "",
+        clientCode: client?.clientCode || "",
       });
       try {
         await sendGmailEmail({

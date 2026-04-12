@@ -206,10 +206,20 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     const clientEmail = contactRows?.[0]?.email;
     if (!clientEmail) return;
 
+    // Map DB fields to template's expected camelCase format
+    const { data: invLines } = await supabase.from("invoice_lines").select("description, amount").eq("invoice_id", inv.id);
     const htmlBody = generateInvoiceHtml({
-      invoice: inv,
-      client,
+      invoice: {
+        invoiceNumber: inv.invoice_number,
+        issueDate: inv.issue_date || new Date().toISOString().slice(0, 10),
+        dueDate: inv.due_date || new Date().toISOString().slice(0, 10),
+        total: Number(inv.total) || 0,
+        balanceDue: Number(inv.balance_due) || 0,
+        status: inv.status,
+        lines: (invLines || []).map(l => ({ description: l.description, amount: Number(l.amount) })),
+      },
       clientName: client?.name || "",
+      clientCode: client?.clientCode || client?.client_code || "",
     });
 
     const result = await sendGmailEmail({
