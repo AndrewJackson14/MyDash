@@ -3,6 +3,8 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 
 import { supabase } from "../lib/supabase";
+import { sendGmailEmail } from "../lib/gmail";
+import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
@@ -89,7 +91,7 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   </div>;
 };
 
-const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction }) => {
+const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction }) => {
   const fpPubs = jurisdiction?.myPubs || pubs;
   const [selPub, setSelPub] = useState("");
   const [selIssue, setSelIssue] = useState("");
@@ -117,43 +119,113 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     setSendingToPress(true);
     setSentToPressModal(false);
 
-    // 1. Mark issue as sent to press
     const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
+
+    // 1. Mark issue as sent to press
     await supabase.from("issues").update({ sent_to_press_at: now, sent_to_press_by: "publisher" }).eq("id", issue.id);
     setIssues(prev => prev.map(i => i.id === issue.id ? { ...i, sentToPressAt: now } : i));
 
-    // 2. Find per-issue payment sales for this issue via proposal/contract linkage
+    // 2. Find closed sales for this issue
     const issueSales = (sales || []).filter(s => s.issueId === issue.id && s.status === "Closed");
 
-    // 3. For each sale, create an invoice if one doesn't exist
-    for (const sale of issueSales) {
-      // Check if invoice exists for this sale
-      const { data: existingInv } = await supabase.from("invoice_lines").select("invoice_id").eq("sale_id", sale.id).limit(1);
-      if (existingInv?.length > 0) continue; // Already invoiced
+    let invoicesCreated = 0;
+    let invoicesSent = 0;
+    let skippedPaymentPlan = 0;
+    let skippedRecentlySent = 0;
 
-      // Create invoice
-      const cn = clients.find(c => c.id === sale.clientId)?.name || "";
+    for (const sale of issueSales) {
+      // Skip $0 sales
+      if (!sale.amount || sale.amount <= 0) continue;
+
+      // Check if this sale is part of a monthly payment plan (contract with monthly terms)
+      if (sale.contractId) {
+        const contract = (contracts || []).find(c => c.id === sale.contractId);
+        if (contract?.paymentTerms === "monthly") {
+          skippedPaymentPlan++;
+          continue; // Monthly payment plans are invoiced separately
+        }
+      }
+
+      // Check if invoice already exists for this sale
+      const { data: existingLines } = await supabase.from("invoice_lines").select("invoice_id").eq("sale_id", sale.id).limit(1);
+      if (existingLines?.length > 0) {
+        // Invoice exists — check if it needs sending
+        const { data: existingInv } = await supabase.from("invoices").select("id, status, client_id, invoice_number, total, balance_due, created_at").eq("id", existingLines[0].invoice_id).single();
+        if (existingInv && existingInv.status === "draft") {
+          // Draft invoice — send it
+          await sendInvoiceEmail(existingInv, issue);
+          invoicesSent++;
+        } else if (existingInv && existingInv.status === "sent" && existingInv.created_at < fiveDaysAgo) {
+          // Sent but older than 5 days — resend
+          await sendInvoiceEmail(existingInv, issue);
+          invoicesSent++;
+        } else {
+          skippedRecentlySent++;
+        }
+        continue;
+      }
+
+      // Create new invoice
+      const clientName = clients.find(c => c.id === sale.clientId)?.name || "";
+      const pubName = pubs.find(p => p.id === sale.publication)?.name || "";
       const { data: inv } = await supabase.from("invoices").insert({
         client_id: sale.clientId,
         invoice_number: `INV-${Date.now().toString(36).toUpperCase()}`,
-        status: "sent",
-        issue_date: now.slice(0, 10),
-        due_date: now.slice(0, 10), // Due immediately on press
+        status: "draft",
+        issue_date: today,
+        due_date: today,
         total: sale.amount || 0,
         balance_due: sale.amount || 0,
-      }).select("id").single();
+      }).select("id, invoice_number, total, balance_due, client_id, status").single();
 
       if (inv?.id) {
         await supabase.from("invoice_lines").insert({
           invoice_id: inv.id,
           sale_id: sale.id,
-          description: `${pubs.find(p => p.id === sale.publication)?.name || ""} ${issue.label} — ${sale.size || sale.type || "Ad"}`,
+          description: `${pubName} ${issue.label} — ${sale.size || sale.type || "Ad"}`,
           amount: sale.amount || 0,
         });
+        invoicesCreated++;
+
+        // Send the invoice email
+        await sendInvoiceEmail({ ...inv, invoice_number: inv.invoice_number }, issue);
+        invoicesSent++;
       }
     }
 
+    console.log(`[sendToPress] ${invoicesCreated} created, ${invoicesSent} sent, ${skippedPaymentPlan} skipped (payment plan), ${skippedRecentlySent} skipped (recently sent)`);
     setSendingToPress(false);
+  };
+
+  const sendInvoiceEmail = async (inv, issue) => {
+    // Find client contact email
+    const client = clients.find(c => c.id === inv.client_id);
+    const clientEmail = client?.contacts?.[0]?.email;
+    if (!clientEmail) return;
+
+    const htmlBody = generateInvoiceHtml({
+      invoice: inv,
+      client,
+      clientName: client?.name || "",
+    });
+
+    const result = await sendGmailEmail({
+      teamMemberId: null,
+      to: [clientEmail],
+      subject: `Invoice ${inv.invoice_number} — 13 Stars Media Group`,
+      htmlBody,
+      mode: "send",
+      emailType: "invoice",
+      clientId: inv.client_id,
+      refId: inv.id,
+      refType: "invoice",
+    });
+
+    if (result.success) {
+      await supabase.from("invoices").update({ status: "sent" }).eq("id", inv.id);
+    }
   };
   const [showProposalAds, setShowProposalAds] = useState(false);
   const [placeholders, setPlaceholders] = useState([]);
