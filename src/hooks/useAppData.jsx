@@ -1379,8 +1379,49 @@ export function DataProvider({ children, localData }) {
 
   // Lazy loaders for heavy data (loaded on-demand, not on initial page load)
   const [contractsLoaded, setContractsLoaded] = useState(false);
+  const [allContractsLoaded, setAllContractsLoaded] = useState(false);
+
+  const mapContract = (c, linesByContract) => ({
+    id: c.id, clientId: c.client_id, name: c.name, status: c.status,
+    startDate: c.start_date, endDate: c.end_date,
+    totalValue: Number(c.total_value), totalPaid: Number(c.total_paid),
+    discountPct: Number(c.discount_pct), paymentTerms: c.payment_terms,
+    assignedTo: c.assigned_to, notes: c.notes || '',
+    isSynthetic: c.is_synthetic,
+    lines: linesByContract?.[c.id] || [],
+  });
+
+  const mapContractLine = (cl) => ({
+    id: cl.id, pubId: cl.publication_id, adSize: cl.ad_size,
+    rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total),
+    sortOrder: cl.sort_order, notes: cl.notes || '',
+  });
+
+  // Fast load: recent contracts only (last 90 days) — for Closed tab
   const loadContracts = useCallback(async () => {
     if (contractsLoaded || !isOnline()) return;
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    const [{ data: recentContracts }, { data: recentLines }] = await Promise.all([
+      supabase.from('contracts').select('*').gte('start_date', cutoff).order('start_date', { ascending: false }).limit(200),
+      supabase.from('contract_lines').select('*').in('contract_id',
+        (await supabase.from('contracts').select('id').gte('start_date', cutoff).limit(200)).data?.map(c => c.id) || []
+      ),
+    ]);
+    if (recentContracts?.length) {
+      const linesByContract = {};
+      (recentLines || []).forEach(cl => {
+        if (!linesByContract[cl.contract_id]) linesByContract[cl.contract_id] = [];
+        linesByContract[cl.contract_id].push(mapContractLine(cl));
+      });
+      setContracts(recentContracts.map(c => mapContract(c, linesByContract)));
+      setContractLines((recentLines || []).map(cl => ({ id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id, adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total) })));
+    }
+    setContractsLoaded(true);
+  }, [contractsLoaded]);
+
+  // Full load: all contracts — for Contracts page deep research
+  const loadAllContracts = useCallback(async () => {
+    if (allContractsLoaded || !isOnline()) return;
     const [allContracts, allContractLines] = await Promise.all([
       fetchAllRows('contracts', 'start_date', false),
       fetchAllRows('contract_lines', null),
@@ -1389,29 +1430,14 @@ export function DataProvider({ children, localData }) {
       const linesByContract = {};
       allContractLines.forEach(cl => {
         if (!linesByContract[cl.contract_id]) linesByContract[cl.contract_id] = [];
-        linesByContract[cl.contract_id].push({
-          id: cl.id, pubId: cl.publication_id, adSize: cl.ad_size,
-          rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total),
-          sortOrder: cl.sort_order, notes: cl.notes || '',
-        });
+        linesByContract[cl.contract_id].push(mapContractLine(cl));
       });
-      setContracts(allContracts.map(c => ({
-        id: c.id, clientId: c.client_id, name: c.name, status: c.status,
-        startDate: c.start_date, endDate: c.end_date,
-        totalValue: Number(c.total_value), totalPaid: Number(c.total_paid),
-        discountPct: Number(c.discount_pct), paymentTerms: c.payment_terms,
-        assignedTo: c.assigned_to, notes: c.notes || '',
-        isSynthetic: c.is_synthetic,
-        lines: linesByContract[c.id] || [],
-      })));
-      setContractLines(allContractLines.map(cl => ({
-        id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id,
-        adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity,
-        lineTotal: Number(cl.line_total),
-      })));
+      setContracts(allContracts.map(c => mapContract(c, linesByContract)));
+      setContractLines(allContractLines.map(cl => ({ id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id, adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total) })));
     }
+    setAllContractsLoaded(true);
     setContractsLoaded(true);
-  }, [contractsLoaded]);
+  }, [allContractsLoaded]);
 
   const [allSalesLoaded, setAllSalesLoaded] = useState(false);
   const loadAllSales = useCallback(async () => {
@@ -1448,7 +1474,7 @@ export function DataProvider({ children, localData }) {
     creativeJobs, setCreativeJobs,
     contracts, setContracts, contractLines, setContractLines,
     salesSummary, setSalesSummary,
-    loadContracts, loadAllSales, contractsLoaded, allSalesLoaded,
+    loadContracts, loadAllContracts, loadAllSales, contractsLoaded, allContractsLoaded, allSalesLoaded,
     loadFullSales, fullSalesLoaded,
     // Lazy loaders for module-specific data
     loadClientDetails, clientDetailsLoaded,
