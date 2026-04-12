@@ -145,115 +145,130 @@ function PortalDashboard({ user }) {
   const paidTotal = invoices.filter(i => i.status === "paid").reduce((sum, i) => sum + Number(i.total || 0), 0);
   const activeContracts = contracts.filter(c => c.status === "active").length;
 
+  const unpaidInvoices = invoices.filter(i => i.status !== "paid" && i.status !== "void" && Number(i.balance_due) > 0);
+  const paidInvoices = invoices.filter(i => i.status === "paid" || Number(i.balance_due) <= 0);
+
   return <div style={s.page}>
+    <style>{`@media(max-width:640px){.portal-stats{grid-template-columns:1fr!important}.portal-inv-row{grid-template-columns:1fr auto!important}}`}</style>
     {/* HEADER */}
     <div style={s.header}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 900, margin: "0 auto", padding: "0 8px" }}>
         <div>
           <h1 style={s.headerTitle}>13 Stars Media Group</h1>
-          <div style={s.headerSub}>Client Portal &middot; {clientName}</div>
+          <div style={s.headerSub}>Client Portal · {clientName}</div>
         </div>
-        <button onClick={handleSignOut} style={{ ...s.btnSecondary, background: "transparent", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.3)" }}>Sign Out</button>
+        <button onClick={handleSignOut} style={{ ...s.btnSecondary, background: "transparent", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.3)", fontSize: 12, padding: "6px 14px" }}>Sign Out</button>
       </div>
     </div>
 
     <div style={s.container}>
       {/* STATS */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div className="portal-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
         <div style={s.card}>
-          <div style={{ fontSize: 12, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Outstanding Balance</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: unpaidTotal > 0 ? RED : GREEN, marginTop: 4 }}>{fmtCurrency(unpaidTotal)}</div>
+          <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Outstanding</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: unpaidTotal > 0 ? RED : GREEN, marginTop: 4 }}>{fmtCurrency(unpaidTotal)}</div>
         </div>
         <div style={s.card}>
-          <div style={{ fontSize: 12, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Paid</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: GREEN, marginTop: 4 }}>{fmtCurrency(paidTotal)}</div>
+          <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Paid</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, marginTop: 4 }}>{fmtCurrency(paidTotal)}</div>
         </div>
         <div style={s.card}>
-          <div style={{ fontSize: 12, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Active Contracts</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: NAVY, marginTop: 4 }}>{activeContracts}</div>
+          <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Active Contracts</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: NAVY, marginTop: 4 }}>{activeContracts}</div>
         </div>
       </div>
 
       {/* TABS */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
         {["invoices", "contracts", "payments"].map(t => <button key={t} onClick={() => setTab(t)} style={s.tab(tab === t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
       </div>
 
-      {/* INVOICES TAB */}
-      {tab === "invoices" && <div style={s.card}>
-        <div style={s.cardTitle}>Invoices</div>
-        {invoices.length === 0 ? <div style={{ color: GRAY, padding: 16, textAlign: "center" }}>No invoices yet</div>
-        : <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-            {["Invoice #", "Date", "Due", "Amount", "Balance", "Status"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: h === "Amount" || h === "Balance" ? "right" : "left", fontSize: 11, fontWeight: 700, color: GRAY_LT, textTransform: "uppercase" }}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {invoices.map(inv => <tr key={inv.id} style={{ borderBottom: `1px solid ${BORDER}15` }}>
-              <td style={{ padding: "10px 10px", fontWeight: 600, color: BLACK }}>{inv.invoice_number}</td>
-              <td style={{ padding: "10px 10px", color: GRAY }}>{fmtDate(inv.issue_date)}</td>
-              <td style={{ padding: "10px 10px", color: inv.status === "overdue" ? RED : GRAY }}>{fmtDate(inv.due_date)}</td>
-              <td style={{ padding: "10px 10px", fontWeight: 600, color: BLACK, textAlign: "right" }}>{fmtCurrency(Number(inv.total))}</td>
-              <td style={{ padding: "10px 10px", fontWeight: 700, color: Number(inv.balance_due) > 0 ? RED : GREEN, textAlign: "right" }}>{fmtCurrency(Number(inv.balance_due))}</td>
-              <td style={{ padding: "10px 10px" }}><span style={s.badge(statusColors[inv.status] || GRAY)}>{inv.status}</span></td>
-            </tr>)}
-          </tbody>
-        </table>}
-        {unpaidTotal > 0 && <div style={{ marginTop: 16, textAlign: "center" }}>
-          <div style={{ fontSize: 12, color: GRAY, marginBottom: 8 }}>Total outstanding: <strong style={{ color: RED }}>{fmtCurrency(unpaidTotal)}</strong></div>
-          <div style={{ fontSize: 12, color: GRAY_LT, marginTop: 8 }}>
-            To pay by check: 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447<br />
-            Questions? <a href="mailto:billing@13stars.media" style={{ color: NAVY }}>billing@13stars.media</a> &middot; (805) 237-6060
+      {/* INVOICES TAB — card-based for mobile */}
+      {tab === "invoices" && <>
+        {unpaidInvoices.length > 0 && <div style={s.card}>
+          <div style={s.cardTitle}>Unpaid Invoices</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {unpaidInvoices.map(inv => <div key={inv.id} style={{ border: `1px solid ${BORDER}`, borderRadius: 6, padding: 14 }}>
+              <div className="portal-inv-row" style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: BLACK, fontSize: 14 }}>{inv.invoice_number}</div>
+                  <div style={{ fontSize: 12, color: GRAY, marginTop: 2 }}>Issued {fmtDate(inv.issue_date)} · Due {fmtDate(inv.due_date)}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: RED }}>{fmtCurrency(Number(inv.balance_due))}</div>
+                </div>
+                <a href={`/pay/${inv.invoice_number}`} style={{ ...s.btn, padding: "8px 18px", fontSize: 13, textDecoration: "none", whiteSpace: "nowrap" }}>Pay Now</a>
+              </div>
+            </div>)}
           </div>
         </div>}
-      </div>}
 
-      {/* CONTRACTS TAB */}
+        {paidInvoices.length > 0 && <div style={{ ...s.card, marginTop: unpaidInvoices.length > 0 ? 0 : undefined }}>
+          <div style={s.cardTitle}>Paid</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {paidInvoices.map(inv => <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${BORDER}15` }}>
+              <div>
+                <span style={{ fontWeight: 600, color: BLACK, fontSize: 13 }}>{inv.invoice_number}</span>
+                <span style={{ color: GRAY, fontSize: 12, marginLeft: 8 }}>{fmtDate(inv.issue_date)}</span>
+              </div>
+              <div style={{ fontWeight: 600, color: GREEN, fontSize: 13 }}>{fmtCurrency(Number(inv.total))}</div>
+            </div>)}
+          </div>
+        </div>}
+
+        {invoices.length === 0 && <div style={s.card}><div style={{ color: GRAY, padding: 16, textAlign: "center" }}>No invoices yet</div></div>}
+
+        {unpaidTotal > 0 && <div style={{ ...s.card, textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: GRAY, marginBottom: 4 }}>Total outstanding: <strong style={{ color: RED }}>{fmtCurrency(unpaidTotal)}</strong></div>
+          <div style={{ fontSize: 12, color: GRAY_LT, marginTop: 8, lineHeight: 1.7 }}>
+            <strong>Mail check to:</strong> 13 Stars Media Group, P.O. Box 427, Paso Robles, CA 93447<br />
+            <strong>Phone:</strong> (805) 237-6060 · <strong>Email:</strong> <a href="mailto:billing@13stars.media" style={{ color: NAVY }}>billing@13stars.media</a>
+          </div>
+        </div>}
+      </>}
+
+      {/* CONTRACTS TAB — card-based */}
       {tab === "contracts" && <div style={s.card}>
         <div style={s.cardTitle}>Contracts</div>
         {contracts.length === 0 ? <div style={{ color: GRAY, padding: 16, textAlign: "center" }}>No contracts yet</div>
-        : <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-            {["Contract", "Start", "End", "Value", "Terms", "Status"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: h === "Value" ? "right" : "left", fontSize: 11, fontWeight: 700, color: GRAY_LT, textTransform: "uppercase" }}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {contracts.map(c => <tr key={c.id} style={{ borderBottom: `1px solid ${BORDER}15` }}>
-              <td style={{ padding: "10px 10px", fontWeight: 600, color: BLACK }}>{c.name}</td>
-              <td style={{ padding: "10px 10px", color: GRAY }}>{fmtDate(c.start_date)}</td>
-              <td style={{ padding: "10px 10px", color: GRAY }}>{fmtDate(c.end_date)}</td>
-              <td style={{ padding: "10px 10px", fontWeight: 600, color: BLACK, textAlign: "right" }}>{fmtCurrency(Number(c.total_value))}</td>
-              <td style={{ padding: "10px 10px", color: GRAY }}>{(c.payment_terms || "").replace("_", " ")}</td>
-              <td style={{ padding: "10px 10px" }}><span style={s.badge(c.status === "active" ? GREEN : c.status === "cancelled" ? RED : GRAY)}>{c.status}</span></td>
-            </tr>)}
-          </tbody>
-        </table>}
+        : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {contracts.map(c => <div key={c.id} style={{ border: `1px solid ${BORDER}`, borderRadius: 6, padding: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: BLACK, fontSize: 14 }}>{c.name}</div>
+                <div style={{ fontSize: 12, color: GRAY, marginTop: 2 }}>{fmtDate(c.start_date)} \u2192 {fmtDate(c.end_date)} · {(c.payment_terms || "").replace("_", " ")}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: BLACK }}>{fmtCurrency(Number(c.total_value))}</div>
+                <span style={s.badge(c.status === "active" ? GREEN : c.status === "cancelled" ? RED : GRAY)}>{c.status}</span>
+              </div>
+            </div>
+          </div>)}
+        </div>}
       </div>}
 
-      {/* PAYMENTS TAB */}
+      {/* PAYMENTS TAB — card-based */}
       {tab === "payments" && <div style={s.card}>
         <div style={s.cardTitle}>Payment History</div>
         {payments.length === 0 ? <div style={{ color: GRAY, padding: 16, textAlign: "center" }}>No payments recorded</div>
-        : <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead><tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-            {["Date", "Invoice", "Method", "Reference", "Amount"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: h === "Amount" ? "right" : "left", fontSize: 11, fontWeight: 700, color: GRAY_LT, textTransform: "uppercase" }}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {payments.map(p => {
-              const inv = invoices.find(i => i.id === p.invoice_id);
-              return <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}15` }}>
-                <td style={{ padding: "10px 10px", color: GRAY }}>{fmtDate(p.payment_date)}</td>
-                <td style={{ padding: "10px 10px", fontWeight: 600, color: BLACK }}>{inv?.invoice_number || "\u2014"}</td>
-                <td style={{ padding: "10px 10px", color: GRAY }}>{p.method || "\u2014"}</td>
-                <td style={{ padding: "10px 10px", color: GRAY }}>{p.reference || "\u2014"}</td>
-                <td style={{ padding: "10px 10px", fontWeight: 700, color: GREEN, textAlign: "right" }}>{fmtCurrency(Number(p.amount))}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>}
+        : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {payments.map(p => {
+            const inv = invoices.find(i => i.id === p.invoice_id);
+            return <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${BORDER}15`, flexWrap: "wrap", gap: 4 }}>
+              <div>
+                <div style={{ fontWeight: 600, color: BLACK, fontSize: 13 }}>{fmtDate(p.payment_date)}</div>
+                <div style={{ fontSize: 12, color: GRAY }}>{inv?.invoice_number || "\u2014"} · {p.method || "Payment"}{p.reference ? ` · ${p.reference}` : ""}</div>
+              </div>
+              <div style={{ fontWeight: 700, color: GREEN, fontSize: 15 }}>{fmtCurrency(Number(p.amount))}</div>
+            </div>;
+          })}
+        </div>}
       </div>}
 
       {/* FOOTER */}
-      <div style={{ textAlign: "center", padding: "24px 0", color: GRAY_LT, fontSize: 12 }}>
-        13 Stars Media Group &middot; P.O. Box 427, Paso Robles, CA 93447 &middot; (805) 237-6060
+      <div style={{ textAlign: "center", padding: "24px 0", color: GRAY_LT, fontSize: 11, lineHeight: 1.6 }}>
+        13 Stars Media Group · P.O. Box 427, Paso Robles, CA 93447<br />
+        (805) 237-6060 · <a href="mailto:billing@13stars.media" style={{ color: GRAY_LT }}>billing@13stars.media</a>
       </div>
     </div>
   </div>;
