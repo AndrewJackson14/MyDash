@@ -94,6 +94,7 @@ const SalesCRM = (props) => {
   const [viewContractId, setViewContractId] = useState(null);
   const [closedSearch, setClosedSearch] = useState("");
   const [closedRep, setClosedRep] = useState("all");
+  const [showCancelled, setShowCancelled] = useState(false);
   const [propSearch, setPropSearch] = useState("");
   const [propStatus, setPropStatus] = useState("all");
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
@@ -494,7 +495,7 @@ const SalesCRM = (props) => {
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
       {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Converted", label: "Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
-      {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /></>}
+      {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
     </PageHeader>
 
     <TabRow><TB tabs={["Pipeline", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
@@ -647,8 +648,9 @@ const SalesCRM = (props) => {
         return { ...c, pubAbbrevs, pubIds, closedDate };
       });
 
-      // Filter: last 30 days + pub + rep + search
-      let filtered = deals.filter(c => (c.closedDate || "") >= d30s);
+      // Filter: hide cancelled unless toggled, last 30 days + pub + rep + search
+      let filtered = showCancelled ? deals : deals.filter(c => c.status !== "cancelled");
+      filtered = filtered.filter(c => (c.closedDate || "") >= d30s);
       if (fPub !== "all") filtered = filtered.filter(c => c.pubIds.includes(fPub));
       if (closedRep !== "all") filtered = filtered.filter(c => c.assignedTo === closedRep);
       if (closedSearch) {
