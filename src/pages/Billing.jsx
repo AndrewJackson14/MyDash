@@ -41,8 +41,47 @@ const InvBadge = ({ status }) => {
   return <span style={{ display: "inline-flex", alignItems: "center", borderRadius: R, fontSize: FS.xs, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap" }}>{labels[status] || status}</span>;
 };
 
+// ─── Payment Plan Card (extracted to avoid hooks-in-map) ────
+const PaymentPlanCard = ({ plan: p, today }) => {
+  const [expanded, setExpanded] = useState(false);
+  return <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+    <div onClick={() => setExpanded(!expanded)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", cursor: "pointer", borderLeft: p.overdueInvs.length > 0 ? `3px solid ${Z.da}` : `3px solid ${Z.su}` }}>
+      <div>
+        <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.client.name}</div>
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>
+          {fmtCurrency(p.monthlyAmount)}/mo · {p.planInvs.length} remaining · {p.paidInvs.length} paid
+          {p.hasCard && <span style={{ marginLeft: 8, fontSize: FS.micro, fontWeight: FW.bold, color: Z.su, background: Z.ss, padding: "1px 6px", borderRadius: Ri }}>Card on file</span>}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {p.overdueInvs.length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>{p.overdueInvs.length} overdue</span>}
+        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: p.totalOutstanding > 0 ? Z.da : Z.su }}>{fmtCurrency(p.totalOutstanding)}</div>
+        <span style={{ fontSize: 10, color: Z.td, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>{"\u25BC"}</span>
+      </div>
+    </div>
+    {expanded && <div style={{ borderTop: `1px solid ${Z.bd}`, padding: "12px 18px" }}>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Installment Schedule</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {[...p.paidInvs.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")), ...p.planInvs].map(inv => {
+          const isPaid = inv.status === "paid";
+          const isOverdue = !isPaid && inv.dueDate && inv.dueDate < today;
+          return <div key={inv.id} style={{ display: "grid", gridTemplateColumns: "100px 1fr 90px 80px", gap: 8, padding: "6px 8px", background: isOverdue ? Z.da + "08" : isPaid ? Z.su + "06" : Z.bg, borderRadius: Ri, alignItems: "center" }}>
+            <span style={{ fontSize: FS.sm, color: isOverdue ? Z.da : isPaid ? Z.su : Z.tm, fontWeight: isOverdue ? FW.bold : FW.semi }}>{fmtDate(inv.dueDate)}</span>
+            <span style={{ fontSize: FS.sm, color: Z.tm }}>{inv.invoiceNumber}</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.total)}</span>
+            <span style={{ textAlign: "right" }}><InvBadge status={inv.status} /></span>
+          </div>;
+        })}
+      </div>
+      {p.nextDue && <div style={{ marginTop: 10, fontSize: FS.xs, color: Z.tm }}>
+        Next charge: {fmtDate(p.nextDue.dueDate)} · {fmtCurrency(p.nextDue.total)}
+      </div>}
+    </div>}
+  </GlassCard>;
+};
+
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts }) => {
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -438,7 +477,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Payment Plans", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>
@@ -630,6 +669,47 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         })()}
       </GlassCard>
     </>}
+
+    {/* ════════ PAYMENT PLANS TAB ════════ */}
+    {tab === "Payment Plans" && (() => {
+      // Find clients on monthly payment plans via their contracts
+      const monthlyContracts = (contracts || []).filter(c => c.paymentTerms === "monthly" && c.status === "active");
+      const planClientIds = [...new Set(monthlyContracts.map(c => c.clientId))];
+
+      // Build plan data per client
+      const plans = planClientIds.map(cid => {
+        const client = (clients || []).find(c => c.id === cid);
+        if (!client) return null;
+        const clientInvs = processedInvoices.filter(i => i.clientId === cid);
+        const planInvs = clientInvs.filter(i => i.status !== "paid" && i.status !== "void").sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+        const paidInvs = clientInvs.filter(i => i.status === "paid");
+        const overdueInvs = planInvs.filter(i => i.status === "overdue" || (i.dueDate && i.dueDate < today));
+        const nextDue = planInvs.find(i => i.dueDate >= today);
+        const monthlyAmount = planInvs[0]?.total || monthlyContracts.find(c => c.clientId === cid)?.totalValue / 12 || 0;
+        const totalOutstanding = planInvs.reduce((s, i) => s + (i.balanceDue || i.total || 0), 0);
+        const hasCard = client.cardLast4;
+
+        return { client, planInvs, paidInvs, overdueInvs, nextDue, monthlyAmount, totalOutstanding, hasCard };
+      }).filter(Boolean).sort((a, b) => (b.overdueInvs.length - a.overdueInvs.length) || (a.client.name || "").localeCompare(b.client.name || ""));
+
+      const totalOverdue = plans.reduce((s, p) => s + p.overdueInvs.length, 0);
+      const totalOutstandingAll = plans.reduce((s, p) => s + p.totalOutstanding, 0);
+      const clientsWithCards = plans.filter(p => p.hasCard).length;
+
+      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          <GlassStat label="Active Plans" value={plans.length} color={Z.ac} />
+          <GlassStat label="Outstanding" value={"$" + Math.round(totalOutstandingAll).toLocaleString()} color={totalOverdue > 0 ? Z.da : Z.su} />
+          <GlassStat label="Overdue Installments" value={totalOverdue} color={totalOverdue > 0 ? Z.da : Z.su} />
+          <GlassStat label="Cards on File" value={`${clientsWithCards}/${plans.length}`} color={Z.ac} />
+        </div>
+
+        {/* Plan list */}
+        {plans.length === 0 ? <GlassCard><div style={{ padding: 24, textAlign: "center", color: Z.td }}>No active payment plans</div></GlassCard>
+        : plans.map(p => <PaymentPlanCard key={p.client.id} plan={p} today={today} />)}
+      </div>;
+    })()}
 
     {/* ════════ REPORTS TAB (Sec 6.1–6.3) ════════ */}
     {tab === "Reports" && (() => {
