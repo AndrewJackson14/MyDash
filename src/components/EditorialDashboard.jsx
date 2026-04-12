@@ -265,24 +265,31 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     if (updates.published_at !== undefined) dbFields.published_at = updates.published_at;
     if (Object.keys(dbFields).length === 0) return;
 
+    // Map page to integer for DB
+    if (dbFields.page !== undefined) {
+      const pgNum = parseInt(String(dbFields.page));
+      dbFields.page = isNaN(pgNum) ? null : pgNum;
+    }
+
     if (id.startsWith("story-")) {
-      // New story — need to insert. Get the full story from local state.
+      // New story — INSERT with correct DB column names
       const full = storiesRaw.find(s => s.id === id) || {};
+      const pubId = full.publication_id || full.publication || null;
+      const issId = full.print_issue_id || full.issue_id || full.issueId || null;
       supabase.from("stories").insert({
-        title: full.title || updates.title || "",
-        author: full.author || "",
-        status: full.status || "Draft",
+        title: full.title || updates.title || "Untitled",
+        author: full.author || null,
+        status: "Draft",
         category: full.category || "News",
-        publication: full.publication_id || full.publication || null,
-        issue_id: full.print_issue_id || full.issue_id || full.issueId || null,
-        page: full.page || full.page_number || null,
+        publication_id: pubId,
+        print_issue_id: issId,
+        page: dbFields.page || null,
         ...dbFields,
       }).select("id").single().then(({ data }) => {
         if (data?.id) {
-          // Replace temp ID with real DB ID in local state
           setStories(prev => prev.map(s => s.id === id ? { ...s, id: data.id } : s));
         }
-      }).catch(() => {});
+      }).catch(err => console.error("Story insert error:", err));
     } else {
       dbFields.updated_at = new Date().toISOString();
       supabase.from("stories").update(dbFields).eq("id", id).then(() => {}).catch(() => {});
