@@ -82,7 +82,7 @@ export function DataProvider({ children, localData }) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'proposals' }, (payload) => {
         const p = payload.new;
         setProposals(prev => prev.map(x => x.id === p.id ? {
-          ...x, status: p.status, contractId: p.contract_id, signedAt: p.signed_at, convertedAt: p.converted_at,
+          ...x, status: p.status, contractId: p.contract_id, signedAt: p.signed_at, convertedAt: p.converted_at, history: p.history || x.history,
         } : x));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
