@@ -198,7 +198,6 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       }
     }
 
-    console.log(`[sendToPress] ${invoicesCreated} created, ${invoicesSent} sent, ${skippedPaymentPlan} skipped (payment plan), ${skippedRecentlySent} skipped (recently sent)`);
     setSendingToPress(false);
   };
 

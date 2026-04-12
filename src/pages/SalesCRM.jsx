@@ -391,7 +391,6 @@ const SalesCRM = (props) => {
     setPropSending(true);
     try {
       // Save the proposal
-      console.log("[proposal] Starting send flow...");
       let renewalDate = null;
       if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
       const propData = {
@@ -402,17 +401,13 @@ const SalesCRM = (props) => {
       };
       let proposalId = editPropId;
       if (editPropId) {
-        console.log("[proposal] Updating existing:", editPropId);
         await updateProposal(editPropId, { ...propData, status: "Sent", sentAt: new Date().toISOString() });
       } else {
-        console.log("[proposal] Inserting new proposal...");
         const result = await insertProposal(propData);
-        console.log("[proposal] Insert result:", result?.id);
         if (result?.id) proposalId = result.id;
       }
 
       // Create signature record with proposal snapshot
-      console.log("[proposal] Creating signature record...");
       const cl = clients.find(c => c.id === propClient);
       const primaryContact = (cl?.contacts || []).find(c => c.email) || {};
       let signLink = "";
@@ -426,11 +421,9 @@ const SalesCRM = (props) => {
         }).select("access_token").single();
         if (sigErr) console.error("[proposal] Signature insert error:", sigErr);
         if (sigData?.access_token) signLink = `${window.location.origin}/sign/${sigData.access_token}`;
-        console.log("[proposal] Sign link:", signLink ? "created" : "none");
       }
 
       // Load proposal template config (default for this pub or fallback)
-      console.log("[proposal] Generating email HTML...");
       const clientName = cn(propClient);
       const teamMember = currentUser || (props.team || []).find(t => t.permissions?.includes("admin")) || props.team?.[0];
       if (!teamMember) throw new Error("No team member found");
@@ -454,7 +447,6 @@ const SalesCRM = (props) => {
         signLink,
       });
 
-      console.log("[proposal] Sending via Gmail...");
       const result = await sendGmailEmail({
         teamMemberId: teamMember.id,
         to: propEmailRecipients,
@@ -462,8 +454,6 @@ const SalesCRM = (props) => {
         htmlBody, mode,
         emailType: "proposal", clientId: propClient, refId: proposalId, refType: "proposal",
       });
-      console.log("[proposal] Gmail result:", result);
-
       if (result.needs_auth) {
         const auth = await initiateGmailAuth(teamMember.id);
         if (auth.error) addNotif(`Gmail auth error: ${auth.error}`);

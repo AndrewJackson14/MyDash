@@ -93,15 +93,35 @@ serve(async (req: Request) => {
         });
 
         if (sendRes.ok) {
+          const sendData = await sendRes.json().catch(() => ({}));
+          await admin.from("email_log").insert({
+            type: "contract", to_email, subject, status: "sent",
+            ref_type: "proposal_signature", ref_id: signature_id,
+            client_id: proposal?.client_id || null,
+            gmail_message_id: sendData.id || null,
+          });
           return new Response(
             JSON.stringify({ success: true, method: "gmail", message: "Contract confirmation sent" }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        } else {
+          await admin.from("email_log").insert({
+            type: "contract", to_email, subject, status: "failed",
+            error_message: "Gmail returned " + sendRes.status,
+            ref_type: "proposal_signature", ref_id: signature_id,
+            client_id: proposal?.client_id || null,
+          });
         }
       }
     }
 
     // Fallback: just log it — salesperson can send manually
+    await admin.from("email_log").insert({
+      type: "contract", to_email, subject, status: "failed",
+      error_message: "No Gmail tokens available — queued for manual send",
+      ref_type: "proposal_signature", ref_id: signature_id,
+      client_id: proposal?.client_id || null,
+    });
     await admin.from("notifications").insert({
       title: `Contract signed — email to ${to_email} needs manual send`,
       type: "system",

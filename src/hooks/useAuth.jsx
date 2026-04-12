@@ -46,12 +46,7 @@ export function AuthProvider({ children }) {
     );
 
     // Then check for existing session in storage
-    // Debug: check what keys are in localStorage
-    const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
-    console.log('[auth] localStorage sb- keys:', sbKeys);
-
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[auth] getSession result:', session ? session.user?.email : 'no session');
       if (session?.user) {
         setSession(session);
         setUser(session.user);
@@ -76,7 +71,6 @@ export function AuthProvider({ children }) {
 
   const fetchTeamMember = async (authId) => {
     try {
-      console.log('[auth] fetchTeamMember for authId:', authId);
       // Fetch all team members (fast, small table) and match client-side
       const { data, error } = await supabase
         .from('team_members')
@@ -87,10 +81,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
-      console.log('[auth] team_members loaded:', data?.length);
-
       let match = (data || []).find(t => t.auth_id === authId || String(t.auth_id) === String(authId));
-      console.log('[auth] auth_id match:', match?.name || 'none');
       if (!match && user?.email) {
         // Fallback: match by email and auto-link auth_id
         match = (data || []).find(t => t.email === user.email);

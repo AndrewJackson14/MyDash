@@ -81,7 +81,6 @@ export function DataProvider({ children, localData }) {
     const channel = supabase.channel('proposals_notifs_realtime')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'proposals' }, (payload) => {
         const p = payload.new;
-        console.log('[realtime] Proposal updated:', p.id, p.status);
         setProposals(prev => prev.map(x => x.id === p.id ? {
           ...x, status: p.status, contractId: p.contract_id, signedAt: p.signed_at, convertedAt: p.converted_at, history: p.history || x.history,
         } : x));
