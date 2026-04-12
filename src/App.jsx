@@ -7,7 +7,7 @@ import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
 import { isOnline } from "./lib/supabase";
-import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV } from "./lib/theme";
+import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
 import {
   INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
