@@ -767,7 +767,7 @@ export function DataProvider({ children, localData }) {
     const np = { ...proposal, id: 'prop' + Date.now() }; setProposals(pr => [...pr, np]); return np;
   }, []);
 
-  // Convert an Approved/Signed proposal → contract + sales orders via database function
+  // Convert a Sent proposal → Signed & Converted contract + sales orders via database function
   const convertProposal = useCallback(async (proposalId) => {
     if (!isOnline()) return { error: 'Offline — cannot convert' };
     const { data, error } = await supabase.rpc('convert_proposal_to_contract', { p_proposal_id: proposalId });
@@ -775,7 +775,7 @@ export function DataProvider({ children, localData }) {
     if (data?.error) return data;
     // Success — reload the affected data into local state
     // Update proposal status locally
-    setProposals(pr => pr.map(p => p.id === proposalId ? { ...p, status: 'Converted', contractId: data.contract_id, convertedAt: new Date().toISOString() } : p));
+    setProposals(pr => pr.map(p => p.id === proposalId ? { ...p, status: 'Signed & Converted', contractId: data.contract_id, convertedAt: new Date().toISOString() } : p));
     // Reload sales to pick up the new orders
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 12);
     let newSales = []; let pg = 0;

@@ -206,7 +206,7 @@ export function generateSampleProposals(pubs, issues, clients) {
     proposals.push({
       id: `prop-${i}`, clientId: clients[i].id, name: `${clients[i].name} ${pub.name} Campaign`,
       term: "6-month", termMonths: 6, total: lines.reduce((s, l) => s + l.price, 0), payPlan: false, monthly: 0,
-      status: i === 0 ? "Sent" : i === 1 ? "Draft" : "Approved/Signed", date: todayStr,
+      status: i === 0 ? "Sent" : i === 1 ? "Draft" : "Signed & Converted", date: todayStr,
       renewalDate: null, closedAt: i === 2 ? todayStr : null, sentTo: i === 0 ? [clients[i].contacts?.[0]?.email] : [],
       lines,
     });

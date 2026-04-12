@@ -40,7 +40,7 @@ export const COMM_AUTHORS = ["Account Manager", "Graphic Designer", "Publisher",
 export const STORY_AUTHORS = ["Hayley Mattson", "Nicholas Mattson", "Sarah Chen", "Marcus Rivera", "Jimy Tallal", "Lisa Nguyen", "Tom Bradley", "Jennifer Park", "Staff Writer"];
 
 export const PIPELINE = ["Discovery", "Presentation", "Proposal", "Negotiation", "Closed", "Follow-up"];
-export const PROPOSAL_STATUSES = ["Draft", "Sent", "Under Review", "Approved/Signed", "Expired"];
+export const PROPOSAL_STATUSES = ["Draft", "Sent", "Under Review", "Signed & Converted"];
 export const TERMS = [{ label: "1× (per issue)", key: "rate", months: 1 }, { label: "6-month", key: "rate6", months: 6 }, { label: "12-month", key: "rate12", months: 12 }];
 
 export const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];

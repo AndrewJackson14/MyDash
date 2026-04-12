@@ -68,9 +68,9 @@ export default function ProposalSign() {
       signed_ip: "", signed_user_agent: navigator.userAgent,
     }).eq("id", sig.id);
 
-    // 2. Mark proposal as signed
+    // 2. Mark proposal signed_at (status will be set by the RPC)
     await supabase.from("proposals").update({
-      status: "Approved/Signed", signed_at: new Date().toISOString(),
+      signed_at: new Date().toISOString(),
     }).eq("id", sig.proposal_id);
 
     // 3. Auto-convert to contract + create sales orders

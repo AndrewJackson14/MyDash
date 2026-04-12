@@ -36,7 +36,7 @@ const ClientProfile = ({
 
   // Key dates
   const lastAdDate = closedCS.sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0]?.date;
-  const lastContractDate = clientProposals.filter(p => p.status === "Approved/Signed").sort((a, b) => (b.closedAt || b.date || "").localeCompare(a.closedAt || a.date || ""))[0]?.closedAt?.slice(0, 10) || clientProposals.filter(p => p.status === "Approved/Signed")[0]?.date;
+  const lastContractDate = clientProposals.filter(p => p.status === "Signed & Converted").sort((a, b) => (b.closedAt || b.date || "").localeCompare(a.closedAt || a.date || ""))[0]?.closedAt?.slice(0, 10) || clientProposals.filter(p => p.status === "Signed & Converted")[0]?.date;
   const firstSaleDate = closedCS.sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0]?.date;
   const yearsAsClient = firstSaleDate ? Math.max(1, Math.round((new Date() - new Date(firstSaleDate)) / (365.25 * 86400000) * 10) / 10) : 0;
 

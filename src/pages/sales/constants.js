@@ -5,7 +5,7 @@ import { Z } from "../../lib/theme";
 
 export const PIPELINE = ["Discovery", "Presentation", "Proposal", "Negotiation", "Closed", "Follow-up"];
 export const PIPELINE_COLORS = { Discovery: Z.tm, Presentation: Z.tm, Proposal: Z.tx, Negotiation: Z.tx, Closed: Z.tx, "Follow-up": Z.td };
-export const PROPOSAL_STATUSES = ["Draft", "Sent", "Under Review", "Approved/Signed", "Expired"];
+export const PROPOSAL_STATUSES = ["Draft", "Sent", "Under Review", "Signed & Converted"];
 export const TERMS = [{ label: "1× (per issue)", key: "rate", months: 1 }, { label: "6-month", key: "rate6", months: 6 }, { label: "12-month", key: "rate12", months: 12 }];
 
 export function getAutoTier(n) { return n >= 12 ? "rate12" : n >= 6 ? "rate6" : "rate"; }

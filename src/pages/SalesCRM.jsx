@@ -128,8 +128,8 @@ const SalesCRM = (props) => {
   const navTo = (t, cId) => { setPrevTab(tab + (viewClientId ? `:${viewClientId}` : "")); setTab(t); setViewClientId(cId || null); };
   const goBack = () => { const [t, c] = (prevTab || "Pipeline").split(":"); setTab(t); setViewClientId(c || null); };
   const propPubNames = (p) => [...new Set(p.lines.map(l => l.pubName))].join(", ");
-  const hasProposal = (saleId) => { const s = sales.find(x => x.id === saleId); return s?.proposalId || proposals.some(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Approved/Signed" || p.status === "Draft")); };
-  const getClientProposal = (cid) => proposals.find(p => p.clientId === cid && (p.status === "Sent" || p.status === "Approved/Signed"));
+  const hasProposal = (saleId) => { const s = sales.find(x => x.id === saleId); return s?.proposalId || proposals.some(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Signed & Converted" || p.status === "Draft")); };
+  const getClientProposal = (cid) => proposals.find(p => p.clientId === cid && (p.status === "Sent" || p.status === "Signed & Converted"));
   const actLabel = (s) => { const a = actInfo(s.nextAction); return a ? a.label : ""; };
   const actIcon = (s) => { const a = actInfo(s.nextAction); return a?.icon || "→"; };
   const actVerb = (s) => { const a = actInfo(s.nextAction); return a?.verb || "Act"; };
@@ -220,7 +220,7 @@ const SalesCRM = (props) => {
       setPropPending(saleId); openProposal(s?.clientId); return;
     }
     if (ns === "Negotiation") {
-      const sentProp = proposals.find(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Approved/Signed"));
+      const sentProp = proposals.find(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Signed & Converted"));
       if (!sentProp) {
         const draftProp = proposals.find(p => p.clientId === s?.clientId && p.status === "Draft");
         if (draftProp) { editProposal(draftProp.id); } else { openProposal(s?.clientId); }
@@ -293,7 +293,7 @@ const SalesCRM = (props) => {
     if (s.status === "Discovery" || s.status === "Presentation") { setEditOppId(s.id); const cl = clients.find(c => c.id === s.clientId); setOpp({ company: cl?.name || "", contact: cl?.contacts?.[0]?.name || "", email: cl?.contacts?.[0]?.email || "", phone: cl?.contacts?.[0]?.phone || "", source: "Existing Client", notes: "", nextAction: actLabel(s), nextActionDate: s.nextActionDate || "" }); setOppSendKit(false); setOppKitSent(false); setOppMo(true); }
     else if (s.status === "Proposal" || s.status === "Negotiation") {
       const draft = proposals.find(p => p.clientId === s.clientId && p.status === "Draft");
-      const sent = proposals.find(p => p.clientId === s.clientId && (p.status === "Sent" || p.status === "Approved/Signed"));
+      const sent = proposals.find(p => p.clientId === s.clientId && (p.status === "Sent" || p.status === "Signed & Converted"));
       if (sent) { setViewPropId(sent.id); navTo("Proposals"); }
       else if (draft) { editProposal(draft.id); }
       else openProposal(s.clientId);
@@ -497,9 +497,7 @@ const SalesCRM = (props) => {
   const signProposal = async (propId) => {
     const p = proposals.find(x => x.id === propId);
     if (!p) return;
-    // First mark as Approved/Signed
-    await updateProposal(propId, { status: "Approved/Signed", signedAt: new Date().toISOString() });
-    // Then convert to contract + sales orders via database function
+    // Convert to contract + sales orders via database function
     if (convertProposal) {
       const result = await convertProposal(propId);
       if (result?.success) {
@@ -519,7 +517,7 @@ const SalesCRM = (props) => {
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
-      {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Converted", label: "Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
+      {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
       {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
     </PageHeader>
 
@@ -638,8 +636,8 @@ const SalesCRM = (props) => {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 4 }}>
         {[
           ["Proposed", "$" + (proposals.filter(p => p.status === "Sent" || p.status === "Under Review").reduce((s,p) => s + (p.total||0), 0)/1000).toFixed(0) + "K", Z.wa],
-          ["Signed", "$" + (proposals.filter(p => p.status === "Approved/Signed" || p.status === "Converted").reduce((s,p) => s + (p.total||0), 0)/1000).toFixed(0) + "K", Z.ac],
-          ["Conversion", Math.round(proposals.filter(p => p.status === "Approved/Signed" || p.status === "Converted").length / Math.max(1, proposals.filter(p => p.status !== "Draft").length) * 100) + "%", Z.pu],
+          ["Signed", "$" + (proposals.filter(p => p.status === "Signed & Converted").reduce((s,p) => s + (p.total||0), 0)/1000).toFixed(0) + "K", Z.ac],
+          ["Conversion", Math.round(proposals.filter(p => p.status === "Signed & Converted").length / Math.max(1, proposals.filter(p => p.status !== "Draft").length) * 100) + "%", Z.pu],
           ["Avg Deal", "$" + Math.round(proposals.filter(p => p.total > 0).reduce((s,p) => s + p.total, 0) / Math.max(1, proposals.filter(p => p.total > 0).length)).toLocaleString(), Z.or],
         ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
       </div>
@@ -659,8 +657,8 @@ const SalesCRM = (props) => {
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         {p.status === "Sent" && <Btn v="success" onClick={async () => { await signProposal(p.id); setViewPropId(null); }}>Client Signed → Contract</Btn>}
         {(p.status === "Sent" || p.status === "Draft") && <Btn v="secondary" onClick={() => editProposal(p.id)}><Ic.edit size={12} /> {p.status === "Draft" ? "Edit Draft" : "Edit & Resend"}</Btn>}
-        {p.status === "Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Converted to Contract</span>}
-        {(p.status === "Converted" || p.status === "Cancelled") && <Btn v="secondary" onClick={async () => {
+        {p.status === "Signed & Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Signed & Converted</span>}
+        {(p.status === "Signed & Converted" || p.status === "Cancelled") && <Btn v="secondary" onClick={async () => {
           // Create copy: duplicate proposal without past-published issues
           const today = new Date().toISOString().slice(0, 10);
           const futureLines = (p.lines || []).filter(l => !l.issueDate || l.issueDate >= today);
@@ -671,7 +669,7 @@ const SalesCRM = (props) => {
           const result = await insertProposal(copy);
           if (result?.id) { await dialog.alert(`Copy created with ${futureLines.length} future items ($${newTotal.toLocaleString()}). ${(p.lines || []).length - futureLines.length} past issues removed.`); setViewPropId(result.id); }
         }}><Ic.file size={12} /> Create Copy</Btn>}
-        {p.status !== "Converted" && p.status !== "Cancelled" && <Btn v="ghost" onClick={async () => { if (!await dialog.confirm("Cancel this proposal? It will be archived.")) return; await updateProposal(p.id, { status: "Cancelled" }); setViewPropId(null); }} style={{ color: Z.da }}>Cancel Proposal</Btn>}
+        {p.status !== "Signed & Converted" && p.status !== "Cancelled" && <Btn v="ghost" onClick={async () => { if (!await dialog.confirm("Cancel this proposal? It will be archived.")) return; await updateProposal(p.id, { status: "Cancelled" }); setViewPropId(null); }} style={{ color: Z.da }}>Cancel Proposal</Btn>}
         {p.status === "Cancelled" && <span style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.bold }}>Cancelled</span>}
       </div>
 
@@ -905,7 +903,7 @@ const SalesCRM = (props) => {
         <div style={{ display: "flex", gap: 12 }}>
           <GlassStat label="New" value={newCount} color={statusColors.new} />
           <GlassStat label="Contacted" value={contactedCount} color={statusColors.contacted} />
-          <GlassStat label="Converted" value={convertedCount} color={statusColors.converted} />
+          <GlassStat label="Signed" value={convertedCount} color={statusColors.converted} />
           <GlassStat label="Total" value={inquiries.length} />
         </div>
 
