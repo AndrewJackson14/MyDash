@@ -75,6 +75,24 @@ export function DataProvider({ children, localData }) {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // Realtime: proposals status changes + new notifications
+  useEffect(() => {
+    if (!isOnline()) return;
+    const channel = supabase.channel('proposals_notifs_realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'proposals' }, (payload) => {
+        const p = payload.new;
+        setProposals(prev => prev.map(x => x.id === p.id ? {
+          ...x, status: p.status, contractId: p.contract_id, signedAt: p.signed_at, convertedAt: p.converted_at,
+        } : x));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        const n = payload.new;
+        setNotifications(prev => [{ id: n.id, text: n.title || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || '' }, ...prev]);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   // Helper to fetch all rows from a table (bypasses 1000-row PostgREST limit)
   const fetchAllRows = useCallback(async (table, orderCol, ascending = true, fields = '*') => {
     let allRows = [];
