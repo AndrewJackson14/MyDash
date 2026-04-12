@@ -17,7 +17,7 @@ import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, I
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, loadContracts, contractsLoaded, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
+  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
   const dialog = useDialog();
   // Publications for dropdowns: filtered by jurisdiction for salespeople, all for admins
   const dropdownPubs = jurisdiction?.myPubs || pubs;
@@ -740,6 +740,9 @@ const SalesCRM = (props) => {
               const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
               if (error) { await dialog.alert("Error: " + error.message); return; }
               if (data?.error) { await dialog.alert(data.error); return; }
+              // Update local state immediately
+              if (setContracts) setContracts(prev => prev.map(c => c.id === viewContract.id ? { ...c, status: "cancelled" } : c));
+              setSales(prev => prev.map(s => s.contractId === viewContract.id && s.status === "Closed" ? { ...s, status: "Cancelled" } : s));
               await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices affected.`);
               setViewContractId(null);
             }} style={{ color: Z.da }}>Cancel Contract</Btn>}
