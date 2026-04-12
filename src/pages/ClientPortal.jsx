@@ -47,14 +47,7 @@ function PortalLogin({ onAuth }) {
     setLoading(true);
     setError("");
 
-    // Verify this email belongs to a client contact
-    const { data: contacts } = await supabase.from("client_contacts").select("id").eq("email", email.trim().toLowerCase()).limit(1);
-    if (!contacts?.length) {
-      setError("No account found for this email. Contact your sales rep for access.");
-      setLoading(false);
-      return;
-    }
-
+    // Send magic link — account validation happens after login on the dashboard
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin + "/portal" },
