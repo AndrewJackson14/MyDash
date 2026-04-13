@@ -268,7 +268,7 @@ const DashboardV2 = (props) => {
     window.location.href = url.toString();
   };
 
-  return <div style={{ position: "relative", padding: "28px 28px 60px", minHeight: "100%" }}>
+  return <div style={{ position: "relative", padding: "48px 48px 80px", minHeight: "100%" }}>
     {/* Inline keyframes — hot pulse on hot tiles, calm drift on win
         pills, and winPop on pills whose count just changed. */}
     <style>{`
@@ -308,6 +308,15 @@ const DashboardV2 = (props) => {
         0% { transform: scale(0.6); opacity: 0.9; }
         100% { transform: scale(2.2); opacity: 0; }
       }
+      @keyframes floatDrift {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+      @keyframes tileSplash {
+        0% { transform: scale(1); opacity: 0.8; }
+        60% { transform: scale(1.12); opacity: 0.4; }
+        100% { transform: scale(1.25); opacity: 0; }
+      }
     `}</style>
 
     {/* Ambient pressure glow */}
@@ -320,7 +329,7 @@ const DashboardV2 = (props) => {
       zIndex: 0,
     }} />
 
-    <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
 
       {/* ── Header: greeting + global pressure + V1 toggle ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
@@ -346,46 +355,21 @@ const DashboardV2 = (props) => {
       <DoseWinsStrip wins={doseWins} streak={streak} />
 
       {/* ── Department tiles ─────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-        {Object.entries(departmentPressure).map(([dept, data]) => {
-          const meta = DEPT_META[dept];
-          const Icon = meta.icon;
-          const color = heatColor(data.heat);
-          const isHot = data.heat >= 75;
-          const deptMembers = membersForDept(team, dept);
-          return <GlassCard key={dept}
-            onClick={() => setDrilledDept(dept)}
-            style={{
-              position: "relative",
-              borderTop: `2px solid ${color}`,
-              background: `linear-gradient(180deg, ${color}14 0%, transparent 60%), ${glass().background}`,
-              animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
-              padding: "16px 18px",
-            }}>
-            {/* Mini-avatar stack — top right */}
-            {deptMembers.length > 0 && <DeptAvatarStack members={deptMembers} />}
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              {Icon && <Icon size={13} color={color} />}
-              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{meta.label}</span>
-            </div>
-            <div style={{ fontSize: 32, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1, lineHeight: 1 }}>
-              {data.count}
-            </div>
-            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4, minHeight: 16 }}>
-              {dept === "sales" && (data.pctToGoal != null ? `${data.pctToGoal}% to goal` : `${fmtCurrency(data.pipelineValue || 0)} pipeline`)}
-              {dept === "editorial" && `${data.stuckStories || 0} stuck · ${data.editDeadlines || 0} deadlines`}
-              {dept === "production" && `${data.adDeadlines || 0} ad deadlines · ${data.overdueJobs || 0} overdue`}
-              {dept === "admin" && `${data.openTickets || 0} tickets · ${data.overdueInvCount || 0} overdue inv`}
-            </div>
-            <div style={{ marginTop: 12, height: 4, background: Z.bd, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ width: `${data.heat}%`, height: "100%", background: color, transition: "width 0.6s ease, background 1.5s ease" }} />
-            </div>
-            <div style={{ fontSize: FS.micro, color: color, marginTop: 4, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {heatLabel(data.heat)}
-            </div>
-          </GlassCard>;
-        })}
+      {/* Floating, urgency-responsive tiles. Hot tiles grow (larger
+          count, more padding, taller heat bar). Each tile has its
+          own idle float so the grid feels alive. Click splashes
+          outward into the drill-in modal. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 36, paddingTop: 12 }}>
+        {Object.entries(departmentPressure).map(([dept, data], idx) => (
+          <DeptTile
+            key={dept}
+            dept={dept}
+            data={data}
+            team={team}
+            idx={idx}
+            onOpen={() => setDrilledDept(dept)}
+          />
+        ))}
       </div>
 
       {/* ── Right-hand auto-pin (Cami / Camille) ─────────── */}
@@ -439,7 +423,7 @@ const DashboardV2 = (props) => {
         const active = teamStatus.filter(t => t.isActive !== false && !t.isHidden);
         const needsDirection = active.filter(t => t.needsDirection).sort((a, b) => b.overdueCount - a.overdueCount);
         const flowing = active.filter(t => !t.needsDirection);
-        return <GlassCard style={{ padding: "22px 24px" }}>
+        return <GlassCard style={{ padding: "32px 36px", marginTop: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Team</div>
@@ -502,6 +486,112 @@ const DashboardV2 = (props) => {
         onClose={() => setBriefingOpen(false)}
       />
     </Modal>
+  </div>;
+};
+
+// ============================================================
+// DeptTile — a department tile that breathes, grows with urgency,
+// and splashes on click. The hot-heat math drives almost every
+// dimension so Sales at heat 90 is visibly bigger than Admin at
+// heat 10. Idle float uses a delay derived from the grid index
+// so adjacent tiles never sync up.
+// ============================================================
+const DeptTile = ({ dept, data, team, idx, onOpen }) => {
+  const meta = DEPT_META[dept] || {};
+  const Icon = meta.icon;
+  const color = heatColor(data.heat);
+  const isHot = data.heat >= 75;
+  const deptMembers = membersForDept(team, dept);
+  const dark = Z.bg === "#08090D";
+
+  // Urgency-responsive sizing: heat 0 = compact, heat 100 = large.
+  const t = Math.min(100, Math.max(0, data.heat)) / 100;
+  const padPx = Math.round(22 + t * 16);           // 22 → 38
+  const countSize = Math.round(36 + t * 24);       // 36 → 60
+  const barHeight = Math.round(5 + t * 5);          // 5  → 10
+  const minHeight = Math.round(160 + t * 60);      // 160 → 220
+  const subSize = Math.round(12 + t * 3);           // 12 → 15
+
+  const [pressed, setPressed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const handleClick = () => {
+    setPressed(true);
+    setTimeout(() => {
+      onOpen();
+      setTimeout(() => setPressed(false), 350);
+    }, 180);
+  };
+
+  // Transform combines hover magnify and click splash. Idle float
+  // lives on the outer wrapper so the two don't fight for `transform`.
+  const innerTransform = pressed
+    ? "scale(1.08)"
+    : hovered
+      ? "translateY(-6px) scale(1.03)"
+      : "translateY(0) scale(1)";
+
+  return <div style={{
+    animation: `floatDrift ${8 + idx * 0.7}s ease-in-out infinite`,
+    animationDelay: `${idx * 0.6}s`,
+    willChange: "transform",
+  }}>
+    <GlassCard
+      onClick={handleClick}
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+      style={{
+        position: "relative",
+        borderTop: `2px solid ${color}`,
+        background: `linear-gradient(180deg, ${color}${isHot ? "22" : "14"} 0%, transparent ${isHot ? 70 : 60}%), ${glass().background}`,
+        padding: `${padPx}px ${padPx + 4}px`,
+        minHeight,
+        transform: innerTransform,
+        transition: "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, background 0.8s ease, padding 0.6s ease, min-height 0.6s ease",
+        animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
+        boxShadow: hovered
+          ? `0 20px 50px ${color}35, 0 0 0 1px ${color}50, inset 0 1px 0 rgba(255,255,255,${dark ? 0.08 : 0.9})`
+          : pressed
+            ? `0 0 60px ${color}60, 0 0 0 2px ${color}70`
+            : `0 4px 20px rgba(0,0,0,${dark ? 0.25 : 0.04})`,
+      }}>
+      {/* Splash ring — expands outward on press */}
+      {pressed && <div aria-hidden style={{
+        position: "absolute", inset: 0,
+        borderRadius: R,
+        border: `2px solid ${color}`,
+        animation: "tileSplash 0.55s ease-out forwards",
+        pointerEvents: "none",
+      }} />}
+
+      {/* Mini-avatar stack — top right */}
+      {deptMembers.length > 0 && <DeptAvatarStack members={deptMembers} />}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        {Icon && <Icon size={14} color={color} />}
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
+      </div>
+      <div style={{ fontSize: countSize, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -2, lineHeight: 0.95, transition: "font-size 0.6s ease" }}>
+        {data.count}
+      </div>
+      <div style={{ fontSize: subSize, color: Z.tm, marginTop: 8, minHeight: 18, transition: "font-size 0.6s ease" }}>
+        {dept === "sales" && (data.pctToGoal != null ? `${data.pctToGoal}% to goal` : `${fmtCurrency(data.pipelineValue || 0)} pipeline`)}
+        {dept === "editorial" && `${data.stuckStories || 0} stuck · ${data.editDeadlines || 0} deadlines`}
+        {dept === "production" && `${data.adDeadlines || 0} ad deadlines · ${data.overdueJobs || 0} overdue`}
+        {dept === "admin" && `${data.openTickets || 0} tickets · ${data.overdueInvCount || 0} overdue inv`}
+      </div>
+      <div style={{ marginTop: 18, height: barHeight, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: barHeight / 2, overflow: "hidden", transition: "height 0.6s ease" }}>
+        <div style={{
+          width: `${data.heat}%`,
+          height: "100%",
+          background: color,
+          boxShadow: isHot ? `0 0 12px ${color}80` : "none",
+          transition: "width 0.8s ease, background 1.5s ease, box-shadow 0.8s ease",
+        }} />
+      </div>
+      <div style={{ fontSize: FS.micro, color, marginTop: 6, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6 }}>
+        {heatLabel(data.heat)}
+      </div>
+    </GlassCard>
   </div>;
 };
 
