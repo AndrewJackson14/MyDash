@@ -22,6 +22,7 @@ export function DataProvider({ children, localData }) {
   // ─── Phase 2 tables ─────────────────────────────────────
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [bills, setBills] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
   const [dropLocations, setDropLocations] = useState([]);
   const [dropLocationPubs, setDropLocationPubs] = useState([]);
@@ -381,6 +382,96 @@ export function DataProvider({ children, localData }) {
     })));
     setBillingLoaded(true);
   }, [billingLoaded]);
+
+  // Bills module (vendor bills / expenses)
+  const [billsLoaded, setBillsLoaded] = useState(false);
+  const loadBills = useCallback(async () => {
+    if (billsLoaded || !isOnline()) return;
+    const { data } = await supabase.from('bills').select('*').order('bill_date', { ascending: false }).limit(500);
+    if (data) {
+      setBills(data.map(b => ({
+        id: b.id,
+        publicationId: b.publication_id,
+        vendorName: b.vendor_name,
+        vendorEmail: b.vendor_email,
+        category: b.category,
+        description: b.description,
+        amount: Number(b.amount),
+        billDate: b.bill_date,
+        dueDate: b.due_date,
+        status: b.status,
+        paidAt: b.paid_at,
+        paidMethod: b.paid_method,
+        quickbooksId: b.quickbooks_id,
+        quickbooksSyncedAt: b.quickbooks_synced_at,
+        quickbooksSyncError: b.quickbooks_sync_error,
+        sourceType: b.source_type,
+        sourceId: b.source_id,
+        attachmentUrl: b.attachment_url,
+        notes: b.notes,
+        createdAt: b.created_at,
+        updatedAt: b.updated_at,
+      })));
+    }
+    setBillsLoaded(true);
+  }, [billsLoaded]);
+
+  const insertBill = useCallback(async (bill) => {
+    const row = {
+      publication_id: bill.publicationId || null,
+      vendor_name: bill.vendorName,
+      vendor_email: bill.vendorEmail || '',
+      category: bill.category,
+      description: bill.description || '',
+      amount: Number(bill.amount) || 0,
+      bill_date: bill.billDate,
+      due_date: bill.dueDate || null,
+      status: bill.status || 'pending',
+      paid_method: bill.paidMethod || '',
+      notes: bill.notes || '',
+    };
+    const { data, error } = await supabase.from('bills').insert(row).select().single();
+    if (error) throw error;
+    const mapped = {
+      id: data.id, publicationId: data.publication_id, vendorName: data.vendor_name,
+      vendorEmail: data.vendor_email, category: data.category, description: data.description,
+      amount: Number(data.amount), billDate: data.bill_date, dueDate: data.due_date,
+      status: data.status, paidAt: data.paid_at, paidMethod: data.paid_method,
+      quickbooksId: data.quickbooks_id, quickbooksSyncedAt: data.quickbooks_synced_at,
+      notes: data.notes, createdAt: data.created_at,
+    };
+    setBills(prev => [mapped, ...prev]);
+    return mapped;
+  }, []);
+
+  const updateBill = useCallback(async (id, changes) => {
+    const row = {};
+    if (changes.publicationId !== undefined) row.publication_id = changes.publicationId || null;
+    if (changes.vendorName !== undefined) row.vendor_name = changes.vendorName;
+    if (changes.vendorEmail !== undefined) row.vendor_email = changes.vendorEmail;
+    if (changes.category !== undefined) row.category = changes.category;
+    if (changes.description !== undefined) row.description = changes.description;
+    if (changes.amount !== undefined) row.amount = Number(changes.amount) || 0;
+    if (changes.billDate !== undefined) row.bill_date = changes.billDate;
+    if (changes.dueDate !== undefined) row.due_date = changes.dueDate || null;
+    if (changes.status !== undefined) row.status = changes.status;
+    if (changes.paidAt !== undefined) row.paid_at = changes.paidAt;
+    if (changes.paidMethod !== undefined) row.paid_method = changes.paidMethod;
+    if (changes.notes !== undefined) row.notes = changes.notes;
+    if (changes.quickbooksId !== undefined) row.quickbooks_id = changes.quickbooksId;
+    if (changes.quickbooksSyncedAt !== undefined) row.quickbooks_synced_at = changes.quickbooksSyncedAt;
+    if (changes.quickbooksSyncError !== undefined) row.quickbooks_sync_error = changes.quickbooksSyncError;
+
+    const { error } = await supabase.from('bills').update(row).eq('id', id);
+    if (error) throw error;
+    setBills(prev => prev.map(b => b.id === id ? { ...b, ...changes } : b));
+  }, []);
+
+  const deleteBill = useCallback(async (id) => {
+    const { error } = await supabase.from('bills').delete().eq('id', id);
+    if (error) throw error;
+    setBills(prev => prev.filter(b => b.id !== id));
+  }, []);
 
   // Circulation module (subscribers, subscriptions, drop locations, drivers, routes)
   const [circulationLoaded, setCirculationLoaded] = useState(false);
@@ -1510,6 +1601,7 @@ export function DataProvider({ children, localData }) {
     loadProposals, proposalsLoaded,
     loadStories, storiesLoaded,
     loadBilling, billingLoaded,
+    bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
     loadCirculation, circulationLoaded,
     loadTickets, ticketsLoaded,
     loadLegals, legalsLoaded,

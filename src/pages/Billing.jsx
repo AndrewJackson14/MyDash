@@ -7,6 +7,7 @@ import { generatePdf } from "../lib/pdf";
 import { sendGmailEmail } from "../lib/gmail";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
+import BillsTab from "./BillsTab";
 
 // ─── Invoice Status Colors ──────────────────────────────────
 const INV_COLORS = {
@@ -96,7 +97,7 @@ const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, bills, insertBill, updateBill, deleteBill }) => {
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [sr, setSr] = useState("");
@@ -493,7 +494,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Payment Plans", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>
@@ -627,6 +628,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         </DataTable>
       </GlassCard>
     </>}
+
+    {/* ════════ BILLS TAB ════════ */}
+    {tab === "Bills" && <BillsTab bills={bills || []} pubs={pubs} insertBill={insertBill} updateBill={updateBill} deleteBill={deleteBill} />}
 
     {/* ════════ RECEIVABLES TAB ════════ */}
     {tab === "Receivables" && <>

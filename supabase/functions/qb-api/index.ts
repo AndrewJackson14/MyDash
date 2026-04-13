@@ -131,6 +131,31 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── FIND OR CREATE VENDOR ────────────────────────────────
+    if (action === "find-vendor") {
+      const body = await req.json();
+      const name = body.name || "";
+      const query = encodeURIComponent(`SELECT * FROM Vendor WHERE DisplayName = '${name.replace(/'/g, "\\'")}'`);
+      const data = await qbFetch(token, realmId, `/query?query=${query}`);
+      const vendors = data.QueryResponse?.Vendor || [];
+      return new Response(JSON.stringify({ vendors }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "create-vendor") {
+      const body = await req.json();
+      // body = { DisplayName, PrimaryEmailAddr: { Address } }
+      const data = await qbFetch(token, realmId, "/vendor", { method: "POST", body: JSON.stringify(body) });
+      return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── CREATE BILL ──────────────────────────────────────────
+    if (action === "create-bill") {
+      const body = await req.json();
+      // body = { VendorRef, Line[{ Amount, DetailType: 'AccountBasedExpenseLineDetail', AccountBasedExpenseLineDetail: { AccountRef } }], TxnDate, DueDate, PrivateNote }
+      const data = await qbFetch(token, realmId, "/bill", { method: "POST", body: JSON.stringify(body) });
+      return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // ── QUERY (generic read) ─────────────────────────────────
     if (action === "query") {
       const body = await req.json();
