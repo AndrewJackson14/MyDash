@@ -141,13 +141,17 @@ export function DataProvider({ children, localData }) {
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
-        // Helper: fetch all rows from a table with automatic pagination
+        // Helper: fetch all rows from a table with automatic pagination.
+        // Always applies an id tiebreaker on the ORDER BY — without one, pagination
+        // across non-unique columns (name, date, issue_date) shifts rows between
+        // pages and silently loses data.
         const fetchAllRows = async (table, select, opts = {}) => {
           const all = [];
           let pg = 0;
           while (true) {
             let q = supabase.from(table).select(select).range(pg * 1000, (pg + 1) * 1000 - 1);
             if (opts.order) q = q.order(opts.order, opts.orderOpts);
+            q = q.order('id', { ascending: true });
             if (opts.gte) q = q.gte(opts.gte[0], opts.gte[1]);
             const { data } = await q;
             if (!data?.length) break;
@@ -393,12 +397,13 @@ export function DataProvider({ children, localData }) {
   const loadBilling = useCallback(async () => {
     if (billingLoaded || !isOnline()) return;
 
-    // Paginate invoices (may exceed 1000 rows)
+    // Paginate invoices — ORDER BY id for stable pagination; non-unique columns
+    // like issue_date cause rows to shift between pages, dropping/duping rows.
     const allInv = [];
     let invPage = 0;
     while (true) {
       const { data } = await supabase.from('invoices').select('*')
-        .order('issue_date', { ascending: false })
+        .order('id', { ascending: true })
         .range(invPage * 1000, (invPage + 1) * 1000 - 1);
       if (!data?.length) break;
       allInv.push(...data);
@@ -406,11 +411,13 @@ export function DataProvider({ children, localData }) {
       invPage++;
     }
 
-    // Paginate invoice_lines
+    // Paginate invoice_lines — same fix (was: no order at all, which is flat-out
+    // undefined behavior and was losing ~hundreds of lines across the 39 pages).
     const allLines = [];
     let linePage = 0;
     while (true) {
       const { data } = await supabase.from('invoice_lines').select('*')
+        .order('id', { ascending: true })
         .range(linePage * 1000, (linePage + 1) * 1000 - 1);
       if (!data?.length) break;
       allLines.push(...data);
