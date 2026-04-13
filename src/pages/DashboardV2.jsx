@@ -927,6 +927,14 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
   if (!pressure || !meta) return null;
   const Icon = meta.icon;
 
+  // Close drill-in then navigate — used by every clickable element
+  // inside this modal so the user isn't left with a modal hovering
+  // over the destination page.
+  const navigateAndClose = (page) => {
+    onClose();
+    if (page) onNavigate?.(page);
+  };
+
   // Team: dept members first, then admin (Cami/office) on every card
   // except admin itself, so Hayley can look-click-act without hunting.
   // De-duped by id in case any member is mapped to multiple buckets.
@@ -989,23 +997,24 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         </div>
       </div>
 
-      {/* Department-specific stats */}
+      {/* Department-specific stats — every card clicks through to
+          where that data point actually lives. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         {dept === "sales" && <>
-          <DrillStat label="Pipeline" value={fmtCurrency(pressure.pipelineValue || 0)} />
-          <DrillStat label="To monthly goal" value={`${pressure.pctToGoal ?? 0}%`} />
+          <DrillStat label="Pipeline" value={fmtCurrency(pressure.pipelineValue || 0)} onClick={() => navigateAndClose("sales")} />
+          <DrillStat label="To monthly goal" value={`${pressure.pctToGoal ?? 0}%`} onClick={() => navigateAndClose("sales")} />
         </>}
         {dept === "editorial" && <>
-          <DrillStat label="Stories stuck" value={pressure.stuckStories || 0} />
-          <DrillStat label="Editorial deadlines" value={pressure.editDeadlines || 0} />
+          <DrillStat label="Stories stuck" value={pressure.stuckStories || 0} onClick={() => navigateAndClose("editorial")} />
+          <DrillStat label="Editorial deadlines" value={pressure.editDeadlines || 0} onClick={() => navigateAndClose("schedule")} />
         </>}
         {dept === "production" && <>
-          <DrillStat label="Ad deadlines" value={pressure.adDeadlines || 0} />
-          <DrillStat label="Overdue jobs" value={pressure.overdueJobs || 0} />
+          <DrillStat label="Ad deadlines" value={pressure.adDeadlines || 0} onClick={() => navigateAndClose("schedule")} />
+          <DrillStat label="Overdue jobs" value={pressure.overdueJobs || 0} onClick={() => navigateAndClose("creativejobs")} />
         </>}
         {dept === "admin" && <>
-          <DrillStat label="Open tickets" value={pressure.openTickets || 0} />
-          <DrillStat label="Overdue invoices" value={pressure.overdueInvCount || 0} />
+          <DrillStat label="Open tickets" value={pressure.openTickets || 0} onClick={() => navigateAndClose("servicedesk")} />
+          <DrillStat label="Overdue invoices" value={pressure.overdueInvCount || 0} onClick={() => navigateAndClose("billing")} />
         </>}
       </div>
 
@@ -1189,12 +1198,29 @@ const DrillMember = ({ member, onOpen }) => {
   </div>;
 };
 
-const DrillStat = ({ label, value }) => (
-  <div style={{ padding: "14px 16px", background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)", borderRadius: Ri }}>
+const DrillStat = ({ label, value, onClick }) => {
+  const [hover, setHover] = useState(false);
+  const dark = Z.bg === "#08090D";
+  const base = dark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)";
+  const hot = dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.82)";
+  return <div
+    onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+    onMouseEnter={() => setHover(true)}
+    onMouseLeave={() => setHover(false)}
+    style={{
+      padding: "14px 16px",
+      background: hover && onClick ? hot : base,
+      borderRadius: Ri,
+      border: `1px solid ${hover && onClick ? Z.bd : "transparent"}`,
+      cursor: onClick ? "pointer" : "default",
+      transform: hover && onClick ? "translateY(-2px)" : "translateY(0)",
+      boxShadow: hover && onClick ? "0 6px 16px rgba(0,0,0,0.08)" : "none",
+      transition: "transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
+    }}>
     <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{label}</div>
     <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>{value}</div>
-  </div>
-);
+  </div>;
+};
 
 // ============================================================
 // BriefingContent — visual morning briefing.

@@ -47,6 +47,10 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Quick Assign is a FLAG on the outgoing message, not a separate
+  // send. Clicking a task button toggles it; clicking Send emits
+  // both the draft text AND the task tag together.
+  const [selectedTask, setSelectedTask] = useState(null);
 
   // Slide-in animation: render off-screen, then trigger transform on next tick
   useEffect(() => {
@@ -77,21 +81,41 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
     setTimeout(() => onClose?.(), 250);
   };
 
-  const sendNote = async (message, contextType, contextId) => {
-    if (!message?.trim() || !member?.id || sending) return;
+  // Combines the draft text + the selected Quick Assign task into
+  // a single row. Format: if a task is selected, prepend "[Task:
+  // Follow up] " to the message body so the task is a durable flag
+  // that renders as a badge in the thread (see note rendering below).
+  // Send is valid if EITHER a draft OR a task is present.
+  const sendNote = async () => {
+    if (!member?.id || sending) return;
+    const text = draft.trim();
+    if (!text && !selectedTask) return;
+    const message = selectedTask
+      ? (text ? `[Task: ${selectedTask}] ${text}` : `[Task: ${selectedTask}]`)
+      : text;
     setSending(true);
     const fromId = currentUser?.id || currentUser?.authId || null;
     const { data, error } = await supabase.from("team_notes").insert({
       from_user: fromId,
       to_user: member.id,
-      message: message.trim(),
-      context_type: contextType || "general",
-      context_id: contextId || null,
+      message,
+      context_type: selectedTask ? "task" : "general",
+      context_id: null,
     }).select().single();
     if (error) console.error("team_notes insert:", error);
     if (data) setNotes(prev => [data, ...prev]);
     setDraft("");
+    setSelectedTask(null);
     setSending(false);
+  };
+
+  // Parse a stored message into { task, body } so the note renderer
+  // can show the task as a badge and the body as the message text.
+  const parseTaggedMessage = (msg) => {
+    if (!msg) return { task: null, body: "" };
+    const m = msg.match(/^\[Task: ([^\]]+)\]\s*(.*)$/s);
+    if (m) return { task: m[1], body: m[2] };
+    return { task: null, body: msg };
   };
 
   if (!member) return null;
@@ -143,46 +167,61 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
 
       {/* Body */}
       <div style={{ flex: 1, overflow: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
-        {/* Send a note */}
+        {/* Send a note — with an optional Quick Assign task flag */}
         <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>Send a note</div>
+          {/* Selected task badge (if any) */}
+          {selectedTask && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "4px 10px", background: Z.wa + "15", border: `1px solid ${Z.wa}40`, borderRadius: Ri, alignSelf: "flex-start", width: "fit-content" }}>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, textTransform: "uppercase", letterSpacing: 0.5 }}>TASK</span>
+              <span style={{ fontSize: FS.xs, color: Z.tx, fontWeight: FW.semi }}>{selectedTask}</span>
+              <button
+                onClick={() => setSelectedTask(null)}
+                title="Remove task tag"
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 14, padding: "0 2px", marginLeft: 2 }}
+              >&times;</button>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <input
               autoFocus
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && draft.trim()) sendNote(draft); }}
-              placeholder="Direct this team member..."
+              onKeyDown={e => { if (e.key === "Enter") sendNote(); }}
+              placeholder={selectedTask ? "Add a message with this task..." : "Direct this team member..."}
               style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "10px 14px", color: Z.tx, fontSize: FS.base, outline: "none", fontFamily: "inherit" }}
             />
-            <Btn sm onClick={() => sendNote(draft)} disabled={!draft.trim() || sending}>
+            <Btn sm onClick={sendNote} disabled={sending || (!draft.trim() && !selectedTask)}>
               {sending ? "..." : "Send"}
             </Btn>
           </div>
         </div>
 
-        {/* Quick assign */}
+        {/* Quick assign — clicking a task tags it onto the pending
+            message. Click again (or the × on the tag above) to clear.
+            Combined send happens when the user hits Send or Enter. */}
         <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>Quick assign</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {quickTasks.map(task => (
-              <button
+            {quickTasks.map(task => {
+              const active = selectedTask === task;
+              return <button
                 key={task}
-                onClick={() => sendNote(`Task assigned: ${task}`, "task", null)}
+                onClick={() => setSelectedTask(active ? null : task)}
                 style={{
                   padding: "6px 14px",
-                  border: `1px solid ${Z.bd}`,
+                  border: `1px solid ${active ? Z.wa : Z.bd}`,
                   borderRadius: Ri,
-                  background: Z.bg,
+                  background: active ? Z.wa + "15" : Z.bg,
                   cursor: "pointer",
-                  fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm,
+                  fontSize: FS.sm, fontWeight: active ? FW.heavy : FW.semi, color: active ? Z.wa : Z.tm,
                   fontFamily: COND,
-                  transition: "background 0.1s",
+                  transition: "background 0.1s, border-color 0.1s, color 0.1s",
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = Z.sa}
-                onMouseLeave={e => e.currentTarget.style.background = Z.bg}
-              >{task}</button>
-            ))}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = Z.sa; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = Z.bg; }}
+              >{task}</button>;
+            })}
           </div>
         </div>
 
@@ -196,21 +235,28 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
             {notes.slice(0, 10).map(n => {
               const isFromMe = n.from_user && (n.from_user === currentUser?.id || n.from_user === currentUser?.authId);
               const isTask = n.context_type === "task";
+              const { task, body } = parseTaggedMessage(n.message);
               return <div key={n.id} style={{
                 padding: "8px 10px",
                 borderRadius: Ri,
                 background: isTask ? Z.wa + "08" : Z.bg,
                 borderLeft: `2px solid ${isTask ? Z.wa : isFromMe ? Z.ac : Z.go || "#22C55E"}`,
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: isFromMe ? Z.ac : Z.go || "#22C55E" }}>
                     {isFromMe ? "You" : member?.name?.split(" ")[0]}
                   </span>
                   <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtDate(n.created_at?.slice(0, 10))}</span>
                 </div>
-                <div style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{n.message}</div>
+                {task && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", background: Z.wa + "15", border: `1px solid ${Z.wa}40`, borderRadius: Ri, marginBottom: body ? 4 : 0 }}>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, textTransform: "uppercase", letterSpacing: 0.5 }}>TASK</span>
+                    <span style={{ fontSize: FS.micro, color: Z.tx, fontWeight: FW.semi }}>{task}</span>
+                  </div>
+                )}
+                {body && <div style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{body}</div>}
                 {!n.is_read && !isFromMe && (
-                  <span style={{ fontSize: FS.micro, color: Z.wa, fontWeight: FW.bold }}>UNREAD</span>
+                  <span style={{ fontSize: FS.micro, color: Z.wa, fontWeight: FW.bold, display: "block", marginTop: 2 }}>UNREAD</span>
                 )}
               </div>;
             })}
