@@ -1,6 +1,6 @@
 // ============================================================
 // EmailTemplates.jsx — Email template editor with TipTap
-// Categories: proposal, contract, renewal, invoice, marketing, newsletter
+// Categories: proposal, contract, renewal, invoice, marketing
 // ============================================================
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -27,7 +27,6 @@ const CATEGORIES = [
   { value: "renewal", label: "Renewals", icon: Ic.clock },
   { value: "invoice", label: "Invoices", icon: Ic.invoice },
   { value: "marketing", label: "Marketing", icon: Ic.send },
-  { value: "newsletter", label: "Newsletters", icon: Ic.mail },
   { value: "notification", label: "Notifications", icon: Ic.bell },
   { value: "other", label: "Other", icon: Ic.folder },
 ];
@@ -74,12 +73,6 @@ const MERGE_FIELDS = {
   marketing: [
     { key: "{{recipient_name}}", label: "Recipient Name" },
     { key: "{{publication_name}}", label: "Publication" },
-    { key: "{{unsubscribe_link}}", label: "Unsubscribe Link" },
-  ],
-  newsletter: [
-    { key: "{{stories}}", label: "Story List" },
-    { key: "{{publication_name}}", label: "Publication" },
-    { key: "{{edition_date}}", label: "Edition Date" },
     { key: "{{unsubscribe_link}}", label: "Unsubscribe Link" },
   ],
   notification: [{ key: "{{recipient_name}}", label: "Recipient" }, { key: "{{message}}", label: "Message" }],
