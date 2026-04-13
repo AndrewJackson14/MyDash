@@ -84,7 +84,7 @@ const ClientProfile = ({
 
     {/* ── HEADER ── */}
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...vc.name].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{vc.name.split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
+      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...(vc.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{(vc.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0, fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, fontFamily: serif }}>{primaryContact.name || vc.name}</h2>
@@ -114,7 +114,7 @@ const ClientProfile = ({
         <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.wa }}>Renewal Due</div>
         <div style={{ fontSize: FS.sm, color: Z.tm }}>
           {vc.contractEndDate ? `Contract expires ${fmtD(vc.contractEndDate)}` : "This client is due for renewal."}
-          {activeContracts.length > 0 && ` · Current: ${activeContracts[0].name} ($${activeContracts[0].totalValue.toLocaleString()})`}
+          {activeContracts.length > 0 && ` · Current: ${activeContracts[0].name} ($${(activeContracts[0].totalValue || 0).toLocaleString()})`}
         </div>
       </div>
       <Btn sm onClick={() => { if (onOpenProposal) onOpenProposal(vc.id); }}>Create Renewal Proposal</Btn>
@@ -219,7 +219,7 @@ const ClientProfile = ({
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{ct.startDate || "?"} → {ct.endDate || "?"}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>${ct.totalValue.toLocaleString()}</div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>${(ct.totalValue || 0).toLocaleString()}</div>
                     <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: ct.status === "active" ? Z.su || "#22C55E" : Z.tm, textTransform: "uppercase" }}>{ct.status}</span>
                   </div>
                 </div>
@@ -347,8 +347,8 @@ const ClientProfile = ({
           {clientProposals.length > 0 && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Proposals</div>{clientProposals.map(p => <div key={p.id} onClick={() => { if (onNavTo) onNavTo("Proposals"); if (onSetViewPropId) setTimeout(() => onSetViewPropId(p.id), 50); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, background: p.status === "Draft" ? Z.wa + "08" : "transparent", borderLeft: p.status === "Draft" ? `3px solid ${Z.wa}` : "none", paddingLeft: p.status === "Draft" ? 6 : 0 }}><div><span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span>{p.status === "Draft" && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, marginLeft: 6 }}>PENDING</span>}</div><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.ac }}>${p.total?.toLocaleString()}</span></div>)}</div>}
         </Card>
         {/* Client Asset Library */}
-        {client?.clientCode && <Card style={{ marginTop: 10 }}>
-          <AssetPanel path={`clients/${client.clientCode}/assets`} title="Asset Library" />
+        {vc?.clientCode && <Card style={{ marginTop: 10 }}>
+          <AssetPanel path={`clients/${vc.clientCode}/assets`} title="Asset Library" />
         </Card>}
       </div>
     </div>
