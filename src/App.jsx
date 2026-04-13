@@ -317,15 +317,30 @@ export default function App() {
 
   const isDark = Z.bg === DARK.bg;
 
-  // Ambient background: a soft radial glow layered over a fixed wallpaper
-  // image, sitting behind every glass panel so the backdrop-filter blur has
-  // something real to refract. Using the .webp versions (~50KB) for perf.
-  const ambientBg = isDark
-    ? `radial-gradient(ellipse at 15% 10%, rgba(120,130,180,0.10), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(200,150,100,0.06), transparent 55%), url('/bg-dark.webp') center/cover fixed no-repeat, ${Z.bg}`
-    : `radial-gradient(ellipse at 15% 10%, rgba(180,190,230,0.35), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(255,220,180,0.25), transparent 55%), url('/bg-light.webp') center/cover fixed no-repeat, ${Z.bg}`;
+  // Ambient overlay (just the gradient highlights — the wallpaper itself
+  // lives on its own fixed, permanently blurred layer below).
+  const ambientOverlay = isDark
+    ? "radial-gradient(ellipse at 15% 10%, rgba(120,130,180,0.10), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(200,150,100,0.06), transparent 55%)"
+    : "radial-gradient(ellipse at 15% 10%, rgba(180,190,230,0.35), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(255,220,180,0.25), transparent 55%)";
 
   // ─── Render ─────────────────────────────────────────────
-  return <div style={{ display: "flex", height: "100vh", background: ambientBg, color: Z.tx, fontFamily: BODY }}>
+  return <>
+    {/* Fixed, permanently blurred wallpaper layer. Negative inset hides
+        the soft edge bleed that filter: blur creates. Sits behind every
+        glass panel at z-index 0. */}
+    <div aria-hidden style={{
+      position: "fixed",
+      inset: "-80px",
+      backgroundImage: `url('/${isDark ? "bg-dark.webp" : "bg-light.webp"}')`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundColor: Z.bg,
+      filter: "blur(48px) saturate(120%)",
+      transform: "translateZ(0)",
+      zIndex: 0,
+      pointerEvents: "none",
+    }} />
+    <div style={{ display: "flex", height: "100vh", background: ambientOverlay, color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 
     {/* ── Sidebar Nav ──────────────────────────────────── */}
@@ -499,5 +514,6 @@ export default function App() {
 
     {/* Profile Panel */}
     {showProfile && <Suspense fallback={null}><ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} /></Suspense>}
-  </div>;
+    </div>
+  </>;
 }
