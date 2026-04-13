@@ -141,35 +141,36 @@ export function DataProvider({ children, localData }) {
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
-        const [pubsRes, teamRes, notifsRes, adSizesRes, c0, c1, c2, c3, issuesRes, s0, s1, s2, s3] = await Promise.all([
+        // Helper: fetch all rows from a table with automatic pagination
+        const fetchAllRows = async (table, select, opts = {}) => {
+          const all = [];
+          let pg = 0;
+          while (true) {
+            let q = supabase.from(table).select(select).range(pg * 1000, (pg + 1) * 1000 - 1);
+            if (opts.order) q = q.order(opts.order, opts.orderOpts);
+            if (opts.gte) q = q.gte(opts.gte[0], opts.gte[1]);
+            const { data } = await q;
+            if (!data?.length) break;
+            all.push(...data);
+            if (data.length < 1000) break;
+            pg++;
+          }
+          return all;
+        };
+
+        const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select('*').order('name'),
           supabase.from('team_members').select('*').order('name'),
           supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50),
           supabase.from('ad_sizes').select('*').order('sort_order'),
-          // Clients: 4 parallel pages of 1000
-          supabase.from('clients').select(clientSelect).order('name').range(0, 999),
-          supabase.from('clients').select(clientSelect).order('name').range(1000, 1999),
-          supabase.from('clients').select(clientSelect).order('name').range(2000, 2999),
-          supabase.from('clients').select(clientSelect).order('name').range(3000, 3999),
-          // Issues: select only needed fields
-          supabase.from('issues').select(issueSelect).order('date').range(0, 999),
-          // Sales: select only needed fields (3-month window)
-          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(0, 999),
-          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(1000, 1999),
-          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(2000, 2999),
-          supabase.from('sales').select(saleSelect).gte('date', cutoff).order('date', { ascending: false }).range(3000, 3999),
         ]);
 
-        // Also fetch issues page 2 if needed
-        const allIssuesRaw = issuesRes.data || [];
-        if (allIssuesRaw.length === 1000) {
-          const i1 = await supabase.from('issues').select('*').order('date').range(1000, 1999);
-          if (i1.data) allIssuesRaw.push(...i1.data);
-        }
-
-        // Merge parallel pages
-        const allClientsRaw = [...(c0.data || []), ...(c1.data || []), ...(c2.data || []), ...(c3.data || [])];
-        const allSalesRaw = [...(s0.data || []), ...(s1.data || []), ...(s2.data || []), ...(s3.data || [])];
+        // Paginate clients, issues, and sales in parallel
+        const [allClientsRaw, allIssuesRaw, allSalesRaw] = await Promise.all([
+          fetchAllRows('clients', clientSelect, { order: 'name' }),
+          fetchAllRows('issues', issueSelect, { order: 'date' }),
+          fetchAllRows('sales', saleSelect, { order: 'date', orderOpts: { ascending: false }, gte: ['date', cutoff] }),
+        ]);
 
         console.log('Boot:', { pubs: pubsRes.data?.length, clients: allClientsRaw.length, issues: allIssuesRaw.length, sales: allSalesRaw.length });
 
@@ -353,22 +354,54 @@ export function DataProvider({ children, localData }) {
   const [billingLoaded, setBillingLoaded] = useState(false);
   const loadBilling = useCallback(async () => {
     if (billingLoaded || !isOnline()) return;
-    const [invRes, invLinesRes, payRes] = await Promise.all([
-      supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
-      supabase.from('invoice_lines').select('*'),
+
+    // Paginate invoices (may exceed 1000 rows)
+    const allInv = [];
+    let invPage = 0;
+    while (true) {
+      const { data } = await supabase.from('invoices').select('*')
+        .order('issue_date', { ascending: false })
+        .range(invPage * 1000, (invPage + 1) * 1000 - 1);
+      if (!data?.length) break;
+      allInv.push(...data);
+      if (data.length < 1000) break;
+      invPage++;
+    }
+
+    // Paginate invoice_lines
+    const allLines = [];
+    let linePage = 0;
+    while (true) {
+      const { data } = await supabase.from('invoice_lines').select('*')
+        .range(linePage * 1000, (linePage + 1) * 1000 - 1);
+      if (!data?.length) break;
+      allLines.push(...data);
+      if (data.length < 1000) break;
+      linePage++;
+    }
+
+    // Index lines by invoice_id for fast lookup
+    const linesByInv = {};
+    for (const l of allLines) {
+      if (!linesByInv[l.invoice_id]) linesByInv[l.invoice_id] = [];
+      linesByInv[l.invoice_id].push(l);
+    }
+
+    const [payRes] = await Promise.all([
       supabase.from('payments').select('*').order('received_at', { ascending: false }),
     ]);
-    if (invRes.data) {
-      setInvoices(invRes.data.map(i => ({
+
+    if (allInv.length) {
+      setInvoices(allInv.map(i => ({
         id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id, subscriberId: i.subscriber_id,
         status: i.status, billingSchedule: i.billing_schedule,
-        subtotal: Number(i.subtotal), discountPct: Number(i.discount_pct), discountAmount: Number(i.discount_amount),
-        tax: Number(i.tax), total: Number(i.total), amountPaid: Number(i.amount_paid), balanceDue: Number(i.balance_due),
-        monthlyAmount: Number(i.monthly_amount), planMonths: i.plan_months,
+        subtotal: Number(i.subtotal), discountPct: Number(i.discount_pct || 0), discountAmount: Number(i.discount_amount || 0),
+        tax: Number(i.tax || i.tax_amount || 0), total: Number(i.total), amountPaid: Number(i.amount_paid || 0), balanceDue: Number(i.balance_due),
+        monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
         issueDate: i.issue_date, dueDate: i.due_date,
         notes: i.notes || '', qbInvoiceId: i.qb_invoice_id, createdAt: i.created_at,
         chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
-        lines: (invLinesRes.data || []).filter(l => l.invoice_id === i.id).map(l => ({
+        lines: (linesByInv[i.id] || []).map(l => ({
           id: l.id, description: l.description, productType: l.product_type,
           saleId: l.sale_id, legalNoticeId: l.legal_notice_id,
           quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
@@ -402,12 +435,14 @@ export function DataProvider({ children, localData }) {
         status: b.status,
         paidAt: b.paid_at,
         paidMethod: b.paid_method,
+        checkNumber: b.check_number || '',
+        ccLastFour: b.cc_last_four || '',
         quickbooksId: b.quickbooks_id,
         quickbooksSyncedAt: b.quickbooks_synced_at,
         quickbooksSyncError: b.quickbooks_sync_error,
         sourceType: b.source_type,
         sourceId: b.source_id,
-        attachmentUrl: b.attachment_url,
+        attachmentUrl: b.attachment_url || '',
         notes: b.notes,
         createdAt: b.created_at,
         updatedAt: b.updated_at,
@@ -428,6 +463,9 @@ export function DataProvider({ children, localData }) {
       due_date: bill.dueDate || null,
       status: bill.status || 'pending',
       paid_method: bill.paidMethod || '',
+      check_number: bill.checkNumber || '',
+      cc_last_four: bill.ccLastFour || '',
+      attachment_url: bill.attachmentUrl || '',
       notes: bill.notes || '',
     };
     const { data, error } = await supabase.from('bills').insert(row).select().single();
@@ -457,6 +495,9 @@ export function DataProvider({ children, localData }) {
     if (changes.status !== undefined) row.status = changes.status;
     if (changes.paidAt !== undefined) row.paid_at = changes.paidAt;
     if (changes.paidMethod !== undefined) row.paid_method = changes.paidMethod;
+    if (changes.checkNumber !== undefined) row.check_number = changes.checkNumber;
+    if (changes.ccLastFour !== undefined) row.cc_last_four = changes.ccLastFour;
+    if (changes.attachmentUrl !== undefined) row.attachment_url = changes.attachmentUrl;
     if (changes.notes !== undefined) row.notes = changes.notes;
     if (changes.quickbooksId !== undefined) row.quickbooks_id = changes.quickbooksId;
     if (changes.quickbooksSyncedAt !== undefined) row.quickbooks_synced_at = changes.quickbooksSyncedAt;
