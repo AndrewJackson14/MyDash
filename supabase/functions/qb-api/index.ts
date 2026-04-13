@@ -12,7 +12,7 @@ const MINOR_VERSION = "65";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-action",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-action",
 };
 
 function getAdmin() {
