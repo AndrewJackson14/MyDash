@@ -25,22 +25,22 @@ const CATEGORIES = [
 
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label]));
 
-// Category → hint words to match against QB account names.
-// Falls back to any Expense account if no match.
-const CATEGORY_ACCOUNT_HINTS = {
-  freelance: ["freelance", "contract labor", "professional", "outside services"],
-  commission: ["commission"],
-  route_driver: ["driver", "delivery", "distribution", "route"],
-  shipping: ["shipping", "delivery", "freight"],
-  printing: ["print", "printing", "reproduction"],
-  postage: ["postage", "mail", "usps"],
-  payroll: ["payroll", "wages", "salaries"],
-  rent: ["rent", "lease", "occupancy"],
-  utilities: ["utilit", "electric", "water", "gas", "internet", "phone"],
-  software: ["software", "subscription", "saas", "dues"],
-  insurance: ["insurance"],
-  marketing: ["marketing", "advertis", "promotion"],
-  other: [],
+// Category → canonical QB top-level account name (exact match, case-insensitive).
+// Publications are NOT encoded here — publication tracking stays in MyDash.
+const CATEGORY_QB_ACCOUNT = {
+  freelance: "Freelance",
+  commission: "Commissions",
+  route_driver: "Route Drivers",
+  shipping: "Shipping",
+  printing: "Printing",
+  postage: "Postage",
+  payroll: "Payroll",
+  rent: "Rent",
+  utilities: "Utilities",
+  software: "Software",
+  insurance: "Insurance",
+  marketing: "Marketing",
+  other: "Other Expenses",
 };
 
 const STATUS_COLORS = {
@@ -240,10 +240,13 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
         if (!vendorId) throw new Error("Vendor created but no ID returned: " + JSON.stringify(createRes.data));
       }
 
-      // 3. Look up an expense account to charge the bill to
+      // 3. Look up the QB top-level expense account for this category
+      const targetAccountName = CATEGORY_QB_ACCOUNT[bill.category];
+      if (!targetAccountName) throw new Error(`No QB account mapping for category "${bill.category}"`);
+
       const acctRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "query" },
-        body: { query: "SELECT Id, Name, AccountType, AccountSubType FROM Account WHERE AccountType = 'Expense' MAXRESULTS 200" },
+        body: { query: "SELECT Id, Name, AccountType FROM Account WHERE AccountType = 'Expense' MAXRESULTS 200" },
       });
       if (acctRes.error) {
         const msg = await fnError(acctRes, "Could not load QuickBooks expense accounts");
@@ -254,18 +257,14 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
         throw new Error("No Expense accounts found in QuickBooks. Create one in QB first.");
       }
 
-      // Match by category hints, else fall back to first expense account
-      const hints = CATEGORY_ACCOUNT_HINTS[bill.category] || [];
-      let accountId = null;
-      let matchedName = null;
-      for (const hint of hints) {
-        const match = accounts.find(a => (a.Name || "").toLowerCase().includes(hint));
-        if (match) { accountId = match.Id; matchedName = match.Name; break; }
+      // Exact match (case-insensitive)
+      const match = accounts.find(a => (a.Name || "").toLowerCase() === targetAccountName.toLowerCase());
+      if (!match) {
+        const available = accounts.map(a => a.Name).join(", ");
+        throw new Error(`QuickBooks has no expense account named "${targetAccountName}". Create it in QB, or rename one of: ${available}`);
       }
-      if (!accountId) {
-        accountId = accounts[0].Id;
-        matchedName = accounts[0].Name;
-      }
+      const accountId = match.Id;
+      const matchedName = match.Name;
 
       // 4. Create bill
       const billRes = await supabase.functions.invoke("qb-api", {
