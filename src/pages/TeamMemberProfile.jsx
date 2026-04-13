@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn, TabRow, TB } from "../components/ui";
 import { initials as ini } from "../lib/formatters";
+import { supabase } from "../lib/supabase";
 import RoleDashboard from "../components/RoleDashboard";
 import { MODULES, ROLE_DEFAULTS, ALERT_EVENTS, ALERT_OPTIONS, getAlertDefaults } from "./TeamModule";
 
@@ -25,7 +26,7 @@ function WorkloadPanel({ member, clients, sales, stories, tickets }) {
   const isAdmin = ["Office Manager", "Office Administrator"].includes(member.role);
   const myClients = new Set((clients || []).filter(c => c.repId === member.id).map(c => c.id));
   const overdue = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && s.nextActionDate && s.nextActionDate < today && s.nextAction && !["Closed", "Follow-up"].includes(s.status)).length : 0;
-  const pipeline = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)) : [];
+  const pipeline = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && s.status !== "Closed") : [];
   const editQueue = isEditor ? (stories || []).filter(s => ["Needs Editing", "Draft"].includes(s.status)).length : 0;
   const openTix = isAdmin ? (tickets || []).filter(t => ["open", "in_progress"].includes(t.status)).length : 0;
 
@@ -51,50 +52,75 @@ function WorkloadPanel({ member, clients, sales, stories, tickets }) {
   </div>;
 }
 
-// ─── Settings panel (commission/rate/pub assignments) ───────
-function SettingsPanel({ member, pubs, updateTeamMember }) {
+// ─── Settings panel (per-pub commission rows) ──────────────
+// Every publication is always listed so every salesperson gets the same
+// options (no hard-coding). Each row has: Assigned toggle, rate %, trigger.
+// Rate goes to commission_rates (salesperson_id+publication_id+product_type=null).
+// Trigger goes to salesperson_pub_assignments.commission_trigger.
+function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate }) {
   const isSales = ["Sales Manager", "Salesperson"].includes(member.role);
+  const assignments = (salespersonPubAssignments || []).filter(a => a.salespersonId === member.id);
+  const rates = (commissionRates || []).filter(r => r.salespersonId === member.id && (r.productType == null || r.productType === ""));
+
+  const getAssignment = (pubId) => assignments.find(a => a.publicationId === pubId);
+  const getRate = (pubId) => rates.find(r => r.publicationId === pubId);
+
+  const toggleAssigned = (pubId, isAssigned) => {
+    if (isAssigned) {
+      deletePubAssignment?.(member.id, pubId);
+    } else {
+      upsertPubAssignment?.({ salespersonId: member.id, publicationId: pubId, percentage: 100, isActive: true });
+    }
+  };
+
+  const updateTrigger = (pubId, trigger) => {
+    upsertPubAssignment?.({ salespersonId: member.id, publicationId: pubId, percentage: getAssignment(pubId)?.percentage ?? 100, isActive: true, commissionTrigger: trigger });
+  };
+
+  const updateRate = (pubId, rateVal) => {
+    const existing = getRate(pubId);
+    upsertCommissionRate?.({ id: existing?.id, salespersonId: member.id, publicationId: pubId, productType: null, rate: Number(rateVal) || 0 });
+  };
 
   return <div>
-    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Settings</div>
+    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Publication Assignments</div>
 
-    {isSales && <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Commission</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <div style={{ padding: 12, background: Z.sa, borderRadius: R }}>
-          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Default Rate</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Inp type="number" value={member.commissionDefaultRate || 20} onChange={e => updateTeamMember?.(member.id, { commissionDefaultRate: Number(e.target.value) })} style={{ width: 60 }} />
-            <span style={{ fontSize: FS.sm, color: Z.tm }}>%</span>
+    {isSales && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {(pubs || []).map(p => {
+        const assignment = getAssignment(p.id);
+        const isAssigned = !!assignment;
+        const rate = getRate(p.id);
+        return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 120px", gap: 8, alignItems: "center", padding: "8px 10px", background: isAssigned ? Z.go + "08" : Z.sa, borderRadius: Ri, borderLeft: `2px solid ${isAssigned ? Z.go : Z.bd}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <input type="checkbox" checked={isAssigned} onChange={() => toggleAssigned(p.id, isAssigned)} style={{ cursor: "pointer", flexShrink: 0 }} />
+            <span style={{ fontSize: FS.sm, fontWeight: isAssigned ? FW.bold : FW.normal, color: isAssigned ? Z.tx : Z.td, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
           </div>
-        </div>
-        <div style={{ padding: 12, background: Z.sa, borderRadius: R }}>
-          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Earning Trigger</div>
-          <Sel value={member.commissionTrigger || "both"} onChange={e => updateTeamMember?.(member.id, { commissionTrigger: e.target.value })} options={[
-            { value: "both", label: "Both (Issue + Invoice)" },
-            { value: "issue_published", label: "When Issue Publishes" },
-            { value: "invoice_paid", label: "When Invoice Paid" },
-          ]} />
-        </div>
-      </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <input type="number" disabled={!isAssigned} value={rate?.rate ?? ""} placeholder="—" onChange={e => updateRate(p.id, e.target.value)} style={{ width: 48, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tx, fontSize: FS.sm, outline: "none", textAlign: "right" }} />
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>%</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <input type="number" disabled={!isAssigned} value={assignment?.percentage ?? ""} placeholder="100" onChange={e => upsertPubAssignment?.({ salespersonId: member.id, publicationId: p.id, percentage: Number(e.target.value) || 0, isActive: true, commissionTrigger: assignment?.commissionTrigger })} style={{ width: 48, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tx, fontSize: FS.sm, outline: "none", textAlign: "right" }} title="Territory share %" />
+            <span style={{ fontSize: FS.xs, color: Z.tm }} title="Territory share">sh</span>
+          </div>
+          <select disabled={!isAssigned} value={assignment?.commissionTrigger || ""} onChange={e => updateTrigger(p.id, e.target.value || null)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tx, fontSize: FS.xs, outline: "none", cursor: isAssigned ? "pointer" : "not-allowed" }}>
+            <option value="">Default</option>
+            <option value="both">Issue + Invoice</option>
+            <option value="issue_published">Issue</option>
+            <option value="invoice_paid">Invoice Paid</option>
+          </select>
+        </div>;
+      })}
+      <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Rate = commission %, sh = territory share %, Trigger controls when commission is earned.</div>
     </div>}
 
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Publication Assignments</div>
+    {!isSales && <div style={{ fontSize: FS.sm, color: Z.tm }}>
       {(member.pubs || []).includes("all")
-        ? <span style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>All publications</span>
-        : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {(pubs || []).map(p => {
-              const isAssigned = (member.pubs || []).includes("all") || (member.pubs || []).includes(p.id);
-              return <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: isAssigned ? Z.go + "08" : Z.sa, borderRadius: Ri, borderLeft: `2px solid ${isAssigned ? Z.go : Z.bd}` }}>
-                <span style={{ flex: 1, fontSize: FS.sm, fontWeight: isAssigned ? FW.bold : FW.normal, color: isAssigned ? Z.tx : Z.td }}>{p.name}</span>
-                <span style={{ fontSize: FS.xs, color: isAssigned ? Z.go : Z.td }}>{isAssigned ? "Assigned" : "—"}</span>
-              </div>;
-            })}
-          </div>}
-    </div>
+        ? "All publications"
+        : (pubs || []).filter(p => (member.pubs || []).includes(p.id)).map(p => p.name).join(", ") || "—"}
+    </div>}
 
-    {member.isFreelance && <div>
+    {member.isFreelance && <div style={{ marginTop: 12 }}>
       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Freelancer</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
@@ -213,10 +239,14 @@ const TeamMemberProfile = ({
   memberId, team, pubs, clients, sales, stories, issues, payments, subscribers,
   tickets, legalNotices, creativeJobs, invoices, setStories,
   updateTeamMember, deleteTeamMember, onNavigate, setIssueDetailId,
+  salespersonPubAssignments, upsertPubAssignment, deletePubAssignment,
+  commissionRates, upsertCommissionRate,
 }) => {
   // Default to Dashboard view — publishers open this page to see the member's
   // realtime dashboard; Settings is a click away via the top tab.
   const [tab, setTab] = useState("Dashboard");
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
   const member = (team || []).find(t => t.id === memberId);
 
   if (!member) {
@@ -226,9 +256,24 @@ const TeamMemberProfile = ({
     </div>;
   }
 
+  const sendInvite = async () => {
+    setInviting(true); setInviteResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: { email: member.email, team_member_id: member.id },
+      });
+      if (error) setInviteResult({ error: error.message });
+      else setInviteResult(data);
+    } catch (err) { setInviteResult({ error: err.message }); }
+    setInviting(false);
+  };
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <BackBtn onClick={() => onNavigate?.("team")} />
     <PageHeader title={member.name}>
+      {!member.authId && <Btn sm v="success" disabled={inviting} onClick={sendInvite}>
+        <Ic.mail size={12} /> {inviting ? "Sending…" : "Connect Google"}
+      </Btn>}
       {deleteTeamMember && <Btn sm v="danger" onClick={async () => {
         if (!window.confirm(`Remove ${member.name} from the team? They'll be hidden from all team listings, dropdowns, and dashboards. Their commission history, sales attribution, and story bylines stay intact.`)) return;
         await deleteTeamMember(member.id);
@@ -236,20 +281,21 @@ const TeamMemberProfile = ({
       }}><Ic.trash size={12} /> Remove from Team</Btn>}
     </PageHeader>
 
-    {/* Identity strip */}
-    <GlassCard>
-      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(member.name)}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{member.name}</div>
-          <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>
-          <div style={{ fontSize: FS.xs, color: Z.tm }}>{member.email}{member.phone ? ` · ${member.phone}` : ""}</div>
-        </div>
-        {member.authId
-          ? <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "4px 10px", borderRadius: Ri }}>Active</span>
-          : <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, background: Z.bd + "40", padding: "4px 10px", borderRadius: Ri }}>Not Connected</span>}
-      </div>
-    </GlassCard>
+    {/* Role + contact strip — no duplicate name (that's in the PageHeader) */}
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <span style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi, fontFamily: COND }}>{member.role}</span>
+      <span style={{ color: Z.td }}>·</span>
+      <span style={{ fontSize: FS.sm, color: Z.tm }}>{member.email}</span>
+      {member.phone && <>
+        <span style={{ color: Z.td }}>·</span>
+        <span style={{ fontSize: FS.sm, color: Z.tm }}>{member.phone}</span>
+      </>}
+      {member.authId && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "3px 10px", borderRadius: 999, marginLeft: "auto" }}>Google Connected</span>}
+    </div>
+
+    {inviteResult && <div style={{ fontSize: FS.xs, padding: "6px 10px", borderRadius: Ri, background: inviteResult.success ? Z.go + "10" : Z.da + "10", color: inviteResult.success ? Z.go : Z.da }}>
+      {inviteResult.success ? inviteResult.message : `Error: ${inviteResult.error}`}
+    </div>}
 
     {/* View switcher — Dashboard (default) vs Settings */}
     <TabRow><TB tabs={["Dashboard", "Settings"]} active={tab} onChange={setTab} /></TabRow>
@@ -257,6 +303,7 @@ const TeamMemberProfile = ({
     {tab === "Dashboard" && <RoleDashboard
       role={member.role}
       currentUser={member}
+      hideGreeting
       pubs={pubs}
       stories={stories}
       setStories={setStories}
@@ -278,9 +325,12 @@ const TeamMemberProfile = ({
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <WorkloadPanel member={member} clients={clients} sales={sales} stories={stories} tickets={tickets} />
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
-        <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} />
-        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
-        <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
+        {/* Two-column: Settings (Publication Assignment) + Permissions. Auto-fit
+            keeps it 2-col on desktop and stacks to 1-col below ~640px viewport. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
+          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} />
+          <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
+        </div>
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
         <AlertsPanel member={member} updateTeamMember={updateTeamMember} />
       </div>

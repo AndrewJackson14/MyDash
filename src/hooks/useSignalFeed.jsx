@@ -62,8 +62,10 @@ export function useSignalFeed({
   const outstandingAR = useMemo(() => _inv.filter(i => ["overdue", "sent"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
   const overdueInvCount = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length, [_inv, today]);
   const overdueBalance = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv, today]);
-  const pipelineValue = useMemo(() => _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
-  const pipelineCount = useMemo(() => _sales.filter(s => !["Closed", "Follow-up"].includes(s.status)).length, [_sales]);
+  // Pipeline = every non-closed deal (includes Follow-up). Only
+  // Closed is subtracted from the total.
+  const pipelineValue = useMemo(() => _sales.filter(s => s.status !== "Closed").reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
+  const pipelineCount = useMemo(() => _sales.filter(s => s.status !== "Closed").length, [_sales]);
   const uninvoicedContracts = useMemo(() => {
     const invSaleIds = new Set();
     _inv.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); }));

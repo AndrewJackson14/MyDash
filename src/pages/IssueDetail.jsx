@@ -18,7 +18,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
   // ─── Data ─────────────────────────────────────────────
   const issSales = (sales || []).filter(s => s.issueId === issueId);
   const closedAds = issSales.filter(s => s.status === "Closed");
-  const pipelineAds = issSales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+  const pipelineAds = issSales.filter(s => s.status !== "Closed");
   const adSlotRatio = pub?.adSlotRatio || 0.4;
   const totalSlots = Math.floor((pub?.pageCount || pub?.defaultPageCount || 24) * adSlotRatio);
   const openSlots = Math.max(0, totalSlots - closedAds.length);

@@ -223,7 +223,7 @@ const Dashboard = ({
     const thisMonth = today.slice(0, 7);
     const thisMonthRev = mySales.filter(s => s.date?.startsWith(thisMonth)).reduce((sum, s) => sum + (s.amount || 0), 0);
     const thisYearRev = mySales.filter(s => s.date?.startsWith(today.slice(0, 4))).reduce((sum, s) => sum + (s.amount || 0), 0);
-    const activePipeline = _sales.filter(s => myClients.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status));
+    const activePipeline = _sales.filter(s => myClients.has(s.clientId) && s.status !== "Closed");
     const pipelineValue = activePipeline.reduce((sum, s) => sum + (s.amount || 0), 0);
     const myRenewals = renewalClients.filter(c => c.repId === currentUser.id).length;
     const myTotalGoal = myGoals.reduce((sum, g) => sum + g.myGoal, 0);
@@ -990,7 +990,7 @@ const Dashboard = ({
               const isAdmin = ["Office Manager", "Office Administrator"].includes(t.role);
               const myClientIds = new Set(_clients.filter(c => c.repId === t.id).map(c => c.id));
               const overdue = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && s.nextActionDate && s.nextActionDate < today && s.nextAction).length : 0;
-              const pipeline = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)).reduce((s, x) => s + (x.amount || 0), 0) : 0;
+              const pipeline = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && s.status !== "Closed").reduce((s, x) => s + (x.amount || 0), 0) : 0;
               const editCount = isEditor ? _stories.filter(s => ["Needs Editing", "Edited"].includes(s.status)).length : 0;
               const openTix = isAdmin ? _tickets.filter(tk => tk.status === "open").length : 0;
               const subTasks = isAdmin ? expiringNext30 : 0;

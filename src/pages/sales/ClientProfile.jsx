@@ -26,7 +26,7 @@ const ClientProfile = ({
 
   const cS = sales.filter(s => s.clientId === vc.id);
   const closedCS = cS.filter(s => s.status === "Closed");
-  const activeCS = cS.filter(s => !["Closed", "Follow-up"].includes(s.status));
+  const activeCS = cS.filter(s => s.status !== "Closed");
   const comms = (vc.comms || []).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const primaryContact = (vc.contacts || [])[0] || {};
   const daysSinceContact = comms.length > 0 ? Math.floor((new Date() - new Date(comms[0].date)) / 86400000) : null;

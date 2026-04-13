@@ -363,7 +363,17 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     </>}
 
     {/* ════════ CREATE/EDIT MODAL ════════ */}
-    <Modal open={noticeModal} onClose={() => setNoticeModal(false)} title={editId ? "Edit Legal Notice" : "New Legal Notice"} width={640} onSubmit={saveNotice}>
+    <Modal
+      open={noticeModal}
+      onClose={() => setNoticeModal(false)}
+      title={editId ? "Edit Legal Notice" : "New Legal Notice"}
+      width={640}
+      onSubmit={saveNotice}
+      actions={<>
+        <Btn v="secondary" onClick={() => setNoticeModal(false)}>Cancel</Btn>
+        <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Create Notice"}</Btn>
+      </>}
+    >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -401,11 +411,6 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         </div>
 
         <TA label="Notes" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setNoticeModal(false)}>Cancel</Btn>
-          <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Create Notice"}</Btn>
-        </div>
       </div>
     </Modal>
   </div>;

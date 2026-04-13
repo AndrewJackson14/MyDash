@@ -46,7 +46,7 @@ const Analytics = ({
     const yr = closedSales.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.amount || 0), 0);
     const tr = closedSales.reduce((s, x) => s + (x.amount || 0), 0);
     const ad = closedSales.length > 0 ? Math.round(tr / closedSales.length) : 0;
-    const active = sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const active = sales.filter(s => s.status !== "Closed");
     const pv = active.reduce((s, x) => s + (x.amount || 0), 0);
     return { monthRev: mr, yearRev: yr, totalRev: tr, avgDeal: ad, pipVal: pv, activeDeals: active };
   }, [closedSales, sales]);

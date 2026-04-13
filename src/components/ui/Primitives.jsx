@@ -105,19 +105,21 @@ export const TB = ({ tabs, active, onChange }) => {
     background: Z.sa,
     border: `1px solid ${Z.bd}`,
   }}>
-    {/* Sliding active indicator */}
+    {/* Sliding active indicator — blue so the selected tab reads
+        as an action affordance, not a heavy black block. */}
     <div style={{
       position: "absolute",
       top: 4,
       bottom: 4,
       left: rect.left,
       width: rect.width,
-      background: Z.tx,
+      background: "#3B82F6",
       borderRadius: 999,
       transition: rect.ready ? "left 0.25s cubic-bezier(0.4,0,0.2,1), width 0.25s cubic-bezier(0.4,0,0.2,1)" : "none",
       opacity: rect.ready ? 1 : 0,
       pointerEvents: "none",
       zIndex: 0,
+      boxShadow: rect.ready ? "0 2px 8px rgba(59,130,246,0.3)" : "none",
     }} />
     {tabs.map(t => {
       const isActive = active === t;
@@ -136,7 +138,7 @@ export const TB = ({ tabs, active, onChange }) => {
           fontSize: FS.base,
           fontWeight: isActive ? 700 : 600,
           fontFamily: COND,
-          color: isActive ? Z.bg : Z.td,
+          color: isActive ? "#fff" : Z.td,
           transition: "color 0.25s",
           whiteSpace: "nowrap",
         }}
@@ -147,7 +149,60 @@ export const TB = ({ tabs, active, onChange }) => {
 
 export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ ...labelStyle, marginBottom: 8 }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
 
-export const Modal = ({ open, onClose, title, children, width = MODAL.defaultWidth, onSubmit }) => { if (!open) return null; return <div tabIndex={-1} style={{ position: "fixed", inset: 0, background: MODAL.backdropBg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: ZI.max, backdropFilter: MODAL.backdropBlur, outline: "none" }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === "Escape") { onClose(); } if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) { e.preventDefault(); onSubmit(); } }}><div onClick={e => e.stopPropagation()} style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: MODAL.radius + 2, width, maxWidth: "92vw", maxHeight: "85vh", overflow: "auto" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}` }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3><button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button></div><div style={{ padding: 24 }}>{children}</div></div></div>; };
+// Modal — header + scrollable body + optional sticky footer.
+// Pass an `actions` prop to render sticky buttons pinned to the
+// bottom of the modal frame (Cancel / Save / Create Notice / etc).
+// Content scrolls behind the footer. If `actions` isn't provided,
+// children render normally in a scrollable body — existing modals
+// without a footer prop still work exactly as before.
+export const Modal = ({ open, onClose, title, children, actions, width = MODAL.defaultWidth, onSubmit }) => {
+  if (!open) return null;
+  return <div tabIndex={-1} style={{
+    position: "fixed", inset: 0,
+    background: MODAL.backdropBg,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    zIndex: ZI.max,
+    backdropFilter: MODAL.backdropBlur,
+    outline: "none",
+  }}
+    onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    onKeyDown={e => {
+      if (e.key === "Escape") { onClose(); }
+      if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) {
+        e.preventDefault();
+        onSubmit();
+      }
+    }}>
+    <div onClick={e => e.stopPropagation()} style={{
+      background: Z.sf,
+      border: `1px solid ${Z.bd}`,
+      borderRadius: MODAL.radius + 2,
+      width,
+      maxWidth: "92vw",
+      maxHeight: "85vh",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      {/* Header — fixed top */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}`, flexShrink: 0 }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button>
+      </div>
+      {/* Body — scrollable */}
+      <div style={{ flex: 1, overflow: "auto", padding: 24, minHeight: 0 }}>{children}</div>
+      {/* Footer — sticky bottom, only rendered when actions prop provided */}
+      {actions && <div style={{
+        display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8,
+        padding: "14px 24px",
+        borderTop: `1px solid ${Z.bd}`,
+        background: Z.sf,
+        flexShrink: 0,
+        borderBottomLeftRadius: MODAL.radius + 2,
+        borderBottomRightRadius: MODAL.radius + 2,
+      }}>{actions}</div>}
+    </div>
+  </div>;
+};
 
 export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0))); return <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>{data.map((d, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>{[...keys].reverse().map(k => <div key={k} style={{ height: Math.max(2, (d[k] / mx) * (height - 30)), background: colors[k] || Z.tx, borderRadius: R }} />)}</div><span style={{ fontSize: FS.base, color: Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{d.month}</span></div>)}</div>; };
 

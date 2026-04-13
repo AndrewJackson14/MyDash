@@ -113,7 +113,7 @@ const SnapshotCards = memo(({ role, sales, issues, pubs, clients, stories, allEv
       sub={weekActions.length > 0 ? weekActions.slice(0, 2).map(s => (clients || []).find(c => c.id === s.clientId)?.name || "").filter(Boolean).join(", ") : "Clear schedule"}
       color={Z.ac} onClick={() => onNavigate?.("sales")} />);
     // Pipeline Value
-    const pipeline = (sales || []).filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pipeline = (sales || []).filter(s => s.status !== "Closed");
     const pipeVal = pipeline.reduce((s, x) => s + (x.amount || 0), 0);
     cards.push(<SnapCard key="pipe" icon={Ic.chart} title="Pipeline" value={fmtK(pipeVal)}
       sub={`${pipeline.length} active deals`} color={Z.wa} onClick={() => onNavigate?.("sales")} />);

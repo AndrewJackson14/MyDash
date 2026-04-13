@@ -997,7 +997,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                   const avgDeal = dealCount > 0 ? closedRev / dealCount : 0;
                   const lost = _sales.filter(s => s.status === "Follow-up" && inPeriod(s.date) && myClients.has(s.clientId)).length;
                   const winRate = (dealCount + lost) > 0 ? Math.round((dealCount / (dealCount + lost)) * 100) : 0;
-                  const pipeline = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status) && myClients.has(s.clientId));
+                  const pipeline = _sales.filter(s => s.status !== "Closed" && myClients.has(s.clientId));
                   const pipelineVal = pipeline.reduce((s2, x) => s2 + (x.amount || 0), 0);
 
                   return <div key={sp.id} style={{ background: Z.bg, borderRadius: R, padding: "14px 16px" }}>

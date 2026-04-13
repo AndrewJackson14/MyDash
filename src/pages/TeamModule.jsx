@@ -253,7 +253,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
             const isAdmin = ["Office Manager", "Office Administrator"].includes(member.role);
             const myClients = new Set((clients || []).filter(c => c.repId === member.id).map(c => c.id));
             const overdue = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && s.nextActionDate && s.nextActionDate < today && s.nextAction && !["Closed", "Follow-up"].includes(s.status)).length : 0;
-            const pipeline = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)) : [];
+            const pipeline = isSales ? (sales || []).filter(s => myClients.has(s.clientId) && s.status !== "Closed") : [];
             const editQueue = isEditor ? (stories || []).filter(s => ["Needs Editing", "Draft"].includes(s.status)).length : 0;
             const openTix = isAdmin ? (tickets || []).filter(t => ["open", "in_progress"].includes(t.status)).length : 0;
             return [
