@@ -428,6 +428,8 @@ const DashboardV2 = (props) => {
         departmentPressure={departmentPressure}
         team={team}
         onOpen={(dept) => setDrilledDept(dept)}
+        onOpenMember={(m) => setOpenMember(m)}
+        onNavigate={onNavigate}
       />
 
       {/* ── Right-hand auto-pin (Cami / Camille) ─────────── */}
@@ -561,7 +563,7 @@ const DashboardV2 = (props) => {
 // Cards have a fixed max-width/max-height so they float in their
 // own breathing space inside each cell.
 // ============================================================
-const DeptGrid = ({ departmentPressure, team, onOpen }) => {
+const DeptGrid = ({ departmentPressure, team, onOpen, onOpenMember, onNavigate }) => {
   return <div style={{
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
@@ -578,12 +580,24 @@ const DeptGrid = ({ departmentPressure, team, onOpen }) => {
         team={team}
         idx={idx}
         onOpen={() => onOpen(dept)}
+        onOpenMember={onOpenMember}
+        onNavigate={onNavigate}
       />
     ))}
   </div>;
 };
 
-const DeptTile = ({ dept, data, team, idx, onOpen }) => {
+// Where each dept's click-through data points live. "primary" is
+// the landing page for the dept as a whole; the sub-metric keys
+// route the individual clickable pieces of the sub text.
+const DEPT_ROUTES = {
+  sales: { primary: "sales" },
+  editorial: { primary: "editorial", stuck: "editorial", deadlines: "schedule" },
+  production: { primary: "creativejobs", adDeadlines: "schedule", overdue: "creativejobs" },
+  admin: { primary: "servicedesk", tickets: "servicedesk", invoices: "billing" },
+};
+
+const DeptTile = ({ dept, data, team, idx, onOpen, onOpenMember, onNavigate }) => {
   const meta = DEPT_META[dept] || {};
   const Icon = meta.icon;
   const color = heatColor(data.heat);
@@ -668,22 +682,53 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
         pointerEvents: "none",
       }} />}
 
-      {/* Mini-avatar stack — top right */}
-      {deptMembers.length > 0 && <DeptAvatarStack members={deptMembers} />}
+      {/* Mini-avatar stack — top right. Each avatar is individually
+          clickable → opens that member's TeamMemberPanel. */}
+      {deptMembers.length > 0 && <DeptAvatarStack members={deptMembers} onOpenMember={onOpenMember} />}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      {/* Dept label / icon — click-through to the dept's primary page */}
+      <div
+        onClick={(e) => { e.stopPropagation(); onNavigate?.(DEPT_ROUTES[dept]?.primary); }}
+        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, cursor: "pointer", alignSelf: "flex-start" }}
+      >
         {Icon && <Icon size={14} color={color} />}
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
       </div>
-      <div style={{ fontSize: 36, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.2, lineHeight: 0.95 }}>
+
+      {/* Big count — click-through to primary page */}
+      <div
+        onClick={(e) => { e.stopPropagation(); onNavigate?.(DEPT_ROUTES[dept]?.primary); }}
+        style={{ fontSize: 36, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.2, lineHeight: 0.95, cursor: "pointer", display: "inline-block", transition: "color 0.15s ease" }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = color; }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = Z.tx; }}
+      >
         {data.count}
       </div>
-      <div style={{ fontSize: 12, color: Z.tm, marginTop: 6, minHeight: 16 }}>
-        {dept === "sales" && (data.pctToGoal != null ? `${data.pctToGoal}% to goal` : `${fmtCurrency(data.pipelineValue || 0)} pipeline`)}
-        {dept === "editorial" && `${data.stuckStories || 0} stuck · ${data.editDeadlines || 0} deadlines`}
-        {dept === "production" && `${data.adDeadlines || 0} ad deadlines · ${data.overdueJobs || 0} overdue`}
-        {dept === "admin" && `${data.openTickets || 0} tickets · ${data.overdueInvCount || 0} overdue inv`}
+
+      {/* Sub text — individual metrics are their own click-throughs */}
+      <div style={{ fontSize: 12, color: Z.tm, marginTop: 6, minHeight: 16, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {dept === "sales" && (
+          data.pctToGoal != null
+            ? <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.sales.primary)}>{data.pctToGoal}% to goal</SubLink>
+            : <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.sales.primary)}>{fmtCurrency(data.pipelineValue || 0)} pipeline</SubLink>
+        )}
+        {dept === "editorial" && <>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.editorial.stuck)}>{data.stuckStories || 0} stuck</SubLink>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.editorial.deadlines)}>{data.editDeadlines || 0} deadlines</SubLink>
+        </>}
+        {dept === "production" && <>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.production.adDeadlines)}>{data.adDeadlines || 0} ad deadlines</SubLink>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.production.overdue)}>{data.overdueJobs || 0} overdue</SubLink>
+        </>}
+        {dept === "admin" && <>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.admin.tickets)}>{data.openTickets || 0} tickets</SubLink>
+          <span style={{ opacity: 0.5 }}>·</span>
+          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.admin.invoices)}>{data.overdueInvCount || 0} overdue inv</SubLink>
+        </>}
       </div>
+
       <div style={{ marginTop: 18, height: 7, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: 4, overflow: "hidden" }}>
         <div style={{
           width: `${data.heat}%`,
@@ -693,7 +738,12 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
           transition: "width 0.8s ease, background 1.5s ease, box-shadow 0.8s ease",
         }} />
       </div>
-      <div style={{ fontSize: FS.micro, color, marginTop: 6, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6 }}>
+
+      {/* Heat label — click opens the drill-in (same as empty card area) */}
+      <div
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        style={{ fontSize: FS.micro, color, marginTop: 6, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6, cursor: "pointer", display: "inline-block", alignSelf: "flex-start" }}
+      >
         {heatLabel(data.heat)}
       </div>
     </GlassCard>
@@ -1045,7 +1095,7 @@ const DrillCard = ({ accent, icon: Icon, kind, title, meta, metaColor, action, o
 // DeptAvatarStack — overlapping circle avatars in the top-right
 // corner of a dept tile. Shows up to 3 team members, with the
 // right-hand (Cami / Camille) getting an amber ring.
-const DeptAvatarStack = ({ members }) => {
+const DeptAvatarStack = ({ members, onOpenMember }) => {
   const dark = Z.bg === "#08090D";
   const ring = dark ? "#0E1018" : "#fff";
   return <div style={{
@@ -1058,18 +1108,54 @@ const DeptAvatarStack = ({ members }) => {
       const firstName = (m.name || "").split(" ")[0];
       const isRightHand = RIGHT_HAND_FIRST_NAMES.has(firstName);
       const hue = Math.abs([...(m.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
-      return <div key={m.id} title={m.name} style={{
-        width: 24, height: 24, borderRadius: "50%",
-        background: `hsl(${hue}, 40%, 38%)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontWeight: FW.black, color: INV.light || "#fff",
-        border: `2px solid ${isRightHand ? (ACCENT.amber || "#F59E0B") : ring}`,
-        marginLeft: i === 0 ? 0 : -8,
-        zIndex: members.length - i,
-        boxShadow: isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}40` : "none",
-      }}>{ini(m.name)}</div>;
+      return <div
+        key={m.id}
+        title={m.name}
+        onClick={(e) => { e.stopPropagation(); onOpenMember?.(m); }}
+        style={{
+          width: 26, height: 26, borderRadius: "50%",
+          background: `hsl(${hue}, 40%, 38%)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 10, fontWeight: FW.black, color: INV.light || "#fff",
+          border: `2px solid ${isRightHand ? (ACCENT.amber || "#F59E0B") : ring}`,
+          marginLeft: i === 0 ? 0 : -9,
+          zIndex: members.length - i,
+          boxShadow: isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}40` : "none",
+          cursor: onOpenMember ? "pointer" : "default",
+          transition: "transform 0.15s ease, z-index 0s 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.15) translateY(-2px)";
+          e.currentTarget.style.zIndex = members.length + 10;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1) translateY(0)";
+          e.currentTarget.style.zIndex = members.length - i;
+        }}
+      >{ini(m.name)}</div>;
     })}
   </div>;
+};
+
+// SubLink — a tiny clickable chunk inside a dept tile's sub text.
+// Underlines on hover to hint at interactivity without cluttering
+// the at-rest visual. Stops propagation so the card's main onClick
+// (drill-in) doesn't also fire.
+const SubLink = ({ onClick, children }) => {
+  const [hover, setHover] = useState(false);
+  return <span
+    onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+    onMouseEnter={() => setHover(true)}
+    onMouseLeave={() => setHover(false)}
+    style={{
+      cursor: "pointer",
+      color: hover ? Z.tx : Z.tm,
+      textDecoration: hover ? "underline" : "none",
+      textDecorationColor: Z.bd,
+      textUnderlineOffset: 3,
+      transition: "color 0.15s ease",
+    }}
+  >{children}</span>;
 };
 
 // DrillMember — small clickable avatar in the drill-in modal's
