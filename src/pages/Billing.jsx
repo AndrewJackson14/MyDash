@@ -187,14 +187,17 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filteredUninvoiced]);
 
-  // Aging buckets
+  // Aging buckets — bucketed by days PAST DUE, not days since issue.
+  // "Current" = not yet past due (due_date >= today). Past-due buckets run 1-30, 31-60, 61-90, 90+.
   const agingBuckets = { current: 0, "30": 0, "60": 0, "90": 0, "90+": 0 };
   processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).forEach(inv => {
-    const days = daysBetween(inv.issueDate || today, today);
     const bal = inv.balanceDue || 0;
-    if (days <= 30) agingBuckets.current += bal;
-    else if (days <= 60) agingBuckets["30"] += bal;
-    else if (days <= 90) agingBuckets["60"] += bal;
+    const due = inv.dueDate || inv.issueDate;
+    if (!due || due >= today) { agingBuckets.current += bal; return; }
+    const daysLate = daysBetween(due, today);
+    if (daysLate <= 30) agingBuckets["30"] += bal;
+    else if (daysLate <= 60) agingBuckets["60"] += bal;
+    else if (daysLate <= 90) agingBuckets["90"] += bal;
     else agingBuckets["90+"] += bal;
   });
 
@@ -579,12 +582,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       {/* Aging Chart */}
       <GlassCard>
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Accounts Receivable Aging</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
           {[
             { label: "Current", value: agingBuckets.current, color: Z.su },
-            { label: "31-60 days", value: agingBuckets["30"], color: Z.wa },
-            { label: "61-90 days", value: agingBuckets["60"], color: Z.or },
-            { label: "90+ days", value: agingBuckets["90+"], color: Z.da },
+            { label: "1-30 past due", value: agingBuckets["30"], color: Z.wa },
+            { label: "31-60 past due", value: agingBuckets["60"], color: Z.or },
+            { label: "61-90 past due", value: agingBuckets["90"], color: Z.da },
+            { label: "90+ past due", value: agingBuckets["90+"], color: Z.da },
           ].map(b => <div key={b.label} style={{ textAlign: "center", padding: 16, background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>{b.label}</div>
             <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: b.value > 0 ? b.color : Z.td, fontFamily: DISPLAY }}>{fmtCurrency(b.value)}</div>
@@ -888,21 +892,24 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           const openInv = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub)));
           const buckets = { current: [], d30: [], d60: [], d90: [], over90: [] };
           openInv.forEach(inv => {
-            const age = daysBetween(inv.issueDate || inv.dueDate || today, today);
-            if (age <= 30) buckets.current.push(inv);
-            else if (age <= 60) buckets.d30.push(inv);
-            else if (age <= 90) buckets.d60.push(inv);
+            const due = inv.dueDate || inv.issueDate;
+            if (!due || due >= today) { buckets.current.push(inv); return; }
+            const daysLate = daysBetween(due, today);
+            if (daysLate <= 30) buckets.d30.push(inv);
+            else if (daysLate <= 60) buckets.d60.push(inv);
+            else if (daysLate <= 90) buckets.d90.push(inv);
             else buckets.over90.push(inv);
           });
           const bucketSum = (arr) => arr.reduce((s, i) => s + (i.balanceDue || 0), 0);
           const BUCKET_CFG = [
-            { key: "current", label: "Current (0-30d)", color: Z.go },
-            { key: "d30", label: "31-60 days", color: Z.wa },
-            { key: "d60", label: "61-90 days", color: Z.da },
-            { key: "over90", label: "90+ days", color: Z.da },
+            { key: "current", label: "Current (not past due)", color: Z.go },
+            { key: "d30", label: "1-30 past due", color: Z.wa },
+            { key: "d60", label: "31-60 past due", color: Z.or },
+            { key: "d90", label: "61-90 past due", color: Z.da },
+            { key: "over90", label: "90+ past due", color: Z.da },
           ];
           return <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
               {BUCKET_CFG.map(b => <GlassStat key={b.key} label={b.label} value={fmtCurrency(bucketSum(buckets[b.key]))} sub={`${buckets[b.key].length} invoice${buckets[b.key].length !== 1 ? "s" : ""}`} color={b.color} />)}
             </div>
             {BUCKET_CFG.map(b => {

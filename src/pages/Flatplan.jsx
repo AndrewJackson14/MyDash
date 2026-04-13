@@ -173,12 +173,13 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       const clientObj = clients.find(c => c.id === sale.clientId);
       const clientCode = clientObj?.clientCode || clientObj?.client_code || "X0000";
       const { data: invNum } = await supabase.rpc("next_invoice_number", { p_client_code: clientCode });
+      const net30 = new Date(); net30.setDate(net30.getDate() + 30);
       const { data: inv } = await supabase.from("invoices").insert({
         client_id: sale.clientId,
         invoice_number: invNum || `${clientCode}-${Date.now()}`,
         status: "draft",
         issue_date: today,
-        due_date: today,
+        due_date: net30.toISOString().slice(0, 10),
         total: sale.amount || 0,
         balance_due: sale.amount || 0,
       }).select("id, invoice_number, total, balance_due, client_id, status").single();
