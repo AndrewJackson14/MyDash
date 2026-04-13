@@ -420,22 +420,15 @@ const DashboardV2 = (props) => {
       <ActivityBanner activity={activity} streak={streak} allClear={doseWins?.allDeadlinesMet} />
 
       {/* ── Department tiles ─────────────────────────────── */}
-      {/* Floating, urgency-responsive tiles. Each tile is signal-
-          strong but not huge, with generous gap to let the page
-          breathe. Hot tiles scale up from center, cold tiles
-          shrink in place — everything without clipping neighbors. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 56, padding: "16px 12px" }}>
-        {Object.entries(departmentPressure).map(([dept, data], idx) => (
-          <DeptTile
-            key={dept}
-            dept={dept}
-            data={data}
-            team={team}
-            idx={idx}
-            onOpen={() => setDrilledDept(dept)}
-          />
-        ))}
-      </div>
+      {/* Floating, urgency-responsive tiles in a 2x2 grid whose
+          template columns + rows animate on hover so the hovered
+          tile physically pushes its siblings aside via margin,
+          not just visual transform. 0=Sales 1=Editorial 2=Production 3=Admin. */}
+      <DeptGrid
+        departmentPressure={departmentPressure}
+        team={team}
+        onOpen={(dept) => setDrilledDept(dept)}
+      />
 
       {/* ── Right-hand auto-pin (Cami / Camille) ─────────── */}
       {rightHandNotes.length > 0 && <GlassCard style={{
@@ -560,7 +553,53 @@ const DashboardV2 = (props) => {
 // heat 10. Idle float uses a delay derived from the grid index
 // so adjacent tiles never sync up.
 // ============================================================
-const DeptTile = ({ dept, data, team, idx, onOpen }) => {
+// ============================================================
+// DeptGrid — 2x2 CSS Grid whose template columns and rows
+// animate on hover so the hovered tile physically widens its
+// column and grows its row, pushing siblings via margin.
+// The hovered index is lifted to this level so one cell's hover
+// state can reshape the grid cells of the other three.
+//
+// Layout: 0=Sales(TL) 1=Editorial(TR) 2=Production(BL) 3=Admin(BR)
+// ============================================================
+const DeptGrid = ({ departmentPressure, team, onOpen }) => {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  // Hovered column (0 or 1) widens; hovered row (0 or 1) grows.
+  // The other column/row shrinks proportionally. Gentle ratios so
+  // the push feels like breathing, not snapping.
+  const cols = hoveredIdx == null
+    ? "1fr 1fr"
+    : hoveredIdx % 2 === 0 ? "1.18fr 0.82fr" : "0.82fr 1.18fr";
+  const rows = hoveredIdx == null
+    ? "1fr 1fr"
+    : hoveredIdx < 2 ? "1.12fr 0.88fr" : "0.88fr 1.12fr";
+
+  return <div style={{
+    display: "grid",
+    gridTemplateColumns: cols,
+    gridTemplateRows: rows,
+    gap: 80,
+    minHeight: 380,
+    padding: "20px 16px",
+    transition: "grid-template-columns 0.55s cubic-bezier(0.34, 1.2, 0.64, 1), grid-template-rows 0.55s cubic-bezier(0.34, 1.2, 0.64, 1)",
+  }}>
+    {Object.entries(departmentPressure).map(([dept, data], idx) => (
+      <DeptTile
+        key={dept}
+        dept={dept}
+        data={data}
+        team={team}
+        idx={idx}
+        isHovered={hoveredIdx === idx}
+        onHoverChange={(h) => setHoveredIdx(prev => h ? idx : (prev === idx ? null : prev))}
+        onOpen={() => onOpen(dept)}
+      />
+    ))}
+  </div>;
+};
+
+const DeptTile = ({ dept, data, team, idx, isHovered, onHoverChange, onOpen }) => {
   const meta = DEPT_META[dept] || {};
   const Icon = meta.icon;
   const color = heatColor(data.heat);
@@ -576,7 +615,6 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
   const heatScale = 0.96 + t * 0.12; // 0.96 → 1.08
 
   const [pressed, setPressed] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const handleClick = () => {
     setPressed(true);
     setTimeout(() => {
@@ -585,10 +623,11 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
     }, 180);
   };
 
-  // Compose the inner transform: heat scale × interaction scale.
-  // translateY for hover lift so the card rises a few px as it grows.
-  const interactionScale = pressed ? 1.06 : hovered ? 1.05 : 1;
-  const liftPx = hovered && !pressed ? -6 : 0;
+  // Subtle tactile scale on top of heat scale. The real "push" of
+  // sibling cards comes from the grid's animated template columns
+  // and rows (in DeptGrid above), not from this transform.
+  const interactionScale = pressed ? 1.04 : isHovered ? 1.02 : 1;
+  const liftPx = isHovered && !pressed ? -4 : 0;
   const innerTransform = `translateY(${liftPx}px) scale(${(heatScale * interactionScale).toFixed(3)})`;
 
   // Three-layer structure so idle float, hover scale, and GlassCard's
@@ -603,36 +642,41 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
+    height: "100%",
     animation: `floatDrift ${8 + idx * 0.7}s ease-in-out infinite`,
     animationDelay: `${idx * 0.6}s`,
     willChange: "transform",
   }}>
     <div
       onClick={handleClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
       style={{
         width: "100%",
+        height: "100%",
         transform: innerTransform,
         transformOrigin: "center center",
-        transition: "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        transition: "transform 0.55s cubic-bezier(0.34, 1.3, 0.64, 1)",
         cursor: "pointer",
       }}>
     <GlassCard
       style={{
         position: "relative",
         width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
         borderTop: `2px solid ${color}`,
         background: `linear-gradient(180deg, ${color}${isHot ? "22" : "14"} 0%, transparent ${isHot ? 70 : 60}%), ${glass().background}`,
-        padding: "22px 26px",
-        minHeight: 150,
+        padding: "18px 22px",
+        minHeight: 130,
         transition: "box-shadow 0.35s ease, background 0.8s ease",
         animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
-        boxShadow: hovered
-          ? `0 20px 50px ${color}35, 0 0 0 1px ${color}50, inset 0 1px 0 rgba(255,255,255,${dark ? 0.08 : 0.9})`
+        boxShadow: isHovered
+          ? `0 24px 60px ${color}40, 0 0 0 1px ${color}55, inset 0 1px 0 rgba(255,255,255,${dark ? 0.08 : 0.9})`
           : pressed
             ? `0 0 60px ${color}60, 0 0 0 2px ${color}70`
-            : `0 4px 20px rgba(0,0,0,${dark ? 0.25 : 0.04})`,
+            : `0 4px 18px rgba(0,0,0,${dark ? 0.22 : 0.04})`,
       }}>
       {/* Splash ring — expands outward on press */}
       {pressed && <div aria-hidden style={{
@@ -650,10 +694,10 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
         {Icon && <Icon size={14} color={color} />}
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
       </div>
-      <div style={{ fontSize: 42, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.5, lineHeight: 0.95 }}>
+      <div style={{ fontSize: 36, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.2, lineHeight: 0.95 }}>
         {data.count}
       </div>
-      <div style={{ fontSize: 13, color: Z.tm, marginTop: 8, minHeight: 18 }}>
+      <div style={{ fontSize: 12, color: Z.tm, marginTop: 6, minHeight: 16 }}>
         {dept === "sales" && (data.pctToGoal != null ? `${data.pctToGoal}% to goal` : `${fmtCurrency(data.pipelineValue || 0)} pipeline`)}
         {dept === "editorial" && `${data.stuckStories || 0} stuck · ${data.editDeadlines || 0} deadlines`}
         {dept === "production" && `${data.adDeadlines || 0} ad deadlines · ${data.overdueJobs || 0} overdue`}
