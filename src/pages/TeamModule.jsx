@@ -103,7 +103,7 @@ const ALERT_OPTIONS = [
 // ══════════════════════════════════════════════════════════════
 // TEAM MEMBER MODAL
 // ══════════════════════════════════════════════════════════════
-const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, onEdit, clients, sales, stories, tickets, save, form, setForm }) => {
+const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeamMember, metrics, onEdit, clients, sales, stories, tickets, save, form, setForm }) => {
   const [tab, setTab] = useState("Details");
   const [saving, setSaving] = useState(null);
   const [localPerms, setLocalPerms] = useState([]);
@@ -387,7 +387,12 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
       </div>{/* end scrollable tab content */}
 
       {/* Persistent Save footer */}
-      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 12, borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
+        {deleteTeamMember ? <Btn v="danger" onClick={async () => {
+          if (!window.confirm(`Remove ${member.name} from the team? They'll be hidden from all team listings, dropdowns, and dashboards. Their commission history, sales attribution, and story bylines stay intact.`)) return;
+          await deleteTeamMember(member.id);
+          onClose();
+        }}><Ic.trash size={12} /> Remove from Team</Btn> : <span />}
         <Btn onClick={() => { if (save) save(); }}>Save Changes</Btn>
       </div>
     </div>
@@ -397,7 +402,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, metrics, o
 // ══════════════════════════════════════════════════════════════
 // TEAM PAGE
 // ══════════════════════════════════════════════════════════════
-const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember }) => {
+const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember, deleteTeamMember }) => {
   const [sr, setSr] = useState("");
   const [tab, setTab] = useState("Team");
   const [modal, setModal] = useState(false);
@@ -646,6 +651,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
       member={memberModal}
       pubs={pubs}
       updateTeamMember={updateTeamMember}
+      deleteTeamMember={deleteTeamMember}
       metrics={memberModal ? getMetrics(memberModal) : []}
       onEdit={openEdit}
       form={form}

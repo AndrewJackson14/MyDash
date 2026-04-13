@@ -1568,6 +1568,7 @@ export function DataProvider({ children, localData }) {
       if (changes.permissions !== undefined) db.permissions = changes.permissions;
       if (changes.assignedPubs !== undefined) db.assigned_pubs = changes.assignedPubs;
       if (changes.isActive !== undefined) db.is_active = changes.isActive;
+      if (changes.isHidden !== undefined) db.is_hidden = changes.isHidden;
       if (changes.modulePermissions !== undefined) db.module_permissions = changes.modulePermissions;
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
@@ -1576,6 +1577,16 @@ export function DataProvider({ children, localData }) {
       if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
       if (changes.availability !== undefined) db.availability = changes.availability;
       if (Object.keys(db).length) await supabase.from('team_members').update(db).eq('id', id);
+    }
+  }, []);
+
+  // Soft-delete: hide the member and mark inactive. We never hard-delete because
+  // 48 foreign keys reference team_members (commissions, sales attribution, story
+  // authorship, etc.) — a hard delete would either fail outright or destroy history.
+  const deleteTeamMember = useCallback(async (id) => {
+    setTeam(t => t.map(m => m.id === id ? { ...m, isHidden: true, isActive: false } : m));
+    if (isOnline()) {
+      await supabase.from('team_members').update({ is_hidden: true, is_active: false }).eq('id', id);
     }
   }, []);
 
@@ -1736,7 +1747,7 @@ export function DataProvider({ children, localData }) {
     // Publications, Issues, Team
     insertPublication, updatePublication, insertAdSizes,
     insertIssuesBatch, deleteIssuesByPub,
-    updateTeamMember,
+    updateTeamMember, deleteTeamMember,
   }), [
     // Data arrays (re-render consumers only when actual data changes)
     pubs, activePubs, issues, stories, clients, sales, proposals, team, notifications,
