@@ -4,6 +4,7 @@ import { Ic, Btn, GlassCard, Modal, glass } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
 import { useSignalFeed } from "../hooks/useSignalFeed";
 import TeamMemberPanel from "../components/TeamMemberPanel";
+import SignalThreadPanel from "../components/SignalThreadPanel";
 import { supabase, isOnline } from "../lib/supabase";
 
 // ============================================================
@@ -40,6 +41,21 @@ const heatLabel = (h) => h < 25 ? "Calm" : h < 50 ? "Steady" : h < 75 ? "Heating
 
 // Right-hand team member detection (Cami, Camille per the vision discussion).
 const RIGHT_HAND_FIRST_NAMES = new Set(["Cami", "Camille"]);
+
+// Department → role match. Each tile shows mini-avatars of the team
+// members assigned to that dept based on their role.
+const DEPT_ROLES = {
+  sales: new Set(["Sales Manager", "Salesperson"]),
+  editorial: new Set(["Editor", "Copy Editor", "Managing Editor", "Content Editor", "Editor-in-Chief", "Writer/Reporter"]),
+  production: new Set(["Graphic Designer", "Photo Editor", "Layout Designer", "Production Manager"]),
+  admin: new Set(["Office Manager", "Office Administrator"]),
+};
+
+const membersForDept = (team, dept) => {
+  const roles = DEPT_ROLES[dept];
+  if (!roles) return [];
+  return (team || []).filter(t => roles.has(t.role) && t.isActive !== false && !t.isHidden).slice(0, 3);
+};
 
 // Live countdown label — re-evaluates each render, driven by the
 // 30s tick in DashboardV2 so the numbers tick down in real time.
@@ -117,6 +133,7 @@ const DashboardV2 = (props) => {
 
   const [filterDept, setFilterDept] = useState("all");
   const [openMember, setOpenMember] = useState(null);
+  const [openSignal, setOpenSignal] = useState(null);
   const [drilledDept, setDrilledDept] = useState(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [rightHandNotes, setRightHandNotes] = useState([]);
@@ -129,20 +146,22 @@ const DashboardV2 = (props) => {
   }, []);
 
   // ── Right-hand auto-pin ──────────────────────────────────
-  // Fetch any team_notes from Cami / Camille from the last 24h.
+  // Fetch UNREAD team_notes from Cami / Camille (last 7 days).
   // Surfaced in a banner above the central feed so messages from
-  // your right hands never get buried.
+  // your right hands never get buried. Click → marks read and the
+  // note disappears from the banner.
   useEffect(() => {
     if (!isOnline()) return;
     const rightHands = (team || []).filter(t => RIGHT_HAND_FIRST_NAMES.has((t.name || "").split(" ")[0]) && t.authId);
     if (rightHands.length === 0) { setRightHandNotes([]); return; }
     const ids = rightHands.map(t => t.authId);
-    const since = new Date(Date.now() - 24 * 3600000).toISOString();
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
     let cancelled = false;
     supabase.from("team_notes")
       .select("*")
       .in("from_user", ids)
       .gte("created_at", since)
+      .or("is_read.is.null,is_read.eq.false")
       .order("created_at", { ascending: false })
       .limit(10)
       .then(({ data }) => {
@@ -156,6 +175,13 @@ const DashboardV2 = (props) => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team]);
+
+  const markRightHandNoteRead = async (noteId) => {
+    setRightHandNotes(prev => prev.filter(n => n.id !== noteId)); // optimistic
+    try {
+      await supabase.from("team_notes").update({ is_read: true }).eq("id", noteId);
+    } catch (e) { /* swallow — banner stays cleared even if write fails */ }
+  };
 
   // Streak counter — persistent across sessions. Increments by 1
   // each calendar day where there are zero deadline alerts AND at
@@ -279,6 +305,7 @@ const DashboardV2 = (props) => {
           const color = heatColor(data.heat);
           const isActive = filterDept === dept;
           const isHot = data.heat >= 75;
+          const deptMembers = membersForDept(team, dept);
           return <GlassCard key={dept}
             onClick={() => setDrilledDept(dept)}
             style={{
@@ -290,6 +317,9 @@ const DashboardV2 = (props) => {
               animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
               padding: "16px 18px",
             }}>
+            {/* Mini-avatar stack — top right */}
+            {deptMembers.length > 0 && <DeptAvatarStack members={deptMembers} />}
+
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               {Icon && <Icon size={13} color={color} />}
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{meta.label}</span>
@@ -329,17 +359,16 @@ const DashboardV2 = (props) => {
           {rightHandNotes.slice(0, 4).map(n => {
             const minsAgo = Math.floor((Date.now() - new Date(n.created_at).getTime()) / 60000);
             const ago = minsAgo < 60 ? `${minsAgo}m ago` : minsAgo < 1440 ? `${Math.floor(minsAgo / 60)}h ago` : `${Math.floor(minsAgo / 1440)}d ago`;
-            return <div key={n.id} onClick={() => n.senderObj && setOpenMember(n.senderObj)} style={{
+            return <div key={n.id} style={{
               display: "flex", alignItems: "flex-start", gap: 10,
               padding: "8px 12px",
               background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.6)",
               borderRadius: Ri,
-              cursor: "pointer",
               transition: "background 0.15s ease, transform 0.15s ease",
             }}
               onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => n.senderObj && setOpenMember(n.senderObj)}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                   <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: ACCENT.amber || "#F59E0B" }}>{(n.senderName || "").split(" ")[0]}</span>
                   <span style={{ fontSize: FS.micro, color: Z.td }}>· {ago}</span>
@@ -347,6 +376,12 @@ const DashboardV2 = (props) => {
                 </div>
                 <div style={{ fontSize: FS.sm, color: Z.tx, lineHeight: 1.4 }}>{n.message}</div>
               </div>
+              <button onClick={(e) => { e.stopPropagation(); markRightHandNoteRead(n.id); }} title="Mark read"
+                style={{ background: "none", border: "none", color: Z.td, cursor: "pointer", padding: "2px 6px", fontSize: FS.sm, fontWeight: FW.heavy, opacity: 0.6, transition: "opacity 0.15s ease, color 0.15s ease" }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#10B981"; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.color = Z.td; }}>
+                ✓
+              </button>
             </div>;
           })}
         </div>
@@ -372,7 +407,7 @@ const DashboardV2 = (props) => {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {combinedFeed.map(item => <FeedRow key={item.id} item={item} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />)}
+            {combinedFeed.map(item => <FeedRow key={item.id} item={item} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} onOpenSignal={setOpenSignal} />)}
           </div>
         )}
       </GlassCard>
@@ -397,6 +432,9 @@ const DashboardV2 = (props) => {
 
     {/* Team member messenger slide-in */}
     <TeamMemberPanel member={openMember} onClose={() => setOpenMember(null)} currentUser={currentUser} />
+
+    {/* Signal thread messenger — opens when a focus item is clicked */}
+    <SignalThreadPanel signal={openSignal} onClose={() => setOpenSignal(null)} currentUser={currentUser} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />
 
     {/* Department drill-in modal */}
     {drilledDept && <DeptDrillIn
@@ -431,7 +469,7 @@ const DashboardV2 = (props) => {
 // When a deadline row transitions into OVERDUE, a one-shot
 // pop animation fires.
 // ============================================================
-const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
+const FeedRow = ({ item, onNavigate, setIssueDetailId, onOpenSignal }) => {
   const meta = DEPT_META[item.dept] || {};
   const Icon = meta.icon;
   const accent = item.color || "#9CA3AF";
@@ -453,22 +491,32 @@ const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
     if (!isOverdue) wasOverdueRef.current = false;
   }, [isOverdue]);
 
-  // Dissolve-then-route on click: row fades + slides for 280ms,
-  // then we navigate so the user sees an acknowledgment of their action.
+  // Dissolve-then-open-thread on click. Routing to the page is now
+  // secondary, surfaced via the "Open in [Page] →" button inside
+  // the SignalThreadPanel header.
   const [dissolving, setDissolving] = useState(false);
   const handleClick = () => {
-    if (dissolving) return;
+    if (dissolving || !onOpenSignal) return;
     setDissolving(true);
     setTimeout(() => {
-      if (item.kind === "deadline" && item.id?.startsWith("ad-") && setIssueDetailId) {
-        setIssueDetailId(item.id.replace("ad-", ""));
-        return;
-      }
-      if (item.issueId && setIssueDetailId) {
-        setIssueDetailId(item.issueId);
-        return;
-      }
-      if (item.page && onNavigate) onNavigate(item.page);
+      // Build the signal context — prefer underlying entity ids so
+      // threads persist on real entities, fall back to semantic id.
+      const contextId = item.issueId
+        || (item.kind === "deadline" ? item.id.replace(/^(ad|ed)-/, "") : null)
+        || item.id;
+      onOpenSignal({
+        title: item.title,
+        sub: subLabel,
+        dept: item.dept,
+        color: accent,
+        contextType: "signal",
+        contextId,
+        issueId: item.issueId || (item.kind === "deadline" ? item.id.replace(/^(ad|ed)-/, "") : null),
+        page: item.page,
+        pageLabel: item.page ? (item.page.charAt(0).toUpperCase() + item.page.slice(1)) : null,
+      });
+      // Ease the row back in for next time the panel closes
+      setTimeout(() => setDissolving(false), 100);
     }, 280);
   };
 
@@ -771,6 +819,36 @@ const DrillCard = ({ accent, icon: Icon, kind, title, meta, metaColor, action, o
     </div>
   </div>
 );
+
+// DeptAvatarStack — overlapping circle avatars in the top-right
+// corner of a dept tile. Shows up to 3 team members, with the
+// right-hand (Cami / Camille) getting an amber ring.
+const DeptAvatarStack = ({ members }) => {
+  const dark = Z.bg === "#08090D";
+  const ring = dark ? "#0E1018" : "#fff";
+  return <div style={{
+    position: "absolute",
+    top: 14, right: 14,
+    display: "flex",
+    flexDirection: "row-reverse",
+  }}>
+    {members.slice(0, 3).map((m, i) => {
+      const firstName = (m.name || "").split(" ")[0];
+      const isRightHand = RIGHT_HAND_FIRST_NAMES.has(firstName);
+      const hue = Math.abs([...(m.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
+      return <div key={m.id} title={m.name} style={{
+        width: 24, height: 24, borderRadius: "50%",
+        background: `hsl(${hue}, 40%, 38%)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: FW.black, color: INV.light || "#fff",
+        border: `2px solid ${isRightHand ? (ACCENT.amber || "#F59E0B") : ring}`,
+        marginLeft: i === 0 ? 0 : -8,
+        zIndex: members.length - i,
+        boxShadow: isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}40` : "none",
+      }}>{ini(m.name)}</div>;
+    })}
+  </div>;
+};
 
 const DrillStat = ({ label, value }) => (
   <div style={{ padding: "14px 16px", background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)", borderRadius: Ri }}>
