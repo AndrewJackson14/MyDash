@@ -412,7 +412,7 @@ const DashboardV2 = (props) => {
     />}
 
     {/* Morning briefing modal */}
-    <Modal open={briefingOpen} onClose={() => setBriefingOpen(false)} title="Morning Briefing" width={680}>
+    <Modal open={briefingOpen} onClose={() => setBriefingOpen(false)} title="Morning Briefing" width={820}>
       <BriefingContent
         firstName={firstName}
         feed={feed}
@@ -453,16 +453,23 @@ const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
     if (!isOverdue) wasOverdueRef.current = false;
   }, [isOverdue]);
 
+  // Dissolve-then-route on click: row fades + slides for 280ms,
+  // then we navigate so the user sees an acknowledgment of their action.
+  const [dissolving, setDissolving] = useState(false);
   const handleClick = () => {
-    if (item.kind === "deadline" && item.id?.startsWith("ad-") && setIssueDetailId) {
-      setIssueDetailId(item.id.replace("ad-", ""));
-      return;
-    }
-    if (item.issueId && setIssueDetailId) {
-      setIssueDetailId(item.issueId);
-      return;
-    }
-    if (item.page && onNavigate) onNavigate(item.page);
+    if (dissolving) return;
+    setDissolving(true);
+    setTimeout(() => {
+      if (item.kind === "deadline" && item.id?.startsWith("ad-") && setIssueDetailId) {
+        setIssueDetailId(item.id.replace("ad-", ""));
+        return;
+      }
+      if (item.issueId && setIssueDetailId) {
+        setIssueDetailId(item.issueId);
+        return;
+      }
+      if (item.page && onNavigate) onNavigate(item.page);
+    }, 280);
   };
 
   return <div onClick={handleClick}
@@ -474,10 +481,14 @@ const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
       background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)",
       borderRadius: Ri,
       borderLeft: `3px solid ${isOverdue ? "#EF4444" : accent}`,
-      cursor: "pointer",
-      transition: "background 0.15s ease, transform 0.15s ease, border-color 0.15s ease",
+      cursor: dissolving ? "default" : "pointer",
+      transition: "background 0.15s ease, transform 0.28s ease, border-color 0.15s ease, opacity 0.28s ease, filter 0.28s ease",
       animation: justWentOverdue ? "overduePop 0.7s ease-out" : undefined,
       boxShadow: justWentOverdue ? "0 0 22px rgba(239,68,68,0.5)" : undefined,
+      opacity: dissolving ? 0 : 1,
+      transform: dissolving ? "translateX(20px) scale(0.96)" : undefined,
+      filter: dissolving ? "blur(2px)" : undefined,
+      pointerEvents: dissolving ? "none" : "auto",
     }}
     onMouseEnter={e => {
       e.currentTarget.style.transform = "translateY(-1px)";
@@ -636,12 +647,12 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
       }
     `}</style>
     <div onClick={e => e.stopPropagation()} style={{
-      width: "min(720px, 100%)", maxHeight: "85vh",
+      width: "min(1100px, 100%)", maxHeight: "90vh",
       ...glass(),
       borderRadius: R,
       borderTop: `3px solid ${color}`,
-      padding: "28px 32px",
-      display: "flex", flexDirection: "column", gap: 18,
+      padding: "32px 36px",
+      display: "flex", flexDirection: "column", gap: 22,
       animation: "drillScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
       overflow: "auto",
       boxShadow: `0 24px 64px rgba(0,0,0,0.4), 0 0 0 1px ${color}40`,
@@ -686,45 +697,80 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         </>}
       </div>
 
-      {/* Items needing attention */}
+      {/* Items needing attention — card grid (2 columns) */}
       <div>
-        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Items needing you</div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Items needing you</div>
         {(focusItems.length === 0 && deadlineAlerts.length === 0)
-          ? <div style={{ padding: 18, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Nothing pending here. Take the win.</div>
-          : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {deadlineAlerts.map(d => <div key={d.id} onClick={() => { onClose(); if (d.id?.startsWith("ad-") && setIssueDetailId) setIssueDetailId(d.id.replace("ad-", "")); else onNavigate?.(d.type === "ed" ? "editorial" : "schedule"); }} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px",
-                background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)",
-                borderRadius: Ri,
-                borderLeft: `3px solid ${d.color}`,
-                cursor: "pointer",
-              }}>
-                <Ic.clock size={13} color={d.color} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{d.label}</div>
-                  <div style={{ fontSize: FS.xs, color: d.color, fontWeight: FW.bold, fontVariantNumeric: "tabular-nums" }}>{liveCountdown(d.date)}</div>
-                </div>
-              </div>)}
-              {focusItems.map(f => <div key={f.id} onClick={() => { onClose(); if (f.issueId && setIssueDetailId) setIssueDetailId(f.issueId); else if (f.page) onNavigate?.(f.page); }} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px",
-                background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)",
-                borderRadius: Ri,
-                borderLeft: `3px solid ${color}`,
-                cursor: "pointer",
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{f.title}</div>
-                  {f.sub && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>{f.sub}</div>}
-                </div>
-                {f.action && <Btn sm v="secondary">{f.action}</Btn>}
-              </div>)}
+          ? <div style={{ padding: 36, textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>✨</div>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Nothing pending</div>
+              <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 4 }}>Take the win.</div>
+            </div>
+          : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+              {deadlineAlerts.map(d => <DrillCard
+                key={d.id}
+                accent={d.color}
+                icon={Ic.clock}
+                kind="DEADLINE"
+                title={d.label}
+                meta={liveCountdown(d.date)}
+                metaColor={d.color}
+                onClick={() => { onClose(); if (d.id?.startsWith("ad-") && setIssueDetailId) setIssueDetailId(d.id.replace("ad-", "")); else onNavigate?.(d.type === "ed" ? "editorial" : "schedule"); }}
+              />)}
+              {focusItems.map(f => <DrillCard
+                key={f.id}
+                accent={color}
+                icon={meta.icon}
+                kind={(f.dept || "").toUpperCase()}
+                title={f.title}
+                meta={f.sub}
+                metaColor={Z.tm}
+                action={f.action}
+                onClick={() => { onClose(); if (f.issueId && setIssueDetailId) setIssueDetailId(f.issueId); else if (f.page) onNavigate?.(f.page); }}
+              />)}
             </div>}
       </div>
     </div>
   </div>;
 };
+
+// DrillCard — bigger rectangular tile used inside the drill-in modal
+// instead of a horizontal row. Title, sub, action button.
+const DrillCard = ({ accent, icon: Icon, kind, title, meta, metaColor, action, onClick }) => (
+  <div onClick={onClick} style={{
+    padding: "16px 18px",
+    background: Z.bg === "#08090D" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.65)",
+    border: `1px solid ${Z.bd}`,
+    borderTop: `3px solid ${accent}`,
+    borderRadius: R,
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    minHeight: 110,
+    transition: "transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
+  }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = "translateY(-2px)";
+      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.85)";
+      e.currentTarget.style.boxShadow = `0 8px 24px ${accent}25`;
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = "translateY(0)";
+      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.65)";
+      e.currentTarget.style.boxShadow = "none";
+    }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {Icon && <Icon size={13} color={accent} />}
+      <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: accent, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{kind}</span>
+    </div>
+    <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, lineHeight: 1.35, flex: 1 }}>{title}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {meta && <div style={{ fontSize: FS.xs, color: metaColor, fontWeight: FW.semi, fontVariantNumeric: "tabular-nums" }}>{meta}</div>}
+      {action && <Btn sm v="secondary">{action} →</Btn>}
+    </div>
+  </div>
+);
 
 const DrillStat = ({ label, value }) => (
   <div style={{ padding: "14px 16px", background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)", borderRadius: Ri }}>
@@ -734,16 +780,36 @@ const DrillStat = ({ label, value }) => (
 );
 
 // ============================================================
-// BriefingContent — text-based morning briefing with a copy-to-
-// clipboard escape hatch. Uses the signal feed plus the raw
-// stories/subscribers props to fill in editorial pipeline + sub
-// stats which the hook doesn't pre-aggregate.
+// BriefingContent — visual morning briefing.
+// Stat tiles + ranked sections instead of a wall of monospaced
+// text. Still has a "Copy as text" escape hatch so the snapshot
+// can be pasted into Slack / email / a meeting.
 // ============================================================
+const STAGE_COLORS = { Draft: "#9CA3AF", "Needs Editing": "#EF4444", Edited: "#3B82F6", Approved: "#10B981", "On Page": "#6366F1" };
+const STAGE_ORDER = ["Draft", "Needs Editing", "Edited", "Approved", "On Page"];
+
 const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => {
-  const { revenueCommand, issueCountdown, focusItems, doseWins, deadlineAlerts, _stories, _subs, pn } = feed;
+  const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
+  // Aggregate editorial pipeline counts
+  const stageCounts = useMemo(() => {
+    const out = {};
+    (_stories || stories || []).forEach(s => { out[s.status] = (out[s.status] || 0) + 1; });
+    return out;
+  }, [_stories, stories]);
+  const totalStories = STAGE_ORDER.reduce((s, k) => s + (stageCounts[k] || 0), 0);
+  const activeSubs = (_subs || subscribers || []).filter(s => s.status === "active").length;
+
+  const stats = [
+    { label: "Revenue MTD", value: fmtCurrency(revenueCommand.adRevMTD), color: "#10B981" },
+    { label: "This Month's Issues", value: fmtCurrency(revenueCommand.issueRevThisMonth), color: "#3B82F6" },
+    { label: "Outstanding AR", value: fmtCurrency(revenueCommand.outstandingAR), color: revenueCommand.overdueInvCount > 0 ? "#F59E0B" : "#9CA3AF", sub: revenueCommand.overdueInvCount > 0 ? `${revenueCommand.overdueInvCount} overdue` : "All current" },
+    { label: "Pipeline", value: fmtCurrency(revenueCommand.pipelineValue), color: "#6366F1", sub: `${revenueCommand.pipelineCount} deals` },
+  ];
+
+  // Text version (still copyable)
   const briefingText = useMemo(() => {
     const l = [`13 STARS MEDIA — DAILY BRIEFING for ${firstName}`, dateStr, ""];
     l.push("═══ REVENUE ═══");
@@ -753,61 +819,163 @@ const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => 
     l.push(`Pipeline: ${fmtCurrency(revenueCommand.pipelineValue)} (${revenueCommand.pipelineCount} deals)`);
     if (revenueCommand.uninvoicedContracts > 0) l.push(`Uninvoiced contracts (next 30d): ${fmtCurrency(revenueCommand.uninvoicedContracts)}`);
     l.push("");
-
     if (issueCountdown.length > 0) {
       l.push("═══ PUBLISHING ═══");
       issueCountdown.slice(0, 6).forEach(iss => l.push(`${pn(iss.pubId)} ${iss.label} — ${iss.daysOut}d — ${fmtCurrency(iss.rev)}/${fmtCurrency(iss.goal)} (${iss.pct}%)`));
       l.push("");
     }
-
-    const storyStatuses = {};
-    (_stories || stories || []).forEach(s => { storyStatuses[s.status] = (storyStatuses[s.status] || 0) + 1; });
-    const editStages = ["Draft", "Needs Editing", "Edited", "Approved", "On Page"];
-    if (editStages.some(st => storyStatuses[st] > 0)) {
+    if (totalStories > 0) {
       l.push("═══ EDITORIAL ═══");
-      editStages.forEach(st => { if (storyStatuses[st]) l.push(`${st}: ${storyStatuses[st]}`); });
+      STAGE_ORDER.forEach(st => { if (stageCounts[st]) l.push(`${st}: ${stageCounts[st]}`); });
       l.push("");
     }
-
-    const activeSubs = (_subs || subscribers || []).filter(s => s.status === "active").length;
-    if (activeSubs > 0) {
-      l.push("═══ SUBSCRIPTIONS ═══");
-      l.push(`Active: ${activeSubs}`);
-      l.push("");
-    }
-
+    if (activeSubs > 0) { l.push("═══ SUBSCRIPTIONS ═══"); l.push(`Active: ${activeSubs}`); l.push(""); }
     if (deadlineAlerts.length > 0) {
       l.push("═══ DEADLINES (next 48h) ═══");
       deadlineAlerts.forEach(d => l.push(`• ${d.label} (${d.days <= 0 ? "TODAY" : d.days === 1 ? "TOMORROW" : d.days + "d"})`));
       l.push("");
     }
-
     if (focusItems.length > 0) {
       l.push("═══ PRIORITIES ═══");
       focusItems.forEach((fi, i) => l.push(`${i + 1}. [${(fi.dept || "").toUpperCase()}] ${fi.title}${fi.sub ? ` — ${fi.sub}` : ""}`));
     }
-
-    if (focusItems.length === 0 && deadlineAlerts.length === 0) {
-      l.push("✨ All clear. Take a breath, then prospect or work renewals.");
-    }
-
+    if (focusItems.length === 0 && deadlineAlerts.length === 0) l.push("✨ All clear. Take a breath, then prospect or work renewals.");
     return l.join("\n");
-  }, [firstName, dateStr, revenueCommand, issueCountdown, focusItems, doseWins, deadlineAlerts, _stories, _subs, stories, subscribers, pn]);
+  }, [firstName, dateStr, revenueCommand, issueCountdown, focusItems, deadlineAlerts, stageCounts, totalStories, activeSubs, pn]);
 
   const copy = () => { try { navigator.clipboard?.writeText(briefingText); } catch (e) {} };
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-      <Btn sm v="secondary" onClick={copy}>Copy to Clipboard</Btn>
-      <Btn sm onClick={() => { copy(); onClose(); }}>Copy & Close</Btn>
+  return <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    {/* Date pill */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{dateStr}</div>
+        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>Good morning, {firstName}</div>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <Btn sm v="secondary" onClick={copy}>Copy text</Btn>
+        <Btn sm onClick={() => { copy(); onClose(); }}>Copy & Close</Btn>
+      </div>
     </div>
-    <pre style={{
-      background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R,
-      padding: 18, fontSize: FS.sm, color: Z.tx, lineHeight: 1.6,
-      whiteSpace: "pre-wrap", fontFamily: "'Source Sans 3', monospace",
-      maxHeight: 500, overflowY: "auto", margin: 0,
-    }}>{briefingText}</pre>
+
+    {/* Revenue stat tiles */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+      {stats.map(s => (
+        <div key={s.label} style={{
+          padding: "14px 16px",
+          background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)",
+          borderRadius: R,
+          borderTop: `2px solid ${s.color}`,
+        }}>
+          <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{s.label}</div>
+          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4, letterSpacing: -0.5 }}>{s.value}</div>
+          {s.sub && <div style={{ fontSize: FS.micro, color: s.color, fontWeight: FW.bold, marginTop: 2 }}>{s.sub}</div>}
+        </div>
+      ))}
+    </div>
+
+    {/* Publishing */}
+    {issueCountdown.length > 0 && <BriefingSection title="Publishing">
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {issueCountdown.slice(0, 5).map(iss => {
+          const ringColor = iss.pct >= 80 ? "#10B981" : iss.pct >= 50 ? "#F59E0B" : "#EF4444";
+          const daysColor = iss.daysOut <= 3 ? "#EF4444" : iss.daysOut <= 7 ? "#F59E0B" : Z.td;
+          return <div key={iss.id} style={{
+            display: "grid", gridTemplateColumns: "1fr 100px 60px 50px", gap: 12, alignItems: "center",
+            padding: "10px 14px",
+            background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)",
+            borderRadius: Ri,
+          }}>
+            <div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtCurrency(iss.rev)} of {fmtCurrency(iss.goal)}</div>
+            </div>
+            <div style={{ height: 6, background: Z.bd, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: `${iss.pct}%`, height: "100%", background: ringColor }} />
+            </div>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: ringColor, textAlign: "right" }}>{iss.pct}%</div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.black, color: daysColor, textAlign: "right", fontFamily: DISPLAY }}>{iss.daysOut}d</div>
+          </div>;
+        })}
+      </div>
+    </BriefingSection>}
+
+    {/* Editorial pipeline */}
+    {totalStories > 0 && <BriefingSection title="Editorial Pipeline">
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGE_ORDER.length}, 1fr)`, gap: 8 }}>
+        {STAGE_ORDER.map(stage => {
+          const count = stageCounts[stage] || 0;
+          const c = STAGE_COLORS[stage];
+          return <div key={stage} style={{
+            padding: "12px 10px",
+            background: Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.55)",
+            borderRadius: R,
+            borderTop: `2px solid ${c}`,
+            textAlign: "center",
+            opacity: count === 0 ? 0.4 : 1,
+          }}>
+            <div style={{ fontSize: 24, fontWeight: FW.black, color: c, fontFamily: DISPLAY }}>{count}</div>
+            <div style={{ fontSize: 9, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginTop: 2 }}>{stage}</div>
+          </div>;
+        })}
+      </div>
+    </BriefingSection>}
+
+    {/* Deadlines */}
+    {deadlineAlerts.length > 0 && <BriefingSection title="Next 48 Hours">
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {deadlineAlerts.map(d => <div key={d.id} style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "8px 14px",
+          background: d.color + "12",
+          borderLeft: `3px solid ${d.color}`,
+          borderRadius: Ri,
+        }}>
+          <Ic.clock size={13} color={d.color} />
+          <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1, fontFamily: COND }}>{d.label}</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: d.color }}>{d.days <= 0 ? "TODAY" : d.days === 1 ? "TOMORROW" : `${d.days}d`}</span>
+        </div>)}
+      </div>
+    </BriefingSection>}
+
+    {/* Priorities */}
+    {focusItems.length > 0 && <BriefingSection title={`Priorities (${focusItems.length})`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {focusItems.map((fi, i) => <div key={fi.id} style={{
+          display: "flex", alignItems: "flex-start", gap: 10,
+          padding: "8px 14px",
+          background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)",
+          borderRadius: Ri,
+        }}>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, fontFamily: DISPLAY, width: 14 }}>{i + 1}.</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{fi.title}</div>
+            {fi.sub && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>{fi.sub}</div>}
+          </div>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, padding: "2px 8px", background: Z.sa, borderRadius: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>{fi.dept}</span>
+        </div>)}
+      </div>
+    </BriefingSection>}
+
+    {/* All-clear empty state */}
+    {focusItems.length === 0 && deadlineAlerts.length === 0 && <div style={{
+      padding: 32, textAlign: "center",
+      background: Z.bg === "#08090D" ? "rgba(16,185,129,0.06)" : "rgba(16,185,129,0.08)",
+      border: `1px solid #10B98140`,
+      borderRadius: R,
+    }}>
+      <div style={{ fontSize: 36 }}>✨</div>
+      <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: "#10B981", fontFamily: DISPLAY, marginTop: 4 }}>All clear</div>
+      <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 4 }}>Take a breath, then prospect or work renewals.</div>
+    </div>}
   </div>;
 };
+
+const BriefingSection = ({ title, children }) => (
+  <div>
+    <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>{title}</div>
+    {children}
+  </div>
+);
 
 export default DashboardV2;
