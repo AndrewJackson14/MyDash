@@ -160,6 +160,22 @@ const ClientProfile = ({
           <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginRight: 2 }}>Interested:</span>
           {(vc.interestedPubs || []).map(pid => { const pub = pubs.find(p => p.id === pid); return pub ? <span key={pid} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tx, background: Z.sa, padding: "2px 6px", borderRadius: Ri }}>{pub.name.split(" ").map(w => w[0]).join("")}</span> : null; })}
         </div>}
+        {/* Flag status — out of business / moved / etc. hides the client from active lists */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Flag:</span>
+          <select
+            value={vc.lapsedReason || ""}
+            onChange={e => { const v = e.target.value || null; setClients(cl => cl.map(c => c.id === vc.id ? { ...c, lapsedReason: v } : c)); if (appData?.updateClient) appData.updateClient(vc.id, { lapsedReason: v }); }}
+            style={{ background: vc.lapsedReason ? Z.wa + "15" : Z.bg, border: `1px solid ${vc.lapsedReason ? Z.wa : Z.bd}`, borderRadius: Ri, padding: "3px 8px", color: vc.lapsedReason ? Z.wa : Z.td, fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, cursor: "pointer", outline: "none" }}
+          >
+            <option value="">Not flagged</option>
+            <option value="out_of_business">Out of Business</option>
+            <option value="moved">Moved Out of Area</option>
+            <option value="out_of_market">Out of Market</option>
+            <option value="duplicate">Duplicate</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
       </div>
     </div>
 

@@ -468,7 +468,7 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [thumbScale, setThumbScale] = useState(100);
-  const [showAll, setShowAll] = useState(false); // folder-browse by default (avoids loading 100K+ files)
+  const [showAll, setShowAll] = useState(true); // flat view — load all files across folders
   const [loadProgress, setLoadProgress] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const abortRef = useRef(null);
@@ -649,38 +649,8 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
         </div>
       )}
 
-      {/* Publication tabs + toolbar */}
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-        {PUB_FOLDERS.map(pf => {
-          const isActive = currentPath === pf.slug || currentPath.startsWith(pf.slug + "/");
-          return (
-            <button key={pf.slug} onClick={() => navigate(pf.slug)} style={{
-              padding: "5px 10px", borderRadius: Ri, border: "1px solid " + (isActive ? Z.ac : Z.bd),
-              background: isActive ? Z.ac + "12" : "transparent", color: isActive ? Z.ac : Z.tm,
-              fontSize: 11, fontWeight: isActive ? 700 : 500, fontFamily: COND, cursor: "pointer",
-            }}>{pf.label}</button>
-          );
-        })}
-      </div>
-
-      {/* View toggle + sort + search */}
+      {/* Toolbar — flat view, no folder hierarchy */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {/* Show All / Browse Folders toggle */}
-        <div style={{ display: "flex", gap: 4 }}>
-          <Pill label="All Files" icon={Ic.list} active={showAll} onClick={() => setShowAll(true)} />
-          <Pill label="Folders" icon={Ic.folder} active={!showAll} onClick={() => setShowAll(false)} />
-        </div>
-        {/* Subfolder nav — only in folder mode */}
-        {!showAll && items.filter(i => i.IsDirectory).length > 0 && (
-          <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-            {currentPath.includes("/") && (
-              <button onClick={() => { setShowAll(false); setCurrentPath(currentPath.split("/").slice(0, -1).join("/")); }} style={{ padding: "3px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{"\u2190"} Up</button>
-            )}
-            {items.filter(i => i.IsDirectory).map(f => (
-              <button key={f.ObjectName} onClick={() => { setShowAll(false); setCurrentPath(currentPath + "/" + f.ObjectName); }} style={{ padding: "3px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontFamily: COND, cursor: "pointer" }}>{f.ObjectName}</button>
-            ))}
-          </div>
-        )}
         {loadProgress && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
           <option value="date">Newest</option>

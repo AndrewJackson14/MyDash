@@ -44,7 +44,7 @@ const ClientRow = memo(({ client, data, nextAction, onSelect }) => {
       {na ? (
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: actionOverdue ? Z.da : Z.tx }}>
-            {typeof na.action === "object" ? na.action.label : na.status}
+            {na.action && typeof na.action === "object" ? na.action.label : (na.action || na.status)}
           </span>
           {actionOverdue && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.da, textTransform: "uppercase" }}>overdue</span>}
         </div>
@@ -57,11 +57,12 @@ const ClientRow = memo(({ client, data, nextAction, onSelect }) => {
 
 const PAGE_SIZE = 50;
 
-const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, onSelectClient }) => {
+const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, onSelectClient, onUpdateClient }) => {
   const [statusFilter, setStatusFilter] = useState("active"); // active | renewal | lead | lapsed | all
   const [sortCol, setSortCol] = useState("spend");
   const [sortDir, setSortDir] = useState("desc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [showFlagged, setShowFlagged] = useState(false); // hide out-of-business / moved flagged clients by default
 
   const today = new Date().toISOString().slice(0, 10);
   const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p.name; }); return m; }, [pubs]);
@@ -109,6 +110,9 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
   // Filter + sort
   const filtered = useMemo(() => {
     let list = (clients || []).filter(c => {
+      // Hide flag-lapsed clients (out of business, moved, etc.) unless the
+      // "Show Flagged" toggle is on
+      if (c.lapsedReason && !showFlagged) return false;
       // When actively searching, ignore status filter — search all clients
       if (!sr) {
         if (statusFilter === "active") { if (c.status !== "Active") return false; }
@@ -140,7 +144,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
     });
 
     return list;
-  }, [clients, clientData, nextActions, statusFilter, sr, fPub, sortCol, sortDir]);
+  }, [clients, clientData, nextActions, statusFilter, sr, fPub, sortCol, sortDir, showFlagged]);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -157,9 +161,11 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
     }}>{children}{sortArrow(col)}</th>
   );
 
+  const flaggedCount = (clients || []).filter(c => c.lapsedReason).length;
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
     {/* Status filter tabs */}
-    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
       {[
         { key: "active", label: "Active", count: statusCounts.Active },
         { key: "renewal", label: "Renewal", count: statusCounts.Renewal },
@@ -174,6 +180,12 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
           cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
         }}>{t.label} <span style={{ opacity: 0.7 }}>({t.count})</span></button>
       ))}
+      {flaggedCount > 0 && <button onClick={() => setShowFlagged(s => !s)} style={{
+        padding: "5px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
+        background: showFlagged ? Z.wa + "15" : "transparent",
+        color: showFlagged ? Z.wa : Z.td,
+        cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap", marginLeft: "auto",
+      }}>{showFlagged ? "Hide" : "Show"} Flagged ({flaggedCount})</button>}
     </div>
 
     <div style={{ fontSize: FS.sm, color: Z.td }}>{filtered.length} client{filtered.length !== 1 ? "s" : ""}</div>

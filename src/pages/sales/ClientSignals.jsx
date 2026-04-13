@@ -9,6 +9,7 @@ const fmtK = n => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0)
 
 const SIGNAL_TYPES = [
   { key: "all", label: "All signals" },
+  { key: "missed_opp", label: "Missed opps" },
   { key: "churn", label: "Churn" },
   { key: "trending_down", label: "At risk" },
   { key: "whale", label: "Whales" },
@@ -24,10 +25,11 @@ const SIGNAL_COLORS = {
   churn: "#71717a", trending_down: "#52525b", whale: "#3f3f46",
   seasonal: "#a1a1aa", crosssell: "#78716c", upsell: "#57534e",
   competitor: "#64748b", stale_lead: "#a8a29e", inventory: "#6b7280",
+  missed_opp: "#dc2626",
 };
 
 export default function ClientSignals({
-  clients, sales, pubs, issues, currentUser, jurisdiction,
+  clients, sales, pubs, issues, proposals, currentUser, jurisdiction,
   myPriorities, priorityHelpers, onSelectClient,
 }) {
   const dialog = useDialog();
@@ -178,6 +180,46 @@ export default function ClientSignals({
     return results.sort((a, b) => b.spend - a.spend).slice(0, 20);
   }, [issues, sales, clients, priorityClientIds, today]);
 
+  // 4b. Missed opportunities — clients whose usual issue is within 10 days of
+  // deadline AND have no recent contact AND no active proposal for that issue.
+  // Extends the seasonal signal with a "no engagement" gate so publishers and
+  // sales managers can surface accounts that are about to slip through the cracks.
+  const missedOppSignals = useMemo(() => {
+    const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+    const results = [];
+    const seen = new Set();
+    const upcomingDeadlines = (issues || []).filter(i => {
+      if (!i.adDeadline) return false;
+      const daysOut = Math.ceil((new Date(i.adDeadline + "T12:00:00") - new Date()) / 86400000);
+      return daysOut >= 0 && daysOut <= 10;
+    }).sort((a, b) => new Date(a.adDeadline) - new Date(b.adDeadline));
+    upcomingDeadlines.forEach(issue => {
+      const lastYearMonth = new Date(new Date(issue.date).setFullYear(new Date(issue.date).getFullYear() - 1)).toISOString().slice(0, 7);
+      const _sales = sales || [];
+      const lastYearBuyers = _sales.filter(s =>
+        s.status === "Closed" && s.publication === issue.pubId && s.date?.startsWith(lastYearMonth)
+      ).map(s => s.clientId);
+      const uniqueBuyers = [...new Set(lastYearBuyers)];
+      // Exclude anyone already booked for this issue or with an active proposal
+      const thisYearBooked = new Set(_sales.filter(s => s.issueId === issue.id && s.status === "Closed").map(s => s.clientId));
+      const hasActiveProposal = new Set((proposals || []).filter(p => p.issueId === issue.id || (p.publicationId === issue.pubId && p.createdAt >= tenDaysAgo)).map(p => p.clientId));
+      uniqueBuyers.forEach(cId => {
+        if (seen.has(cId) || thisYearBooked.has(cId) || priorityClientIds.has(cId)) return;
+        if (hasActiveProposal.has(cId)) return;
+        const c = clientMap[cId];
+        if (!c) return;
+        // Check recent contact — skip if commed within last 10 days
+        const recentComm = (c.comms || []).some(cm => cm.date && cm.date >= tenDaysAgo);
+        if (recentComm) return;
+        seen.add(cId);
+        const pubName = pn(issue.pubId);
+        const daysOut = Math.ceil((new Date(issue.adDeadline + "T12:00:00") - new Date()) / 86400000);
+        results.push({ clientId: cId, name: c.name, spend: c.totalSpend || 0, detail: `${pubName} deadline in ${daysOut}d · last ran ${lastYearMonth} · no contact, no proposal`, signal: "missed_opp" });
+      });
+    });
+    return results.sort((a, b) => b.spend - a.spend).slice(0, 30);
+  }, [issues, sales, proposals, clients, priorityClientIds, clientMap]);
+
   // 5. Cross-sell — clients buying in only 1-2 pubs
   const crossSellSignals = useMemo(() => {
     return myClients.filter(c => {
@@ -269,31 +311,31 @@ export default function ClientSignals({
 
   const flatSignals = useMemo(() => {
     const all = [
+      ...missedOppSignals,
       ...churnSignals, ...trendingDownSignals, ...whaleSignals,
       ...seasonalSignals, ...crossSellSignals, ...upsellSignals,
       ...competitorSignals, ...staleLeadSignals,
     ];
     const filtered = signalFilter === "all" ? all : all.filter(s => s.signal === signalFilter);
-    // Sort: highest spend first within each signal, but interleave signal types for variety
-    // Priority order: churn > trending_down > whale > seasonal > competitor > crosssell > upsell > stale_lead
-    const signalPriority = { churn: 0, trending_down: 1, whale: 2, seasonal: 3, competitor: 4, crosssell: 5, upsell: 6, stale_lead: 7 };
+    // Sort: missed_opp first (most urgent), then the rest by existing priority
+    const signalPriority = { missed_opp: -1, churn: 0, trending_down: 1, whale: 2, seasonal: 3, competitor: 4, crosssell: 5, upsell: 6, stale_lead: 7 };
     return filtered.sort((a, b) => {
       const pa = signalPriority[a.signal] ?? 99;
       const pb = signalPriority[b.signal] ?? 99;
       if (pa !== pb) return pa - pb;
       return (b.spend || 0) - (a.spend || 0);
     });
-  }, [signalFilter, churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals]);
+  }, [signalFilter, missedOppSignals, churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals]);
 
   // Signal type counts for filter badges
   const signalCounts = useMemo(() => {
     const counts = {};
-    [churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals].forEach(arr => {
+    [missedOppSignals, churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals].forEach(arr => {
       arr.forEach(s => { counts[s.signal] = (counts[s.signal] || 0) + 1; });
     });
     counts.all = Object.values(counts).reduce((s, n) => s + n, 0);
     return counts;
-  }, [churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals]);
+  }, [missedOppSignals, churnSignals, trendingDownSignals, whaleSignals, seasonalSignals, crossSellSignals, upsellSignals, competitorSignals, staleLeadSignals]);
 
   // ═══ 30-DAY WINS — recent closed sales from clients that matched signal categories ═══
   const recentWins = useMemo(() => {
@@ -356,6 +398,7 @@ export default function ClientSignals({
 
   // ═══ RENDER ═══
   const STAT_CARDS = [
+    { key: "missed_opp", label: "Missed Opps", color: SIGNAL_COLORS.missed_opp, icon: "\u26a0" },
     { key: "churn", label: "Missed Cycle", color: SIGNAL_COLORS.churn, icon: "\u21ba" },
     { key: "trending_down", label: "Trending Down", color: SIGNAL_COLORS.trending_down, icon: "\u2198" },
     { key: "whale", label: "Whales", color: SIGNAL_COLORS.whale, icon: "\u2666" },
@@ -368,6 +411,7 @@ export default function ClientSignals({
   ];
 
   const PANELS = [
+    { key: "missed_opp", title: "Missed opportunities \u2014 deadline <10d, no contact, no proposal", items: flatSignals.filter(s => s.signal === "missed_opp"), color: SIGNAL_COLORS.missed_opp },
     { key: "churn", title: "Missed buying cycle", items: flatSignals.filter(s => s.signal === "churn"), color: SIGNAL_COLORS.churn },
     { key: "trending_down", title: "Spend trending down", items: flatSignals.filter(s => s.signal === "trending_down"), color: SIGNAL_COLORS.trending_down },
     { key: "whale", title: "Lapsed whales ($10K+)", items: flatSignals.filter(s => s.signal === "whale"), color: SIGNAL_COLORS.whale },

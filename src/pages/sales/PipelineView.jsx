@@ -22,6 +22,10 @@ const PipelineView = ({
   const issLabel = id => (issues || []).find(i => i.id === id)?.label || "—";
   const today = new Date().toISOString().slice(0, 10);
   const sevenDaysAgo = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10);
+  const fiveDaysAgo = new Date(new Date().setDate(new Date().getDate() - 5)).toISOString().slice(0, 10);
+  // Issues whose publish date is within the last 5 days — Follow-up column shows
+  // sales attached to these issues (clients whose ad ran recently).
+  const recentPublishedIssueIds = new Set((issues || []).filter(i => i.date && i.date >= fiveDaysAgo && i.date <= today).map(i => i.id));
   const dateColor = (d) => { if (!d) return Z.td; if (d < today) return Z.da; if (d === today) return Z.wa; return Z.su; };
   const stageRevenue = (st) => (sales || []).filter(s => s.status === st).reduce((sm, s) => sm + (s.amount || 0), 0);
   const actLabel = (s) => { const a = actInfo(s.nextAction); return a ? a.label : ""; };
@@ -93,8 +97,10 @@ const PipelineView = ({
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
       {PIPELINE.map(stage => {
         const ss = (pipeView === "actions" ? actionSales : activeSales).filter(s => {
-          if (stage === "Closed") return s.status === "Closed" && s.date >= sevenDaysAgo;
-          if (stage === "Follow-up") return s.status === "Follow-up" || (s.status === "Closed" && s.date < sevenDaysAgo);
+          // Closed = only sales tied to a signed contract (proposal → contract)
+          if (stage === "Closed") return s.status === "Closed" && s.contractId != null;
+          // Follow-up = clients whose ad was published within the last 5 days
+          if (stage === "Follow-up") return s.status === "Closed" && s.issueId && recentPublishedIssueIds.has(s.issueId);
           return s.status === stage;
         });
         return <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragSaleId) { onMoveToStage(dragSaleId, stage); setDragSaleId(null); } }} style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>

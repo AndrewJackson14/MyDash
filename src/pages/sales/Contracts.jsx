@@ -4,12 +4,13 @@ import { Ic, Btn, Inp, Sel, Badge, GlassCard, PageHeader, TabRow, TB, TabPipe, D
 
 const STATUS_COLORS = { active: Z.su || "#22C55E", completed: Z.tm, cancelled: Z.da };
 
-const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded }) => {
+const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract }) => {
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [viewId, setViewId] = useState(null);
   const [sortCol, setSortCol] = useState("value");
   const [sortDir, setSortDir] = useState("desc");
+  const [repFilter, setRepFilter] = useState("all");
   const doSort = (col) => { if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col); setSortDir("desc"); } };
 
   // Lazy load contracts when page is first opened
@@ -43,6 +44,9 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     // Salesperson: only show contracts assigned to them
     if (jurisdiction?.isSalesperson && currentUser?.id) {
       list = list.filter(c => c.assignedTo === currentUser.id);
+    } else if (repFilter !== "all") {
+      // Publisher / sales manager can filter by team member who sold
+      list = list.filter(c => c.assignedTo === repFilter);
     }
     if (tab === "Active") list = list.filter(c => c.status === "active");
     else if (tab === "Completed") list = list.filter(c => c.status === "completed");
@@ -65,7 +69,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
       if (sortCol === "status") return dir * (a.status || "").localeCompare(b.status || "");
       return 0;
     });
-  }, [contracts, tab, sr, clientMap, jurisdiction, currentUser, sortCol, sortDir, salesByContract]);
+  }, [contracts, tab, sr, clientMap, jurisdiction, currentUser, sortCol, sortDir, salesByContract, repFilter]);
 
   // View contract detail
   const viewContract = (contracts || []).find(c => c.id === viewId);
@@ -76,6 +80,15 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PageHeader title={viewContract.name}>
         <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back to Contracts</Btn>
+        {deleteContract && !jurisdiction?.isSalesperson && <Btn sm v="danger" onClick={async () => {
+          const salesCount = (salesByContract[viewContract.id] || []).length;
+          const msg = salesCount > 0
+            ? `Delete "${viewContract.name}"? This contract has ${salesCount} sale${salesCount > 1 ? "s" : ""} linked to it. The sales will remain but lose their contract link. This cannot be undone.`
+            : `Delete "${viewContract.name}"? This cannot be undone.`;
+          if (!window.confirm(msg)) return;
+          await deleteContract(viewContract.id);
+          setViewId(null);
+        }}><Ic.trash size={12} /> Delete Contract</Btn>}
       </PageHeader>
 
       {/* Contract summary */}
@@ -154,6 +167,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="Contracts">
       <SB value={sr} onChange={setSr} placeholder="Search contracts..." />
+      {!jurisdiction?.isSalesperson && <Sel value={repFilter} onChange={e => setRepFilter(e.target.value)} options={[{ value: "all", label: "All Reps" }, ...((team || []).filter(t => !t.isHidden && t.isActive !== false && ["Sales Manager", "Salesperson"].includes(t.role)).map(t => ({ value: t.id, label: t.name })))]} />}
     </PageHeader>
 
     <TabRow>

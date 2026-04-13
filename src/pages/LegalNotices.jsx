@@ -54,7 +54,7 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus }) => {
+const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice }) => {
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -74,13 +74,19 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     contactName: "", contactEmail: "", contactPhone: "", organization: "",
     noticeType: "fictitious_business", status: "received",
     content: "", publicationId: newspapers[0]?.id || "",
-    issuesRequested: 1, ratePerLine: 0, lineCount: 0, flatRate: 0, totalAmount: 0,
+    issuesRequested: 1,
+    // New per-character billing. Keep legacy ratePerLine / flatRate fields on
+    // existing rows so history reads still work, but new notices use ratePerChar.
+    ratePerChar: 0, ratePerLine: 0, lineCount: 0, flatRate: 0, totalAmount: 0,
     notes: "",
   };
   const [form, setForm] = useState(blank);
 
-  // Auto-calculate total from line count or flat rate
+  // Rate × characters (incl. spaces) × runs. Falls back to legacy flat/line
+  // billing only if no ratePerChar set (existing rows).
   const calcTotal = (f) => {
+    const chars = (f.content || "").length;
+    if (f.ratePerChar > 0) return Math.round(f.ratePerChar * chars * (f.issuesRequested || 1) * 100) / 100;
     if (f.flatRate > 0) return f.flatRate * (f.issuesRequested || 1);
     return (f.ratePerLine || 0) * (f.lineCount || 0) * (f.issuesRequested || 1);
   };
@@ -113,13 +119,68 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     setNoticeModal(true);
   };
 
-  const saveNotice = () => {
+  const saveNotice = async () => {
     if (!form.contactName || !form.content) return;
     const total = calcTotal(form);
+    const nowIso = new Date().toISOString();
+
+    // On create (not edit): find or create a client for the legal-notice contact,
+    // then auto-create a draft invoice line for the calculated total. Fictitious
+    // business name filings auto-flag the client as a Lead per the sales policy.
+    let clientId = null;
+    if (!editId) {
+      const orgName = form.organization || form.contactName;
+      const existing = (clients || []).find(c => (c.name || "").toLowerCase() === orgName.toLowerCase());
+      if (existing) {
+        clientId = existing.id;
+      } else if (insertClient) {
+        const isFbn = form.noticeType === "fictitious_business";
+        const created = await insertClient({
+          name: orgName,
+          status: isFbn ? "Lead" : "Active",
+          totalSpend: 0,
+          category: "Legal Notice",
+          contacts: [{ name: form.contactName, email: form.contactEmail, phone: form.contactPhone, role: "Business Owner" }],
+        });
+        clientId = created?.id || null;
+      }
+    }
+
+    const noticeRow = { ...form, totalAmount: total, clientId, updatedAt: nowIso };
+
     if (editId) {
-      setLegalNotices(prev => (prev || []).map(n => n.id === editId ? { ...n, ...form, totalAmount: total, updatedAt: new Date().toISOString() } : n));
+      setLegalNotices(prev => (prev || []).map(n => n.id === editId ? { ...n, ...noticeRow } : n));
     } else {
-      setLegalNotices(prev => [...(prev || []), { ...form, id: "ln-" + Date.now(), totalAmount: total, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
+      const newNotice = { ...noticeRow, id: "ln-" + Date.now(), createdAt: nowIso };
+      setLegalNotices(prev => [...(prev || []), newNotice]);
+      if (insertLegalNotice) insertLegalNotice(newNotice);
+
+      // Auto-invoice: create a draft invoice with one line for the legal notice.
+      // The user said "auto-send" — we mark it sent so it shows up on the client
+      // AR immediately. Actual email delivery happens when the user confirms
+      // in the Billing module (or via an eventual background job).
+      if (insertInvoice && clientId && total > 0) {
+        const due = new Date(); due.setDate(due.getDate() + 30);
+        await insertInvoice({
+          clientId,
+          status: "sent",
+          billingSchedule: "lump_sum",
+          subtotal: total,
+          total,
+          balanceDue: total,
+          issueDate: nowIso.slice(0, 10),
+          dueDate: due.toISOString().slice(0, 10),
+          notes: `Legal Notice — ${form.organization || form.contactName}`,
+          lines: [{
+            description: `${NOTICE_TYPES.find(t => t.value === form.noticeType)?.label || "Legal Notice"} — ${(form.content || "").length} chars × ${form.issuesRequested} run${form.issuesRequested > 1 ? "s" : ""} @ $${form.ratePerChar}/char`,
+            productType: "legal_notice",
+            legalNoticeId: newNotice.id,
+            quantity: 1,
+            unitPrice: total,
+            total,
+          }],
+        });
+      }
     }
     setNoticeModal(false);
   };
@@ -193,7 +254,11 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(viewNotice.totalAmount)}</div>
           <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 2 }}>
-            {viewNotice.flatRate > 0 ? "Flat rate" : `${viewNotice.lineCount} lines × ${fmtCurrency(viewNotice.ratePerLine)}/line × ${viewNotice.issuesRequested} issues`}
+            {viewNotice.ratePerChar > 0
+              ? `${((viewNotice.content || "").length).toLocaleString()} chars × $${viewNotice.ratePerChar}/char × ${viewNotice.issuesRequested} runs`
+              : viewNotice.flatRate > 0
+                ? "Flat rate"
+                : `${viewNotice.lineCount} lines × ${fmtCurrency(viewNotice.ratePerLine)}/line × ${viewNotice.issuesRequested} issues`}
           </div>
         </div>
       </div>
@@ -392,22 +457,30 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         </div>
 
         <TA label="Notice Text" value={form.content} onChange={e => {
-          const lines = e.target.value.split("\n").length;
-          updateForm({ content: e.target.value, lineCount: lines });
+          updateForm({ content: e.target.value, lineCount: e.target.value.split("\n").length });
         }} rows={8} placeholder="Paste or type the full legal notice text..." />
 
-        <div style={{ fontSize: FS.xs, color: Z.td }}>{form.content?.split("\n").length || 0} lines · {form.content?.split(/\s+/).filter(Boolean).length || 0} words</div>
+        <div style={{ fontSize: FS.xs, color: Z.td }}>{(form.content || "").length.toLocaleString()} characters · {form.content?.split("\n").length || 0} lines · {form.content?.split(/\s+/).filter(Boolean).length || 0} words</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Inp label="Issues to Run" type="number" min="1" value={form.issuesRequested} onChange={e => updateForm({ issuesRequested: Number(e.target.value) || 1 })} />
-          <Inp label="Lines" type="number" value={form.lineCount} onChange={e => updateForm({ lineCount: Number(e.target.value) || 0 })} />
-          <Inp label="Rate/Line" type="number" step="0.01" value={form.ratePerLine || ""} onChange={e => updateForm({ ratePerLine: Number(e.target.value) || 0 })} placeholder="0.00" />
-          <Inp label="Flat Rate" type="number" step="0.01" value={form.flatRate || ""} onChange={e => updateForm({ flatRate: Number(e.target.value) || 0 })} placeholder="Override" />
+          <Inp label="Rate per Character ($)" type="number" step="0.001" value={form.ratePerChar || ""} onChange={e => updateForm({ ratePerChar: Number(e.target.value) || 0 })} placeholder="0.050" />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: Z.sa, borderRadius: R }}>
-          <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Total</span>
-          <span style={{ fontSize: 22, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(calcTotal(form))}</span>
+        {/* Live invoice preview — rate × characters × runs */}
+        <div style={{ padding: "12px 16px", background: Z.sa, borderRadius: R }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Auto-Calculated Total</span>
+            <span style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(calcTotal(form))}</span>
+          </div>
+          <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>
+            {form.ratePerChar > 0
+              ? `$${form.ratePerChar}/char × ${(form.content || "").length.toLocaleString()} chars × ${form.issuesRequested} run${form.issuesRequested > 1 ? "s" : ""}`
+              : "Set a per-character rate to calculate the total."}
+          </div>
+          <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6, fontStyle: "italic" }}>
+            Invoice will be auto-generated on save and added to the client's AR.
+          </div>
         </div>
 
         <TA label="Notes" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
