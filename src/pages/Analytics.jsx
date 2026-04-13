@@ -24,6 +24,7 @@ const Analytics = ({
   pubs, sales, clients, issues, stories,
   invoices, payments, subscribers, legalNotices, creativeJobs,
   freelancerPayments, dropLocations, dropLocationPubs, drivers,
+  bills, commissionPayouts,
 }) => {
   const [tab, setTab] = useState("Overview");
   const [plPub, setPlPub] = useState("all");
@@ -112,6 +113,75 @@ const Analytics = ({
   // Editorial pipeline
   const bySt = {}; stories.forEach(s => { bySt[s.status] = (bySt[s.status] || 0) + 1; });
 
+  // ─── DOSE: Financial Overview Calculations ────────────────
+  const now = new Date();
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthPrefix = lastMonthDate.toISOString().slice(0, 7);
+
+  const lMonthRev = closedSales.filter(s => s.date?.startsWith(lastMonthPrefix)).reduce((s, x) => s + (x.amount || 0), 0);
+  const monthRevDelta = monthRev - lMonthRev;
+
+  const lMonthCollected = _pay.filter(p => p.receivedAt?.startsWith(lastMonthPrefix)).reduce((s, p) => s + (p.amount || 0), 0);
+  const monthCollectedDelta = monthCollected - lMonthCollected;
+
+  const monthBills = bills?.filter(b => b.billDate?.startsWith(thisMonth) || b.createdAt?.startsWith(thisMonth)).reduce((s, b) => s + (b.amount || 0), 0) || 0;
+  const monthPayouts = commissionPayouts?.filter(p => p.period === thisMonth || p.createdAt?.startsWith(thisMonth)).reduce((s, p) => s + (p.totalAmount || 0), 0) || 0;
+  const monthExpenses = monthBills + monthPayouts;
+  const monthNet = monthCollected - monthExpenses;
+
+  const lMonthBills = bills?.filter(b => b.billDate?.startsWith(lastMonthPrefix) || b.createdAt?.startsWith(lastMonthPrefix)).reduce((s, b) => s + (b.amount || 0), 0) || 0;
+  const lMonthPayouts = commissionPayouts?.filter(p => p.period === lastMonthPrefix || p.createdAt?.startsWith(lastMonthPrefix)).reduce((s, p) => s + (p.totalAmount || 0), 0) || 0;
+  const lMonthExpenses = lMonthBills + lMonthPayouts;
+  const lMonthNet = lMonthCollected - lMonthExpenses;
+  const netDelta = monthNet - lMonthNet;
+
+  // Outstanding AR > 30 days
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+  const oldAR = outstanding > 0 ? _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && i.issueDate < thirtyDaysAgo).reduce((s, i) => s + (i.balanceDue || 0), 0) : 0;
+
+  // 12-Month P&L Data
+  const plMonths = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const pfx = m.toISOString().slice(0, 7);
+    const lbl = m.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    
+    // Revenue for month
+    const mAd = closedSales.filter(s => s.date?.startsWith(pfx)).reduce((s, x) => s + (x.amount || 0), 0);
+    const mSub = _subs.filter(s => s.createdAt?.startsWith(pfx) || s.startDate?.startsWith(pfx)).reduce((s, x) => s + (x.amountPaid || 0), 0);
+    const mLeg = _legal.filter(l => l.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.totalAmount || 0), 0);
+    const mJob = _jobs.filter(j => j.createdAt?.startsWith(pfx)).reduce((s, x) => s + (j.finalAmount || j.quotedAmount || 0), 0);
+    const rev = mAd + mSub + mLeg + mJob;
+
+    // Expenses for month
+    const mBil = bills?.filter(b => b.billDate?.startsWith(pfx) || b.createdAt?.startsWith(pfx)).reduce((s, b) => s + (b.amount || 0), 0) || 0;
+    const mPay = commissionPayouts?.filter(p => p.period === pfx || p.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.totalAmount || 0), 0) || 0;
+    const exp = mBil + mPay;
+
+    plMonths.push({ pfx, lbl, rev, exp, net: rev - exp });
+  }
+  const maxPlVal = Math.max(1, ...plMonths.map(m => Math.max(m.rev, m.exp)));
+
+  // Cash Flow Next 30 Days Arrays
+  const next30 = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+  const upcomingInvoices = _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && i.dueDate >= today && i.dueDate <= next30);
+  const upcomingBills = bills?.filter(b => b.status === "pending" && b.dueDate >= today && b.dueDate <= next30) || [];
+  
+  // Group by date
+  const cfDaysMap = {};
+  for(let i=0; i<30; i++){
+    const d = new Date(now.getTime() + i*86400000).toISOString().slice(0,10);
+    cfDaysMap[d] = { in: 0, out: 0, day: parseInt(d.slice(8, 10), 10) };
+  }
+  upcomingInvoices.forEach(i => { if(cfDaysMap[i.dueDate]) cfDaysMap[i.dueDate].in += (i.balanceDue || 0); });
+  upcomingBills.forEach(b => { if(b.dueDate && cfDaysMap[b.dueDate]) cfDaysMap[b.dueDate].out += (b.amount || 0); });
+  const cfDays = Object.entries(cfDaysMap).sort((a,b) => a[0].localeCompare(b[0]));
+  const maxCfVal = Math.max(1, ...cfDays.map(d => Math.max(d[1].in, d[1].out)));
+
+  // Needs Attention
+  const overdueInvs = _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && i.dueDate && i.dueDate < today).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const pendingBills = bills?.filter(b => b.status === "pending" && b.dueDate && b.dueDate <= next30).sort((a, b) => a.dueDate.localeCompare(b.dueDate)) || [];
+
   // Selected pub for P&L detail
   const selPL = plPub === "all" ? null : pubPL.find(p => p.pub.id === plPub);
 
@@ -121,47 +191,195 @@ const Analytics = ({
     <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Web"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
-    {tab === "Overview" && <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
-        {[
-          ["Month Rev", fmtK(monthRev), Z.ac],
-          ["Year Rev", fmtK(yearRev), Z.pu],
-          ["Collected", fmtK(monthCollected), Z.su],
-          ["Outstanding", fmtCurrency(outstanding), outstanding > 0 ? Z.wa : Z.ac],
-          ["Pipeline", fmtK(pipVal), Z.or || Z.wa],
-          ["Avg Deal", fmtCurrency(avgDeal), Z.ac],
-        ].map(([l, v, c]) => <GlassStat key={l} label={l} value={v} />)}
+    {tab === "Overview" && <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Row 1: Hero Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <GlassCard style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue MTD</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -1 }}>{fmtCurrency(monthRev)}</div>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: monthRevDelta >= 0 ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+            {monthRevDelta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(monthRevDelta))} vs last month
+          </div>
+        </GlassCard>
+        <GlassCard style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Cash Collected MTD</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -1 }}>{fmtCurrency(monthCollected)}</div>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: monthCollectedDelta >= 0 ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+            {monthCollectedDelta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(monthCollectedDelta))} vs last month
+          </div>
+        </GlassCard>
+        <GlassCard style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Outstanding AR</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: outstanding > 0 ? (Z.or || Z.wa) : Z.tx, letterSpacing: -1 }}>{fmtCurrency(outstanding)}</div>
+          {oldAR > 0 ? (
+             <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da, marginTop: 4 }}>
+               {fmtCurrency(oldAR)} over 30 days old
+             </div>
+          ) : (
+             <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.su, marginTop: 4 }}>
+               No old invoices
+             </div>
+          )}
+        </GlassCard>
+        <GlassCard style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Net This Month</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: monthNet >= 0 ? Z.su : Z.da, letterSpacing: -1 }}>{fmtCurrency(monthNet)}</div>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: netDelta >= 0 ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+            {netDelta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(netDelta))} vs last month
+          </div>
+        </GlassCard>
       </div>
 
-      {/* Revenue by stream */}
+      {/* Row 2: 12-Month P&L Bars */}
       <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Stream</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-          {[
-            { label: "Ad Sales", value: adRev, color: Z.ac, icon: "📰" },
-            { label: "Legal Notices", value: legalRev, color: Z.wa, icon: "⚖️" },
-            { label: "Creative Services", value: jobsRev, color: Z.pu, icon: "🎨" },
-            { label: "Subscriptions", value: subRev, color: Z.su, icon: "📬" },
-          ].map(s => <div key={s.label} style={{ textAlign: "center", padding: CARD.pad, background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: FS.xl, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{fmtCurrency(s.value)}</div>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginTop: 2 }}>{s.label}</div>
-          </div>)}
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>12-Month Profit & Loss</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 180, position: "relative", paddingTop: 20 }}>
+          {/* 0 Axis line */}
+          <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: Z.bd, zIndex: 1 }} />
+          
+          {plMonths.map((m, i) => {
+            const hRev = m.rev === 0 ? 0 : Math.max(2, (m.rev / maxPlVal) * 80);
+            const hExp = m.exp === 0 ? 0 : Math.max(2, (m.exp / maxPlVal) * 80);
+            
+            return (
+              <div key={m.pfx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, height: "100%" }}>
+                {/* Revenue Bar */}
+                <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%" }}>
+                  <div style={{ background: Z.su + "dd", width: "40%", margin: "0 auto", height: `${hRev}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev: ${fmtCurrency(m.rev)}`} />
+                </div>
+                {/* Expense Bar */}
+                <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-start", width: "100%" }}>
+                  <div style={{ background: Z.da + "dd", width: "40%", margin: "0 auto", height: `${hExp}%`, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, minHeight: m.exp > 0 ? 2 : 0 }} title={`Exp: ${fmtCurrency(m.exp)}`} />
+                </div>
+                {/* Label */}
+                <div style={{ position: "absolute", bottom: -24, fontSize: 10, color: i === 11 ? Z.tx : Z.td, fontWeight: i === 11 ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
+              </div>
+            );
+          })}
+          {/* Connecting White Line for Net Income */}
+          <svg style={{ position: "absolute", top: 20, left: 0, width: "100%", height: "calc(100% - 20px)", pointerEvents: "none", zIndex: 3 }}>
+            <polyline
+              points={plMonths.map((m, i) => {
+                const x = `${(i + 0.5) * (100 / 12)}%`;
+                const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
+                const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
+                return `${x},${y}`;
+              }).join(" ")}
+              fill="none"
+              stroke="#FFF"
+              strokeWidth="2"
+              strokeLinejoin="round"
+            />
+            {plMonths.map((m, i) => {
+              const x = `${(i + 0.5) * (100 / 12)}%`;
+              const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
+              const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
+              return <circle key={i} cx={x} cy={y} r="4" fill="#FFF" />;
+            })}
+          </svg>
+        </div>
+        <div style={{ paddingBottom: 16, marginTop: 32, display: "flex", justifyContent: "center", gap: 16, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.su, borderRadius: 2 }}/> Revenue</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.da, borderRadius: 2 }}/> Expenses</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: "#FFF" }}/> Net Income</span>
         </div>
       </GlassCard>
 
+      {/* Row 3: Where the Money Comes From */}
+      <GlassCard>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue Breakdown (This Month)</div>
+        <div style={{ display: "flex", height: 24, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 10 }}>
+          {(() => {
+            const tot = Math.max(1, adRev + subRev + legalRev + jobsRev);
+            const pAd = (adRev / tot) * 100;
+            const pSub = (subRev / tot) * 100;
+            const pLeg = (legalRev / tot) * 100;
+            const pJob = (jobsRev / tot) * 100;
+            return <>
+              {pAd > 0 && <div style={{ width: `${pAd}%`, background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pAd >= 5 ? `${Math.round(pAd)}%` : ""}</div>}
+              {pSub > 0 && <div style={{ width: `${pSub}%`, background: Z.su, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pSub >= 5 ? `${Math.round(pSub)}%` : ""}</div>}
+              {pLeg > 0 && <div style={{ width: `${pLeg}%`, background: Z.wa, display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pLeg >= 5 ? `${Math.round(pLeg)}%` : ""}</div>}
+              {pJob > 0 && <div style={{ width: `${pJob}%`, background: Z.pu, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pJob >= 5 ? `${Math.round(pJob)}%` : ""}</div>}
+            </>;
+          })()}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.ac, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(adRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.su, borderRadius: 2 }}/> Subscriptions: {fmtCurrency(subRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.wa, borderRadius: 2 }}/> Legal: {fmtCurrency(legalRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.pu, borderRadius: 2 }}/> Creative: {fmtCurrency(jobsRev)}</span>
+        </div>
+      </GlassCard>
+
+      {/* Row 4: Cash Flow Strip */}
+      <GlassCard>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>30-Day Cash Flow Projection</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, overflowX: "auto", paddingBottom: 10 }}>
+          {cfDays.map(([date, vals]) => {
+            const hIn = vals.in === 0 ? 0 : Math.max(4, (vals.in / maxCfVal) * 100);
+            const hOut = vals.out === 0 ? 0 : Math.max(4, (vals.out / maxCfVal) * 100);
+            const isToday = date === today;
+            
+            return (
+              <div key={date} style={{ flexShrink: 0, width: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ fontSize: 9, color: vals.in > 0 ? Z.su : "transparent", fontWeight: 800 }}>{vals.in > 0 ? "$" : "."}</div>
+                <div style={{ height: 40, width: 8, background: Z.tg || "rgba(255,255,255,0.05)", borderRadius: 4, display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
+                  {vals.in > 0 && <div style={{ width: "100%", height: `${hIn}%`, background: Z.su }} title={`In: ${fmtCurrency(vals.in)}`} />}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: isToday ? 900 : 600, color: isToday ? Z.tx : Z.td, fontFamily: COND, padding: "2px 0", borderBottom: isToday ? `2px solid ${Z.ac}` : "2px solid transparent" }}>{vals.day}</div>
+                <div style={{ height: 40, width: 8, background: Z.tg || "rgba(255,255,255,0.05)", borderRadius: 4, display: "flex", flexDirection: "column", justifyContent: "flex-start", overflow: "hidden" }}>
+                   {vals.out > 0 && <div style={{ width: "100%", height: `${hOut}%`, background: Z.da }} title={`Out: ${fmtCurrency(vals.out)}`} />}
+                </div>
+                <div style={{ fontSize: 9, color: vals.out > 0 ? Z.da : "transparent", fontWeight: 800 }}>{vals.out > 0 ? "$" : "."}</div>
+              </div>
+            );
+          })}
+        </div>
+      </GlassCard>
+
+      {/* Row 5: Needs Attention */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <GlassCard>
-          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue by Publication</div>
-          {revByPub.map(r => <HBar key={r.pub.id} label={r.pub.name} value={r.rev} max={mxP} color={Z.tm} sub={`${r.deals}`} />)}
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>Overdue Invoices</span>
+            {overdueInvs.length > 0 ? <span style={{ color: Z.da }}>{overdueInvs.length} Action{overdueInvs.length !== 1 && "s"}</span> : <span style={{ color: Z.su }}>All clear ✓</span>}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {overdueInvs.slice(0, 5).map(i => (
+              <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: Z.da + "15", borderRadius: 4, borderLeft: `3px solid ${Z.da}` }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>Invoice #{i.invoiceNumber}</div>
+                  <div style={{ fontSize: 11, color: Z.da }}>Due: {i.dueDate}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(i.balanceDue)}</div>
+              </div>
+            ))}
+            {overdueInvs.length > 5 && <div style={{ fontSize: 11, color: Z.td, textAlign: "center", padding: 4 }}>+ {overdueInvs.length - 5} more</div>}
+            {overdueInvs.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.su, fontSize: FS.sm, fontWeight: FW.bold }}>No overdue invoices!</div>}
+          </div>
         </GlassCard>
+        
         <GlassCard>
-          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Top Clients</div>
-          {topC.map((c, i) => <HBar key={c.id} label={`${i + 1}. ${c.name}`} value={c.spend} max={mxC} color={Z.ac} />)}
-          {topC.length === 0 && <div style={{ fontSize: FS.base, color: Z.td, padding: 16, textAlign: "center" }}>No client revenue data</div>}
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>Upcoming Bills (Next 30 Days)</span>
+            {pendingBills.length > 0 ? <span style={{ color: (Z.or || Z.wa) }}>{pendingBills.length} Action{pendingBills.length !== 1 && "s"}</span> : <span style={{ color: Z.su }}>All clear ✓</span>}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingBills.slice(0, 5).map(b => (
+              <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: Z.sf || Z.bg, borderRadius: 4, borderLeft: `3px solid ${Z.wa}` }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}</div>
+                  <div style={{ fontSize: 11, color: Z.td }}>Due: {b.dueDate}</div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(b.amount)}</div>
+              </div>
+            ))}
+            {pendingBills.length > 5 && <div style={{ fontSize: 11, color: Z.td, textAlign: "center", padding: 4 }}>+ {pendingBills.length - 5} more</div>}
+            {pendingBills.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.su, fontSize: FS.sm, fontWeight: FW.bold }}>Not tracking any pending bills for the next 30 days!</div>}
+          </div>
         </GlassCard>
       </div>
-    </>}
+    </div>}
 
     {/* ════════ P&L ════════ */}
     {tab === "P&L" && <>

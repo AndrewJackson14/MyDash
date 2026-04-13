@@ -208,6 +208,7 @@ export default function App() {
     if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
     if (pg === 'editorial') loads.push(appData.loadEditions?.());
+    if (pg === 'analytics') loads.push(appData.loadBilling?.(), appData.loadBills?.(), appData.loadCommissions?.());
     if (loads.length > 0) Promise.all(loads.filter(Boolean));
   }, [pg, online]);
 
@@ -468,7 +469,7 @@ export default function App() {
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={jClients} sales={jSales} issues={jIssues} pubs={pubs} team={team} currentUser={currentUser} stories={jStories} bus={bus} onNavigate={handleNav} /></div>}
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan jurisdiction={jurisdiction} pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} stories={jStories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} /></div>}
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} editions={appData.editions || []} setEditions={appData.setEditions} /></div>}
-        {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={jSales} clients={jClients} issues={jIssues} stories={jStories} invoices={jInvoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} /></div>}
+        {show("analytics") && <div style={vis("analytics")}><Analytics pubs={pubs} sales={jSales} clients={jClients} issues={jIssues} stories={jStories} invoices={jInvoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} bills={bills} commissionPayouts={appData.commissionPayouts || []} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary pubs={pubs} /></div>}
         {show("messaging") && <div style={vis("messaging")}><Messaging team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail /></div>}
