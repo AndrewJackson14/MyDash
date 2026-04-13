@@ -7,6 +7,8 @@ import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
 import { generatePdf } from "../lib/pdf";
 import { supabase } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
+import { generateContractHtml } from "../lib/contractTemplate";
+import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import ClientList from "./sales/ClientList";
 import ClientProfile from "./sales/ClientProfile";
 import ClientSignals from "./sales/ClientSignals";
@@ -132,6 +134,10 @@ const SalesCRM = (props) => {
   const issLabel = id => issueMap[id]?.label || "—";
   const today = new Date().toISOString().slice(0, 10);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+  // Issues whose publish date is within the last 5 days — Follow-up column
+  // shows sales attached to these (clients whose ad ran very recently).
+  const recentPublishedIssueIds = new Set((issues || []).filter(i => i.date && i.date >= fiveDaysAgo && i.date <= today).map(i => i.id));
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const addNotif = (t) => { if (setNotifications) setNotifications(n => [...n, { id: "n" + Date.now(), text: t, time: new Date().toLocaleTimeString(), read: false }]); };
   const logActivity = (t, type, cId, cName) => setActivityLog(a => [{ id: "al" + Date.now(), text: t, time: new Date().toLocaleTimeString(), type, clientId: cId, clientName: cName }, ...a].slice(0, 50));
@@ -513,16 +519,84 @@ const SalesCRM = (props) => {
     const p = proposals.find(x => x.id === propId);
     if (!p) return;
     // Convert to contract + sales orders via database function
-    if (convertProposal) {
-      const result = await convertProposal(propId);
-      if (result?.success) {
-        logActivity(`"${p.name}" signed! ${result.sales_created} sales created`, "pipeline", p.clientId, cn(p.clientId));
-        addNotif(`Contract created from "${p.name}" — ${result.sales_created} orders`);
-        if (bus) bus.emit("proposal.signed", { proposalId: propId, clientId: p.clientId, clientName: cn(p.clientId), totalAmount: p.total, lineCount: result.sales_created });
-      } else {
-        logActivity(`"${p.name}" signed but conversion failed: ${result?.error || 'unknown'}`, "pipeline", p.clientId, cn(p.clientId));
-      }
+    if (!convertProposal) return;
+    const result = await convertProposal(propId);
+    if (!result?.success) {
+      logActivity(`"${p.name}" signed but conversion failed: ${result?.error || 'unknown'}`, "pipeline", p.clientId, cn(p.clientId));
+      return;
     }
+    logActivity(`"${p.name}" signed! ${result.sales_created} sales created`, "pipeline", p.clientId, cn(p.clientId));
+    addNotif(`Contract created from "${p.name}" — ${result.sales_created} orders`);
+    if (bus) bus.emit("proposal.signed", { proposalId: propId, clientId: p.clientId, clientName: cn(p.clientId), totalAmount: p.total, lineCount: result.sales_created });
+
+    // ── Auto-sequence: send signed contract → send first invoice ──
+    // Grab the client's email (from client_contacts, fall back to local)
+    const client = clients.find(c => c.id === p.clientId);
+    const { data: contactRows } = await supabase.from("client_contacts").select("email").eq("client_id", p.clientId).limit(1);
+    const clientEmail = contactRows?.[0]?.email || client?.contacts?.[0]?.email;
+    if (!clientEmail) {
+      addNotif(`${cn(p.clientId)} — no contact email on file, contract + invoice not sent`);
+      return;
+    }
+
+    // 1) Signed contract email
+    try {
+      const salesperson = (props.team || []).find(t => t.id === p.assignedTo) || currentUser;
+      const contractHtml = generateContractHtml({
+        proposal: p,
+        signature: { signatureUrl: p.signatureUrl, signedAt: p.signedAt || new Date().toISOString() },
+        salesperson,
+        pubs,
+      });
+      await sendGmailEmail({
+        teamMemberId: currentUser?.id || null,
+        to: [clientEmail],
+        subject: `Signed Contract — ${p.name || "Advertising Agreement"}`,
+        htmlBody: contractHtml,
+        mode: "send",
+        emailType: "contract", clientId: p.clientId, refId: result.contract_id, refType: "contract",
+      });
+      addNotif(`Signed contract sent to ${cn(p.clientId)}`);
+    } catch (err) { console.error("Signed contract email error:", err); addNotif(`Contract email failed: ${err.message}`); }
+
+    // 2) First invoice email. Find the earliest invoice created for this
+    // client after the proposal signed timestamp (the RPC already created it
+    // and convertProposal pulled it into local state).
+    try {
+      const { data: firstInvRow } = await supabase.from("invoices")
+        .select("*")
+        .eq("client_id", p.clientId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (firstInvRow) {
+        const { data: lineRows } = await supabase.from("invoice_lines").select("*").eq("invoice_id", firstInvRow.id);
+        const mapped = {
+          id: firstInvRow.id, invoiceNumber: firstInvRow.invoice_number, clientId: firstInvRow.client_id,
+          status: firstInvRow.status, subtotal: Number(firstInvRow.subtotal), total: Number(firstInvRow.total),
+          amountPaid: Number(firstInvRow.amount_paid || 0), balanceDue: Number(firstInvRow.balance_due),
+          issueDate: firstInvRow.issue_date, dueDate: firstInvRow.due_date, notes: firstInvRow.notes || "",
+          lines: (lineRows || []).map(l => ({ id: l.id, description: l.description, quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total) })),
+        };
+        const invoiceHtml = generateInvoiceHtml({
+          invoice: mapped,
+          clientName: client?.name || "",
+          clientCode: client?.clientCode || "",
+        });
+        await sendGmailEmail({
+          teamMemberId: currentUser?.id || null,
+          to: [clientEmail],
+          subject: `Invoice ${mapped.invoiceNumber} — ${COMPANY.name || "13 Stars Media Group"}`,
+          htmlBody: invoiceHtml,
+          mode: "send",
+          emailType: "invoice", clientId: p.clientId, refId: mapped.id, refType: "invoice",
+        });
+        // Mark the invoice as sent in supabase; local state catches up on next
+        // Billing navigation via the lazy load hydration.
+        await supabase.from("invoices").update({ status: "sent" }).eq("id", mapped.id);
+        addNotif(`First invoice sent to ${cn(p.clientId)}`);
+      }
+    } catch (err) { console.error("First invoice email error:", err); addNotif(`Invoice email failed: ${err.message}`); }
   };
 
   const actColors = { pipeline: Z.ac, proposal: Z.pu, opp: Z.su, comm: Z.wa };
@@ -590,11 +664,51 @@ const SalesCRM = (props) => {
         <Btn onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>
       </div> :
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
-        {PIPELINE.map(stage => { const ss = activeSales.filter(s => {
-          if (stage === "Closed") return s.status === "Closed" && s.date >= sevenDaysAgo;
-          if (stage === "Follow-up") return s.status === "Follow-up" || (s.status === "Closed" && s.date < sevenDaysAgo);
-          return s.status === stage;
-        }); const stRev = ss.reduce((s, x) => s + (x.amount || 0), 0);
+        {PIPELINE.map(stage => {
+          // Closed column renders one card per contract, not per sale. Group
+          // active sales by contractId, join with the contracts array, and show
+          // one card per contract. Click → Contracts page.
+          if (stage === "Closed") {
+            const contractSaleMap = {};
+            activeSales.forEach(s => {
+              if (s.contractId) {
+                if (!contractSaleMap[s.contractId]) contractSaleMap[s.contractId] = [];
+                contractSaleMap[s.contractId].push(s);
+              }
+            });
+            const closedContracts = (contracts || [])
+              .filter(c => contractSaleMap[c.id])
+              .map(c => ({
+                contract: c,
+                sales: contractSaleMap[c.id],
+                orderCount: contractSaleMap[c.id].length,
+                totalValue: c.totalValue || contractSaleMap[c.id].reduce((s, x) => s + (x.amount || 0), 0),
+              }))
+              .sort((a, b) => (b.contract.startDate || "").localeCompare(a.contract.startDate || ""));
+            const stRev = closedContracts.reduce((sm, x) => sm + (x.totalValue || 0), 0);
+            return <div key={stage} style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px 6px", borderBottom: `2px solid ${PIPELINE_COLORS[stage]}` }}>
+                <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: PIPELINE_COLORS[stage] }}>{stage}</span>
+                <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{closedContracts.length}{stRev > 0 ? ` · $${(stRev / 1000).toFixed(0)}K` : ""}</span>
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, marginTop: 8, overflowY: "auto", maxHeight: 420 }}>
+                {closedContracts.slice(0, 8).map(({ contract: c, orderCount, totalValue }) => (
+                  <div key={c.id} onClick={() => onNavigate?.("contracts")} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer" }} title="Open Contracts page">
+                    <div style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, marginBottom: 2, fontFamily: COND }}>{cn(c.clientId)}</div>
+                    <div style={{ color: Z.tm, fontSize: FS.sm, marginBottom: 2 }}>{c.name || "Contract"}</div>
+                    <div style={{ fontWeight: FW.black, color: Z.su, fontSize: FS.base }}>${Number(totalValue || 0).toLocaleString()}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 2 }}>{orderCount} order{orderCount > 1 ? "s" : ""}{c.startDate ? ` · ${c.startDate}` : ""}</div>
+                  </div>
+                ))}
+                {closedContracts.length > 8 && <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "center", padding: 4 }}>+ {closedContracts.length - 8} more</div>}
+              </div>
+            </div>;
+          }
+          const ss = activeSales.filter(s => {
+            if (stage === "Follow-up") return s.status === "Closed" && s.issueId && recentPublishedIssueIds.has(s.issueId);
+            return s.status === stage;
+          });
+          const stRev = ss.reduce((s, x) => s + (x.amount || 0), 0);
           return <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragSaleId) { moveToStage(dragSaleId, stage); setDragSaleId(null); } }} style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px 6px", borderBottom: `2px solid ${PIPELINE_COLORS[stage]}` }}><span style={{ fontSize: FS.sm, fontWeight: FW.black, color: PIPELINE_COLORS[stage] }}>{stage}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{ss.length}{stRev > 0 ? ` · $${(stRev / 1000).toFixed(0)}K` : ""}</span></div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, marginTop: 8, overflowY: "auto", maxHeight: 420 }}>
