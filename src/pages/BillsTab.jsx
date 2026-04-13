@@ -174,29 +174,55 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
     await updateBill(bill.id, { status: "paid", paidAt: new Date().toISOString() });
   };
 
+  // Surface the actual error from a Supabase function invoke
+  const fnError = async (res, fallback) => {
+    if (res.error) {
+      // FunctionsHttpError — the edge function returned non-2xx
+      try {
+        const ctx = res.error.context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          return body.error || body.Fault?.Error?.[0]?.Detail || body.Fault?.Error?.[0]?.Message || fallback;
+        }
+      } catch {}
+      return res.error.message || fallback;
+    }
+    return res.data?.error || res.data?.Fault?.Error?.[0]?.Detail || res.data?.Fault?.Error?.[0]?.Message || fallback;
+  };
+
   const pushToQuickBooks = async (bill) => {
     if (!supabase) return alert("Not connected");
     setSyncingId(bill.id);
     try {
-      // 1. Find or create vendor
+      // 1. Find vendor
       const findRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "find-vendor" },
         body: { name: bill.vendorName },
       });
+      if (findRes.error) {
+        const msg = await fnError(findRes, "Vendor lookup failed");
+        throw new Error(msg);
+      }
       let vendorId = findRes.data?.vendors?.[0]?.Id;
+
+      // 2. Create if missing
       if (!vendorId) {
+        const createPayload = { DisplayName: bill.vendorName };
+        if (bill.vendorEmail) createPayload.PrimaryEmailAddr = { Address: bill.vendorEmail };
+
         const createRes = await supabase.functions.invoke("qb-api", {
           headers: { "x-action": "create-vendor" },
-          body: {
-            DisplayName: bill.vendorName,
-            ...(bill.vendorEmail ? { PrimaryEmailAddr: { Address: bill.vendorEmail } } : {}),
-          },
+          body: createPayload,
         });
+        if (createRes.error) {
+          const msg = await fnError(createRes, "Could not create vendor in QuickBooks");
+          throw new Error(msg);
+        }
         vendorId = createRes.data?.Vendor?.Id;
-        if (!vendorId) throw new Error(createRes.data?.error || "Could not create vendor in QuickBooks");
+        if (!vendorId) throw new Error("Vendor created but no ID returned: " + JSON.stringify(createRes.data));
       }
 
-      // 2. Create bill
+      // 3. Create bill
       const billRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "create-bill" },
         body: {
@@ -205,25 +231,29 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           DueDate: bill.dueDate || bill.billDate,
           PrivateNote: `${CATEGORY_LABEL[bill.category] || bill.category}${bill.description ? " — " + bill.description : ""}${bill.publicationId ? " · " + pubName(bill.publicationId) : ""}`,
           Line: [{
-            Amount: bill.amount,
+            Amount: Number(bill.amount),
             DetailType: "AccountBasedExpenseLineDetail",
             Description: bill.description || CATEGORY_LABEL[bill.category] || bill.category,
-            // AccountRef omitted — QuickBooks will error if default account isn't set; user can remap in QB
           }],
         },
       });
+      if (billRes.error) {
+        const msg = await fnError(billRes, "QB bill create failed");
+        throw new Error(msg);
+      }
       const qbId = billRes.data?.Bill?.Id;
-      if (!qbId) throw new Error(billRes.data?.error || billRes.data?.Fault?.Error?.[0]?.Detail || "QB bill create failed");
+      if (!qbId) throw new Error("Bill created but no ID returned: " + JSON.stringify(billRes.data));
 
       await updateBill(bill.id, {
         quickbooksId: qbId,
         quickbooksSyncedAt: new Date().toISOString(),
         quickbooksSyncError: null,
       });
-      alert("Pushed to QuickBooks");
+      alert("Pushed to QuickBooks ✓");
     } catch (e) {
-      await updateBill(bill.id, { quickbooksSyncError: e.message || String(e) });
-      alert("QuickBooks push failed: " + (e.message || e));
+      const msg = e.message || String(e);
+      await updateBill(bill.id, { quickbooksSyncError: msg });
+      alert("QuickBooks push failed:\n\n" + msg);
     }
     setSyncingId(null);
   };
