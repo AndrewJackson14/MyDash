@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
+import { uploadMedia } from "../lib/media";
 
 // ─── Constants ──────────────────────────────────────────────
 const NOTICE_TYPES = [
@@ -54,13 +55,15 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice }) => {
+const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser }) => {
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [noticeModal, setNoticeModal] = useState(false);
   const [viewId, setViewId] = useState(null);
   const [editId, setEditId] = useState(null);
+  // Pending scan attachment(s) to be uploaded & tagged once the notice is saved
+  const [pendingScans, setPendingScans] = useState([]);
 
   const all = legalNotices || [];
   const allIssueLinks = legalNoticeIssues || [];
@@ -154,6 +157,24 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       const newNotice = { ...noticeRow, id: "ln-" + Date.now(), createdAt: nowIso };
       setLegalNotices(prev => [...(prev || []), newNotice]);
       if (insertLegalNotice) insertLegalNotice(newNotice);
+
+      // Upload any attached scan files and tag them to this legal notice.
+      // Best-effort: a failed upload logs but doesn't roll back the notice save.
+      if (pendingScans.length > 0) {
+        for (const f of pendingScans) {
+          try {
+            await uploadMedia(f, {
+              category: "legal_scan",
+              legalNoticeId: newNotice.id,
+              publicationId: form.publicationId || null,
+              clientId,
+              uploadedBy: currentUser?.id || null,
+              caption: `Legal Notice — ${form.organization || form.contactName}`,
+            });
+          } catch (err) { console.error("Legal scan upload failed:", err); }
+        }
+        setPendingScans([]);
+      }
 
       // Auto-invoice: create a draft invoice with one line for the legal notice.
       // The user said "auto-send" — we mark it sent so it shows up on the client
@@ -484,6 +505,13 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         </div>
 
         <TA label="Notes" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
+
+        {/* Scan attachments — uploaded + tagged to this notice on save */}
+        {!editId && <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Attach Scans (Optional)</div>
+          <input type="file" multiple accept="image/*,application/pdf" onChange={e => setPendingScans(Array.from(e.target.files || []))} style={{ fontSize: FS.xs, color: Z.tm }} />
+          {pendingScans.length > 0 && <div style={{ fontSize: FS.xs, color: Z.ac, marginTop: 4 }}>{pendingScans.length} file{pendingScans.length > 1 ? "s" : ""} ready to upload on save</div>}
+        </div>}
       </div>
     </Modal>
   </div>;

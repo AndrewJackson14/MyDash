@@ -36,6 +36,9 @@ export function DataProvider({ children, localData }) {
   const [creativeJobs, setCreativeJobs] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [contractLines, setContractLines] = useState([]);
+  // Media assets — queried lazily when Media Library or a media-picker opens
+  const [mediaAssets, setMediaAssets] = useState([]);
+  const [mediaAssetsLoaded, setMediaAssetsLoaded] = useState(false);
   const [salesSummary, setSalesSummary] = useState([]);
   // Commission tables
   const [commissionLedger, setCommissionLedger] = useState([]);
@@ -475,6 +478,83 @@ export function DataProvider({ children, localData }) {
     })));
     setBillingLoaded(true);
   }, [billingLoaded]);
+
+  // ── Media assets — lazy loader ─────────────────────────
+  const loadMediaAssets = useCallback(async () => {
+    if (mediaAssetsLoaded || !isOnline()) return;
+    // Paginate to pick up all tagged rows
+    const all = [];
+    let pg = 0;
+    while (true) {
+      const { data } = await supabase.from('media_assets')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(pg * 1000, (pg + 1) * 1000 - 1);
+      if (!data?.length) break;
+      all.push(...data);
+      if (data.length < 1000) break;
+      pg++;
+    }
+    setMediaAssets(all.map(a => ({
+      id: a.id, fileName: a.file_name, mimeType: a.mime_type, fileType: a.file_type,
+      fileSize: a.file_size, storagePath: a.storage_path, cdnUrl: a.cdn_url,
+      width: a.width, height: a.height, altText: a.alt_text, caption: a.caption,
+      category: a.category || 'general', tags: a.tags || [],
+      publicationId: a.publication_id, storyId: a.story_id, clientId: a.client_id,
+      saleId: a.sale_id, adProjectId: a.ad_project_id, legalNoticeId: a.legal_notice_id,
+      uploadedBy: a.uploaded_by, createdAt: a.created_at,
+    })));
+    setMediaAssetsLoaded(true);
+  }, [mediaAssetsLoaded]);
+
+  // Append or update a media_assets row after a direct upload. Callers use
+  // uploadMedia() from lib/media.js which writes the DB row — this helper
+  // just hydrates local state so the Media Library updates immediately.
+  const pushMediaAsset = useCallback((row) => {
+    if (!row) return;
+    const mapped = {
+      id: row.id, fileName: row.file_name, mimeType: row.mime_type, fileType: row.file_type,
+      fileSize: row.file_size, storagePath: row.storage_path, cdnUrl: row.cdn_url,
+      width: row.width, height: row.height, altText: row.alt_text, caption: row.caption,
+      category: row.category || 'general', tags: row.tags || [],
+      publicationId: row.publication_id, storyId: row.story_id, clientId: row.client_id,
+      saleId: row.sale_id, adProjectId: row.ad_project_id, legalNoticeId: row.legal_notice_id,
+      uploadedBy: row.uploaded_by, createdAt: row.created_at,
+    };
+    setMediaAssets(prev => {
+      const idx = prev.findIndex(x => x.id === mapped.id);
+      if (idx === -1) return [mapped, ...prev];
+      const next = prev.slice();
+      next[idx] = mapped;
+      return next;
+    });
+  }, []);
+
+  const removeMediaAsset = useCallback((id) => {
+    setMediaAssets(prev => prev.filter(x => x.id !== id));
+  }, []);
+
+  // ── Ad proof save + expiration helpers ──────────────────
+  const saveAdProof = useCallback(async (proofId, teamMemberId) => {
+    if (!isOnline()) return;
+    const { data } = await supabase.from('ad_proofs')
+      .update({ saved_at: new Date().toISOString(), saved_by: teamMemberId || null })
+      .eq('id', proofId)
+      .select()
+      .single();
+    return data;
+  }, []);
+
+  // Called on Ad Projects page mount. Deletes any proof that's unsaved and
+  // older than 7 days (created_at + 7d < now AND saved_at IS NULL).
+  const expireStaleProofs = useCallback(async () => {
+    if (!isOnline()) return;
+    const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
+    await supabase.from('ad_proofs')
+      .delete()
+      .is('saved_at', null)
+      .lt('created_at', cutoff);
+  }, []);
 
   // Kick off billing load in the background as soon as the app mounts.
   // Dashboard's overdue/outstanding KPIs read from `invoices`, so without this
@@ -1884,6 +1964,11 @@ export function DataProvider({ children, localData }) {
     insertPublication, updatePublication, insertAdSizes,
     insertIssuesBatch, deleteIssuesByPub,
     updateTeamMember, deleteTeamMember,
+    // Media
+    mediaAssets, setMediaAssets, mediaAssetsLoaded, loadMediaAssets,
+    pushMediaAsset, removeMediaAsset,
+    // Ad proof lifecycle
+    saveAdProof, expireStaleProofs,
   }), [
     // Data arrays (re-render consumers only when actual data changes)
     pubs, activePubs, issues, stories, clients, sales, proposals, team, notifications,
@@ -1893,10 +1978,12 @@ export function DataProvider({ children, localData }) {
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
     subscriptions, subscriptionPayments, mailingLists, editions, adInquiries,
+    mediaAssets,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
     commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
+    mediaAssetsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
     loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,

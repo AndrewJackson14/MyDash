@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
-import { Ic, Btn, SB, Pill } from "../components/ui";
+import { Ic, Btn, SB, Pill, Modal, Sel } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
+import { uploadMediaBatch, deleteMedia } from "../lib/media";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
@@ -453,7 +454,18 @@ const UnusedImagesPanel = ({ onClose }) => {
 // ══════════════════════════════════════════════════════════════════
 // MEDIA LIBRARY
 // ══════════════════════════════════════════════════════════════════
-export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
+const CATEGORY_OPTIONS = [
+  { value: "general", label: "General" },
+  { value: "story_image", label: "Story Image" },
+  { value: "ad_creative", label: "Ad Creative" },
+  { value: "ad_proof", label: "Ad Proof" },
+  { value: "legal_scan", label: "Legal Scan" },
+  { value: "pub_asset", label: "Publication Asset" },
+  { value: "pub_logo", label: "Publication Logo" },
+  { value: "client_logo", label: "Client Logo" },
+];
+
+export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset }) {
   const dialog = useDialog();
   const [showUnused, setShowUnused] = useState(false);
   const [items, setItems] = useState([]);
@@ -474,6 +486,11 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const abortRef = useRef(null);
   const searchTimer = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Metadata filters for the DB-backed view
+  const [pubChip, setPubChip] = useState("all");    // "all" | publication_id | "untagged"
+  const [catChip, setCatChip] = useState("all");    // "all" | category
+  // Upload pub-picker modal (forced before any upload proceeds)
+  const [uploadModal, setUploadModal] = useState(null); // { files, publicationId, category }
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -528,8 +545,44 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
     setVisibleCount(60);
   };
 
-  // Filter and sort files (exclude directories for grid display)
-  const allFiles = (() => {
+  // DB-backed media assets view — filter by pub/category/search, sort.
+  // Falls back to the Bunny scan if mediaAssets is empty (no backfill yet).
+  const dbFiles = useMemo(() => {
+    const assets = mediaAssets || [];
+    if (assets.length === 0) return null;
+    let list = assets;
+    if (pubChip === "untagged") list = list.filter(a => !a.publicationId);
+    else if (pubChip !== "all") list = list.filter(a => a.publicationId === pubChip);
+    if (catChip !== "all") list = list.filter(a => a.category === catChip);
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter(a =>
+        (a.fileName || "").toLowerCase().includes(q) ||
+        (a.altText || "").toLowerCase().includes(q) ||
+        (a.caption || "").toLowerCase().includes(q) ||
+        (a.tags || []).some(t => (t || "").toLowerCase().includes(q))
+      );
+    }
+    if (sortBy === "date") list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    else if (sortBy === "name") list = [...list].sort((a, b) => (a.fileName || "").localeCompare(b.fileName || ""));
+    else if (sortBy === "size") list = [...list].sort((a, b) => (b.fileSize || 0) - (a.fileSize || 0));
+    // Map to the shape the grid already expects (ObjectName / DateCreated / Length / fullPath / cdnUrl)
+    return list.map(a => ({
+      id: a.id,
+      ObjectName: a.fileName,
+      DateCreated: a.createdAt,
+      Length: a.fileSize,
+      IsDirectory: false,
+      fullPath: a.storagePath,
+      cdnUrl: a.cdnUrl,
+      _meta: a,
+    }));
+  }, [mediaAssets, pubChip, catChip, debouncedSearch, sortBy]);
+
+  // Filter and sort files (exclude directories for grid display). Prefers the
+  // DB-backed list; falls back to the Bunny progressive scan for historical
+  // files not yet in media_assets (until the backfill runs).
+  const allFiles = dbFiles || (() => {
     let f = items.filter(i => !i.IsDirectory);
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
@@ -543,36 +596,55 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
   const files = allFiles.slice(0, visibleCount);
   const hasMore = allFiles.length > visibleCount;
 
-  // Upload
-  const handleUpload = async (fileList) => {
-    const now = new Date();
-    const monthPath = `${currentPath}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const newUploads = Array.from(fileList).map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, done: false, error: null }));
-    setUploading(prev => [...prev, ...newUploads]);
+  // Upload — forces pub picker first, then runs parallel uploadMediaBatch with
+  // metadata tagging. Each finished upload pushes into mediaAssets state so the
+  // grid updates immediately without a refetch.
+  const handleUpload = (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setUploadModal({
+      files: Array.from(fileList),
+      publicationId: pubFilter || (pubChip !== "all" && pubChip !== "untagged" ? pubChip : ""),
+      category: "general",
+    });
+  };
 
-    for (const u of newUploads) {
-      try {
-        const safeName = sanitize(u.file.name);
-        const uniqueName = Date.now().toString(36) + "-" + safeName;
-        const result = await bunnyUpload(u.file, monthPath, uniqueName);
-        setUploading(prev => prev.map(x => x.id === u.id ? { ...x, done: true, cdnUrl: result.cdnUrl } : x));
-        // Refresh listing
-        loadPath(currentPath);
-      } catch (err) {
-        setUploading(prev => prev.map(x => x.id === u.id ? { ...x, error: err.message } : x));
-      }
-    }
-    // Clear completed uploads after 3s
+  const confirmUpload = async () => {
+    if (!uploadModal) return;
+    const { files: toUpload, publicationId, category } = uploadModal;
+    setUploadModal(null);
+    const newUploads = toUpload.map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, done: false, error: null }));
+    setUploading(prev => [...prev, ...newUploads]);
+    await uploadMediaBatch(toUpload, {
+      publicationId: publicationId || null,
+      category,
+      uploadedBy: currentUser?.id || null,
+    }, {
+      concurrency: 3,
+      onEach: (row, file) => {
+        setUploading(prev => prev.map(x => x.file === file ? { ...x, done: true, cdnUrl: row.cdn_url } : x));
+        if (pushMediaAsset) pushMediaAsset(row);
+      },
+      onError: (file, err) => {
+        setUploading(prev => prev.map(x => x.file === file ? { ...x, error: err.message } : x));
+      },
+    });
     setTimeout(() => setUploading(prev => prev.filter(u => !u.done)), 3000);
   };
 
-  // Delete
+  // Delete — if the item is a DB-backed row, use deleteMedia which cleans both
+  // Bunny AND the media_assets row. Legacy bunny-only items fall back to a raw
+  // delete.
   const handleDelete = async (item) => {
-    const pathParts = (item.fullPath || "").split("/");
-    const filename = pathParts.pop();
-    const folder = pathParts.join("/");
-    await bunnyDelete(folder, filename);
-    setItems(prev => prev.filter(i => i.ObjectName !== item.ObjectName));
+    if (item._meta?.id) {
+      await deleteMedia(item._meta.id);
+      if (removeMediaAsset) removeMediaAsset(item._meta.id);
+    } else {
+      const pathParts = (item.fullPath || "").split("/");
+      const filename = pathParts.pop();
+      const folder = pathParts.join("/");
+      await bunnyDelete(folder, filename);
+      setItems(prev => prev.filter(i => i.ObjectName !== item.ObjectName));
+    }
     if (selected?.ObjectName === item.ObjectName) setSelected(null);
   };
 
@@ -648,6 +720,17 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           ))}
         </div>
       )}
+
+      {/* Filter chips — By Publication / By Category / Untagged */}
+      {dbFiles && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Pub:</span>
+        <Pill label="All" active={pubChip === "all"} onClick={() => setPubChip("all")} />
+        <Pill label="Untagged" active={pubChip === "untagged"} onClick={() => setPubChip("untagged")} />
+        {(allPubs || pubs || []).map(p => <Pill key={p.id} label={p.name} active={pubChip === p.id} onClick={() => setPubChip(p.id)} />)}
+        <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginLeft: 12 }}>Category:</span>
+        <Pill label="All" active={catChip === "all"} onClick={() => setCatChip("all")} />
+        {CATEGORY_OPTIONS.map(c => <Pill key={c.value} label={c.label} active={catChip === c.value} onClick={() => setCatChip(c.value)} />)}
+      </div>}
 
       {/* Toolbar — flat view, no folder hierarchy */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -820,6 +903,29 @@ export default function MediaLibrary({ pubs, embedded, onSelect, pubFilter }) {
           </div>
         );
       })()}
+
+      {/* Upload pub-picker modal — forced before any upload proceeds */}
+      <Modal open={!!uploadModal} onClose={() => setUploadModal(null)} title={`Upload ${uploadModal?.files?.length || 0} file${uploadModal?.files?.length !== 1 ? "s" : ""}`} width={460}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
+            Tag these files so they show up under the right filters later. You can leave Publication as "None" for shared/global assets.
+          </div>
+          <Sel label="Publication"
+            value={uploadModal?.publicationId || ""}
+            onChange={e => setUploadModal(m => ({ ...m, publicationId: e.target.value }))}
+            options={[{ value: "", label: "None (shared/global)" }, ...((allPubs || pubs || []).map(p => ({ value: p.id, label: p.name })))]}
+          />
+          <Sel label="Category"
+            value={uploadModal?.category || "general"}
+            onChange={e => setUploadModal(m => ({ ...m, category: e.target.value }))}
+            options={CATEGORY_OPTIONS}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+            <Btn v="secondary" onClick={() => setUploadModal(null)}>Cancel</Btn>
+            <Btn onClick={confirmUpload}><Ic.upload size={13} /> Upload {uploadModal?.files?.length || ""}</Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
