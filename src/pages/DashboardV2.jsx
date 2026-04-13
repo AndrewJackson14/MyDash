@@ -132,7 +132,6 @@ const DashboardV2 = (props) => {
     teamStatus, needsDir,
   } = feed;
 
-  const [filterDept, setFilterDept] = useState("all");
   const [openMember, setOpenMember] = useState(null);
   const [openSignal, setOpenSignal] = useState(null);
   const [drilledDept, setDrilledDept] = useState(null);
@@ -260,27 +259,6 @@ const DashboardV2 = (props) => {
     return { color: "rgba(239,68,68,0.16)", label: "Hot — needs you" };
   }, [globalPressure]);
 
-  // ── Combined feed (deadlines + focus items, sorted by heat) ──
-  // Note: deadline rows store the raw date so FeedRow can recompute
-  // the live countdown each render (driven by the 30s tick above).
-  const combinedFeed = useMemo(() => {
-    const deadlineRows = deadlineAlerts.map(d => ({
-      id: d.id,
-      kind: "deadline",
-      title: d.label,
-      deadlineDate: d.date,
-      dept: d.type === "ed" ? "editorial" : "production",
-      color: d.color,
-      priority: d.days <= 0 ? 0 : d.days === 1 ? 1 : 2,
-      page: d.type === "ed" ? "editorial" : "schedule",
-      rawId: d.id,
-    }));
-    const focusRows = focusItems.map(f => ({ ...f, kind: "focus", rawId: f.id }));
-    const all = [...deadlineRows, ...focusRows];
-    if (filterDept !== "all") return all.filter(r => r.dept === filterDept).sort((a, b) => a.priority - b.priority);
-    return all.sort((a, b) => a.priority - b.priority);
-  }, [deadlineAlerts, focusItems, filterDept]);
-
   const totalSignals = focusItems.length + deadlineAlerts.length;
 
   const switchToV1 = () => {
@@ -373,7 +351,6 @@ const DashboardV2 = (props) => {
           const meta = DEPT_META[dept];
           const Icon = meta.icon;
           const color = heatColor(data.heat);
-          const isActive = filterDept === dept;
           const isHot = data.heat >= 75;
           const deptMembers = membersForDept(team, dept);
           return <GlassCard key={dept}
@@ -382,8 +359,6 @@ const DashboardV2 = (props) => {
               position: "relative",
               borderTop: `2px solid ${color}`,
               background: `linear-gradient(180deg, ${color}14 0%, transparent 60%), ${glass().background}`,
-              transform: isActive ? "translateY(-2px)" : undefined,
-              boxShadow: isActive ? `0 8px 24px ${color}30, 0 0 0 1px ${color}60` : undefined,
               animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
               padding: "16px 18px",
             }}>
@@ -457,46 +432,41 @@ const DashboardV2 = (props) => {
         </div>
       </GlassCard>}
 
-      {/* ── Central "Now" feed ───────────────────────────── */}
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Now</div>
-            <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 2 }}>
-              {filterDept === "all" ? "Where you're needed" : `${DEPT_META[filterDept].label} signals`}
+      {/* ── Team presence ────────────────────────────────── */}
+      {/* Now the primary surface below the dept tiles. Grouped by
+          who needs direction vs. who's flowing, with bigger chips. */}
+      {(() => {
+        const active = teamStatus.filter(t => t.isActive !== false && !t.isHidden);
+        const needsDirection = active.filter(t => t.needsDirection).sort((a, b) => b.overdueCount - a.overdueCount);
+        const flowing = active.filter(t => !t.needsDirection);
+        return <GlassCard style={{ padding: "22px 24px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Team</div>
+              <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4, letterSpacing: -0.5 }}>
+                {needsDirection.length === 0 ? "Everyone's flowing" : `${needsDirection.length} need direction`}
+              </div>
             </div>
+            <Btn sm v="ghost" onClick={() => onNavigate?.("team")}>View all →</Btn>
           </div>
-          {filterDept !== "all" && <Btn sm v="ghost" onClick={() => setFilterDept("all")}>Clear filter</Btn>}
-        </div>
 
-        {combinedFeed.length === 0 ? (
-          <div style={{ padding: "32px 16px", textAlign: "center" }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>✨</div>
-            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>All clear</div>
-            <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 4 }}>Take a breath. Nothing needs you right now.</div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {combinedFeed.map(item => <FeedRow key={item.id} item={item} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} onOpenSignal={setOpenSignal} />)}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* ── Team presence strip ──────────────────────────── */}
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Team</div>
-            <div style={{ fontSize: 20, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 2 }}>
-              {needsDir.length === 0 ? "Everyone's flowing" : `${needsDir.length} need direction`}
+          {needsDirection.length > 0 && <div style={{ marginBottom: flowing.length > 0 ? 18 : 0 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: "#F59E0B", textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 }}>Needs you</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+              {needsDirection.map(t => <TeamChip key={t.id} member={t} onClick={() => setOpenMember(t)} />)}
             </div>
-          </div>
-          <Btn sm v="ghost" onClick={() => onNavigate?.("team")}>View all</Btn>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {teamStatus.filter(t => t.isActive !== false && !t.isHidden).slice(0, 12).map(t => <TeamChip key={t.id} member={t} onClick={() => setOpenMember(t)} />)}
-        </div>
-      </GlassCard>
+          </div>}
+
+          {flowing.length > 0 && <div>
+            {needsDirection.length > 0 && <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: "#10B981", textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 }}>Flowing</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+              {flowing.map(t => <TeamChip key={t.id} member={t} onClick={() => setOpenMember(t)} />)}
+            </div>
+          </div>}
+
+          {active.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No team members loaded yet</div>}
+        </GlassCard>;
+      })()}
 
     </div>
 
@@ -536,152 +506,71 @@ const DashboardV2 = (props) => {
 };
 
 // ============================================================
-// FeedRow — one row in the central "Now" feed.
-// Deadline rows compute live countdown each render so the
-// numbers tick down in real time (parent re-renders every 30s).
-// When a deadline row transitions into OVERDUE, a one-shot
-// pop animation fires.
-// ============================================================
-const FeedRow = ({ item, onNavigate, setIssueDetailId, onOpenSignal }) => {
-  const meta = DEPT_META[item.dept] || {};
-  const Icon = meta.icon;
-  const accent = item.color || "#9CA3AF";
-
-  // Deadline rows: live tick. Other rows: static sub.
-  const subLabel = item.kind === "deadline" ? liveCountdown(item.deadlineDate) : item.sub;
-  const isOverdue = item.kind === "deadline" && subLabel === "OVERDUE";
-
-  // Detect overdue transition for one-shot pop animation
-  const wasOverdueRef = useRef(false);
-  const [justWentOverdue, setJustWentOverdue] = useState(false);
-  useEffect(() => {
-    if (isOverdue && !wasOverdueRef.current) {
-      setJustWentOverdue(true);
-      const t = setTimeout(() => setJustWentOverdue(false), 1500);
-      wasOverdueRef.current = true;
-      return () => clearTimeout(t);
-    }
-    if (!isOverdue) wasOverdueRef.current = false;
-  }, [isOverdue]);
-
-  // Dissolve-then-open-thread on click. Routing to the page is now
-  // secondary, surfaced via the "Open in [Page] →" button inside
-  // the SignalThreadPanel header.
-  const [dissolving, setDissolving] = useState(false);
-  const handleClick = () => {
-    if (dissolving || !onOpenSignal) return;
-    setDissolving(true);
-    setTimeout(() => {
-      // Build the signal context — prefer underlying entity ids so
-      // threads persist on real entities, fall back to semantic id.
-      const contextId = item.issueId
-        || (item.kind === "deadline" ? item.id.replace(/^(ad|ed)-/, "") : null)
-        || item.id;
-      onOpenSignal({
-        title: item.title,
-        sub: subLabel,
-        dept: item.dept,
-        color: accent,
-        contextType: "signal",
-        contextId,
-        issueId: item.issueId || (item.kind === "deadline" ? item.id.replace(/^(ad|ed)-/, "") : null),
-        page: item.page,
-        pageLabel: item.page ? (item.page.charAt(0).toUpperCase() + item.page.slice(1)) : null,
-      });
-      // Ease the row back in for next time the panel closes
-      setTimeout(() => setDissolving(false), 100);
-    }, 280);
-  };
-
-  return <div onClick={handleClick}
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      padding: "12px 14px",
-      background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)",
-      borderRadius: Ri,
-      borderLeft: `3px solid ${isOverdue ? "#EF4444" : accent}`,
-      cursor: dissolving ? "default" : "pointer",
-      transition: "background 0.15s ease, transform 0.28s ease, border-color 0.15s ease, opacity 0.28s ease, filter 0.28s ease",
-      animation: justWentOverdue ? "overduePop 0.7s ease-out" : undefined,
-      boxShadow: justWentOverdue ? "0 0 22px rgba(239,68,68,0.5)" : undefined,
-      opacity: dissolving ? 0 : 1,
-      transform: dissolving ? "translateX(20px) scale(0.96)" : undefined,
-      filter: dissolving ? "blur(2px)" : undefined,
-      pointerEvents: dissolving ? "none" : "auto",
-    }}
-    onMouseEnter={e => {
-      e.currentTarget.style.transform = "translateY(-1px)";
-      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)";
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)";
-    }}>
-    {Icon && <Icon size={14} color={isOverdue ? "#EF4444" : accent} />}
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, lineHeight: 1.35 }}>{item.title}</div>
-      {subLabel && <div style={{ fontSize: FS.xs, color: isOverdue ? "#EF4444" : Z.tm, marginTop: 2, fontWeight: isOverdue ? FW.heavy : FW.normal, fontVariantNumeric: item.kind === "deadline" ? "tabular-nums" : "normal" }}>{subLabel}</div>}
-    </div>
-    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, padding: "3px 8px", background: Z.sa, borderRadius: 10 }}>
-      {meta.label || item.dept}
-    </span>
-  </div>;
-};
-
-// ============================================================
-// TeamChip — single team member presence dot with right-hand
-// star accent for Cami / Camille.
+// TeamChip — single team member presence card with right-hand
+// star accent for Cami / Camille. Now the primary surface
+// below the dept tiles, so bigger and shows real status text.
 // ============================================================
 const TeamChip = ({ member, onClick }) => {
   const firstName = member.name?.split(" ")[0] || "";
   const isRightHand = RIGHT_HAND_FIRST_NAMES.has(firstName);
   const hue = Math.abs([...(member.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
+  const dark = Z.bg === "#08090D";
+  const ringBg = dark ? "#0E1018" : "#fff";
   const statusColor = member.needsDirection
     ? (member.overdueCount > 2 ? "#EF4444" : "#F59E0B")
     : "#10B981";
+  const statusText = member.needsDirection
+    ? `${member.overdueCount} overdue`
+    : member.status || "On track";
 
   return <div onClick={onClick}
     style={{
       display: "flex",
       alignItems: "center",
-      gap: 10,
-      padding: "8px 14px 8px 8px",
-      background: Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)",
-      borderRadius: 22,
+      gap: 12,
+      padding: "12px 16px 12px 12px",
+      background: dark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.6)",
+      borderRadius: 14,
       cursor: "pointer",
-      border: isRightHand ? `1px solid ${ACCENT.amber || "#F59E0B"}50` : "1px solid transparent",
-      transition: "transform 0.15s ease, background 0.15s ease",
+      border: isRightHand ? `1px solid ${ACCENT.amber || "#F59E0B"}55` : `1px solid ${Z.bd}`,
+      boxShadow: isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}25, 0 4px 16px ${ACCENT.amber || "#F59E0B"}12` : "none",
+      transition: "transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
     }}
     onMouseEnter={e => {
-      e.currentTarget.style.transform = "translateY(-1px)";
-      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.78)";
+      e.currentTarget.style.transform = "translateY(-2px)";
+      e.currentTarget.style.background = dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.85)";
+      e.currentTarget.style.boxShadow = isRightHand
+        ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}55, 0 8px 24px ${ACCENT.amber || "#F59E0B"}25`
+        : `0 6px 18px ${statusColor}25`;
     }}
     onMouseLeave={e => {
       e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.background = Z.bg === "#08090D" ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.55)";
+      e.currentTarget.style.background = dark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.6)";
+      e.currentTarget.style.boxShadow = isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}25, 0 4px 16px ${ACCENT.amber || "#F59E0B"}12` : "none";
     }}>
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", flexShrink: 0 }}>
       <div style={{
-        width: 32, height: 32, borderRadius: "50%",
+        width: 44, height: 44, borderRadius: "50%",
         background: `hsl(${hue}, 40%, 38%)`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 11, fontWeight: FW.black, color: INV.light || "#fff",
+        fontSize: 14, fontWeight: FW.black, color: INV.light || "#fff",
+        border: isRightHand ? `2px solid ${ACCENT.amber || "#F59E0B"}` : "none",
       }}>{ini(member.name)}</div>
       <div style={{
         position: "absolute", bottom: -1, right: -1,
-        width: 10, height: 10, borderRadius: "50%",
+        width: 13, height: 13, borderRadius: "50%",
         background: statusColor,
-        border: `2px solid ${Z.bg === "#08090D" ? "#0E1018" : "#fff"}`,
+        border: `2px solid ${ringBg}`,
+        boxShadow: member.needsDirection && member.overdueCount > 2 ? `0 0 6px ${statusColor}` : "none",
       }} />
     </div>
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, display: "flex", alignItems: "center", gap: 4 }}>
+    <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, display: "flex", alignItems: "center", gap: 5, fontFamily: COND }}>
         {firstName}
-        {isRightHand && <Ic.star size={9} color={ACCENT.amber || "#F59E0B"} />}
+        {isRightHand && <Ic.star size={11} color={ACCENT.amber || "#F59E0B"} />}
       </div>
-      <div style={{ fontSize: FS.micro, color: Z.tm, lineHeight: 1.2 }}>{member.role}</div>
+      <div style={{ fontSize: FS.xs, color: Z.tm, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{member.role}</div>
+      <div style={{ fontSize: FS.micro, color: statusColor, fontWeight: FW.heavy, marginTop: 2, textTransform: "uppercase", letterSpacing: 0.4 }}>{statusText}</div>
     </div>
   </div>;
 };
