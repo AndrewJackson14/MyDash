@@ -389,7 +389,19 @@ export function DataProvider({ children, localData }) {
       if (data.length < pageSize) break;
       page++;
     }
-    if (allStories.length > 0) setStories(allStories.map(s => ({ id: s.id, title: s.title, author: s.author, status: s.status, publication: s.publication_id, assignedTo: s.assigned_to || '', dueDate: s.due_date, images: s.images, wordCount: s.word_count, category: s.category, issueId: s.issue_id || '' })));
+    if (allStories.length > 0) setStories(allStories.map(s => ({
+      id: s.id, title: s.title, author: s.author, status: s.status,
+      publication: s.publication_id,
+      assignedTo: s.assigned_to || '',
+      authorId: s.author_id || null,
+      editorId: s.editor_id || null,
+      assignedBy: s.assigned_by || null,
+      editedBy: s.edited_by || null,
+      dueDate: s.due_date,
+      images: s.images, wordCount: s.word_count, category: s.category,
+      issueId: s.issue_id || '',
+      createdAt: s.created_at, updatedAt: s.updated_at,
+    })));
     setStoriesLoaded(true);
   }, [storiesLoaded]);
 
@@ -771,6 +783,7 @@ export function DataProvider({ children, localData }) {
       if (changes.industries !== undefined) db.industries = changes.industries;
       if (changes.interestedPubs !== undefined) db.interested_pubs = changes.interestedPubs;
       if (changes.category !== undefined) db.category = changes.category;
+      if (changes.lapsedReason !== undefined) db.lapsed_reason = changes.lapsedReason;
       if (Object.keys(db).length) await supabase.from('clients').update(db).eq('id', id);
     }
   }, []);

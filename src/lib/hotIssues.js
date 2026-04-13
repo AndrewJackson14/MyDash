@@ -251,13 +251,17 @@ function editorialHotIssues(member, data) {
   const nowStr = todayStr();
   const cats = [];
 
+  // Structured ownership match: author, editor, or current assignee.
+  // The string-match-on-author fallback only kicks in for legacy rows
+  // where none of the id fields were populated.
   const myStories = stories.filter(s => {
-    // Match by author name if it includes the member's first name, OR
-    // by assignedTo / editorId fields if they exist.
+    if (s.authorId === member.id) return true;
+    if (s.editorId === member.id) return true;
+    if (s.assignedTo === member.id) return true;
+    // Legacy fallback: first-name substring in the free-text author
     const first = (member.name || "").split(" ")[0];
     if (!first) return false;
-    if (s.assignedTo && s.assignedTo === member.id) return true;
-    if (s.editorId && s.editorId === member.id) return true;
+    if (s.authorId || s.editorId || s.assignedTo) return false; // skip if we have structured data but no match
     return (s.author || "").includes(first);
   });
 
