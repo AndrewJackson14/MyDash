@@ -137,7 +137,7 @@ export function DataProvider({ children, localData }) {
       try {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date';
+        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         const [pubsRes, teamRes, notifsRes, adSizesRes, c0, c1, c2, c3, issuesRes, s0, s1, s2, s3] = await Promise.all([
@@ -194,7 +194,7 @@ export function DataProvider({ children, localData }) {
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
           id: c.id, name: c.name, status: c.status, totalSpend: Number(c.total_spend),
           category: c.category || '', address: c.address || '', city: c.city || '', state: c.state || '', zip: c.zip || '',
-          repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null,
+          repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null, creditBalance: Number(c.credit_balance) || 0, cardLast4: c.card_last4 || null, cardBrand: c.card_brand || null, cardExp: c.card_exp || null,
           contacts: [], comms: [], yearlySummary: [],
         })));
 
@@ -366,6 +366,7 @@ export function DataProvider({ children, localData }) {
         monthlyAmount: Number(i.monthly_amount), planMonths: i.plan_months,
         issueDate: i.issue_date, dueDate: i.due_date,
         notes: i.notes || '', qbInvoiceId: i.qb_invoice_id, createdAt: i.created_at,
+        chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
         lines: (invLinesRes.data || []).filter(l => l.invoice_id === i.id).map(l => ({
           id: l.id, description: l.description, productType: l.product_type,
           saleId: l.sale_id, legalNoticeId: l.legal_notice_id,
@@ -1409,6 +1410,7 @@ export function DataProvider({ children, localData }) {
     discountPct: Number(c.discount_pct), paymentTerms: c.payment_terms,
     assignedTo: c.assigned_to, notes: c.notes || '',
     isSynthetic: c.is_synthetic,
+    chargeDay: c.charge_day || 1, monthlyAmount: c.monthly_amount ? Number(c.monthly_amount) : null,
     lines: linesByContract?.[c.id] || [],
   });
 
