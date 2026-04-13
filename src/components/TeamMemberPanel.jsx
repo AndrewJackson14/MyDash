@@ -42,7 +42,7 @@ const fmtDate = (d) => {
   } catch (e) { return d; }
 };
 
-const TeamMemberPanel = ({ member, onClose, currentUser }) => {
+const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState("");
@@ -55,14 +55,20 @@ const TeamMemberPanel = ({ member, onClose, currentUser }) => {
     return () => clearTimeout(t);
   }, [member]);
 
-  // Load notes for this team member
+  // Load notes for this team member.
+  // Notes are addressed by team_members.id (not auth.users.id) so
+  // sends work regardless of whether the member has an SSO account.
   useEffect(() => {
-    if (!member?.authId || !isOnline()) { setNotes([]); return; }
+    if (!member?.id || !isOnline()) { setNotes([]); return; }
     let cancelled = false;
     supabase.from("team_notes").select("*")
-      .or(`to_user.eq.${member.authId},from_user.eq.${member.authId}`)
+      .or(`to_user.eq.${member.id},from_user.eq.${member.id}`)
       .order("created_at", { ascending: false }).limit(20)
-      .then(({ data }) => { if (!cancelled) setNotes(data || []); });
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error("team_notes load:", error); return; }
+        setNotes(data || []);
+      });
     return () => { cancelled = true; };
   }, [member]);
 
@@ -72,15 +78,17 @@ const TeamMemberPanel = ({ member, onClose, currentUser }) => {
   };
 
   const sendNote = async (message, contextType, contextId) => {
-    if (!message?.trim() || !member?.authId || sending) return;
+    if (!message?.trim() || !member?.id || sending) return;
     setSending(true);
-    const { data } = await supabase.from("team_notes").insert({
-      from_user: currentUser?.authId || null,
-      to_user: member.authId,
+    const fromId = currentUser?.id || currentUser?.authId || null;
+    const { data, error } = await supabase.from("team_notes").insert({
+      from_user: fromId,
+      to_user: member.id,
       message: message.trim(),
       context_type: contextType || "general",
       context_id: contextId || null,
     }).select().single();
+    if (error) console.error("team_notes insert:", error);
     if (data) setNotes(prev => [data, ...prev]);
     setDraft("");
     setSending(false);
@@ -112,14 +120,21 @@ const TeamMemberPanel = ({ member, onClose, currentUser }) => {
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: `1px solid ${Z.bd}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          onClick={onOpenProfile ? () => { onOpenProfile(member.id); close(); } : undefined}
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            cursor: onOpenProfile ? "pointer" : "default",
+          }}
+          title={onOpenProfile ? "Open team member dashboard" : undefined}
+        >
           <div style={{
             width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: FS.md, fontWeight: FW.bold, color: Z.tm, background: Z.bg,
             fontFamily: COND, borderRadius: R,
           }}>{ini(member.name)}</div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{member.name}</div>
+            <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, textDecoration: onOpenProfile ? "underline" : "none", textDecorationColor: Z.bd, textUnderlineOffset: 3 }}>{member.name}</div>
             <div style={{ fontSize: FS.base, color: Z.tm }}>{member.role}</div>
           </div>
         </div>

@@ -97,7 +97,7 @@ const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, bills, insertBill, updateBill, deleteBill }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, bills, insertBill, updateBill, deleteBill }) => {
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [sr, setSr] = useState("");
@@ -136,13 +136,15 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const cn = (cid) => clients.find(c => c.id === cid)?.name || "Unknown";
   const pn = (pid) => pubs.find(p => p.id === pid)?.name || "";
 
-  // Auto-mark overdue
-  const processedInvoices = (invoices || []).map(inv => {
+  // Auto-mark overdue. Memoized so it doesn't churn a new array reference every
+  // render — that would invalidate every downstream useMemo (uninvoicedSales,
+  // openNewInvoice, etc.) on every render.
+  const processedInvoices = useMemo(() => (invoices || []).map(inv => {
     if (inv.status === "sent" && inv.dueDate && inv.dueDate < today) {
       return { ...inv, status: "overdue" };
     }
     return inv;
-  });
+  }), [invoices, today]);
 
   // ─── Computed Stats ─────────────────────────────────────
   const totalOutstanding = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0);
@@ -158,18 +160,20 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     return sales.filter(s => s.status === "Closed" && !invoicedSaleIds.has(s.id));
   }, [sales, processedInvoices]);
 
-  // Date-filtered uninvoiced sales for the Overview display
+  // Date-filtered uninvoiced sales for the Overview display.
+  // "Last N days" = sales dated within the last N days. "Quarter"/"Year" = sales
+  // dated within the current quarter/year. "All" = no filter.
   const filteredUninvoiced = useMemo(() => {
     if (uninvRange === "all") return uninvoicedSales;
     const now = new Date();
     let cutoff;
-    if (uninvRange === "30days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 30); }
-    else if (uninvRange === "60days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 60); }
-    else if (uninvRange === "90days") { cutoff = new Date(); cutoff.setDate(now.getDate() + 90); }
-    else if (uninvRange === "quarter") { cutoff = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0); }
-    else if (uninvRange === "year") { cutoff = new Date(now.getFullYear(), 11, 31); }
+    if (uninvRange === "30days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 30); }
+    else if (uninvRange === "60days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 60); }
+    else if (uninvRange === "90days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 90); }
+    else if (uninvRange === "quarter") { cutoff = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); }
+    else if (uninvRange === "year") { cutoff = new Date(now.getFullYear(), 0, 1); }
     const cut = cutoff.toISOString().slice(0, 10);
-    return uninvoicedSales.filter(s => s.date && s.date <= cut);
+    return uninvoicedSales.filter(s => s.date && s.date >= cut);
   }, [uninvoicedSales, uninvRange]);
 
   // Pre-aggregated uninvoiced by client (for the Overview display)
@@ -269,7 +273,20 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   const saveInvoice = () => {
     if (!invForm.clientId || selectedLines.length === 0) return;
-    const invNum = `INV-${String((invoices?.length || 0) + 1001).padStart(5, "0")}`;
+    // New invoice number format: <client.invoicePrefix>-<13000 + next per-client seq>
+    // Fall back to the legacy INV-##### scheme only if a client somehow has no prefix.
+    const client = (clients || []).find(c => c.id === invForm.clientId);
+    let invNum;
+    if (client?.invoicePrefix) {
+      const existing = (invoices || []).filter(i => i.clientId === client.id);
+      const maxSeq = existing.reduce((m, i) => {
+        const match = /-(\d{5})$/.exec(i.invoiceNumber || "");
+        return match ? Math.max(m, parseInt(match[1], 10)) : m;
+      }, 13000);
+      invNum = `${client.invoicePrefix}-${maxSeq + 1}`;
+    } else {
+      invNum = `INV-${String((invoices?.length || 0) + 1001).padStart(5, "0")}`;
+    }
     const monthly = invForm.billingSchedule === "monthly_plan" && invForm.planMonths > 0
       ? Math.round((invTotal / invForm.planMonths) * 100) / 100 : 0;
 
@@ -498,16 +515,23 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>
-      {/* Stats Row */}
+      {/* Stats Row — show "—" until billingLoaded so the cards don't flash zeros */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-        <GlassStat label="Outstanding" value={fmtCurrency(totalOutstanding)} sub={`${processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).length} invoices`} />
-        <GlassStat label="Overdue" value={fmtCurrency(totalOverdue)} sub={overdueCount > 0 ? `${overdueCount} invoice${overdueCount > 1 ? "s" : ""} past due` : "None"} color={Z.da} />
-        <GlassStat label="Collected This Month" value={fmtCurrency(totalPaidThisMonth)} />
-        <GlassStat label="Drafts" value={fmtCurrency(totalDraftValue)} sub="Pending send" />
+        <GlassStat label="Outstanding" value={billingLoaded ? fmtCurrency(totalOutstanding) : "—"} sub={billingLoaded ? `${processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).length} invoices` : "Loading…"} />
+        <GlassStat label="Overdue" value={billingLoaded ? fmtCurrency(totalOverdue) : "—"} sub={billingLoaded ? (overdueCount > 0 ? `${overdueCount} invoice${overdueCount > 1 ? "s" : ""} past due` : "None") : "Loading…"} color={Z.da} />
+        <GlassStat label="Collected This Month" value={billingLoaded ? fmtCurrency(totalPaidThisMonth) : "—"} />
+        <GlassStat label="Drafts" value={billingLoaded ? fmtCurrency(totalDraftValue) : "—"} sub={billingLoaded ? "Pending send" : "Loading…"} />
       </div>
 
-      {/* Uninvoiced Sales — primary action area */}
-      {uninvoicedSales.length > 0 && <GlassCard style={{ borderLeft: `3px solid ${Z.wa}` }}>
+      {/* Uninvoiced Sales — primary action area.
+          Hidden until billingLoaded so we don't show every closed sale as
+          "uninvoiced" in the brief window before invoices finish loading. */}
+      {!billingLoaded ? <GlassCard style={{ borderLeft: `3px solid ${Z.bd}` }}>
+        <div style={{ padding: 24, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
+          Loading invoice data…
+        </div>
+      </GlassCard>
+      : uninvoicedSales.length > 0 && <GlassCard style={{ borderLeft: `3px solid ${Z.wa}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
@@ -521,9 +545,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         </div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
           {[
-            { value: "30days", label: "Next 30 Days", icon: Ic.clock },
-            { value: "60days", label: "Next 60 Days", icon: Ic.clock },
-            { value: "90days", label: "Next 90 Days", icon: Ic.clock },
+            { value: "30days", label: "Last 30 Days", icon: Ic.clock },
+            { value: "60days", label: "Last 60 Days", icon: Ic.clock },
+            { value: "90days", label: "Last 90 Days", icon: Ic.clock },
             { value: "quarter", label: "This Quarter", icon: Ic.chart },
             { value: "year", label: "This Year", icon: Ic.cal },
             { value: "all", label: "All Time", icon: Ic.list },

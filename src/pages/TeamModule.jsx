@@ -20,7 +20,7 @@ const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor",
 
 // ── Permission modules ───────────────────────────────────────
 // Matches nav IDs exactly — each item independently toggleable
-const MODULES = [
+export const MODULES = [
   { key: "dashboard", label: "My Dash", section: "Core" },
   { key: "calendar", label: "Calendar", section: "Core" },
   { key: "sales", label: "Sales", section: "Revenue" },
@@ -45,7 +45,7 @@ const MODULES = [
   { key: "permissions", label: "Permissions", section: "System" },
 ];
 
-const ROLE_DEFAULTS = {
+export const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
   "Editor-in-Chief": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation"],
   "Sales Manager": ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects", "publications", "schedule", "analytics"],
@@ -63,7 +63,7 @@ const ROLE_DEFAULTS = {
 };
 
 // ── Alert definitions ────────────────────────────────────────
-const ALERT_EVENTS = [
+export const ALERT_EVENTS = [
   { key: "ad_inquiry", label: "New ad inquiry", category: "Revenue" },
   { key: "invoice_overdue", label: "Invoice overdue", category: "Revenue" },
   { key: "payment_received", label: "Payment received", category: "Revenue" },
@@ -89,11 +89,11 @@ const ALERT_ROLE_DEFAULTS = {
   "Office Manager":     { ad_inquiry: "in_app", invoice_overdue: "both", payment_received: "both", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "both", legal_deadline: "in_app", team_member_added: "off", permission_change: "off" },
 };
 
-const getAlertDefaults = (role) => {
+export const getAlertDefaults = (role) => {
   return ALERT_ROLE_DEFAULTS[role] || ALERT_ROLE_DEFAULTS["Writer/Reporter"] || {};
 };
 
-const ALERT_OPTIONS = [
+export const ALERT_OPTIONS = [
   { value: "off", label: "Off" },
   { value: "in_app", label: "In-App" },
   { value: "email", label: "Email" },
@@ -402,7 +402,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
 // ══════════════════════════════════════════════════════════════
 // TEAM PAGE
 // ══════════════════════════════════════════════════════════════
-const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember, deleteTeamMember }) => {
+const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember, deleteTeamMember, onOpenMemberProfile }) => {
   const [sr, setSr] = useState("");
   const [tab, setTab] = useState("Team");
   const [modal, setModal] = useState(false);
@@ -524,7 +524,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
           {byDept[dept.label].map(t => {
             const metrics = getMetrics(t);
             return <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
-              onClick={() => { setMemberModal(t); setEditId(t.id); setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }); }}
+              onClick={() => onOpenMemberProfile ? onOpenMemberProfile(t.id) : (setMemberModal(t), setEditId(t.id), setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }))}
               onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
               onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>

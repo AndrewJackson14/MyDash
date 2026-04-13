@@ -138,7 +138,7 @@ export function DataProvider({ children, localData }) {
       try {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp';
+        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         // Helper: fetch all rows from a table with automatic pagination.
@@ -202,6 +202,7 @@ export function DataProvider({ children, localData }) {
           id: c.id, name: c.name, status: c.status, totalSpend: Number(c.total_spend),
           category: c.category || '', address: c.address || '', city: c.city || '', state: c.state || '', zip: c.zip || '',
           repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null, creditBalance: Number(c.credit_balance) || 0, cardLast4: c.card_last4 || null, cardBrand: c.card_brand || null, cardExp: c.card_exp || null,
+          invoicePrefix: c.invoice_prefix || null,
           contacts: [], comms: [], yearlySummary: [],
         })));
 
@@ -397,33 +398,31 @@ export function DataProvider({ children, localData }) {
   const loadBilling = useCallback(async () => {
     if (billingLoaded || !isOnline()) return;
 
-    // Paginate invoices — ORDER BY id for stable pagination; non-unique columns
-    // like issue_date cause rows to shift between pages, dropping/duping rows.
-    const allInv = [];
-    let invPage = 0;
-    while (true) {
-      const { data } = await supabase.from('invoices').select('*')
-        .order('id', { ascending: true })
-        .range(invPage * 1000, (invPage + 1) * 1000 - 1);
-      if (!data?.length) break;
-      allInv.push(...data);
-      if (data.length < 1000) break;
-      invPage++;
-    }
+    // ORDER BY id for stable pagination; non-unique columns like issue_date cause
+    // rows to shift between pages, dropping/duping rows.
+    const paginate = async (table, select) => {
+      const out = [];
+      let pg = 0;
+      while (true) {
+        const { data } = await supabase.from(table).select(select)
+          .order('id', { ascending: true })
+          .range(pg * 1000, (pg + 1) * 1000 - 1);
+        if (!data?.length) break;
+        out.push(...data);
+        if (data.length < 1000) break;
+        pg++;
+      }
+      return out;
+    };
 
-    // Paginate invoice_lines — same fix (was: no order at all, which is flat-out
-    // undefined behavior and was losing ~hundreds of lines across the 39 pages).
-    const allLines = [];
-    let linePage = 0;
-    while (true) {
-      const { data } = await supabase.from('invoice_lines').select('*')
-        .order('id', { ascending: true })
-        .range(linePage * 1000, (linePage + 1) * 1000 - 1);
-      if (!data?.length) break;
-      allLines.push(...data);
-      if (data.length < 1000) break;
-      linePage++;
-    }
+    // Run all three queries in parallel — invoices, invoice_lines, and payments
+    // are independent. The previous serial version made a 39-page lines fetch
+    // wait for the invoices fetch to finish.
+    const [allInv, allLines, payRes] = await Promise.all([
+      paginate('invoices', '*'),
+      paginate('invoice_lines', '*'),
+      supabase.from('payments').select('*').order('received_at', { ascending: false }),
+    ]);
 
     // Index lines by invoice_id for fast lookup
     const linesByInv = {};
@@ -431,10 +430,6 @@ export function DataProvider({ children, localData }) {
       if (!linesByInv[l.invoice_id]) linesByInv[l.invoice_id] = [];
       linesByInv[l.invoice_id].push(l);
     }
-
-    const [payRes] = await Promise.all([
-      supabase.from('payments').select('*').order('received_at', { ascending: false }),
-    ]);
 
     if (allInv.length) {
       setInvoices(allInv.map(i => ({
@@ -460,6 +455,17 @@ export function DataProvider({ children, localData }) {
     })));
     setBillingLoaded(true);
   }, [billingLoaded]);
+
+  // Kick off billing load in the background as soon as the app mounts.
+  // Dashboard's overdue/outstanding KPIs read from `invoices`, so without this
+  // those numbers sit at zero until the user first opens Billing/Analytics and
+  // then snap up ~10s later when loadBilling finishes. Firing it here means the
+  // data is usually ready by the time the user actually clicks anywhere that
+  // depends on it. No-op if already loaded.
+  useEffect(() => {
+    if (!isOnline()) return;
+    loadBilling();
+  }, [loadBilling]);
 
   // Bills module (vendor bills / expenses)
   const [billsLoaded, setBillsLoaded] = useState(false);

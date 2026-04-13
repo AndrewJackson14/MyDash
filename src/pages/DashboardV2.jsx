@@ -535,7 +535,7 @@ const DashboardV2 = (props) => {
     </div>
 
     {/* Team member messenger slide-in */}
-    <TeamMemberPanel member={openMember} onClose={() => setOpenMember(null)} currentUser={currentUser} />
+    <TeamMemberPanel member={openMember} onClose={() => setOpenMember(null)} currentUser={currentUser} onOpenProfile={props.onOpenMemberProfile} />
 
     {/* Signal thread messenger — opens when a focus item is clicked */}
     <SignalThreadPanel signal={openSignal} onClose={() => setOpenSignal(null)} currentUser={currentUser} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />

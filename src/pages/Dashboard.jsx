@@ -126,6 +126,7 @@ const Dashboard = ({
   tickets, legalNotices, creativeJobs,
   onNavigate, setIssueDetailId, userName, currentUser, salespersonPubAssignments, jurisdiction,
   myPriorities, priorityHelpers, outreachCampaigns, outreachEntries, commissionGoals,
+  billingLoaded, onOpenMemberProfile,
 }) => {
   const dialog = useDialog();
 
@@ -650,13 +651,16 @@ const Dashboard = ({
       ].map(f => <Pill key={f.key} label={f.label} icon={f.icon} active={focusMode === f.key} onClick={() => setFocusMode(f.key)} />)}
     </div>
 
-    {/* ═══ REVENUE COMMAND BAR — 5 stat cards (Sec 3.2) ═══ */}
+    {/* ═══ REVENUE COMMAND BAR — 5 stat cards (Sec 3.2) ═══
+        Outstanding AR / Overdue / Uninvoiced read from the invoices array,
+        which lazy-loads. Show "—" until billingLoaded so the numbers don't
+        flash from 0 to their real value once the load finishes. */}
     <RevenueCommandBar glass={glass} cards={[
       { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
       { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: ACCENT.blue, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
-      { label: "Outstanding AR", value: fmtCurrency(outstandingAR), color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current", onClick: () => onNavigate?.("billing") },
+      { label: "Outstanding AR", value: billingLoaded ? fmtCurrency(outstandingAR) : "—", color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: billingLoaded ? (overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current") : "Loading…", onClick: () => onNavigate?.("billing") },
       { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
-      { label: "Uninvoiced", value: fmtCurrency(uninvoicedContracts), color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced", onClick: () => onNavigate?.("billing") },
+      { label: "Uninvoiced", value: billingLoaded ? fmtCurrency(uninvoicedContracts) : "—", color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: billingLoaded ? (uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced") : "Loading…", onClick: () => onNavigate?.("billing") },
     ].filter(c => showInFocus(c.tags))} />
 
     </> : null}
@@ -1108,7 +1112,7 @@ const Dashboard = ({
     </Modal>
 
     {/* TEAM MEMBER SLIDE-IN — shared with DashboardV2 */}
-    <TeamMemberPanel member={selMember} onClose={() => setSelMember(null)} currentUser={currentUser} />
+    <TeamMemberPanel member={selMember} onClose={() => setSelMember(null)} currentUser={currentUser} onOpenProfile={onOpenMemberProfile} />
   </div></>;
 };
 
