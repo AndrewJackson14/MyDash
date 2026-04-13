@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal } from "../../components/ui";
 import AssetPanel from "../../components/AssetPanel";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
+import { useAppData } from "../../hooks/useAppData";
 
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   commForm, setCommForm, onBack, onNavTo, onOpenProposal, onSetViewPropId,
   onOpenEditClient, bus,
 }) => {
+  const appData = useAppData();
+  useEffect(() => {
+    if (clientId && appData?.loadSalesForClient) appData.loadSalesForClient(clientId);
+  }, [clientId, appData]);
+
   const vc = (clients || []).find(x => x.id === clientId);
   if (!vc) return null;
 

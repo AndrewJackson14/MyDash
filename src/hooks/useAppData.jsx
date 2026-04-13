@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
 
 const DataContext = createContext(null);
@@ -258,6 +258,43 @@ export function DataProvider({ children, localData }) {
     })));
     setFullSalesLoaded(true);
   }, [fullSalesLoaded]);
+
+  // Load ALL sales (lifetime) for a specific client — loaded on-demand when viewing ClientProfile
+  // so the user sees true lifetime totals instead of the 12-month window that loadFullSales caches.
+  const loadedClientSalesRef = useRef(new Set());
+  const loadSalesForClient = useCallback(async (clientId) => {
+    if (!clientId || !isOnline() || loadedClientSalesRef.current.has(clientId)) return;
+    loadedClientSalesRef.current.add(clientId);
+    let all = [];
+    let sp = 0;
+    while (true) {
+      const { data } = await supabase.from('sales')
+        .select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id')
+        .eq('client_id', clientId)
+        .order('date', { ascending: false })
+        .range(sp * 1000, (sp + 1) * 1000 - 1);
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < 1000) break;
+      sp++;
+    }
+    if (!all.length) return;
+    const mapped = all.map(s => ({
+      id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id,
+      type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height),
+      amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
+      page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
+      nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
+      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+      productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
+      contractId: s.contract_id || null,
+    }));
+    setSales(prev => {
+      const byId = new Map(prev.map(s => [s.id, s]));
+      for (const s of mapped) byId.set(s.id, s);
+      return Array.from(byId.values());
+    });
+  }, []);
 
   // Client details (contacts, comms, sales summary) — loaded when opening a client profile
   const [clientDetailsLoaded, setClientDetailsLoaded] = useState(false);
@@ -1638,7 +1675,7 @@ export function DataProvider({ children, localData }) {
     contracts, setContracts, contractLines, setContractLines,
     salesSummary, setSalesSummary,
     loadContracts, loadAllContracts, loadAllSales, contractsLoaded, allContractsLoaded, allSalesLoaded,
-    loadFullSales, fullSalesLoaded,
+    loadFullSales, fullSalesLoaded, loadSalesForClient,
     // Lazy loaders for module-specific data
     loadClientDetails, clientDetailsLoaded,
     loadProposals, proposalsLoaded,
@@ -1701,7 +1738,7 @@ export function DataProvider({ children, localData }) {
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
     commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
-    loadFullSales, loadClientDetails, loadProposals, loadStories, loadBilling,
+    loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
   ]);
