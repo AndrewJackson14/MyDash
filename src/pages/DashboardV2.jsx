@@ -203,7 +203,10 @@ const DashboardV2 = (props) => {
 
     channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "sales" }, (payload) => {
       const row = payload.new;
-      if (!row || row.status !== "Closed") return;
+      const prev = payload.old;
+      // sales has REPLICA IDENTITY FULL, so payload.old is reliable.
+      // Only pop on the actual transition INTO Closed.
+      if (!row || row.status !== "Closed" || prev?.status === "Closed") return;
       const client = (clients || []).find(c => c.id === row.client_id);
       const pub = (pubs || []).find(p => p.id === row.publication_id);
       fireWin(`sale-${row.id}`, {
