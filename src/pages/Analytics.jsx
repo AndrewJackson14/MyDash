@@ -28,7 +28,7 @@ const Analytics = ({
 }) => {
   const [tab, setTab] = useState("Overview");
   const [plPub, setPlPub] = useState("all");
-  const [overviewPub, setOverviewPub] = useState("all");
+  const [overviewType, setOverviewType] = useState("all"); // "all" | "Magazine" | "Newspaper"
 
   const _inv = invoices || [];
   const _pay = payments || [];
@@ -214,11 +214,15 @@ const Analytics = ({
 
     plMonths.push({ pfx, lbl, byPub, rev, exp, net: rev - exp });
   }
-  // Filtered view — if a pub is selected, pull that pub's slice; otherwise total
+  // Filtered view — isolate by publication type (Magazine / Newspaper / all)
+  const typePubIds = overviewType === "all"
+    ? null
+    : new Set(pubs.filter(p => p.type === overviewType).map(p => p.id));
   const plView = plMonths.map(m => {
-    const rev = overviewPub === "all" ? m.rev : (m.byPub[overviewPub] || 0);
-    // Scale expenses proportionally to the filtered pub's share of total revenue
-    const share = overviewPub === "all" ? 1 : (m.rev > 0 ? rev / m.rev : 0);
+    if (!typePubIds) return { ...m, net: m.rev - m.exp };
+    const rev = Object.entries(m.byPub).reduce((s, [id, amt]) => typePubIds.has(id) ? s + amt : s, 0);
+    // Scale expenses proportionally to this type's share of total revenue
+    const share = m.rev > 0 ? rev / m.rev : 0;
     const exp = m.exp * share;
     return { ...m, rev, exp, net: rev - exp };
   });
@@ -341,14 +345,15 @@ const Analytics = ({
         <GlassCard>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>12-Month Profit & Loss</div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button onClick={() => setOverviewPub("all")}
-                style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewPub === "all" ? Z.tx : Z.bd}`, background: overviewPub === "all" ? Z.tx : "transparent", color: overviewPub === "all" ? Z.bg : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>All Pubs</button>
-              {pubs.map(p => (
-                <button key={p.id} onClick={() => setOverviewPub(p.id)}
-                  style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewPub === p.id ? (p.color || Z.tx) : Z.bd}`, background: overviewPub === p.id ? (p.color || Z.tx) : "transparent", color: overviewPub === p.id ? "#FFF" : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 4 }}>
-                  {overviewPub !== p.id && <div style={{ width: 6, height: 6, borderRadius: "50%", background: p.color || Z.tm }}/>}
-                  {p.name}
+            <div style={{ display: "flex", gap: 4 }}>
+              {[
+                { key: "all", label: "All" },
+                { key: "Magazine", label: "Magazines" },
+                { key: "Newspaper", label: "Newspapers" },
+              ].map(o => (
+                <button key={o.key} onClick={() => setOverviewType(o.key)}
+                  style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewType === o.key ? Z.tx : Z.bd}`, background: overviewType === o.key ? Z.tx : "transparent", color: overviewType === o.key ? Z.bg : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {o.label}
                 </button>
               ))}
             </div>
@@ -361,23 +366,14 @@ const Analytics = ({
               const hRev = m.rev === 0 ? 0 : Math.max(2, (m.rev / maxPlVal) * 80);
               const hExp = m.exp === 0 ? 0 : Math.max(2, (m.exp / maxPlVal) * 80);
               const isCurrent = i === 11;
-              // Build stacked segments for revenue bar (per pub)
-              const pubSegs = overviewPub === "all"
-                ? pubs.map(p => ({ id: p.id, name: p.name, color: p.color || Z.tx, amt: m.byPub[p.id] || 0 })).filter(s => s.amt > 0)
-                : [{ id: overviewPub, name: pubs.find(p => p.id === overviewPub)?.name || "", color: pubs.find(p => p.id === overviewPub)?.color || Z.tx, amt: m.rev }];
 
               return (
                 <div key={m.pfx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, height: "100%" }}>
                   {/* Value label above bar */}
                   {m.rev > 0 && <div style={{ position: "absolute", top: 0, fontSize: 9, fontWeight: FW.heavy, color: isCurrent ? Z.tx : Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtK(m.rev)}</div>}
-                  {/* Revenue Bar (stacked) */}
+                  {/* Revenue Bar */}
                   <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%", alignItems: "center" }}>
-                    <div style={{ width: "55%", height: `${hRev}%`, display: "flex", flexDirection: "column", borderTopLeftRadius: 3, borderTopRightRadius: 3, overflow: "hidden", minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev ${m.lbl}: ${fmtCurrency(m.rev)}`}>
-                      {pubSegs.map((seg, si) => {
-                        const segPct = m.rev > 0 ? (seg.amt / m.rev) * 100 : 0;
-                        return <div key={seg.id} style={{ height: `${segPct}%`, background: seg.color, borderTop: si > 0 ? `1px solid ${Z.bg}` : "none" }} title={`${seg.name}: ${fmtCurrency(seg.amt)}`} />;
-                      })}
-                    </div>
+                    <div style={{ width: "55%", height: `${hRev}%`, background: Z.tx, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev ${m.lbl}: ${fmtCurrency(m.rev)}`} />
                   </div>
                   {/* Expense Bar */}
                   <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-start", width: "100%", alignItems: "center" }}>
@@ -400,7 +396,7 @@ const Analytics = ({
                   return `${x},${y}`;
                 }).join(" ")}
                 fill="none"
-                stroke={Z.tx}
+                stroke={Z.ac}
                 strokeWidth="2"
                 strokeLinejoin="round"
               />
@@ -408,16 +404,14 @@ const Analytics = ({
                 const x = `${(i + 0.5) * (100 / 12)}%`;
                 const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
                 const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
-                return <circle key={i} cx={x} cy={y} r="3" fill={Z.tx} />;
+                return <circle key={i} cx={x} cy={y} r="3" fill={Z.ac} />;
               })}
             </svg>
           </div>
-          <div style={{ paddingBottom: 8, marginTop: 24, display: "flex", justifyContent: "center", gap: 14, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, flexWrap: "wrap" }}>
-            {overviewPub === "all"
-              ? pubs.map(p => <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: p.color || Z.tx, borderRadius: 2 }}/> {p.name}</span>)
-              : <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: pubs.find(p => p.id === overviewPub)?.color || Z.tx, borderRadius: 2 }}/> {pubs.find(p => p.id === overviewPub)?.name}</span>}
+          <div style={{ paddingBottom: 8, marginTop: 24, display: "flex", justifyContent: "center", gap: 14, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.tx, borderRadius: 2 }}/> Revenue</span>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.da, borderRadius: 2 }}/> Expenses</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: Z.tx }}/> Net Income</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: Z.ac }}/> Net Income</span>
           </div>
         </GlassCard>
 
