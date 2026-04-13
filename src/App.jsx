@@ -18,6 +18,7 @@ import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
 // Eagerly loaded (always needed on boot)
 import Dashboard from "./pages/Dashboard";
+import DashboardV2 from "./pages/DashboardV2";
 import IssueDetail from "./pages/IssueDetail";
 
 // Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
@@ -317,6 +318,18 @@ export default function App() {
 
   const isDark = Z.bg === DARK.bg;
 
+  // Dashboard V2 feature flag: ?v=2 in URL, or localStorage opt-in.
+  // ?v=1 forces back to V1. Persists between visits via localStorage.
+  const useDashboardV2 = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("v");
+      if (q === "2") { try { localStorage.setItem("mydash-dashboard-v2", "true"); } catch (e) {} return true; }
+      if (q === "1") { try { localStorage.setItem("mydash-dashboard-v2", "false"); } catch (e) {} return false; }
+      return localStorage.getItem("mydash-dashboard-v2") === "true";
+    } catch (e) { return false; }
+  })();
+
   // Ambient overlay (just the gradient highlights — the wallpaper itself
   // lives on its own fixed, permanently blurred layer below).
   const ambientOverlay = isDark
@@ -476,7 +489,9 @@ export default function App() {
           {online && !clients.length && <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Loading clients...</div>}
           {online && clients.length > 0 && (issueDetailId
             ? <IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} />
-            : <Dashboard pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority, autoRemoveClosedPriorities: appData.autoRemoveClosedPriorities }} outreachCampaigns={appData.outreachCampaigns || []} outreachEntries={appData.outreachEntries || []} commissionGoals={appData.commissionGoals || []} />
+            : (useDashboardV2
+              ? <DashboardV2 pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} />
+              : <Dashboard pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority, autoRemoveClosedPriorities: appData.autoRemoveClosedPriorities }} outreachCampaigns={appData.outreachCampaigns || []} outreachEntries={appData.outreachEntries || []} commissionGoals={appData.commissionGoals || []} />)
           )}
         </div>
 
@@ -501,7 +516,7 @@ export default function App() {
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
-        {show("team") && <div style={vis("team")}><TeamModule team={team} setTeam={setTeam} sales={jSales} stories={jStories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} pubs={pubs} clients={jClients} updateTeamMember={appData.updateTeamMember} /></div>}
+        {show("team") && <div style={vis("team")}><TeamModule team={team} setTeam={setTeam} sales={jSales} stories={jStories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} pubs={pubs} clients={jClients} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} /></div>}
         {show("circulation") && <div style={vis("circulation")}><Circulation pubs={pubs} issues={jIssues} subscribers={subscribers} setSubscribers={setSubscribers} subscriptions={appData.subscriptions || []} setSubscriptions={appData.setSubscriptions} subscriptionPayments={appData.subscriptionPayments || []} mailingLists={appData.mailingLists || []} setMailingLists={appData.setMailingLists} dropLocations={dropLocations} setDropLocations={setDropLocations} dropLocationPubs={dropLocationPubs} setDropLocationPubs={setDropLocationPubs} drivers={drivers} setDrivers={setDrivers} driverRoutes={driverRoutes} setDriverRoutes={setDriverRoutes} routeStops={routeStops} setRouteStops={setRouteStops} bus={bus} team={team} currentUser={currentUser} /></div>}
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={jClients} subscribers={subscribers} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}

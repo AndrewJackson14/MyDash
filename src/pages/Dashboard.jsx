@@ -465,6 +465,12 @@ const Dashboard = ({
           <div style={{ display: "flex", gap: 8 }}>
             <Btn sm v="secondary" onClick={() => setBriefingModal(true)}>Morning Briefing</Btn>
             <Btn sm v="secondary" onClick={() => setShowWrapUp(true)}>Wrap Up My Day</Btn>
+            <Btn sm onClick={() => {
+              try { localStorage.setItem("mydash-dashboard-v2", "true"); } catch (e) {}
+              const url = new URL(window.location.href);
+              url.searchParams.set("v", "2");
+              window.location.href = url.toString();
+            }}>Try V2 →</Btn>
           </div>
         </div>
       </div>
