@@ -151,7 +151,7 @@ const DashboardV2 = (props) => {
       <DoseWinsStrip wins={doseWins} />
 
       {/* ── Department tiles ─────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
         {Object.entries(departmentPressure).map(([dept, data]) => {
           const meta = DEPT_META[dept];
           const Icon = meta.icon;
