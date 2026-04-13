@@ -58,11 +58,15 @@ const Analytics = ({
   const outstanding = useMemo(() => _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
   const overdueAmt = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
 
-  // Revenue by stream
-  const legalRev = useMemo(() => _legal.reduce((s, n) => s + (n.totalAmount || 0), 0), [_legal]);
-  const jobsRev = useMemo(() => _jobs.reduce((s, j) => s + (j.finalAmount || j.quotedAmount || 0), 0), [_jobs]);
-  const subRev = useMemo(() => _subs.filter(s => s.status === "active").reduce((s, sub) => s + (sub.amountPaid || 0), 0), [_subs]);
-  const adRev = totalRev; // closed sales = ad revenue
+  // Subscription revenue: digital = MRR (monthly recurring), print = one-time per renewal
+  const activeDigitalSubs = useMemo(() => _subs.filter(s => s.type === "digital" && s.status === "active"), [_subs]);
+  const digitalMrr = useMemo(() => activeDigitalSubs.reduce((s, sub) => s + (sub.amountPaid || 0), 0), [activeDigitalSubs]);
+  const printRenewalsThisMonth = useMemo(() => _subs.filter(s =>
+    (s.type === "print" || !s.type) &&
+    ((s.renewalDate && s.renewalDate.startsWith(thisMonth)) ||
+     (!s.renewalDate && s.startDate && s.startDate.startsWith(thisMonth)))
+  ).reduce((s, sub) => s + (sub.amountPaid || 0), 0), [_subs]);
+  const subRevThisMonth = digitalMrr + printRenewalsThisMonth;
 
   // ─── Per-Publication P&L ────────────────────────────────
   const pubPL = useMemo(() => {
@@ -118,8 +122,29 @@ const Analytics = ({
   const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthPrefix = lastMonthDate.toISOString().slice(0, 7);
 
-  const lMonthRev = closedSales.filter(s => s.date?.startsWith(lastMonthPrefix)).reduce((s, x) => s + (x.amount || 0), 0);
-  const monthRevDelta = monthRev - lMonthRev;
+  // Monthly revenue goal = sum of issue revenue goals for issues landing in this month
+  // (falls back to publication default if issue has no goal set)
+  const monthGoal = useMemo(() => (issues || []).filter(i => i.date?.startsWith(thisMonth)).reduce((s, i) => {
+    const pub = pubs.find(p => p.id === i.pubId);
+    return s + (i.revenueGoal ?? pub?.defaultRevenueGoal ?? 0);
+  }, 0), [issues, pubs]);
+
+  // Total revenue this month across ALL streams (ad + sub + legal + creative)
+  const mLegalRev = _legal.filter(l => l.createdAt?.startsWith(thisMonth)).reduce((s, x) => s + (x.totalAmount || 0), 0);
+  const mJobsRev = _jobs.filter(j => j.createdAt?.startsWith(thisMonth)).reduce((s, x) => s + (x.finalAmount || x.quotedAmount || 0), 0);
+  const totalMonthRev = monthRev + subRevThisMonth + mLegalRev + mJobsRev;
+
+  // Last month same-shape comparison
+  const lMonthAd = closedSales.filter(s => s.date?.startsWith(lastMonthPrefix)).reduce((s, x) => s + (x.amount || 0), 0);
+  const lMonthPrintSub = _subs.filter(s =>
+    (s.type === "print" || !s.type) &&
+    ((s.renewalDate && s.renewalDate.startsWith(lastMonthPrefix)) ||
+     (!s.renewalDate && s.startDate && s.startDate.startsWith(lastMonthPrefix)))
+  ).reduce((s, sub) => s + (sub.amountPaid || 0), 0);
+  const lMonthLegal = _legal.filter(l => l.createdAt?.startsWith(lastMonthPrefix)).reduce((s, x) => s + (x.totalAmount || 0), 0);
+  const lMonthJobs = _jobs.filter(j => j.createdAt?.startsWith(lastMonthPrefix)).reduce((s, x) => s + (x.finalAmount || x.quotedAmount || 0), 0);
+  const lMonthTotalRev = lMonthAd + digitalMrr + lMonthPrintSub + lMonthLegal + lMonthJobs;
+  const monthRevDelta = totalMonthRev - lMonthTotalRev;
 
   const lMonthCollected = _pay.filter(p => p.receivedAt?.startsWith(lastMonthPrefix)).reduce((s, p) => s + (p.amount || 0), 0);
   const monthCollectedDelta = monthCollected - lMonthCollected;
@@ -146,11 +171,29 @@ const Analytics = ({
     const pfx = m.toISOString().slice(0, 7);
     const lbl = m.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
     
+    const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const mStart = pfx + "-01";
+
     // Revenue for month
     const mAd = closedSales.filter(s => s.date?.startsWith(pfx)).reduce((s, x) => s + (x.amount || 0), 0);
-    const mSub = _subs.filter(s => s.createdAt?.startsWith(pfx) || s.startDate?.startsWith(pfx)).reduce((s, x) => s + (x.amountPaid || 0), 0);
+    // Digital subs contribute MRR every month they were active
+    const mDigitalMrr = _subs.filter(s => {
+      if (s.type !== "digital") return false;
+      const start = s.startDate || (s.createdAt ? s.createdAt.slice(0, 10) : null);
+      if (!start || start > mEnd) return false;
+      const end = s.status === "cancelled" || s.status === "expired" ? (s.expiryDate || s.renewalDate || "0000-00-00") : "9999-12-31";
+      return end >= mStart;
+    }).reduce((s, x) => s + (x.amountPaid || 0), 0);
+    // Print subs counted once in the month they renewed (or started if no renewal date)
+    const mPrintSub = _subs.filter(s => {
+      if (s.type === "digital") return false;
+      if (s.renewalDate && s.renewalDate.startsWith(pfx)) return true;
+      if (!s.renewalDate && s.startDate && s.startDate.startsWith(pfx)) return true;
+      return false;
+    }).reduce((s, x) => s + (x.amountPaid || 0), 0);
+    const mSub = mDigitalMrr + mPrintSub;
     const mLeg = _legal.filter(l => l.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.totalAmount || 0), 0);
-    const mJob = _jobs.filter(j => j.createdAt?.startsWith(pfx)).reduce((s, x) => s + (j.finalAmount || j.quotedAmount || 0), 0);
+    const mJob = _jobs.filter(j => j.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.finalAmount || x.quotedAmount || 0), 0);
     const rev = mAd + mSub + mLeg + mJob;
 
     // Expenses for month
@@ -196,10 +239,23 @@ const Analytics = ({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
         <GlassCard style={{ padding: "16px 20px" }}>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue MTD</div>
-          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -1 }}>{fmtCurrency(monthRev)}</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -1 }}>{fmtCurrency(totalMonthRev)}</div>
           <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: monthRevDelta >= 0 ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
             {monthRevDelta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(monthRevDelta))} vs last month
           </div>
+          {monthGoal > 0 && (() => {
+            const pct = Math.min(100, Math.round((totalMonthRev / monthGoal) * 100));
+            const barColor = pct >= 100 ? Z.su : pct >= 75 ? Z.ac : pct >= 50 ? Z.wa : Z.da;
+            return <div style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>
+                <span>Goal: {fmtCurrency(monthGoal)}</span>
+                <span style={{ color: barColor }}>{pct}%</span>
+              </div>
+              <div style={{ height: 6, background: Z.bg, borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: barColor, transition: "width 0.3s" }} />
+              </div>
+            </div>;
+          })()}
         </GlassCard>
         <GlassCard style={{ padding: "16px 20px" }}>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Cash Collected MTD</div>
@@ -287,27 +343,32 @@ const Analytics = ({
 
       {/* Row 3: Where the Money Comes From */}
       <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Revenue Breakdown (This Month)</div>
-        <div style={{ display: "flex", height: 24, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Revenue Mix (This Month)</div>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Total: <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(totalMonthRev)}</span></div>
+        </div>
+        <div style={{ display: "flex", height: 28, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 12 }}>
           {(() => {
-            const tot = Math.max(1, adRev + subRev + legalRev + jobsRev);
-            const pAd = (adRev / tot) * 100;
-            const pSub = (subRev / tot) * 100;
-            const pLeg = (legalRev / tot) * 100;
-            const pJob = (jobsRev / tot) * 100;
-            return <>
-              {pAd > 0 && <div style={{ width: `${pAd}%`, background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pAd >= 5 ? `${Math.round(pAd)}%` : ""}</div>}
-              {pSub > 0 && <div style={{ width: `${pSub}%`, background: Z.su, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pSub >= 5 ? `${Math.round(pSub)}%` : ""}</div>}
-              {pLeg > 0 && <div style={{ width: `${pLeg}%`, background: Z.wa, display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pLeg >= 5 ? `${Math.round(pLeg)}%` : ""}</div>}
-              {pJob > 0 && <div style={{ width: `${pJob}%`, background: Z.pu, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pJob >= 5 ? `${Math.round(pJob)}%` : ""}</div>}
-            </>;
+            const tot = Math.max(1, monthRev + digitalMrr + printRenewalsThisMonth + mLegalRev + mJobsRev);
+            const segs = [
+              { key: "ad", val: monthRev, color: Z.ac, fg: "#FFF" },
+              { key: "mrr", val: digitalMrr, color: Z.su, fg: "#FFF" },
+              { key: "print", val: printRenewalsThisMonth, color: Z.tm, fg: "#FFF" },
+              { key: "legal", val: mLegalRev, color: Z.wa, fg: "#000" },
+              { key: "job", val: mJobsRev, color: Z.pu, fg: "#FFF" },
+            ];
+            return segs.filter(s => s.val > 0).map(s => {
+              const pct = (s.val / tot) * 100;
+              return <div key={s.key} style={{ width: `${pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", color: s.fg, fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pct >= 5 ? `${Math.round(pct)}%` : ""}</div>;
+            });
           })()}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.ac, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(adRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.su, borderRadius: 2 }}/> Subscriptions: {fmtCurrency(subRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.wa, borderRadius: 2 }}/> Legal: {fmtCurrency(legalRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.pu, borderRadius: 2 }}/> Creative: {fmtCurrency(jobsRev)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.ac, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(monthRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.su, borderRadius: 2 }}/> Digital MRR: {fmtCurrency(digitalMrr)} <span style={{ color: Z.td, fontWeight: FW.normal }}>({activeDigitalSubs.length} subs)</span></span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tm, borderRadius: 2 }}/> Print Renewals: {fmtCurrency(printRenewalsThisMonth)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.wa, borderRadius: 2 }}/> Legal: {fmtCurrency(mLegalRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.pu, borderRadius: 2 }}/> Creative: {fmtCurrency(mJobsRev)}</span>
         </div>
       </GlassCard>
 
