@@ -736,6 +736,7 @@ export function DataProvider({ children, localData }) {
     if (assignRes.data) setSalespersonPubAssignments(assignRes.data.map(a => ({
       id: a.id, salespersonId: a.salesperson_id, publicationId: a.publication_id,
       percentage: Number(a.percentage), isActive: a.is_active,
+      commissionTrigger: a.commission_trigger || null,
     })));
     if (ratesRes.data) setCommissionRates(ratesRes.data.map(r => ({
       id: r.id, salespersonId: r.salesperson_id, publicationId: r.publication_id,
@@ -1217,12 +1218,20 @@ export function DataProvider({ children, localData }) {
 
   const upsertPubAssignment = useCallback(async (assign) => {
     if (isOnline()) {
-      const { data } = await supabase.from('salesperson_pub_assignments').upsert({
-        salesperson_id: assign.salespersonId, publication_id: assign.publicationId,
-        percentage: assign.percentage || 100, is_active: assign.isActive !== false,
-      }, { onConflict: 'salesperson_id,publication_id' }).select().single();
+      const row = {
+        salesperson_id: assign.salespersonId,
+        publication_id: assign.publicationId,
+        percentage: assign.percentage != null ? assign.percentage : 100,
+        is_active: assign.isActive !== false,
+      };
+      if (assign.commissionTrigger !== undefined) row.commission_trigger = assign.commissionTrigger;
+      const { data } = await supabase.from('salesperson_pub_assignments').upsert(row, { onConflict: 'salesperson_id,publication_id' }).select().single();
       if (data) {
-        const na = { id: data.id, salespersonId: data.salesperson_id, publicationId: data.publication_id, percentage: Number(data.percentage), isActive: data.is_active };
+        const na = {
+          id: data.id, salespersonId: data.salesperson_id, publicationId: data.publication_id,
+          percentage: Number(data.percentage), isActive: data.is_active,
+          commissionTrigger: data.commission_trigger || null,
+        };
         setSalespersonPubAssignments(prev => [...prev.filter(a => !(a.salespersonId === na.salespersonId && a.publicationId === na.publicationId)), na]);
         return na;
       }

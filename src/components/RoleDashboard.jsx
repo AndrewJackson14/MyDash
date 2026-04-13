@@ -15,7 +15,7 @@ const thisMonth = today.slice(0, 7);
 const RoleDashboard = memo(({
   role, currentUser, pubs, stories, setStories, clients, sales, issues,
   team, invoices, payments, subscribers, tickets, legalNotices, creativeJobs,
-  onNavigate, setIssueDetailId,
+  onNavigate, setIssueDetailId, hideGreeting,
 }) => {
   const isDark = Z.bg === DARK.bg;
   const glass = { ...glassStyle(), borderRadius: R, padding: "22px 24px" };
@@ -119,7 +119,7 @@ const RoleDashboard = memo(({
       {/* DOSE Eye Candy */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {hwm > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.ac + "12", borderRadius: 20 }}>
             <span style={{ fontSize: 16 }}>📝</span>
             <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.ac }}>{hwm} in a day</div><div style={{ fontSize: 10, color: Z.tm }}>7-day best</div></div>
@@ -236,7 +236,7 @@ const RoleDashboard = memo(({
       {/* DOSE Eye Candy */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {sentToPress > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
             <span style={{ fontSize: 16 }}>🖨️</span>
             <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{sentToPress} to press</div><div style={{ fontSize: 10, color: Z.tm }}>this month</div></div>
@@ -336,7 +336,7 @@ const RoleDashboard = memo(({
       {/* DOSE Eye Candy */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {resolvedThisWeek > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
             <span style={{ fontSize: 16 }}>✅</span>
             <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{resolvedThisWeek} resolved</div><div style={{ fontSize: 10, color: Z.tm }}>this week</div></div>
@@ -556,7 +556,7 @@ const RoleDashboard = memo(({
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         {/* Greeting + streak */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+          {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {highWaterMark > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
             <span style={{ fontSize: 16 }}>🔥</span>
             <div>
@@ -762,7 +762,7 @@ const RoleDashboard = memo(({
 
   // ─── Fallback: generic team dashboard ────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-    <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>
+    {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
     <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.md }}>
       Your personalized dashboard is being set up. Use the sidebar to navigate to your modules.
     </div>

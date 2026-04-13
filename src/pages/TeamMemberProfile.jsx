@@ -328,7 +328,7 @@ const TeamMemberProfile = ({
         {/* Two-column: Settings (Publication Assignment) + Permissions. Auto-fit
             keeps it 2-col on desktop and stacks to 1-col below ~640px viewport. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
-          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} />
+          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} salespersonPubAssignments={salespersonPubAssignments} upsertPubAssignment={upsertPubAssignment} deletePubAssignment={deletePubAssignment} commissionRates={commissionRates} upsertCommissionRate={upsertCommissionRate} />
           <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
         </div>
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
