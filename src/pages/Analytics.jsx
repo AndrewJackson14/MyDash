@@ -39,14 +39,14 @@ const Analytics = ({
   const closedSales = useMemo(() => sales.filter(s => s.status === "Closed"), [sales]);
 
   // ─── Revenue Metrics ────────────────────────────────────
-  const { monthRev, yearRev, totalRev, avgDeal, pipVal } = useMemo(() => {
+  const { monthRev, yearRev, totalRev, avgDeal, pipVal, activeDeals } = useMemo(() => {
     const mr = closedSales.filter(s => s.date?.startsWith(thisMonth)).reduce((s, x) => s + (x.amount || 0), 0);
     const yr = closedSales.filter(s => s.date?.startsWith(thisYear)).reduce((s, x) => s + (x.amount || 0), 0);
     const tr = closedSales.reduce((s, x) => s + (x.amount || 0), 0);
     const ad = closedSales.length > 0 ? Math.round(tr / closedSales.length) : 0;
-    const activeDeals = sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
-    const pv = activeDeals.reduce((s, x) => s + (x.amount || 0), 0);
-    return { monthRev: mr, yearRev: yr, totalRev: tr, avgDeal: ad, pipVal: pv };
+    const active = sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pv = active.reduce((s, x) => s + (x.amount || 0), 0);
+    return { monthRev: mr, yearRev: yr, totalRev: tr, avgDeal: ad, pipVal: pv, activeDeals: active };
   }, [closedSales, sales]);
 
   // Collected payments
