@@ -125,8 +125,8 @@ export const FW = {
 };
 
 // Layout tokens
-export const R = 5;       // border-radius (px) — card-level rounding
-export const Ri = 3;      // border-radius (px) — internal elements (buttons, badges, inputs)
+export const R = 18;      // border-radius (px) — card-level rounding
+export const Ri = 10;     // border-radius (px) — internal elements (buttons, badges, inputs)
 export const SP = {        // spacing scale
   xs: 4,
   sm: 8,
