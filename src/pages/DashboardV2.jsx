@@ -342,7 +342,7 @@ const DashboardV2 = (props) => {
     window.location.href = url.toString();
   };
 
-  return <div style={{ position: "relative", padding: "48px 48px 80px", minHeight: "100%" }}>
+  return <div style={{ position: "relative", padding: "48px 48px 80px", minHeight: "100%", maxWidth: 1400, margin: "0 auto" }}>
     {/* Inline keyframes — hot pulse on hot tiles, calm drift on win
         pills, and winPop on pills whose count just changed. */}
     <style>{`
@@ -554,35 +554,21 @@ const DashboardV2 = (props) => {
 // so adjacent tiles never sync up.
 // ============================================================
 // ============================================================
-// DeptGrid — 2x2 CSS Grid whose template columns and rows
-// animate on hover so the hovered tile physically widens its
-// column and grows its row, pushing siblings via margin.
-// The hovered index is lifted to this level so one cell's hover
-// state can reshape the grid cells of the other three.
-//
-// Layout: 0=Sales(TL) 1=Editorial(TR) 2=Production(BL) 3=Admin(BR)
+// DeptGrid — 2x2 CSS Grid with each cell holding a centered
+// DeptTile. Cells are equal (1fr 1fr) and stable; growth happens
+// entirely inside each tile via center-origin transform, so a
+// hovered card swells in place without pushing its neighbors.
+// Cards have a fixed max-width/max-height so they float in their
+// own breathing space inside each cell.
 // ============================================================
 const DeptGrid = ({ departmentPressure, team, onOpen }) => {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-
-  // Hovered column (0 or 1) widens; hovered row (0 or 1) grows.
-  // The other column/row shrinks proportionally. Gentle ratios so
-  // the push feels like breathing, not snapping.
-  const cols = hoveredIdx == null
-    ? "1fr 1fr"
-    : hoveredIdx % 2 === 0 ? "1.18fr 0.82fr" : "0.82fr 1.18fr";
-  const rows = hoveredIdx == null
-    ? "1fr 1fr"
-    : hoveredIdx < 2 ? "1.12fr 0.88fr" : "0.88fr 1.12fr";
-
   return <div style={{
     display: "grid",
-    gridTemplateColumns: cols,
-    gridTemplateRows: rows,
+    gridTemplateColumns: "1fr 1fr",
     gap: 80,
-    minHeight: 380,
-    padding: "20px 16px",
-    transition: "grid-template-columns 0.55s cubic-bezier(0.34, 1.2, 0.64, 1), grid-template-rows 0.55s cubic-bezier(0.34, 1.2, 0.64, 1)",
+    padding: "24px 16px",
+    justifyItems: "center",
+    alignItems: "center",
   }}>
     {Object.entries(departmentPressure).map(([dept, data], idx) => (
       <DeptTile
@@ -591,15 +577,13 @@ const DeptGrid = ({ departmentPressure, team, onOpen }) => {
         data={data}
         team={team}
         idx={idx}
-        isHovered={hoveredIdx === idx}
-        onHoverChange={(h) => setHoveredIdx(prev => h ? idx : (prev === idx ? null : prev))}
         onOpen={() => onOpen(dept)}
       />
     ))}
   </div>;
 };
 
-const DeptTile = ({ dept, data, team, idx, isHovered, onHoverChange, onOpen }) => {
+const DeptTile = ({ dept, data, team, idx, onOpen }) => {
   const meta = DEPT_META[dept] || {};
   const Icon = meta.icon;
   const color = heatColor(data.heat);
@@ -615,6 +599,7 @@ const DeptTile = ({ dept, data, team, idx, isHovered, onHoverChange, onOpen }) =
   const heatScale = 0.96 + t * 0.12; // 0.96 → 1.08
 
   const [pressed, setPressed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const handleClick = () => {
     setPressed(true);
     setTimeout(() => {
@@ -623,38 +608,34 @@ const DeptTile = ({ dept, data, team, idx, isHovered, onHoverChange, onOpen }) =
     }, 180);
   };
 
-  // Subtle tactile scale on top of heat scale. The real "push" of
-  // sibling cards comes from the grid's animated template columns
-  // and rows (in DeptGrid above), not from this transform.
-  const interactionScale = pressed ? 1.04 : isHovered ? 1.02 : 1;
-  const liftPx = isHovered && !pressed ? -4 : 0;
-  const innerTransform = `translateY(${liftPx}px) scale(${(heatScale * interactionScale).toFixed(3)})`;
+  // Interaction scale on top of heat scale. Pure center-origin so
+  // the card grows equally in all directions from its own midpoint.
+  const interactionScale = pressed ? 1.06 : isHovered ? 1.05 : 1;
+  const innerTransform = `scale(${(heatScale * interactionScale).toFixed(3)})`;
 
-  // Three-layer structure so idle float, hover scale, and GlassCard's
-  // own interaction hover don't fight for `transform`:
+  // Three-layer structure so idle float, interaction scale, and
+  // GlassCard's own hover don't fight for `transform`:
   //   outer  = floatDrift (translateY)
-  //   middle = click + enter/leave handlers + heat×hover scale transform
-  //   inner  = static GlassCard visuals (NO onClick so its internal
-  //            hover mutation doesn't stomp our scale)
-  // onMouseEnter/onMouseLeave (NOT onMouseOver/onMouseOut) so hover
-  // state stays persistent while the pointer is anywhere inside.
+  //   middle = click + enter/leave + scale transform (center-origin)
+  //   inner  = static GlassCard visuals (NO onClick → no stomp)
+  // Each card has a hard max-width + max-height so it floats in the
+  // middle of its grid cell with real breathing room around it.
   return <div style={{
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-    height: "100%",
+    maxWidth: 420,
     animation: `floatDrift ${8 + idx * 0.7}s ease-in-out infinite`,
     animationDelay: `${idx * 0.6}s`,
     willChange: "transform",
   }}>
     <div
       onClick={handleClick}
-      onMouseEnter={() => onHoverChange?.(true)}
-      onMouseLeave={() => onHoverChange?.(false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         width: "100%",
-        height: "100%",
         transform: innerTransform,
         transformOrigin: "center center",
         transition: "transform 0.55s cubic-bezier(0.34, 1.3, 0.64, 1)",
@@ -664,12 +645,12 @@ const DeptTile = ({ dept, data, team, idx, isHovered, onHoverChange, onOpen }) =
       style={{
         position: "relative",
         width: "100%",
-        height: "100%",
+        maxHeight: 260,
         boxSizing: "border-box",
         borderTop: `2px solid ${color}`,
         background: `linear-gradient(180deg, ${color}${isHot ? "22" : "14"} 0%, transparent ${isHot ? 70 : 60}%), ${glass().background}`,
-        padding: "18px 22px",
-        minHeight: 130,
+        padding: "20px 24px",
+        minHeight: 150,
         transition: "box-shadow 0.35s ease, background 0.8s ease",
         animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
         boxShadow: isHovered
