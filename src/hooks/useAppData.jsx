@@ -182,6 +182,7 @@ export function DataProvider({ children, localData }) {
             pageCount: p.page_count, width: Number(p.width), height: Number(p.height),
             frequency: p.frequency, circ: p.circulation,
             hasWebsite: !!p.has_website, websiteUrl: p.website_url || '',
+            dormant: !!p.dormant,
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
             adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
@@ -1497,6 +1498,7 @@ export function DataProvider({ children, localData }) {
       if (changes.pressDatesOfMonth !== undefined) db.press_dates_of_month = changes.pressDatesOfMonth;
       if (changes.hasWebsite !== undefined) db.has_website = changes.hasWebsite;
       if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
+      if (changes.dormant !== undefined) db.dormant = changes.dormant;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
     }
   }, []);
@@ -1658,12 +1660,16 @@ export function DataProvider({ children, localData }) {
     setAllSalesLoaded(true);
   }, [allSalesLoaded]);
 
+  // Active pubs — dormant ones are excluded from all metrics/UI site-wide.
+  // The Publications page reads `allPubs` so dormant pubs remain visible/togglable.
+  const activePubs = useMemo(() => pubs.filter(p => !p.dormant), [pubs]);
+
   // ============================================================
   // Context value — memoized to prevent unnecessary re-renders
   // ============================================================
   const value = useMemo(() => ({
     // Original data + setters
-    pubs, setPubs, issues, setIssues, stories, setStories, clients, setClients,
+    pubs: activePubs, allPubs: pubs, setPubs, issues, setIssues, stories, setStories, clients, setClients,
     sales, setSales, proposals, setProposals, team, setTeam, notifications, setNotifications,
     // Phase 2 data + setters
     invoices, setInvoices, payments, setPayments,
@@ -1726,7 +1732,7 @@ export function DataProvider({ children, localData }) {
     updateTeamMember,
   }), [
     // Data arrays (re-render consumers only when actual data changes)
-    pubs, issues, stories, clients, sales, proposals, team, notifications,
+    pubs, activePubs, issues, stories, clients, sales, proposals, team, notifications,
     invoices, payments, subscribers, dropLocations, dropLocationPubs,
     drivers, driverRoutes, routeStops, tickets, ticketComments,
     legalNotices, legalNoticeIssues, creativeJobs, contracts, contractLines, salesSummary,

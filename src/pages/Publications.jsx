@@ -98,7 +98,9 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
       </div>
     </Modal>
     {[{ l: "Magazines", f: p => p.type === "Magazine" }, { l: "Newspapers", f: p => p.type === "Newspaper" }, { l: "Special Publications", f: p => p.type === "Special Publication" }].map(g => {
-      const gp = pubs.filter(g.f);
+      const gpAll = pubs.filter(g.f);
+      const gp = gpAll.filter(p => !p.dormant);
+      const gpDormant = gpAll.filter(p => p.dormant);
       return <div key={g.l} style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10,  }}><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{g.l}</span><span style={{ fontSize: FS.sm, color: Z.td }}>{gp.length}</span></div>
         {gp.length === 0 ? <div style={{ fontSize: FS.base, color: Z.td }}>None yet</div>
@@ -107,6 +109,17 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>{p.frequency} · {p.circ?.toLocaleString()} circ.</div>
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.bold, marginTop: 4 }}>{p.adSizes?.length || 0} ad sizes</div>
         </div>)}</div>}
+        {gpDormant.length > 0 && <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Dormant</span>
+            <span style={{ fontSize: FS.sm, color: Z.td }}>{gpDormant.length}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10, marginTop: 8 }}>{gpDormant.map(p => <div key={p.id} onClick={() => openPub(p)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer", opacity: 0.5 }}>
+            <h4 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</h4>
+            <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>{p.frequency} · {p.circ?.toLocaleString()} circ.</div>
+            <div style={{ fontSize: FS.sm, color: Z.td, fontWeight: FW.bold, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Dormant</div>
+          </div>)}</div>
+        </>}
       </div>; })}
     <Modal open={rateModal} onClose={() => setRateModal(false)} title={editMode ? `Edit — ${editPub?.name || ""}` : sel ? sel.name : ""} width={800}>{sel && editPub && <div>
       {/* Pub details — view or edit mode */}
@@ -140,6 +153,13 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
         </label>
         {editPub.hasWebsite && <Inp label="Website URL" value={editPub.websiteUrl || ""} onChange={e => setEditPub(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="e.g. pasoroblespress.com" />}
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx, marginTop: 4 }}>
+          <div onClick={() => setEditPub(p => ({ ...p, dormant: !p.dormant }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: editPub.dormant ? Z.da : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
+            <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: editPub.dormant ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+          </div>
+          <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Dormant</span>
+          <span style={{ fontSize: FS.sm, color: Z.td }}>Hides from all metrics and dropdowns site-wide</span>
+        </label>
       </div>
       : <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: FS.base, color: Z.tm, alignItems: "center" }}>
         <div style={{ width: 12, height: 12, borderRadius: Ri, background: sel.color, flexShrink: 0 }} />
