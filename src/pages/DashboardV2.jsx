@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT } from "../lib/theme";
 import { Ic, Btn, GlassCard, glass } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
 import { useSignalFeed } from "../hooks/useSignalFeed";
+import TeamMemberPanel from "../components/TeamMemberPanel";
 
 // ============================================================
 // DashboardV2 — Publisher signal-first command center.
@@ -39,6 +40,60 @@ const heatLabel = (h) => h < 25 ? "Calm" : h < 50 ? "Steady" : h < 75 ? "Heating
 // Right-hand team member detection (Cami, Camille per the vision discussion).
 const RIGHT_HAND_FIRST_NAMES = new Set(["Cami", "Camille"]);
 
+// Live countdown label — re-evaluates each render, driven by the
+// 30s tick in DashboardV2 so the numbers tick down in real time.
+function liveCountdown(dateStr) {
+  if (!dateStr) return "";
+  // Use end of day as the deadline cutoff so "today" stays "today" all day
+  const target = new Date(dateStr + "T17:00:00").getTime();
+  const diff = target - Date.now();
+  if (diff <= 0) return "OVERDUE";
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  if (hours < 24) return `${hours}h ${minutes}m`;
+  const days = Math.floor(hours / 24);
+  const remH = hours % 24;
+  return `${days}d ${remH}h`;
+}
+
+// Streak counter — persistent across sessions via localStorage.
+// Bumps once per local calendar day when the dashboard sees a "winning"
+// state (no overdue deadlines AND at least one DOSE win). Resets on a
+// "needs you" day (any deadline alerts).
+function useStreakCounter(doseWins, deadlineAlerts) {
+  const [streak, setStreak] = useState(() => {
+    try { return parseInt(localStorage.getItem("mydash-streak") || "0", 10) || 0; } catch (e) { return 0; }
+  });
+
+  useEffect(() => {
+    if (!doseWins) return;
+    let lastDay; try { lastDay = localStorage.getItem("mydash-streak-day") || ""; } catch (e) {}
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastDay === today) return; // already counted today
+    const winsCount = (doseWins.closedThisMonth?.count || 0) + (doseWins.teamEdited || 0);
+    const winning = deadlineAlerts.length === 0 && winsCount > 0;
+    if (winning) {
+      // If yesterday's day was streak day, increment. If gap > 1 day, reset to 1.
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const next = (lastDay === yesterday) ? streak + 1 : 1;
+      try {
+        localStorage.setItem("mydash-streak", String(next));
+        localStorage.setItem("mydash-streak-day", today);
+      } catch (e) {}
+      setStreak(next);
+    } else if (deadlineAlerts.length > 0) {
+      // Hot day — break the streak
+      try {
+        localStorage.setItem("mydash-streak", "0");
+        localStorage.setItem("mydash-streak-day", today);
+      } catch (e) {}
+      setStreak(0);
+    }
+  }, [doseWins, deadlineAlerts, streak]);
+
+  return streak;
+}
+
 const DashboardV2 = (props) => {
   const {
     pubs, stories, clients, sales, issues, team,
@@ -60,6 +115,19 @@ const DashboardV2 = (props) => {
   } = feed;
 
   const [filterDept, setFilterDept] = useState("all");
+  const [openMember, setOpenMember] = useState(null);
+
+  // Live tick — updates every 30s so countdown labels stay fresh.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Streak counter — persistent across sessions. Increments by 1
+  // each calendar day where there are zero deadline alerts AND at
+  // least one DOSE win. Resets on a "needs you" day.
+  const streak = useStreakCounter(doseWins, deadlineAlerts);
 
   // ── Greeting ─────────────────────────────────────────────
   const hour = new Date().getHours();
@@ -78,12 +146,14 @@ const DashboardV2 = (props) => {
   }, [globalPressure]);
 
   // ── Combined feed (deadlines + focus items, sorted by heat) ──
+  // Note: deadline rows store the raw date so FeedRow can recompute
+  // the live countdown each render (driven by the 30s tick above).
   const combinedFeed = useMemo(() => {
     const deadlineRows = deadlineAlerts.map(d => ({
       id: d.id,
       kind: "deadline",
       title: d.label,
-      sub: d.days <= 0 ? "TODAY" : d.days === 1 ? "TOMORROW" : `${d.days} days`,
+      deadlineDate: d.date,
       dept: d.type === "ed" ? "editorial" : "production",
       color: d.color,
       priority: d.days <= 0 ? 0 : d.days === 1 ? 1 : 2,
@@ -106,7 +176,8 @@ const DashboardV2 = (props) => {
   };
 
   return <div style={{ position: "relative", padding: "28px 28px 60px", minHeight: "100%" }}>
-    {/* Inline keyframes for hot-pulse animation */}
+    {/* Inline keyframes — hot pulse on hot tiles, calm drift on win
+        pills, and winPop on pills whose count just changed. */}
     <style>{`
       @keyframes hotPulse {
         0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.0); }
@@ -115,6 +186,12 @@ const DashboardV2 = (props) => {
       @keyframes calmDrift {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-1px); }
+      }
+      @keyframes winPop {
+        0% { transform: scale(0.85); opacity: 0; }
+        40% { transform: scale(1.12); opacity: 1; }
+        70% { transform: scale(0.97); }
+        100% { transform: scale(1); }
       }
     `}</style>
 
@@ -148,7 +225,7 @@ const DashboardV2 = (props) => {
       </div>
 
       {/* ── DOSE wins strip ──────────────────────────────── */}
-      <DoseWinsStrip wins={doseWins} />
+      <DoseWinsStrip wins={doseWins} streak={streak} />
 
       {/* ── Department tiles ─────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
@@ -229,21 +306,30 @@ const DashboardV2 = (props) => {
           <Btn sm v="ghost" onClick={() => onNavigate?.("team")}>View all</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {teamStatus.filter(t => t.isActive !== false && !t.isHidden).slice(0, 12).map(t => <TeamChip key={t.id} member={t} onClick={() => onNavigate?.("team")} />)}
+          {teamStatus.filter(t => t.isActive !== false && !t.isHidden).slice(0, 12).map(t => <TeamChip key={t.id} member={t} onClick={() => setOpenMember(t)} />)}
         </div>
       </GlassCard>
 
     </div>
+
+    {/* Team member messenger slide-in */}
+    <TeamMemberPanel member={openMember} onClose={() => setOpenMember(null)} currentUser={currentUser} />
   </div>;
 };
 
 // ============================================================
 // FeedRow — one row in the central "Now" feed.
+// Deadline rows compute live countdown each render so the
+// numbers tick down in real time (parent re-renders every 30s).
 // ============================================================
 const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
   const meta = DEPT_META[item.dept] || {};
   const Icon = meta.icon;
   const accent = item.color || "#9CA3AF";
+
+  // Deadline rows: live tick. Other rows: static sub.
+  const subLabel = item.kind === "deadline" ? liveCountdown(item.deadlineDate) : item.sub;
+  const isOverdue = item.kind === "deadline" && subLabel === "OVERDUE";
 
   const handleClick = () => {
     if (item.kind === "deadline" && item.id?.startsWith("ad-") && setIssueDetailId) {
@@ -280,7 +366,7 @@ const FeedRow = ({ item, onNavigate, setIssueDetailId }) => {
     {Icon && <Icon size={14} color={accent} />}
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, lineHeight: 1.35 }}>{item.title}</div>
-      {item.sub && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>{item.sub}</div>}
+      {subLabel && <div style={{ fontSize: FS.xs, color: isOverdue ? "#EF4444" : Z.tm, marginTop: 2, fontWeight: isOverdue ? FW.heavy : FW.normal, fontVariantNumeric: item.kind === "deadline" ? "tabular-nums" : "normal" }}>{subLabel}</div>}
     </div>
     <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, padding: "3px 8px", background: Z.sa, borderRadius: 10 }}>
       {meta.label || item.dept}
@@ -346,33 +432,53 @@ const TeamChip = ({ member, onClick }) => {
 
 // ============================================================
 // DoseWinsStrip — horizontal pill row of today's wins.
-// Pops in (scale + fade) when count changes.
+// Pops (scale + glow) when a pill's text actually changes
+// (e.g., "2 deals closed" → "3 deals closed").
 // ============================================================
-const DoseWinsStrip = ({ wins }) => {
-  if (!wins) return null;
+const DoseWinsStrip = ({ wins, streak }) => {
+  // Track previous pill texts so we can flag the ones that changed
+  // and pop those instead of all of them every render.
+  const prevTextsRef = useRef([]);
+
   const pills = [];
-  if (wins.closedThisMonth?.count > 0) pills.push({ icon: "💰", text: `${wins.closedThisMonth.count} deals closed MTD · ${fmtCurrency(wins.closedThisMonth.total)}`, color: "#10B981" });
-  if (wins.topSeller && wins.topSeller.monthlyTotal > 0) pills.push({ icon: "⭐", text: `${(wins.topSeller.sp.name || "").split(" ")[0]}: ${fmtCurrency(wins.topSeller.monthlyTotal)} MTD`, color: "#F59E0B" });
-  if (wins.teamEdited > 0) pills.push({ icon: "📝", text: `${wins.teamEdited} stories edited this month`, color: "#3B82F6" });
-  if (wins.allDeadlinesMet) pills.push({ icon: "✨", text: "All deadlines met", color: "#10B981" });
+  if (streak > 0) pills.push({ key: "streak", icon: "🔥", text: `${streak}-day streak`, color: "#F97316" });
+  if (wins?.closedThisMonth?.count > 0) pills.push({ key: "closed", icon: "💰", text: `${wins.closedThisMonth.count} deals closed MTD · ${fmtCurrency(wins.closedThisMonth.total)}`, color: "#10B981" });
+  if (wins?.topSeller && wins.topSeller.monthlyTotal > 0) pills.push({ key: "top", icon: "⭐", text: `${(wins.topSeller.sp.name || "").split(" ")[0]}: ${fmtCurrency(wins.topSeller.monthlyTotal)} MTD`, color: "#F59E0B" });
+  if (wins?.teamEdited > 0) pills.push({ key: "edit", icon: "📝", text: `${wins.teamEdited} stories edited this month`, color: "#3B82F6" });
+  if (wins?.allDeadlinesMet) pills.push({ key: "clear", icon: "✨", text: "All deadlines met", color: "#10B981" });
+
+  // Diff: which pill texts changed since last render?
+  const changedKeys = new Set();
+  pills.forEach(p => {
+    const prev = prevTextsRef.current.find(x => x.key === p.key);
+    if (!prev || prev.text !== p.text) changedKeys.add(p.key);
+  });
+  // First render shouldn't pop everything (would feel like spam)
+  const isFirstRender = prevTextsRef.current.length === 0;
+  useEffect(() => {
+    prevTextsRef.current = pills.map(p => ({ key: p.key, text: p.text }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pills.map(p => `${p.key}:${p.text}`).join("|")]);
 
   if (pills.length === 0) return null;
 
   return <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-    {pills.map((p, i) => (
-      <div key={i} style={{
+    {pills.map((p, i) => {
+      const popping = !isFirstRender && changedKeys.has(p.key);
+      return <div key={p.key} style={{
         display: "flex", alignItems: "center", gap: 6,
         padding: "6px 14px",
         background: p.color + "14",
         border: `1px solid ${p.color}40`,
         borderRadius: 20,
-        animation: "calmDrift 4s ease-in-out infinite",
-        animationDelay: `${i * 0.5}s`,
+        animation: popping ? "winPop 0.6s ease-out" : "calmDrift 4s ease-in-out infinite",
+        animationDelay: popping ? "0s" : `${i * 0.5}s`,
+        boxShadow: popping ? `0 0 20px ${p.color}60` : "none",
       }}>
         <span style={{ fontSize: 13 }}>{p.icon}</span>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: p.color }}>{p.text}</span>
-      </div>
-    ))}
+        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: p.color, fontVariantNumeric: "tabular-nums" }}>{p.text}</span>
+      </div>;
+    })}
   </div>;
 };
 
