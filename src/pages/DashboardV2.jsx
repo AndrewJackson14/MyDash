@@ -52,10 +52,11 @@ const DEPT_ROLES = {
   admin: new Set(["Office Manager", "Office Administrator"]),
 };
 
-const membersForDept = (team, dept) => {
+const membersForDept = (team, dept, limit = Infinity) => {
   const roles = DEPT_ROLES[dept];
   if (!roles) return [];
-  return (team || []).filter(t => roles.has(t.role) && t.isActive !== false && !t.isHidden).slice(0, 3);
+  const filtered = (team || []).filter(t => roles.has(t.role) && t.isActive !== false && !t.isHidden);
+  return Number.isFinite(limit) ? filtered.slice(0, limit) : filtered;
 };
 
 // Live countdown label — re-evaluates each render, driven by the
@@ -532,6 +533,8 @@ const DashboardV2 = (props) => {
       color={heatColor(departmentPressure[drilledDept]?.heat || 0)}
       focusItems={focusItems.filter(f => f.dept === drilledDept)}
       deadlineAlerts={deadlineAlerts.filter(d => (d.type === "ed" ? "editorial" : "production") === drilledDept)}
+      team={team}
+      onOpenMember={(m) => { setDrilledDept(null); setOpenMember(m); }}
       onClose={() => setDrilledDept(null)}
       onNavigate={onNavigate}
       setIssueDetailId={setIssueDetailId}
@@ -562,16 +565,16 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
   const Icon = meta.icon;
   const color = heatColor(data.heat);
   const isHot = data.heat >= 75;
-  const deptMembers = membersForDept(team, dept);
+  const deptMembers = membersForDept(team, dept, 3);
   const dark = Z.bg === "#08090D";
 
-  // Urgency-responsive sizing: heat 0 = compact, heat 100 = large.
+  // Urgency-responsive sizing via a single scale transform, anchored
+  // to the tile's CENTER so the card grows outward in both axes
+  // without shifting its position in the grid. Cold heat shrinks to
+  // 0.92, hot heat swells to 1.10 — keeps overflow inside the 36px
+  // inter-tile gap so neighbors never clip.
   const t = Math.min(100, Math.max(0, data.heat)) / 100;
-  const padPx = Math.round(22 + t * 16);           // 22 → 38
-  const countSize = Math.round(36 + t * 24);       // 36 → 60
-  const barHeight = Math.round(5 + t * 5);          // 5  → 10
-  const minHeight = Math.round(160 + t * 60);      // 160 → 220
-  const subSize = Math.round(12 + t * 3);           // 12 → 15
+  const heatScale = 0.92 + t * 0.18; // 0.92 → 1.10
 
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -583,15 +586,16 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
     }, 180);
   };
 
-  // Transform combines hover magnify and click splash. Idle float
-  // lives on the outer wrapper so the two don't fight for `transform`.
-  const innerTransform = pressed
-    ? "scale(1.08)"
-    : hovered
-      ? "translateY(-6px) scale(1.03)"
-      : "translateY(0) scale(1)";
+  // Compose the inner transform: heat scale × interaction scale.
+  // translateY for hover lift so the card rises a few px as it grows.
+  const interactionScale = pressed ? 1.06 : hovered ? 1.04 : 1;
+  const liftPx = hovered && !pressed ? -6 : 0;
+  const innerTransform = `translateY(${liftPx}px) scale(${(heatScale * interactionScale).toFixed(3)})`;
 
   return <div style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     animation: `floatDrift ${8 + idx * 0.7}s ease-in-out infinite`,
     animationDelay: `${idx * 0.6}s`,
     willChange: "transform",
@@ -602,12 +606,14 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
       onMouseOut={() => setHovered(false)}
       style={{
         position: "relative",
+        width: "100%",
         borderTop: `2px solid ${color}`,
         background: `linear-gradient(180deg, ${color}${isHot ? "22" : "14"} 0%, transparent ${isHot ? 70 : 60}%), ${glass().background}`,
-        padding: `${padPx}px ${padPx + 4}px`,
-        minHeight,
+        padding: "26px 30px",
+        minHeight: 180,
         transform: innerTransform,
-        transition: "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, background 0.8s ease, padding 0.6s ease, min-height 0.6s ease",
+        transformOrigin: "center center",
+        transition: "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, background 0.8s ease",
         animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
         boxShadow: hovered
           ? `0 20px 50px ${color}35, 0 0 0 1px ${color}50, inset 0 1px 0 rgba(255,255,255,${dark ? 0.08 : 0.9})`
@@ -631,16 +637,16 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
         {Icon && <Icon size={14} color={color} />}
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
       </div>
-      <div style={{ fontSize: countSize, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -2, lineHeight: 0.95, transition: "font-size 0.6s ease" }}>
+      <div style={{ fontSize: 48, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -2, lineHeight: 0.95 }}>
         {data.count}
       </div>
-      <div style={{ fontSize: subSize, color: Z.tm, marginTop: 8, minHeight: 18, transition: "font-size 0.6s ease" }}>
+      <div style={{ fontSize: 13, color: Z.tm, marginTop: 8, minHeight: 18 }}>
         {dept === "sales" && (data.pctToGoal != null ? `${data.pctToGoal}% to goal` : `${fmtCurrency(data.pipelineValue || 0)} pipeline`)}
         {dept === "editorial" && `${data.stuckStories || 0} stuck · ${data.editDeadlines || 0} deadlines`}
         {dept === "production" && `${data.adDeadlines || 0} ad deadlines · ${data.overdueJobs || 0} overdue`}
         {dept === "admin" && `${data.openTickets || 0} tickets · ${data.overdueInvCount || 0} overdue inv`}
       </div>
-      <div style={{ marginTop: 18, height: barHeight, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: barHeight / 2, overflow: "hidden", transition: "height 0.6s ease" }}>
+      <div style={{ marginTop: 18, height: 7, background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", borderRadius: 4, overflow: "hidden" }}>
         <div style={{
           width: `${data.heat}%`,
           height: "100%",
@@ -828,9 +834,21 @@ const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
   </div>
 );
 
-const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, onClose, onNavigate, setIssueDetailId }) => {
+const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
   const Icon = meta.icon;
+
+  // Team: dept members first, then admin (Cami/office) on every card
+  // except admin itself, so Hayley can look-click-act without hunting.
+  // De-duped by id in case any member is mapped to multiple buckets.
+  const deptMembers = membersForDept(team, dept);
+  const adminMembers = dept === "admin" ? [] : membersForDept(team, "admin");
+  const seen = new Set();
+  const allMembers = [...deptMembers, ...adminMembers].filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
   return <div onClick={onClose} style={{
     position: "fixed", inset: 0,
     zIndex: ZI?.top || 9999,
@@ -901,6 +919,14 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
           <DrillStat label="Overdue invoices" value={pressure.overdueInvCount || 0} />
         </>}
       </div>
+
+      {/* Team — look / click / act. Dept members + admin always visible. */}
+      {allMembers.length > 0 && <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Team</div>
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+          {allMembers.map(m => <DrillMember key={m.id} member={m} onOpen={onOpenMember} />)}
+        </div>
+      </div>}
 
       {/* Items needing attention — card grid (2 columns) */}
       <div>
@@ -1004,6 +1030,37 @@ const DeptAvatarStack = ({ members }) => {
         boxShadow: isRightHand ? `0 0 0 1px ${ACCENT.amber || "#F59E0B"}40` : "none",
       }}>{ini(m.name)}</div>;
     })}
+  </div>;
+};
+
+// DrillMember — small clickable avatar in the drill-in modal's
+// team row. Name + initials only, no extra info. Click opens
+// the TeamMemberPanel for that member.
+const DrillMember = ({ member, onOpen }) => {
+  const firstName = (member.name || "").split(" ")[0] || "";
+  const isRightHand = RIGHT_HAND_FIRST_NAMES.has(firstName);
+  const hue = Math.abs([...(member.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
+  const amber = ACCENT.amber || "#F59E0B";
+  return <div onClick={() => onOpen?.(member)}
+    style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+      cursor: "pointer",
+      transition: "transform 0.15s ease",
+    }}
+    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}>
+    <div style={{
+      width: 46, height: 46, borderRadius: "50%",
+      background: `hsl(${hue}, 40%, 38%)`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 14, fontWeight: FW.black, color: INV.light || "#fff",
+      border: isRightHand ? `2px solid ${amber}` : "none",
+      boxShadow: isRightHand ? `0 0 0 1px ${amber}30, 0 4px 14px ${amber}20` : "0 2px 8px rgba(0,0,0,0.2)",
+    }}>{ini(member.name)}</div>
+    <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, display: "flex", alignItems: "center", gap: 3 }}>
+      {firstName}
+      {isRightHand && <Ic.star size={8} color={amber} />}
+    </div>
   </div>;
 };
 
