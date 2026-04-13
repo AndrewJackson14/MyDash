@@ -131,6 +131,7 @@ const DashboardV2 = (props) => {
     focusItems, deadlineAlerts, doseWins,
     departmentPressure, globalPressure,
     teamStatus, needsDir,
+    _sales, _clients, _issues, _pubs, _stories, _inv, _tickets, _legal, _jobs,
   } = feed;
 
   const [openMember, setOpenMember] = useState(null);
@@ -515,7 +516,27 @@ const DashboardV2 = (props) => {
     </div>
 
     {/* Team member messenger slide-in */}
-    <TeamMemberPanel member={openMember} onClose={() => setOpenMember(null)} currentUser={currentUser} onOpenProfile={props.onOpenMemberProfile} />
+    <TeamMemberPanel
+      member={openMember}
+      onClose={() => setOpenMember(null)}
+      currentUser={currentUser}
+      onOpenProfile={props.onOpenMemberProfile}
+      onNavigate={onNavigate}
+      setIssueDetailId={setIssueDetailId}
+      data={{
+        sales: _sales,
+        clients: _clients,
+        issues: _issues,
+        stories: _stories,
+        invoices: _inv,
+        tickets: _tickets,
+        legalNotices: _legal,
+        creativeJobs: _jobs,
+        proposals: props.proposals || [],
+        salesToGoal: feed.salesToGoal,
+        pubs: _pubs,
+      }}
+    />
 
     {/* Signal thread messenger — opens when a focus item is clicked */}
     <SignalThreadPanel signal={openSignal} onClose={() => setOpenSignal(null)} currentUser={currentUser} onNavigate={onNavigate} setIssueDetailId={setIssueDetailId} />

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ZI } from "../lib/theme";
 import { Btn } from "./ui";
 import { initials as ini } from "../lib/formatters";
 import { supabase, isOnline } from "../lib/supabase";
+import { computeHotIssues } from "../lib/hotIssues";
 
 // ============================================================
 // TeamMemberPanel — slide-in messenger for one team member.
@@ -42,7 +43,7 @@ const fmtDate = (d) => {
   } catch (e) { return d; }
 };
 
-const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
+const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile, data, onNavigate, setIssueDetailId }) => {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState([]);
   const [draft, setDraft] = useState("");
@@ -116,6 +117,18 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
     const m = msg.match(/^\[Task: ([^\]]+)\]\s*(.*)$/s);
     if (m) return { task: m[1], body: m[2] };
     return { task: null, body: msg };
+  };
+
+  // Hot issues for this member — live-computed from the data bundle
+  // passed by the parent dashboard. Memoized on [member, data].
+  const hotCategories = useMemo(() => {
+    if (!member || !data) return [];
+    return computeHotIssues(member, data);
+  }, [member, data]);
+
+  const handleHotIssueClick = (item) => {
+    if (item.issueId && setIssueDetailId) { setIssueDetailId(item.issueId); close(); return; }
+    if (item.page && onNavigate) { onNavigate(item.page); close(); }
   };
 
   if (!member) return null;
@@ -225,6 +238,16 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
           </div>
         </div>
 
+        {/* Hot issues — live, heat-sorted, per-role */}
+        {hotCategories.length > 0 && (
+          <div style={{ borderTop: `1px solid ${Z.bd}`, paddingTop: 14 }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10, fontFamily: COND }}>
+              Hot Issues
+            </div>
+            <HotIssuesList categories={hotCategories} onItemClick={handleHotIssueClick} />
+          </div>
+        )}
+
         {/* Notes history */}
         <div style={{ borderTop: `1px solid ${Z.bd}`, paddingTop: 14 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>
@@ -271,6 +294,101 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
         </div>
       </div>
     </div>
+  </div>;
+};
+
+// ============================================================
+// HotIssuesList — categorized, heat-sorted list of burning items
+// for one team member (or, later, one department). Each category
+// shows its top 5 items with "+ N more" to expand. Rows click
+// through via onItemClick(item). Empty categories are hidden
+// upstream by computeHotIssues.
+// ============================================================
+const HotIssuesList = ({ categories, onItemClick }) => {
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    {categories.map(cat => (
+      <HotCategory key={cat.key} category={cat} onItemClick={onItemClick} />
+    ))}
+  </div>;
+};
+
+const HotCategory = ({ category, onItemClick }) => {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? category.items : category.items.slice(0, 5);
+  const hiddenCount = category.items.length - visible.length;
+
+  return <div>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      marginBottom: 6,
+    }}>
+      <span style={{ fontSize: 13 }}>{category.icon}</span>
+      <span style={{
+        fontSize: FS.micro, fontWeight: FW.heavy,
+        color: category.color, textTransform: "uppercase",
+        letterSpacing: 0.8, fontFamily: COND,
+      }}>{category.title}</span>
+      <span style={{ fontSize: FS.micro, color: Z.td, fontWeight: FW.bold }}>
+        · {category.items.length}
+      </span>
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {visible.map(item => (
+        <HotIssueRow key={item.id} item={item} accent={category.color} onClick={() => onItemClick?.(item)} />
+      ))}
+      {hiddenCount > 0 && (
+        <button onClick={() => setExpanded(true)} style={{
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: FS.micro, fontWeight: FW.bold, color: Z.tm,
+          textAlign: "left", padding: "4px 10px",
+          textDecoration: "underline", textDecorationColor: Z.bd,
+          textUnderlineOffset: 3,
+        }}>+ {hiddenCount} more</button>
+      )}
+    </div>
+  </div>;
+};
+
+const HotIssueRow = ({ item, accent, onClick }) => {
+  const [hover, setHover] = useState(false);
+  // Heat dot color picks from the item's heat level
+  const heatColor = item.heat >= 75 ? "#EF4444"
+    : item.heat >= 50 ? "#F59E0B"
+    : item.heat >= 25 ? "#3B82F6"
+    : "#10B981";
+  return <div
+    onClick={onClick}
+    onMouseEnter={() => setHover(true)}
+    onMouseLeave={() => setHover(false)}
+    style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "8px 12px",
+      background: hover ? Z.sa : Z.bg,
+      border: `1px solid ${hover ? Z.bd : "transparent"}`,
+      borderLeft: `3px solid ${accent}`,
+      borderRadius: Ri,
+      cursor: "pointer",
+      transition: "background 0.12s ease, transform 0.12s ease",
+      transform: hover ? "translateX(2px)" : "translateX(0)",
+    }}>
+    {/* Heat dot */}
+    <div style={{
+      width: 8, height: 8, borderRadius: "50%",
+      background: heatColor,
+      flexShrink: 0,
+      boxShadow: item.heat >= 75 ? `0 0 6px ${heatColor}` : "none",
+    }} />
+    {/* Title + sub */}
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {item.title}
+      </div>
+      {item.sub && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {item.sub}
+      </div>}
+    </div>
+    {/* Chevron */}
+    <span style={{ fontSize: FS.sm, color: hover ? Z.tx : Z.td, fontWeight: FW.heavy, flexShrink: 0 }}>›</span>
   </div>;
 };
 
