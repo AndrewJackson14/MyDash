@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn } from "../components/ui";
+import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn, TabRow, TB } from "../components/ui";
 import { initials as ini } from "../lib/formatters";
 import RoleDashboard from "../components/RoleDashboard";
 import { MODULES, ROLE_DEFAULTS, ALERT_EVENTS, ALERT_OPTIONS, getAlertDefaults } from "./TeamModule";
@@ -214,6 +214,9 @@ const TeamMemberProfile = ({
   tickets, legalNotices, creativeJobs, invoices, setStories,
   updateTeamMember, deleteTeamMember, onNavigate, setIssueDetailId,
 }) => {
+  // Default to Dashboard view — publishers open this page to see the member's
+  // realtime dashboard; Settings is a click away via the top tab.
+  const [tab, setTab] = useState("Dashboard");
   const member = (team || []).find(t => t.id === memberId);
 
   if (!member) {
@@ -248,24 +251,10 @@ const TeamMemberProfile = ({
       </div>
     </GlassCard>
 
-    {/* Settings card — Workload / Settings / Permissions / Alerts all visible */}
-    <GlassCard>
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <WorkloadPanel member={member} clients={clients} sales={sales} stories={stories} tickets={tickets} />
-        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
-        <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} />
-        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
-        <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
-        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
-        <AlertsPanel member={member} updateTeamMember={updateTeamMember} />
-      </div>
-    </GlassCard>
+    {/* View switcher — Dashboard (default) vs Settings */}
+    <TabRow><TB tabs={["Dashboard", "Settings"]} active={tab} onChange={setTab} /></TabRow>
 
-    {/* Faithful render of what the member sees on their own dashboard */}
-    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginTop: 6 }}>
-      {member.name.split(" ")[0]}'s Dashboard
-    </div>
-    <RoleDashboard
+    {tab === "Dashboard" && <RoleDashboard
       role={member.role}
       currentUser={member}
       pubs={pubs}
@@ -283,7 +272,19 @@ const TeamMemberProfile = ({
       creativeJobs={creativeJobs}
       onNavigate={onNavigate}
       setIssueDetailId={setIssueDetailId}
-    />
+    />}
+
+    {tab === "Settings" && <GlassCard>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <WorkloadPanel member={member} clients={clients} sales={sales} stories={stories} tickets={tickets} />
+        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
+        <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} />
+        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
+        <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
+        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
+        <AlertsPanel member={member} updateTeamMember={updateTeamMember} />
+      </div>
+    </GlassCard>}
   </div>;
 };
 
