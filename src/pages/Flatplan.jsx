@@ -189,7 +189,9 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           invoice_id: inv.id,
           sale_id: sale.id,
           description: `${pubName} ${issue.label} — ${sale.size || sale.type || "Ad"}`,
-          amount: sale.amount || 0,
+          quantity: 1,
+          unit_price: sale.amount || 0,
+          total: sale.amount || 0,
         });
         invoicesCreated++;
 

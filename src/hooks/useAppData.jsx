@@ -445,21 +445,28 @@ export function DataProvider({ children, localData }) {
     }
 
     if (allInv.length) {
-      setInvoices(allInv.map(i => ({
-        id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id, subscriberId: i.subscriber_id,
-        status: i.status, billingSchedule: i.billing_schedule,
-        subtotal: Number(i.subtotal), discountPct: Number(i.discount_pct || 0), discountAmount: Number(i.discount_amount || 0),
-        tax: Number(i.tax || i.tax_amount || 0), total: Number(i.total), amountPaid: Number(i.amount_paid || 0), balanceDue: Number(i.balance_due),
-        monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
-        issueDate: i.issue_date, dueDate: i.due_date,
-        notes: i.notes || '', qbInvoiceId: i.qb_invoice_id, createdAt: i.created_at,
-        chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
-        lines: (linesByInv[i.id] || []).map(l => ({
-          id: l.id, description: l.description, productType: l.product_type,
-          saleId: l.sale_id, legalNoticeId: l.legal_notice_id,
-          quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
-        })),
-      })));
+      setInvoices(allInv.map(i => {
+        const total = Number(i.total);
+        const balance = Number(i.balance_due);
+        return {
+          id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id,
+          status: i.status, billingSchedule: i.billing_schedule,
+          subtotal: Number(i.subtotal),
+          taxRate: Number(i.tax_rate || 0), taxAmount: Number(i.tax_amount || 0),
+          total, balanceDue: balance,
+          // Computed — invoices table has no amount_paid column; derive from total - balance_due
+          amountPaid: total - balance,
+          monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
+          issueDate: i.issue_date, dueDate: i.due_date,
+          notes: i.notes || '', createdAt: i.created_at,
+          chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+          lines: (linesByInv[i.id] || []).map(l => ({
+            id: l.id, description: l.description,
+            saleId: l.sale_id, publicationId: l.publication_id, issueId: l.issue_id,
+            quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
+          })),
+        };
+      }));
     }
     if (payRes.data) setPayments(payRes.data.map(p => ({
       id: p.id, invoiceId: p.invoice_id, amount: Number(p.amount), method: p.method,
@@ -1051,21 +1058,26 @@ export function DataProvider({ children, localData }) {
             if (!linesByInv[l.invoice_id]) linesByInv[l.invoice_id] = [];
             linesByInv[l.invoice_id].push(l);
           });
-          const mapped = (newInvoices || []).map(i => ({
-            id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id, subscriberId: i.subscriber_id,
-            status: i.status, billingSchedule: i.billing_schedule,
-            subtotal: Number(i.subtotal), discountPct: Number(i.discount_pct || 0), discountAmount: Number(i.discount_amount || 0),
-            tax: Number(i.tax || i.tax_amount || 0), total: Number(i.total), amountPaid: Number(i.amount_paid || 0), balanceDue: Number(i.balance_due),
-            monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
-            issueDate: i.issue_date, dueDate: i.due_date,
-            notes: i.notes || '', qbInvoiceId: i.qb_invoice_id, createdAt: i.created_at,
-            chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
-            lines: (linesByInv[i.id] || []).map(l => ({
-              id: l.id, description: l.description, productType: l.product_type,
-              saleId: l.sale_id, legalNoticeId: l.legal_notice_id,
-              quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
-            })),
-          }));
+          const mapped = (newInvoices || []).map(i => {
+            const total = Number(i.total);
+            const balance = Number(i.balance_due);
+            return {
+              id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id,
+              status: i.status, billingSchedule: i.billing_schedule,
+              subtotal: Number(i.subtotal),
+              taxRate: Number(i.tax_rate || 0), taxAmount: Number(i.tax_amount || 0),
+              total, balanceDue: balance, amountPaid: total - balance,
+              monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
+              issueDate: i.issue_date, dueDate: i.due_date,
+              notes: i.notes || '', createdAt: i.created_at,
+              chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+              lines: (linesByInv[i.id] || []).map(l => ({
+                id: l.id, description: l.description,
+                saleId: l.sale_id, publicationId: l.publication_id, issueId: l.issue_id,
+                quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
+              })),
+            };
+          });
           setInvoices(prev => {
             const byId = new Map(prev.map(x => [x.id, x]));
             mapped.forEach(m => byId.set(m.id, m));
@@ -1115,22 +1127,25 @@ export function DataProvider({ children, localData }) {
   // ─── Invoices ───────────────────────────────────────────
   const insertInvoice = useCallback(async (inv) => {
     if (isOnline()) {
-      const { data } = await supabase.from('invoices').insert({
-        invoice_number: inv.invoiceNumber, client_id: inv.clientId, subscriber_id: inv.subscriberId || null,
+      const { data, error } = await supabase.from('invoices').insert({
+        invoice_number: inv.invoiceNumber, client_id: inv.clientId,
         status: inv.status || 'draft', billing_schedule: inv.billingSchedule || 'lump_sum',
-        subtotal: inv.subtotal, discount_pct: inv.discountPct || 0, discount_amount: inv.discountAmount || 0,
-        tax: inv.tax || 0, total: inv.total, amount_paid: inv.amountPaid || 0, balance_due: inv.balanceDue || inv.total,
+        subtotal: inv.subtotal,
+        tax_rate: inv.taxRate || 0, tax_amount: inv.taxAmount || inv.tax || 0,
+        total: inv.total, balance_due: inv.balanceDue ?? inv.total,
         monthly_amount: inv.monthlyAmount || 0, plan_months: inv.planMonths || 0,
         issue_date: inv.issueDate, due_date: inv.dueDate, notes: inv.notes || '',
       }).select().single();
+      if (error) { console.error('insertInvoice failed:', error); return { ...inv, id: inv.id || 'inv-' + Date.now() }; }
       if (data && inv.lines?.length) {
         await supabase.from('invoice_lines').insert(inv.lines.map((l, i) => ({
-          invoice_id: data.id, description: l.description, product_type: l.productType || null,
-          sale_id: l.saleId || null, legal_notice_id: l.legalNoticeId || null,
+          invoice_id: data.id, description: l.description,
+          sale_id: l.saleId || null,
+          publication_id: l.publicationId || null, issue_id: l.issueId || null,
           quantity: l.quantity || 1, unit_price: l.unitPrice, total: l.total, sort_order: i,
         })));
-        return { ...inv, id: data.id };
       }
+      return { ...inv, id: data.id };
     }
     return { ...inv, id: inv.id || 'inv-' + Date.now() };
   }, []);
@@ -1140,8 +1155,9 @@ export function DataProvider({ children, localData }) {
     if (isOnline()) {
       const db = {};
       if (changes.status !== undefined) db.status = changes.status;
-      if (changes.amountPaid !== undefined) db.amount_paid = changes.amountPaid;
       if (changes.balanceDue !== undefined) db.balance_due = changes.balanceDue;
+      if (changes.dueDate !== undefined) db.due_date = changes.dueDate;
+      if (changes.notes !== undefined) db.notes = changes.notes;
       if (Object.keys(db).length) await supabase.from('invoices').update(db).eq('id', id);
     }
   }, []);

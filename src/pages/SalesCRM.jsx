@@ -574,7 +574,7 @@ const SalesCRM = (props) => {
         const mapped = {
           id: firstInvRow.id, invoiceNumber: firstInvRow.invoice_number, clientId: firstInvRow.client_id,
           status: firstInvRow.status, subtotal: Number(firstInvRow.subtotal), total: Number(firstInvRow.total),
-          amountPaid: Number(firstInvRow.amount_paid || 0), balanceDue: Number(firstInvRow.balance_due),
+          amountPaid: Number(firstInvRow.total) - Number(firstInvRow.balance_due), balanceDue: Number(firstInvRow.balance_due),
           issueDate: firstInvRow.issue_date, dueDate: firstInvRow.due_date, notes: firstInvRow.notes || "",
           lines: (lineRows || []).map(l => ({ id: l.id, description: l.description, quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total) })),
         };
