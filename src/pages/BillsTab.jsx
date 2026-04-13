@@ -1,7 +1,7 @@
 // ============================================================
 // BillsTab.jsx — Vendor bills / expense entry + QuickBooks push
 // ============================================================
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, Badge, GlassCard, PageHeader, DataTable, SB, Toggle } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
@@ -153,10 +153,14 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
   const [editBill, setEditBill] = useState(null);
   const [syncingId, setSyncingId] = useState(null);
 
+  // Local mirror of bills to guarantee instant UI updates
+  const [localBills, setLocalBills] = useState(bills);
+  useEffect(() => { setLocalBills(bills); }, [bills]);
+
   const pubName = (id) => pubs.find(p => p.id === id)?.name || (id ? id : "Overhead");
 
   const filtered = useMemo(() => {
-    return bills.filter(b => {
+    return localBills.filter(b => {
       if (statusFilter !== "all" && b.status !== statusFilter) return false;
       if (categoryFilter !== "all" && b.category !== categoryFilter) return false;
       if (pubFilter !== "all" && (pubFilter === "overhead" ? b.publicationId : b.publicationId !== pubFilter)) return false;
@@ -166,30 +170,42 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
       }
       return true;
     });
-  }, [bills, statusFilter, categoryFilter, pubFilter, search]);
+  }, [localBills, statusFilter, categoryFilter, pubFilter, search]);
 
   // Metrics
   const metrics = useMemo(() => {
     const thisMonth = today().slice(0, 7);
-    const monthBills = bills.filter(b => (b.billDate || "").startsWith(thisMonth));
+    const monthBills = localBills.filter(b => (b.billDate || "").startsWith(thisMonth));
     const totalMonth = monthBills.reduce((s, b) => s + (b.amount || 0), 0);
-    const pending = bills.filter(b => b.status === "pending").reduce((s, b) => s + (b.amount || 0), 0);
+    const pending = localBills.filter(b => b.status === "pending").reduce((s, b) => s + (b.amount || 0), 0);
     const paid = monthBills.filter(b => b.status === "paid").reduce((s, b) => s + (b.amount || 0), 0);
-    const overdue = bills.filter(b => b.dueDate && b.dueDate < today() && b.status !== "paid" && b.status !== "void");
+    const overdue = localBills.filter(b => b.dueDate && b.dueDate < today() && b.status !== "paid" && b.status !== "void");
     const overdueTotal = overdue.reduce((s, b) => s + (b.amount || 0), 0);
     return { totalMonth, pending, paid, overdueCount: overdue.length, overdueTotal };
-  }, [bills]);
+  }, [localBills]);
 
   const openNew = () => { setEditBill(null); setModalOpen(true); };
   const openEdit = (b) => { setEditBill(b); setModalOpen(true); };
 
   const handleSave = async (id, form) => {
-    if (id) await updateBill(id, form);
-    else await insertBill(form);
+    if (id) {
+      await updateBill(id, form);
+      setLocalBills(prev => prev.map(b => b.id === id ? { ...b, ...form } : b));
+    } else {
+      const created = await insertBill(form);
+      if (created) setLocalBills(prev => [created, ...prev]);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    await deleteBill(id);
+    setLocalBills(prev => prev.filter(b => b.id !== id));
   };
 
   const markPaid = async (bill) => {
-    await updateBill(bill.id, { status: "paid", paidAt: new Date().toISOString() });
+    const changes = { status: "paid", paidAt: new Date().toISOString() };
+    await updateBill(bill.id, changes);
+    setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, ...changes } : b));
   };
 
   // Surface the actual error from a Supabase function invoke
@@ -291,15 +307,18 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
       const qbId = billRes.data?.Bill?.Id;
       if (!qbId) throw new Error("Bill created but no ID returned: " + JSON.stringify(billRes.data));
 
-      await updateBill(bill.id, {
+      const syncChanges = {
         quickbooksId: qbId,
         quickbooksSyncedAt: new Date().toISOString(),
         quickbooksSyncError: null,
-      });
+      };
+      await updateBill(bill.id, syncChanges);
+      setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, ...syncChanges } : b));
       alert("Pushed to QuickBooks ✓");
     } catch (e) {
       const msg = e.message || String(e);
       await updateBill(bill.id, { quickbooksSyncError: msg });
+      setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, quickbooksSyncError: msg } : b));
       alert("QuickBooks push failed:\n\n" + msg);
     }
     setSyncingId(null);
@@ -419,7 +438,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           bill={editBill}
           pubs={pubs}
           onSave={handleSave}
-          onDelete={deleteBill}
+          onDelete={handleDelete}
         />
       )}
     </div>
