@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
 import { Ic, Btn, GlassCard, Modal, glass } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
@@ -140,46 +140,123 @@ const DashboardV2 = (props) => {
   const [winQueue, setWinQueue] = useState([]);
   const [currentWin, setCurrentWin] = useState(null);
 
-  // ── Win pop event subscriptions ──────────────────────────
-  // Listens to the cross-module bus for real-time wins emitted by
-  // SalesCRM, Billing, Editorial, etc. Pushes them onto a queue so
-  // the publisher gets a centered DOSE pop the moment something
-  // closes — no dashboard refresh required.
+  // ── Win pop: in-process bus + cross-tab Supabase realtime ──
+  // Two paths feed into the same queue via a shared fireWin helper
+  // that dedupes by event id, so a sale closed by Hayley in one tab
+  // and a sale closed by Cami from her laptop both show up here —
+  // and neither shows up twice.
   const bus = useEventBus();
+  const seenEventIdsRef = useRef(new Set());
+  const fireWin = useCallback((id, win) => {
+    if (!id || seenEventIdsRef.current.has(id)) return;
+    seenEventIdsRef.current.add(id);
+    // Trim the set if it gets huge (>500 entries) to avoid a leak
+    if (seenEventIdsRef.current.size > 500) {
+      const keep = Array.from(seenEventIdsRef.current).slice(-300);
+      seenEventIdsRef.current = new Set(keep);
+    }
+    setWinQueue(q => [...q, win]);
+  }, []);
+
+  // Path 1: in-process event bus (actions taken in this tab)
   useEffect(() => {
     const unsubs = [];
-    unsubs.push(bus.on("sale.closed", (p) => setWinQueue(q => [...q, {
+    unsubs.push(bus.on("sale.closed", (p) => fireWin(`sale-${p.saleId}`, {
       kind: "sale", emoji: "💰", title: "Deal closed",
       body: `${p.clientName || "Client"} · ${fmtCurrency(p.amount || 0)}${p.publication ? ` for ${p.publication}` : ""}`,
-    }])));
-    unsubs.push(bus.on("proposal.signed", (p) => setWinQueue(q => [...q, {
+    })));
+    unsubs.push(bus.on("proposal.signed", (p) => fireWin(`proposal-${p.proposalId}`, {
       kind: "proposal", emoji: "✍️", title: "Proposal signed",
       body: `${p.clientName || "Client"} · ${fmtCurrency(p.totalAmount || 0)}${p.lineCount ? ` · ${p.lineCount} items` : ""}`,
-    }])));
+    })));
     unsubs.push(bus.on("payment.received", (p) => {
       const cl = (clients || []).find(c => c.id === p.clientId);
-      setWinQueue(q => [...q, {
+      fireWin(`pay-${p.paymentId}`, {
         kind: "payment", emoji: "💵", title: "Payment received",
         body: `${fmtCurrency(p.amount || 0)}${cl ? ` from ${cl.name}` : ""}`,
-      }]);
+      });
     }));
-    unsubs.push(bus.on("legal.published", (p) => setWinQueue(q => [...q, {
+    unsubs.push(bus.on("legal.published", (p) => fireWin(`legal-${p.noticeId}`, {
       kind: "legal", emoji: "⚖️", title: "Legal notice published",
       body: `${p.contactName || ""} · ${fmtCurrency(p.totalAmount || 0)}`,
-    }])));
-    unsubs.push(bus.on("job.complete", (p) => setWinQueue(q => [...q, {
+    })));
+    unsubs.push(bus.on("job.complete", (p) => fireWin(`job-${p.jobId}`, {
       kind: "job", emoji: "🎨", title: "Creative job complete",
       body: `${p.clientName || "Client"} · ${p.title || ""}`,
-    }])));
+    })));
     unsubs.push(bus.on("story.status", (p) => {
-      if (p.newStatus === "Sent to Web") setWinQueue(q => [...q, {
+      if (p.newStatus === "Sent to Web") fireWin(`story-${p.storyId}`, {
         kind: "story", emoji: "📰", title: "Story published",
         body: `"${p.title}" is live`,
-      }]);
+      });
     }));
     return () => unsubs.forEach(u => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients]);
+  }, [clients, fireWin]);
+
+  // Path 2: Supabase realtime — cross-tab / cross-user wins.
+  // Watches the underlying tables directly so a deal closed by
+  // anyone on the team pops on this dashboard within a second.
+  useEffect(() => {
+    if (!isOnline()) return;
+    const channel = supabase.channel("dashboard-v2-realtime");
+
+    channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "sales" }, (payload) => {
+      const row = payload.new;
+      if (!row || row.status !== "Closed") return;
+      const client = (clients || []).find(c => c.id === row.client_id);
+      const pub = (pubs || []).find(p => p.id === row.publication_id);
+      fireWin(`sale-${row.id}`, {
+        kind: "sale", emoji: "💰", title: "Deal closed",
+        body: `${client?.name || "Client"} · ${fmtCurrency(Number(row.amount) || 0)}${pub ? ` for ${pub.name}` : ""}`,
+      });
+    });
+    channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "sales" }, (payload) => {
+      const row = payload.new;
+      if (!row || row.status !== "Closed") return;
+      const client = (clients || []).find(c => c.id === row.client_id);
+      const pub = (pubs || []).find(p => p.id === row.publication_id);
+      fireWin(`sale-${row.id}`, {
+        kind: "sale", emoji: "💰", title: "Deal closed",
+        body: `${client?.name || "Client"} · ${fmtCurrency(Number(row.amount) || 0)}${pub ? ` for ${pub.name}` : ""}`,
+      });
+    });
+    channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "payments" }, (payload) => {
+      const row = payload.new;
+      if (!row) return;
+      const inv = (invoices || []).find(i => i.id === row.invoice_id);
+      const client = inv ? (clients || []).find(c => c.id === inv.clientId) : null;
+      fireWin(`pay-${row.id}`, {
+        kind: "payment", emoji: "💵", title: "Payment received",
+        body: `${fmtCurrency(Number(row.amount) || 0)}${client ? ` from ${client.name}` : ""}`,
+      });
+    });
+    channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "stories" }, (payload) => {
+      const row = payload.new;
+      if (!row || row.status !== "Sent to Web") return;
+      fireWin(`story-${row.id}`, {
+        kind: "story", emoji: "📰", title: "Story published",
+        body: `"${row.title}" is live`,
+      });
+    });
+
+    // Right-hand team notes: prepend live when Cami or Camille writes
+    channel.on("postgres_changes", { event: "INSERT", schema: "public", table: "team_notes" }, (payload) => {
+      const row = payload.new;
+      if (!row) return;
+      const rightHands = (team || []).filter(t => RIGHT_HAND_FIRST_NAMES.has((t.name || "").split(" ")[0]) && t.authId);
+      const sender = rightHands.find(t => t.authId === row.from_user);
+      if (!sender) return;
+      const enriched = { ...row, senderName: sender.name, senderObj: sender };
+      setRightHandNotes(prev => {
+        if (prev.find(n => n.id === row.id)) return prev;
+        return [enriched, ...prev].slice(0, 10);
+      });
+    });
+
+    channel.subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [clients, pubs, invoices, team, fireWin]);
 
   // Process win queue: show one at a time, auto-dismiss after 3.5s
   useEffect(() => {
