@@ -2,7 +2,7 @@
 // Shared UI Primitives — MyDash Editorial Monochrome
 // R = 5px card radius, Ri = 3px internal radius, SP = spacing
 // ============================================================
-import { Component } from "react";
+import { Component, useState, useRef, useLayoutEffect } from "react";
 import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, isDark as _isDark } from "../../lib/theme";
 import Ic from "./Icons";
 
@@ -75,7 +75,72 @@ export const Card = ({ children, style }) => <div style={{ background: Z.sf, bor
 
 export const SB = ({ value, onChange, placeholder }) => <div style={{ position: "relative", flex: 1, maxWidth: 280 }}><div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: Z.td }}><Ic.search size={15} /></div><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || "Search..."} style={{ width: "100%", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "9px 14px 9px 34px", color: Z.tx, fontSize: FS.base, outline: "none", boxSizing: "border-box" }} /></div>;
 
-export const TB = ({ tabs, active, onChange }) => <div style={{ display: "flex", gap: 16 }}>{tabs.map(t => <button key={t} onClick={() => onChange(t)} style={{ padding: "0 0 4px", borderRadius: 0, border: "none", borderBottom: active === t ? `2px solid ${Z.tx}` : "2px solid transparent", cursor: "pointer", fontSize: FS.base, fontWeight: active === t ? 700 : 600, fontFamily: COND, background: "transparent", color: active === t ? Z.tx : Z.td }}>{t}</button>)}</div>;
+// Pill-style tab group with a sliding active indicator. The indicator is an
+// absolutely-positioned div whose left/width are measured from the active
+// button's bounding rect on every render — transitions animate the slide.
+export const TB = ({ tabs, active, onChange }) => {
+  const containerRef = useRef(null);
+  const btnRefs = useRef({});
+  const [rect, setRect] = useState({ left: 0, width: 0, ready: false });
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const btn = btnRefs.current[active];
+    if (!container || !btn) { setRect(r => ({ ...r, ready: false })); return; }
+    const cRect = container.getBoundingClientRect();
+    const bRect = btn.getBoundingClientRect();
+    setRect({ left: bRect.left - cRect.left, width: bRect.width, ready: true });
+  }, [active, tabs.join("|")]);
+
+  return <div ref={containerRef} style={{
+    position: "relative",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 2,
+    padding: 4,
+    borderRadius: 999,
+    background: Z.sa,
+    border: `1px solid ${Z.bd}`,
+  }}>
+    {/* Sliding active indicator */}
+    <div style={{
+      position: "absolute",
+      top: 4,
+      bottom: 4,
+      left: rect.left,
+      width: rect.width,
+      background: Z.tx,
+      borderRadius: 999,
+      transition: rect.ready ? "left 0.25s cubic-bezier(0.4,0,0.2,1), width 0.25s cubic-bezier(0.4,0,0.2,1)" : "none",
+      opacity: rect.ready ? 1 : 0,
+      pointerEvents: "none",
+      zIndex: 0,
+    }} />
+    {tabs.map(t => {
+      const isActive = active === t;
+      return <button
+        key={t}
+        ref={el => { btnRefs.current[t] = el; }}
+        onClick={() => onChange(t)}
+        style={{
+          position: "relative",
+          zIndex: 1,
+          padding: "6px 14px",
+          borderRadius: 999,
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          fontSize: FS.base,
+          fontWeight: isActive ? 700 : 600,
+          fontFamily: COND,
+          color: isActive ? Z.bg : Z.td,
+          transition: "color 0.25s",
+          whiteSpace: "nowrap",
+        }}
+      >{t}</button>;
+    })}
+  </div>;
+};
 
 export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ ...labelStyle, marginBottom: 8 }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
 
