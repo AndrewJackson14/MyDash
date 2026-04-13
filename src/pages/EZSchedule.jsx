@@ -28,7 +28,7 @@ function generateIssues(pub, pattern) {
       issues.push(makeIssue(pub, cursor, adCloseDays, edCloseDays));
       cursor.setDate(cursor.getDate() + 14);
     }
-  } else if (frequency === "Bi-Monthly") {
+  } else if (frequency === "Semi-Monthly") {
     let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
     while (cursor <= end) {
       for (const dom of (datesOfMonth || [1, 15])) {
@@ -38,6 +38,16 @@ function generateIssues(pub, pattern) {
         }
       }
       cursor.setMonth(cursor.getMonth() + 1);
+    }
+  } else if (frequency === "Bi-Monthly") {
+    let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const dom = (datesOfMonth && datesOfMonth[0]) || 1;
+    while (cursor <= end) {
+      const d = new Date(cursor.getFullYear(), cursor.getMonth(), dom);
+      if (d >= start && d <= end) {
+        issues.push(makeIssue(pub, d, adCloseDays, edCloseDays));
+      }
+      cursor.setMonth(cursor.getMonth() + 2);
     }
   } else if (frequency === "Monthly") {
     let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
@@ -131,11 +141,9 @@ function makeIssue(pub, date, adCloseDays, edCloseDays) {
   const pubDate = d.toISOString().slice(0, 10);
 
   let label;
-  if (pub.frequency === "Weekly" || pub.frequency === "Bi-Weekly" || pub.frequency.startsWith("Custom")) {
+  if (pub.frequency === "Weekly" || pub.frequency === "Bi-Weekly" || pub.frequency === "Semi-Monthly" || pub.frequency.startsWith("Custom")) {
     label = `${mo} ${day}, ${yr}`;
-  } else if (pub.frequency === "Bi-Monthly") {
-    label = `${mo} ${day}, ${yr}`;
-  } else if (pub.frequency === "Monthly") {
+  } else if (pub.frequency === "Bi-Monthly" || pub.frequency === "Monthly") {
     label = `${mo} ${yr}`;
   } else if (pub.frequency === "Quarterly") {
     const q = Math.ceil((d.getMonth() + 1) / 3);
@@ -224,7 +232,7 @@ const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => 
   // Step 1 → 2: generate preview
   const generatePreview = () => {
     let dom = [datesOfMonth[0] || 1];
-    if (frequency === "Bi-Monthly") dom = [datesOfMonth[0] || 1, dateOfMonth2];
+    if (frequency === "Semi-Monthly") dom = [datesOfMonth[0] || 1, dateOfMonth2];
     if (frequency === "Annual") dom = [datesOfMonth[0] || 1, annualMonth];
     const pattern = { frequency, dayOfWeek, daysOfWeek, nthWeekdays, datesOfMonth: dom, adCloseDays, edCloseDays, startDate, endDate };
     const generated = generateIssues({ ...currentPub, frequency }, pattern);
@@ -330,19 +338,19 @@ const EZSchedule = ({ pubs, issues, setIssues, insertIssuesBatch, onClose }) => 
         {/* Left: frequency + press day */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Sel label="Frequency" value={frequency} onChange={e => setFrequency(e.target.value)}
-            options={["Weekly", "Bi-Weekly", "Bi-Monthly", "Monthly", "Quarterly", "Semi-Annual", "Annual", "Custom (Multi-Day Weekly)", "Custom (Nth Weekday)"].map(f => ({ value: f, label: f }))} />
+            options={["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual", "Custom (Multi-Day Weekly)", "Custom (Nth Weekday)"].map(f => ({ value: f, label: f }))} />
 
           {(frequency === "Weekly" || frequency === "Bi-Weekly") &&
             <Sel label="Press Day" value={dayOfWeek} onChange={e => setDayOfWeek(+e.target.value)}
               options={DAYS.map((d, i) => ({ value: i, label: d }))} />
           }
 
-          {frequency === "Bi-Monthly" && <div style={{ display: "flex", gap: 8 }}>
+          {frequency === "Semi-Monthly" && <div style={{ display: "flex", gap: 8 }}>
             <Inp label="1st Issue Day" type="number" value={datesOfMonth[0] || 1} onChange={e => setDatesOfMonth([+e.target.value])} />
             <Inp label="2nd Issue Day" type="number" value={dateOfMonth2} onChange={e => setDateOfMonth2(+e.target.value)} />
           </div>}
 
-          {(frequency === "Monthly" || frequency === "Quarterly" || frequency === "Semi-Annual") &&
+          {(frequency === "Monthly" || frequency === "Bi-Monthly" || frequency === "Quarterly" || frequency === "Semi-Annual") &&
             <Inp label="Day of Month" type="number" value={datesOfMonth[0] || 1} onChange={e => setDatesOfMonth([+e.target.value])} />
           }
 

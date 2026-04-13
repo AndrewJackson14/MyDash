@@ -60,7 +60,7 @@ export const INIT_PUBS = [
   { id: "pub-prp", name: "The Paso Robles Press", color: "#4A5066", type: "Newspaper", pageCount: 24, width: 11.125, height: 20.75, frequency: "Weekly", circ: 2085, adSizes: AD_SIZES_NEWSPAPER_BS },
   { id: "pub-atn", name: "The Atascadero News", color: "#6B7280", type: "Newspaper", pageCount: 24, width: 11.125, height: 20.75, frequency: "Weekly", circ: 2415, adSizes: AD_SIZES_NEWSPAPER_BS },
   { id: "pub-mbl", name: "Morro Bay Life", color: "#8A95A8", type: "Magazine", pageCount: 32, width: 10.375, height: 15.875, frequency: "Monthly", circ: 8500, adSizes: AD_SIZES_MBL },
-  { id: "pub-syv", name: "Santa Ynez Valley Star", color: "#9CA3AF", type: "Newspaper", pageCount: 24, width: 10.375, height: 15.875, frequency: "Bi-Monthly", circ: 8500, adSizes: AD_SIZES_SYV },
+  { id: "pub-syv", name: "Santa Ynez Valley Star", color: "#9CA3AF", type: "Newspaper", pageCount: 24, width: 10.375, height: 15.875, frequency: "Semi-Monthly", circ: 8500, adSizes: AD_SIZES_SYV },
   { id: "pub-mt", name: "The Malibu Times", color: "#B0B8C4", type: "Newspaper", pageCount: 16, width: 12.5, height: 20.5, frequency: "Weekly", circ: 8500, adSizes: AD_SIZES_MALIBU },
 ];
 
@@ -126,7 +126,8 @@ export function generateIssues(pub, startDate, months) {
     let label;
     if (freq === "Weekly") { label = `${mo} ${d.getDate()}, ${yr}`; }
     else if (freq === "Bi-Weekly") { const half = d.getDate() <= 15 ? "A" : "B"; label = `${mo} ${half}, ${yr}`; }
-    else if (freq === "Bi-Monthly") { const half = d.getDate() <= 15 ? "A" : "B"; label = `${mo} ${half}, ${yr}`; }
+    else if (freq === "Semi-Monthly") { const half = d.getDate() <= 15 ? "A" : "B"; label = `${mo} ${half}, ${yr}`; }
+    else if (freq === "Bi-Monthly") { label = `${mo} ${yr}`; }
     else if (freq === "Monthly") { label = `${mo} ${yr}`; }
     else if (freq === "Quarterly") { const q = Math.ceil((d.getMonth() + 1) / 3); label = `Q${q} ${yr}`; }
     else if (freq === "Semi-Annual") { const h = d.getMonth() < 6 ? "H1" : "H2"; label = `${h} ${yr}`; }

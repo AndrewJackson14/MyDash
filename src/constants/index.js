@@ -28,7 +28,7 @@ export const THRESHOLDS = {
   subExpiringDays: 30,         // Days ahead to flag expiring subscriptions
 };
 
-export const FREQ_MAP = { Weekly:7, "Bi-Weekly":14, "Bi-Monthly":15.2, Monthly:DAYS_PER_MONTH, Quarterly:91.3, "Semi-Annual":182.6, Annual:365 };
+export const FREQ_MAP = { Weekly:7, "Bi-Weekly":14, "Semi-Monthly":15.2, Monthly:DAYS_PER_MONTH, "Bi-Monthly":60.8, Quarterly:91.3, "Semi-Annual":182.6, Annual:365 };
 
 export const COMPANY = { name: "13 Stars Media", tagline: "Making Communities Better Through Print.™", phone: "(805) 466-2585", sales: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 423-6740" } };
 

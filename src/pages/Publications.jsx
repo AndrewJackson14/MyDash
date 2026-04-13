@@ -3,7 +3,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import EZSchedule from "./EZSchedule";
 
-const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Bi-Monthly", "Monthly", "Quarterly", "Semi-Annual", "Annual"];
+const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
 const TYPE_OPTIONS = ["Magazine", "Newspaper", "Special Publication"];
 
 const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales }) => {
