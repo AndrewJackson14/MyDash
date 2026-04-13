@@ -6,6 +6,7 @@ import { useSignalFeed } from "../hooks/useSignalFeed";
 import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import { supabase, isOnline } from "../lib/supabase";
+import { useEventBus } from "../hooks/useEventBus";
 
 // ============================================================
 // DashboardV2 — Publisher signal-first command center.
@@ -137,6 +138,61 @@ const DashboardV2 = (props) => {
   const [drilledDept, setDrilledDept] = useState(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [rightHandNotes, setRightHandNotes] = useState([]);
+  const [winQueue, setWinQueue] = useState([]);
+  const [currentWin, setCurrentWin] = useState(null);
+
+  // ── Win pop event subscriptions ──────────────────────────
+  // Listens to the cross-module bus for real-time wins emitted by
+  // SalesCRM, Billing, Editorial, etc. Pushes them onto a queue so
+  // the publisher gets a centered DOSE pop the moment something
+  // closes — no dashboard refresh required.
+  const bus = useEventBus();
+  useEffect(() => {
+    const unsubs = [];
+    unsubs.push(bus.on("sale.closed", (p) => setWinQueue(q => [...q, {
+      kind: "sale", emoji: "💰", title: "Deal closed",
+      body: `${p.clientName || "Client"} · ${fmtCurrency(p.amount || 0)}${p.publication ? ` for ${p.publication}` : ""}`,
+    }])));
+    unsubs.push(bus.on("proposal.signed", (p) => setWinQueue(q => [...q, {
+      kind: "proposal", emoji: "✍️", title: "Proposal signed",
+      body: `${p.clientName || "Client"} · ${fmtCurrency(p.totalAmount || 0)}${p.lineCount ? ` · ${p.lineCount} items` : ""}`,
+    }])));
+    unsubs.push(bus.on("payment.received", (p) => {
+      const cl = (clients || []).find(c => c.id === p.clientId);
+      setWinQueue(q => [...q, {
+        kind: "payment", emoji: "💵", title: "Payment received",
+        body: `${fmtCurrency(p.amount || 0)}${cl ? ` from ${cl.name}` : ""}`,
+      }]);
+    }));
+    unsubs.push(bus.on("legal.published", (p) => setWinQueue(q => [...q, {
+      kind: "legal", emoji: "⚖️", title: "Legal notice published",
+      body: `${p.contactName || ""} · ${fmtCurrency(p.totalAmount || 0)}`,
+    }])));
+    unsubs.push(bus.on("job.complete", (p) => setWinQueue(q => [...q, {
+      kind: "job", emoji: "🎨", title: "Creative job complete",
+      body: `${p.clientName || "Client"} · ${p.title || ""}`,
+    }])));
+    unsubs.push(bus.on("story.status", (p) => {
+      if (p.newStatus === "Sent to Web") setWinQueue(q => [...q, {
+        kind: "story", emoji: "📰", title: "Story published",
+        body: `"${p.title}" is live`,
+      }]);
+    }));
+    return () => unsubs.forEach(u => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients]);
+
+  // Process win queue: show one at a time, auto-dismiss after 3.5s
+  useEffect(() => {
+    if (currentWin || winQueue.length === 0) return;
+    setCurrentWin(winQueue[0]);
+    setWinQueue(q => q.slice(1));
+  }, [currentWin, winQueue]);
+  useEffect(() => {
+    if (!currentWin) return;
+    const t = setTimeout(() => setCurrentWin(null), 3500);
+    return () => clearTimeout(t);
+  }, [currentWin]);
 
   // Live tick — updates every 30s so countdown labels stay fresh.
   const [, setTick] = useState(0);
@@ -259,6 +315,20 @@ const DashboardV2 = (props) => {
         45% { transform: scale(1.02); }
         60% { transform: scale(1); }
         100% { transform: scale(1); }
+      }
+      @keyframes bigWinPop {
+        0% { transform: scale(0.5) translateY(20px); opacity: 0; }
+        50% { transform: scale(1.08) translateY(0); opacity: 1; }
+        70% { transform: scale(0.97); }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes bigWinFadeOut {
+        0% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; transform: scale(1.05) translateY(-30px); }
+      }
+      @keyframes winRing {
+        0% { transform: scale(0.6); opacity: 0.9; }
+        100% { transform: scale(2.2); opacity: 0; }
       }
     `}</style>
 
@@ -448,6 +518,9 @@ const DashboardV2 = (props) => {
       onNavigate={onNavigate}
       setIssueDetailId={setIssueDetailId}
     />}
+
+    {/* Win pop overlay — fires on cross-module bus events */}
+    {currentWin && <WinPopOverlay win={currentWin} onDismiss={() => setCurrentWin(null)} />}
 
     {/* Morning briefing modal */}
     <Modal open={briefingOpen} onClose={() => setBriefingOpen(false)} title="Morning Briefing" width={820}>
@@ -671,6 +744,65 @@ const DoseWinsStrip = ({ wins, streak }) => {
 // breakdown: heat ring, items, deadlines, key stats. Click
 // outside or X to dismiss.
 // ============================================================
+// ============================================================
+// WinPopOverlay — centered glass card that scale-pops onto the
+// screen when a real win event fires from the cross-module bus.
+// Auto-dismisses after the parent's 3.5s timer, but clicking
+// anywhere also dismisses immediately. Color tuned per win kind.
+// ============================================================
+const WinPopOverlay = ({ win, onDismiss }) => {
+  const COLOR_BY_KIND = {
+    sale: "#10B981",     // green
+    proposal: "#10B981", // green
+    payment: "#10B981",  // green
+    legal: "#F59E0B",    // amber
+    job: "#6366F1",      // indigo
+    story: "#3B82F6",    // blue
+  };
+  const c = COLOR_BY_KIND[win.kind] || "#10B981";
+  return <div onClick={onDismiss} style={{
+    position: "fixed",
+    inset: 0,
+    zIndex: 100000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    pointerEvents: "auto",
+    background: "transparent",
+    cursor: "pointer",
+    animation: "drillFadeIn 0.25s ease-out",
+  }}>
+    <div onClick={e => e.stopPropagation()} style={{
+      position: "relative",
+      ...glass(),
+      borderRadius: R,
+      borderTop: `3px solid ${c}`,
+      padding: "36px 56px 32px",
+      textAlign: "center",
+      minWidth: 360,
+      maxWidth: 520,
+      boxShadow: `0 24px 80px ${c}55, 0 0 0 1px ${c}50, 0 0 80px ${c}30`,
+      animation: `bigWinPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), bigWinFadeOut 0.5s ease-in 3s forwards`,
+      cursor: "default",
+    }}>
+      {/* Expanding ring behind the icon */}
+      <div style={{
+        position: "absolute", top: 30, left: "50%",
+        width: 70, height: 70,
+        marginLeft: -35,
+        borderRadius: "50%",
+        border: `2px solid ${c}`,
+        animation: "winRing 1.4s ease-out forwards",
+        pointerEvents: "none",
+      }} />
+      <div style={{ fontSize: 64, marginBottom: 6, lineHeight: 1, position: "relative" }}>{win.emoji}</div>
+      <div style={{ fontSize: 22, fontWeight: FW.black, color: c, fontFamily: DISPLAY, letterSpacing: -0.3 }}>{win.title}</div>
+      <div style={{ fontSize: FS.md, color: Z.tx, marginTop: 8, lineHeight: 1.4 }}>{win.body}</div>
+      <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.6 }}>Click to dismiss</div>
+    </div>
+  </div>;
+};
+
 const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
   const Icon = meta.icon;

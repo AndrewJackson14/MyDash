@@ -63,19 +63,28 @@ const SignalThreadPanel = ({ signal, onClose, currentUser, onNavigate, setIssueD
     setTimeout(() => onClose?.(), 250);
   };
 
-  const send = async () => {
-    if (!draft.trim() || sending || !signal?.contextId) return;
+  const send = async (overrideMessage) => {
+    const message = (overrideMessage ?? draft).trim();
+    if (!message || sending || !signal?.contextId) return;
     setSending(true);
     const { data } = await supabase.from("team_notes").insert({
       from_user: currentUser?.authId || null,
       to_user: null,
-      message: draft.trim(),
+      message,
       context_type: signal.contextType || "signal",
       context_id: signal.contextId,
     }).select().single();
     if (data) setNotes(prev => [...prev, data]);
-    setDraft("");
+    if (!overrideMessage) setDraft("");
     setSending(false);
+  };
+
+  const QUICK_REACTIONS = ["👍", "✅", "🔥", "💯", "❤️", "🙏"];
+  const isReactionMessage = (msg) => {
+    if (!msg) return false;
+    const trimmed = msg.trim();
+    if (trimmed.length > 4) return false;
+    return /\p{Emoji}/u.test(trimmed);
   };
 
   const goToPage = () => {
@@ -140,6 +149,17 @@ const SignalThreadPanel = ({ signal, onClose, currentUser, onNavigate, setIssueD
         {notes.map(n => {
           const isFromMe = n.from_user === currentUser?.authId;
           const time = n.created_at ? new Date(n.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+          const isReaction = isReactionMessage(n.message);
+          if (isReaction) {
+            return <div key={n.id} style={{
+              alignSelf: isFromMe ? "flex-end" : "flex-start",
+              padding: "4px 10px",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span style={{ fontSize: 30, lineHeight: 1 }}>{n.message}</span>
+              <span style={{ fontSize: FS.micro, color: Z.td }}>{time}</span>
+            </div>;
+          }
           return <div key={n.id} style={{
             alignSelf: isFromMe ? "flex-end" : "flex-start",
             maxWidth: "85%",
@@ -155,16 +175,34 @@ const SignalThreadPanel = ({ signal, onClose, currentUser, onNavigate, setIssueD
       </div>
 
       {/* Composer */}
-      <div style={{ padding: 16, borderTop: `1px solid ${Z.bd}`, display: "flex", gap: 8 }}>
-        <input
-          autoFocus
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && draft.trim()) send(); }}
-          placeholder="Message your team about this..."
-          style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "10px 14px", color: Z.tx, fontSize: FS.base, outline: "none", fontFamily: "inherit" }}
-        />
-        <Btn sm onClick={send} disabled={!draft.trim() || sending}>{sending ? "..." : "Send"}</Btn>
+      <div style={{ borderTop: `1px solid ${Z.bd}` }}>
+        {/* Quick reactions row */}
+        <div style={{ display: "flex", gap: 6, padding: "10px 16px 0" }}>
+          {QUICK_REACTIONS.map(e => (
+            <button key={e} onClick={() => send(e)} disabled={sending} title={`React with ${e}`}
+              style={{
+                background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: 10,
+                padding: "4px 10px", fontSize: 16, cursor: "pointer",
+                transition: "transform 0.15s ease, background 0.15s ease",
+              }}
+              onMouseEnter={ev => { ev.currentTarget.style.transform = "translateY(-1px) scale(1.1)"; ev.currentTarget.style.background = Z.sa; }}
+              onMouseLeave={ev => { ev.currentTarget.style.transform = "translateY(0) scale(1)"; ev.currentTarget.style.background = Z.bg; }}>
+              {e}
+            </button>
+          ))}
+        </div>
+        {/* Text composer */}
+        <div style={{ padding: "10px 16px 16px", display: "flex", gap: 8 }}>
+          <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && draft.trim()) send(); }}
+            placeholder="Message your team about this..."
+            style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "10px 14px", color: Z.tx, fontSize: FS.base, outline: "none", fontFamily: "inherit" }}
+          />
+          <Btn sm onClick={() => send()} disabled={!draft.trim() || sending}>{sending ? "..." : "Send"}</Btn>
+        </div>
       </div>
     </div>
   </div>;
