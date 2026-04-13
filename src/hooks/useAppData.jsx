@@ -750,7 +750,7 @@ export function DataProvider({ children, localData }) {
         monthly: proposal.monthly, status: proposal.status || 'Draft', date: proposal.date,
         renewal_date: proposal.renewalDate || null, sent_to: proposal.sentTo || [],
         assigned_to: proposal.assignedTo || null, discount_pct: proposal.discountPct || 0,
-        sent_at: proposal.sentAt || null, art_source: proposal.artSource || null,
+        sent_at: proposal.sentAt || null, art_source: proposal.artSource || null, charge_day: proposal.chargeDay || 1,
       }).select().single();
       if (error) { console.error("insertProposal error:", error); throw new Error(error.message); }
       if (data && proposal.lines?.length) {

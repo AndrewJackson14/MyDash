@@ -111,7 +111,7 @@ function PortalDashboard({ user }) {
       const clientIds = [...new Set(contacts.map(c => c.client_id))];
 
       // Load client info (include card details)
-      const { data: clients } = await supabase.from("clients").select("id, name, client_code, status, card_last4, card_brand, card_exp, stripe_customer_id").in("id", clientIds);
+      const { data: clients } = await supabase.from("clients").select("id, name, client_code, status, card_last4, card_brand, card_exp, stripe_customer_id, credit_balance").in("id", clientIds);
       setClientData(clients || []);
 
       // Load invoices
@@ -144,6 +144,7 @@ function PortalDashboard({ user }) {
   const unpaidTotal = invoices.filter(i => i.status !== "paid" && i.status !== "void").reduce((sum, i) => sum + Number(i.balance_due || 0), 0);
   const paidTotal = invoices.filter(i => i.status === "paid").reduce((sum, i) => sum + Number(i.total || 0), 0);
   const activeContracts = contracts.filter(c => c.status === "active").length;
+  const creditBalance = clientData?.reduce((s, c) => s + Number(c.credit_balance || 0), 0) || 0;
 
   const unpaidInvoices = invoices.filter(i => i.status !== "paid" && i.status !== "void" && Number(i.balance_due) > 0);
   const paidInvoices = invoices.filter(i => i.status === "paid" || Number(i.balance_due) <= 0);
@@ -163,11 +164,15 @@ function PortalDashboard({ user }) {
 
     <div style={s.container}>
       {/* STATS */}
-      <div className="portal-stats" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+      <div className="portal-stats" style={{ display: "grid", gridTemplateColumns: creditBalance > 0 ? "repeat(4, 1fr)" : "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
         <div style={s.card}>
           <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Outstanding</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: unpaidTotal > 0 ? RED : GREEN, marginTop: 4 }}>{fmtCurrency(unpaidTotal)}</div>
         </div>
+        {creditBalance > 0 && <div style={s.card}>
+          <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Account Credit</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, marginTop: 4 }}>{fmtCurrency(creditBalance)}</div>
+        </div>}
         <div style={s.card}>
           <div style={{ fontSize: 11, color: GRAY_LT, textTransform: "uppercase", letterSpacing: 0.5 }}>Paid</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: GREEN, marginTop: 4 }}>{fmtCurrency(paidTotal)}</div>

@@ -239,63 +239,53 @@ serve(async (req: Request) => {
     }
   }
 
-  // ═══ TASK 4: AUTO-CHARGE PAYMENT PLAN INVOICES ═══
+  // ═══ TASK 4: AUTO-CHARGE PAYMENT PLANS ═══
+  // Charges monthly payment plan clients on their charge_day (1st or 15th)
+  // Payment applies to oldest open invoices via apply_payment_to_invoices()
   if (task === "all" || task === "auto_charge") {
-    const STRIPE_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
-
     try {
-      // Find invoices due today or past due with cards on file, max 3 attempts
-      const { data: dueInvoices } = await admin.from("invoices")
-        .select("id, client_id, invoice_number, total, balance_due, due_date, auto_charge_attempts, last_charge_attempt")
-        .in("status", ["draft", "sent"])
-        .lte("due_date", today)
-        .lt("auto_charge_attempts", 3);
+      const todayDay = new Date().getDate();
+      const { data: dueContracts } = await admin.from("contracts")
+        .select("id, client_id, monthly_amount, charge_day")
+        .eq("payment_terms", "monthly").eq("status", "active")
+        .not("monthly_amount", "is", null);
 
-      let charged = 0;
-      let failed = 0;
+      let charged = 0, failed = 0, skipped = 0;
 
-      for (const inv of (dueInvoices || [])) {
-        // Skip if charged recently (within 2 days)
-        if (inv.last_charge_attempt) {
-          const lastAttempt = new Date(inv.last_charge_attempt);
-          if (Date.now() - lastAttempt.getTime() < 2 * 86400000) continue;
+      for (const con of (dueContracts || [])) {
+        if (todayDay !== (con.charge_day || 1)) { skipped++; continue; }
+        if (!con.monthly_amount || con.monthly_amount <= 0) continue;
+
+        const { data: cl } = await admin.from("clients")
+          .select("id, stripe_customer_id, stripe_payment_method_id, name")
+          .eq("id", con.client_id).single();
+
+        if (!cl?.stripe_customer_id || !cl?.stripe_payment_method_id) {
+          await admin.from("notifications").insert({ title: `Auto-charge skipped: ${cl?.name || "?"} — no card on file`, type: "system", link: "/billing" });
+          failed++; continue;
         }
 
-        // Check if client has card on file
-        const { data: client } = await admin.from("clients")
-          .select("stripe_customer_id, stripe_payment_method_id, name")
-          .eq("id", inv.client_id).single();
-
-        if (!client?.stripe_customer_id || !client?.stripe_payment_method_id) continue;
-
-        // Charge via stripe-card edge function
+        // Charge via Stripe
         const chargeRes = await fetch(`${SUPABASE_URL}/functions/v1/stripe-card`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-          body: JSON.stringify({ action: "charge_invoice", invoice_id: inv.id }),
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+          body: JSON.stringify({ action: "charge_invoice", invoice_id: null, client_id: con.client_id, amount: con.monthly_amount }),
         });
-        const chargeData = await chargeRes.json();
+        const cd = await chargeRes.json();
 
-        if (chargeData.success) {
+        if (cd.success) {
+          // Apply payment to oldest open invoices, carry credit
+          await admin.rpc("apply_payment_to_invoices", {
+            p_client_id: con.client_id, p_amount: con.monthly_amount,
+            p_method: "card", p_reference: `Auto-charge ${today}`,
+          });
           charged++;
         } else {
+          await admin.from("notifications").insert({ title: `Auto-charge failed: ${cl.name} $${con.monthly_amount}`, type: "system", link: "/billing" });
           failed++;
-          // Send payment failure notification
-          await admin.from("notifications").insert({
-            title: `Payment failed for ${client.name}: Invoice ${inv.invoice_number} (attempt ${(inv.auto_charge_attempts || 0) + 1}/3)`,
-            type: "system",
-            link: "/billing",
-          });
-          // Send failure email to client on final attempt
-          if ((inv.auto_charge_attempts || 0) >= 2) {
-            // Could send email here via gmail — skipping for now
-          }
         }
       }
-      results.auto_charge = { charged, failed };
-    } catch (err) {
-      results.auto_charge = { error: (err as Error).message };
-    }
+      results.auto_charge = { charged, failed, skipped };
+    } catch (err) { results.auto_charge = { error: (err as Error).message }; }
   }
 
   return new Response(

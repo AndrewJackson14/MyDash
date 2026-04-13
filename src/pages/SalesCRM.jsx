@@ -64,6 +64,7 @@ const SalesCRM = (props) => {
   const [propClient, setPropClient] = useState("");
   const [propPayPlan, setPropPayPlan] = useState(false);
   const [propPayTiming, setPropPayTiming] = useState("per_issue");
+  const [propChargeDay, setPropChargeDay] = useState(1);
   const [propArtSource, setPropArtSource] = useState("we_design"); // we_design | camera_ready
   const [propStep, setPropStep] = useState("build");
   const [propName, setPropName] = useState("");
@@ -367,7 +368,7 @@ const SalesCRM = (props) => {
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
       lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly,
+      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
     if (editPropId) {
@@ -396,7 +397,7 @@ const SalesCRM = (props) => {
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
         lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly,
+        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
       let proposalId = editPropId;
@@ -439,7 +440,7 @@ const SalesCRM = (props) => {
 
       const htmlBody = generateProposalHtml({
         config: templateConfig,
-        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, termMonths: monthSpan },
+        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay, termMonths: monthSpan },
         client: cl,
         salesperson: teamMember,
         pubs: pubs || [],
@@ -1082,9 +1083,14 @@ const SalesCRM = (props) => {
             ))}
           </div>
           {propPayTiming === "per_issue" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Client pays before each issue publishes</div>}
+          {propPayTiming === "monthly" && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>Auto-charge on the</span>
+            {[1, 15].map(d => <button key={d} onClick={() => setPropChargeDay(d)} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${propChargeDay === d ? Z.ac : Z.bd}`, background: propChargeDay === d ? Z.ac + "12" : "transparent", cursor: "pointer", fontSize: FS.xs, fontWeight: propChargeDay === d ? FW.bold : FW.normal, color: propChargeDay === d ? Z.ac : Z.tm, fontFamily: COND }}>{d === 1 ? "1st" : "15th"}</button>)}
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>of each month</span>
+          </div>}
           {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 
