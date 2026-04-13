@@ -144,18 +144,47 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) =>
 // Global Layout Components — used across all pages
 // ============================================================
 
-// Glass effect — reusable inline style mixin for frosted glass appearance
-export const glass = () => ({
-  background: _isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.75)",
-  backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-  border: `1px solid ${_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-  boxShadow: _isDark() ? "none" : "0 1px 3px rgba(0,0,0,0.04)",
-});
+// Glass effect — reusable inline style mixin for frosted glass appearance.
+// Tightened recipe: lower alpha so the ambient wallpaper shows through,
+// an inset top highlight so the edge catches light, and a soft outer
+// drop shadow for real depth.
+export const glass = () => {
+  const dark = _isDark();
+  return {
+    background: dark ? "rgba(14,16,24,0.38)" : "rgba(255,255,255,0.55)",
+    backdropFilter: "blur(24px) saturate(140%)",
+    WebkitBackdropFilter: "blur(24px) saturate(140%)",
+    border: `1px solid ${dark ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.7)"}`,
+    boxShadow: dark
+      ? "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.35)"
+      : "inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 24px rgba(15,23,42,0.08)",
+  };
+};
 
-export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMouseOut }) => <div onClick={onClick} onMouseOver={onMouseOver} onMouseOut={onMouseOut} style={{
-  ...glass(),
-  borderRadius: R, padding: noPad ? 0 : "22px 24px", ...style,
-}}>{children}</div>;
+export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMouseOut }) => {
+  const interactive = !!onClick;
+  const handleEnter = (e) => {
+    if (interactive) {
+      e.currentTarget.style.transform = "translateY(-1px)";
+      e.currentTarget.style.background = _isDark() ? "rgba(20,24,36,0.48)" : "rgba(255,255,255,0.72)";
+    }
+    if (onMouseOver) onMouseOver(e);
+  };
+  const handleLeave = (e) => {
+    if (interactive) {
+      e.currentTarget.style.transform = "translateY(0)";
+      e.currentTarget.style.background = _isDark() ? "rgba(14,16,24,0.38)" : "rgba(255,255,255,0.55)";
+    }
+    if (onMouseOut) onMouseOut(e);
+  };
+  return <div onClick={onClick} onMouseOver={handleEnter} onMouseOut={handleLeave} style={{
+    ...glass(),
+    borderRadius: R, padding: noPad ? 0 : "22px 24px",
+    cursor: interactive ? "pointer" : "default",
+    transition: "transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
+    ...style,
+  }}>{children}</div>;
+};
 
 // ListCard — individual frosted glass card for list items (floating cards with gap)
 export const ListCard = ({ children, style, onClick, active }) => <div onClick={onClick} style={{
