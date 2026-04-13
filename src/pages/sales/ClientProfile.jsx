@@ -77,7 +77,56 @@ const ClientProfile = ({
   // Contracts for this client
   const clientContracts = (contracts || []).filter(c => c.clientId === vc.id).sort((a, b) => (b.startDate || "").localeCompare(a.startDate || ""));
   const activeContracts = clientContracts.filter(c => c.status === "active");
-  const completedContracts = clientContracts.filter(c => c.status === "completed");
+
+  // Purchase Timeline — group contracts, standalone sales, and orphan proposals by year.
+  // A proposal is shown only if it did not convert to a contract, or if the contract it
+  // became was later cancelled (so there's unfulfilled commitment to revisit).
+  const timelineYears = (() => {
+    const byYear = {};
+    const ensureYear = (y) => {
+      if (!byYear[y]) byYear[y] = { year: y, contracts: [], standaloneSales: [], proposals: [], total: 0, adCount: 0 };
+      return byYear[y];
+    };
+
+    clientContracts.forEach(ct => {
+      const y = (ct.startDate || ct.createdAt || "").slice(0, 4) || "Undated";
+      const ads = closedCS.filter(s => s.contractId === ct.id).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+      const fulfilled = ads.reduce((s, x) => s + (x.amount || 0), 0);
+      const pct = ct.totalValue > 0 ? Math.min(100, Math.round((fulfilled / ct.totalValue) * 100)) : 0;
+      ensureYear(y).contracts.push({ ...ct, ads, fulfilled, pct });
+    });
+
+    closedCS.filter(s => !s.contractId).forEach(s => {
+      const y = (s.date || "").slice(0, 4) || "Undated";
+      ensureYear(y).standaloneSales.push(s);
+    });
+
+    clientProposals.forEach(p => {
+      const converted = p.status === "Signed & Converted";
+      const linkedContract = converted && p.contractId ? clientContracts.find(c => c.id === p.contractId) : null;
+      const contractCancelled = linkedContract && linkedContract.status === "cancelled";
+      if (converted && !contractCancelled) return; // hide — rolled into the contract row
+      const y = (p.date || p.closedAt || "").slice(0, 4) || "Undated";
+      ensureYear(y).proposals.push({ ...p, _reappeared: contractCancelled });
+    });
+
+    Object.values(byYear).forEach(yr => {
+      const contractAdTotal = yr.contracts.reduce((s, c) => s + c.fulfilled, 0);
+      const contractAdCount = yr.contracts.reduce((s, c) => s + c.ads.length, 0);
+      const standaloneTotal = yr.standaloneSales.reduce((s, x) => s + (x.amount || 0), 0);
+      yr.total = contractAdTotal + standaloneTotal;
+      yr.adCount = contractAdCount + yr.standaloneSales.length;
+      yr.standaloneSales.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      yr.contracts.sort((a, b) => (b.startDate || "").localeCompare(a.startDate || ""));
+    });
+
+    return Object.values(byYear).sort((a, b) => b.year.localeCompare(a.year));
+  })();
+  const currentYear = new Date().toISOString().slice(0, 4);
+  const [expandedYears, setExpandedYears] = useState(() => new Set([currentYear]));
+  const [expandedContracts, setExpandedContracts] = useState(() => new Set());
+  const toggleYear = (y) => setExpandedYears(s => { const n = new Set(s); n.has(y) ? n.delete(y) : n.add(y); return n; });
+  const toggleContract = (id) => setExpandedContracts(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   // Helpers
   const addComm = () => { if (!commForm.note.trim()) return; setClients(cl => cl.map(c => c.id === vc.id ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: commForm.type, author: commForm.author, date: today, note: commForm.note }] } : c)); setCommForm({ type: "Comment", author: "Account Manager", note: "" }); };
@@ -126,36 +175,99 @@ const ClientProfile = ({
       <Btn sm onClick={() => { if (onOpenProposal) onOpenProposal(vc.id); }}>Create Renewal Proposal</Btn>
     </div>}
 
-    {/* ── PURCHASE HISTORY SUMMARY ── */}
-    {closedCS.length > 0 && (() => {
-      // Group historical purchases by publication + ad size
-      const hist = {};
-      closedCS.forEach(s => {
-        const key = `${s.publication}__${s.size || s.type || "Ad"}`;
-        if (!hist[key]) hist[key] = { pubId: s.publication, pubName: pn(s.publication), adSize: s.size || s.type || "Ad", count: 0, total: 0 };
-        hist[key].count++;
-        hist[key].total += s.amount || 0;
-      });
-      const rows = Object.values(hist).sort((a, b) => b.total - a.total).slice(0, 8);
-      if (!rows.length) return null;
-      return <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>
-        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Purchase History</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
-          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            <th style={{ padding: "4px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Publication</th>
-            <th style={{ padding: "4px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Ad Size</th>
-            <th style={{ padding: "4px 8px", textAlign: "center", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Times</th>
-            <th style={{ padding: "4px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Total</th>
-          </tr></thead>
-          <tbody>{rows.map(r => <tr key={r.pubId + r.adSize} style={{ borderBottom: `1px solid ${Z.bd}10` }}>
-            <td style={{ padding: "5px 8px", fontWeight: FW.semi, color: Z.tx }}>{r.pubName}</td>
-            <td style={{ padding: "5px 8px", color: Z.tm }}>{r.adSize}</td>
-            <td style={{ padding: "5px 8px", textAlign: "center", color: Z.tm }}>{r.count}</td>
-            <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>${r.total.toLocaleString()}</td>
-          </tr>)}</tbody>
-        </table>
-      </Card>;
-    })()}
+    {/* ── PURCHASE TIMELINE — contracts, standalone ads, orphan proposals grouped by year ── */}
+    {(timelineYears.length > 0 || clientProposals.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Purchase Timeline</span>
+        <span style={{ fontSize: FS.xs, color: Z.td }}>{closedCS.length} ad{closedCS.length !== 1 ? "s" : ""} · {clientContracts.length} contract{clientContracts.length !== 1 ? "s" : ""} · ${totalRevenue.toLocaleString()} lifetime</span>
+      </div>
+      {timelineYears.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, borderRadius: Ri }}>No purchase history yet</div>}
+      {timelineYears.map(yr => {
+        const open = expandedYears.has(yr.year);
+        return <div key={yr.year} style={{ marginBottom: 8 }}>
+          <button onClick={() => toggleYear(yr.year)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", textAlign: "left" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 10, color: Z.tm, width: 10, display: "inline-block" }}>{open ? "▼" : "▶"}</span>
+              <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{yr.year}</span>
+              <span style={{ fontSize: FS.xs, color: Z.td, marginLeft: 8 }}>
+                {yr.contracts.length > 0 && `${yr.contracts.length} contract${yr.contracts.length !== 1 ? "s" : ""} · `}
+                {yr.adCount} ad{yr.adCount !== 1 ? "s" : ""}
+                {yr.proposals.length > 0 && ` · ${yr.proposals.length} proposal${yr.proposals.length !== 1 ? "s" : ""}`}
+              </span>
+            </span>
+            <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.ac, fontFamily: DISPLAY }}>${yr.total.toLocaleString()}</span>
+          </button>
+
+          {open && <div style={{ padding: "8px 0 0 18px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Contracts */}
+            {yr.contracts.map(ct => {
+              const ctOpen = expandedContracts.has(ct.id);
+              const stColor = ct.status === "active" ? (Z.su || "#22C55E") : ct.status === "cancelled" ? Z.da : Z.tm;
+              return <div key={ct.id} style={{ background: Z.bg, border: `1px solid ${ct.status === "active" ? stColor + "40" : Z.bd}`, borderRadius: Ri, overflow: "hidden" }}>
+                <button onClick={() => toggleContract(ct.id)}
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: Z.tx }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                      <span style={{ fontSize: 10, color: Z.tm, width: 10 }}>{ctOpen ? "▼" : "▶"}</span>
+                      <Ic.handshake size={11} color={Z.tm} />
+                      <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{ct.name}</span>
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: stColor, background: stColor + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>{ct.status}</span>
+                    </div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 27 }}>{ct.startDate || "?"} → {ct.endDate || "?"}{ct.lines?.length > 0 && ` · ${ct.lines.map(ln => `${pn(ln.pubId)} ${ln.adSize}×${ln.quantity}`).join(" · ")}`}</div>
+                    {ct.totalValue > 0 && <div style={{ marginTop: 6, marginLeft: 27, marginRight: 0 }}>
+                      <div style={{ height: 5, background: Z.sa, borderRadius: Ri, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${ct.pct}%`, background: ct.pct >= 100 ? (Z.su || "#22C55E") : ct.status === "cancelled" ? Z.da : Z.ac, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 2 }}>${ct.fulfilled.toLocaleString()} of ${(ct.totalValue || 0).toLocaleString()} delivered · {ct.pct}%</div>
+                    </div>}
+                  </div>
+                  <div style={{ textAlign: "right", paddingLeft: 10 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>${(ct.totalValue || 0).toLocaleString()}</div>
+                  </div>
+                </button>
+                {ctOpen && ct.ads.length > 0 && <div style={{ padding: "0 14px 10px 41px", display: "flex", flexDirection: "column", gap: 2, borderTop: `1px solid ${Z.bd}` }}>
+                  <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 0 2px" }}>Ads under this contract ({ct.ads.length})</div>
+                  {ct.ads.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: FS.xs, color: Z.tm, borderBottom: `1px solid ${Z.bd}20` }}>
+                    <span style={{ display: "flex", gap: 8 }}><span style={{ color: Z.td, width: 72 }}>{a.date || "—"}</span><span style={{ color: Z.tx, fontWeight: FW.semi }}>{pn(a.publication)}</span><span>{a.size || a.type || "Ad"}</span></span>
+                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
+                  </div>)}
+                </div>}
+                {ctOpen && ct.ads.length === 0 && <div style={{ padding: "4px 14px 10px 41px", fontSize: FS.micro, color: Z.td, borderTop: `1px solid ${Z.bd}` }}>No ads fulfilled yet against this contract.</div>}
+              </div>;
+            })}
+
+            {/* Standalone ads (not tied to any contract) */}
+            {yr.standaloneSales.length > 0 && <div style={{ marginTop: yr.contracts.length > 0 ? 4 : 0 }}>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>Standalone Ad Orders ({yr.standaloneSales.length})</div>
+              <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 10px" }}>
+                {yr.standaloneSales.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", fontSize: FS.xs, borderBottom: `1px solid ${Z.bd}20` }}>
+                  <span style={{ display: "flex", gap: 8 }}><Ic.tag size={10} color={Z.td} /><span style={{ color: Z.td, width: 72 }}>{a.date || "—"}</span><span style={{ color: Z.tx, fontWeight: FW.semi }}>{pn(a.publication)}</span><span style={{ color: Z.tm }}>{a.size || a.type || "Ad"}</span></span>
+                  <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
+                </div>)}
+              </div>
+            </div>}
+
+            {/* Orphan / reappeared proposals */}
+            {yr.proposals.length > 0 && <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>Proposals ({yr.proposals.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {yr.proposals.map(p => <div key={p.id} onClick={() => { if (onNavTo) onNavTo("Proposals"); if (onSetViewPropId) setTimeout(() => onSetViewPropId(p.id), 50); }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: p.status === "Draft" ? Z.wa + "10" : Z.bg, border: `1px solid ${p.status === "Draft" ? Z.wa + "40" : Z.bd}`, borderRadius: Ri, cursor: "pointer" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+                    <Ic.file size={11} color={Z.tm} />
+                    <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase" }}>{p.status}</span>
+                    {p._reappeared && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.da, background: Z.da + "15", padding: "1px 6px", borderRadius: Ri }}>Contract cancelled</span>}
+                  </div>
+                  <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${(p.total || 0).toLocaleString()}</span>
+                </div>)}
+              </div>
+            </div>}
+          </div>}
+        </div>;
+      })}
+    </Card>}
 
     {/* ── TWO-COLUMN LAYOUT ── */}
     <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16, alignItems: "start" }}>
@@ -206,38 +318,6 @@ const ClientProfile = ({
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{r.pub.name}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${r.rev.toLocaleString()}</span></div>
               <div style={{ height: 4, background: Z.bg, borderRadius: Ri, marginTop: 2 }}><div style={{ height: "100%", borderRadius: Ri, width: `${(r.rev / maxPubRev) * 100}%`, background: Z.tm }} /></div>
             </div>)}
-          </div>}
-        </Card>
-
-        {/* Contracts */}
-        <Card style={{ borderLeft: `3px solid ${activeContracts.length > 0 ? Z.su || "#22C55E" : Z.wa}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Contracts ({clientContracts.length})</span>
-            {activeContracts.length > 0 && <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.su || "#22C55E", background: (Z.su || "#22C55E") + "15", padding: "2px 8px", borderRadius: Ri }}>{activeContracts.length} Active</span>}
-          </div>
-          {clientContracts.length === 0
-            ? <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, borderRadius: Ri }}>No contracts yet</div>
-            : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {clientContracts.slice(0, 8).map(ct => <div key={ct.id} style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri, border: ct.status === "active" ? `1px solid ${(Z.su || "#22C55E") + "40"}` : `1px solid transparent` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{ct.name}</div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{ct.startDate || "?"} → {ct.endDate || "?"}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>${(ct.totalValue || 0).toLocaleString()}</div>
-                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: ct.status === "active" ? Z.su || "#22C55E" : Z.tm, textTransform: "uppercase" }}>{ct.status}</span>
-                  </div>
-                </div>
-                {ct.lines && ct.lines.length > 0 && <div style={{ marginTop: 4, fontSize: FS.xs, color: Z.td }}>
-                  {ct.lines.slice(0, 3).map((ln, i) => <span key={i}>{i > 0 ? " · " : ""}{pn(ln.pubId)} ({ln.adSize} ×{ln.quantity})</span>)}
-                  {ct.lines.length > 3 && <span> + {ct.lines.length - 3} more</span>}
-                </div>}
-              </div>)}
-              {clientContracts.length > 8 && <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "center" }}>+ {clientContracts.length - 8} more contracts</div>}
-            </div>}
-          {vc.contractEndDate && <div style={{ marginTop: 8, fontSize: FS.xs, color: Z.tm }}>
-            Contract ends: <span style={{ fontWeight: FW.bold, color: new Date(vc.contractEndDate) < new Date() ? Z.da : Z.su || "#22C55E" }}>{fmtD(vc.contractEndDate)}</span>
           </div>}
         </Card>
 
@@ -350,7 +430,6 @@ const ClientProfile = ({
           </div>}
           {activeCS.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Active Pipeline ({activeCS.length})</div>{activeCS.map(s => <div key={s.id} style={{ padding: "4px 0", borderBottom: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(s.publication)} · {s.type}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${(s.amount || 0).toLocaleString()}</span></div></div>)}</div>}
           {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: Z.tm }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
-          {clientProposals.length > 0 && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Proposals</div>{clientProposals.map(p => <div key={p.id} onClick={() => { if (onNavTo) onNavTo("Proposals"); if (onSetViewPropId) setTimeout(() => onSetViewPropId(p.id), 50); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, background: p.status === "Draft" ? Z.wa + "08" : "transparent", borderLeft: p.status === "Draft" ? `3px solid ${Z.wa}` : "none", paddingLeft: p.status === "Draft" ? 6 : 0 }}><div><span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span>{p.status === "Draft" && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, marginLeft: 6 }}>PENDING</span>}</div><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.ac }}>${p.total?.toLocaleString()}</span></div>)}</div>}
         </Card>
         {/* Client Asset Library */}
         {vc?.clientCode && <Card style={{ marginTop: 10 }}>
