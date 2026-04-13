@@ -394,7 +394,7 @@ const DashboardV2 = (props) => {
       zIndex: 0,
     }} />
 
-    <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
+    <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 44 }}>
 
       {/* ── Header: greeting + global pressure + V1 toggle ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
@@ -420,11 +420,11 @@ const DashboardV2 = (props) => {
       <ActivityBanner activity={activity} streak={streak} allClear={doseWins?.allDeadlinesMet} />
 
       {/* ── Department tiles ─────────────────────────────── */}
-      {/* Floating, urgency-responsive tiles. Hot tiles grow (larger
-          count, more padding, taller heat bar). Each tile has its
-          own idle float so the grid feels alive. Click splashes
-          outward into the drill-in modal. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 36, paddingTop: 12 }}>
+      {/* Floating, urgency-responsive tiles. Each tile is signal-
+          strong but not huge, with generous gap to let the page
+          breathe. Hot tiles scale up from center, cold tiles
+          shrink in place — everything without clipping neighbors. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 56, padding: "16px 12px" }}>
         {Object.entries(departmentPressure).map(([dept, data], idx) => (
           <DeptTile
             key={dept}
@@ -570,11 +570,10 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
 
   // Urgency-responsive sizing via a single scale transform, anchored
   // to the tile's CENTER so the card grows outward in both axes
-  // without shifting its position in the grid. Cold heat shrinks to
-  // 0.92, hot heat swells to 1.10 — keeps overflow inside the 36px
-  // inter-tile gap so neighbors never clip.
+  // without shifting its position in the grid. Tight range so the
+  // at-rest grid feels balanced but heat still reads.
   const t = Math.min(100, Math.max(0, data.heat)) / 100;
-  const heatScale = 0.92 + t * 0.18; // 0.92 → 1.10
+  const heatScale = 0.96 + t * 0.12; // 0.96 → 1.08
 
   const [pressed, setPressed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -588,10 +587,18 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
 
   // Compose the inner transform: heat scale × interaction scale.
   // translateY for hover lift so the card rises a few px as it grows.
-  const interactionScale = pressed ? 1.06 : hovered ? 1.04 : 1;
+  const interactionScale = pressed ? 1.06 : hovered ? 1.05 : 1;
   const liftPx = hovered && !pressed ? -6 : 0;
   const innerTransform = `translateY(${liftPx}px) scale(${(heatScale * interactionScale).toFixed(3)})`;
 
+  // Three-layer structure so idle float, hover scale, and GlassCard's
+  // own interaction hover don't fight for `transform`:
+  //   outer  = floatDrift (translateY)
+  //   middle = click + enter/leave handlers + heat×hover scale transform
+  //   inner  = static GlassCard visuals (NO onClick so its internal
+  //            hover mutation doesn't stomp our scale)
+  // onMouseEnter/onMouseLeave (NOT onMouseOver/onMouseOut) so hover
+  // state stays persistent while the pointer is anywhere inside.
   return <div style={{
     display: "flex",
     alignItems: "center",
@@ -600,20 +607,26 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
     animationDelay: `${idx * 0.6}s`,
     willChange: "transform",
   }}>
-    <GlassCard
+    <div
       onClick={handleClick}
-      onMouseOver={() => setHovered(true)}
-      onMouseOut={() => setHovered(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: "100%",
+        transform: innerTransform,
+        transformOrigin: "center center",
+        transition: "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        cursor: "pointer",
+      }}>
+    <GlassCard
       style={{
         position: "relative",
         width: "100%",
         borderTop: `2px solid ${color}`,
         background: `linear-gradient(180deg, ${color}${isHot ? "22" : "14"} 0%, transparent ${isHot ? 70 : 60}%), ${glass().background}`,
-        padding: "26px 30px",
-        minHeight: 180,
-        transform: innerTransform,
-        transformOrigin: "center center",
-        transition: "transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, background 0.8s ease",
+        padding: "22px 26px",
+        minHeight: 150,
+        transition: "box-shadow 0.35s ease, background 0.8s ease",
         animation: isHot ? "hotPulse 2s ease-in-out infinite" : undefined,
         boxShadow: hovered
           ? `0 20px 50px ${color}35, 0 0 0 1px ${color}50, inset 0 1px 0 rgba(255,255,255,${dark ? 0.08 : 0.9})`
@@ -637,7 +650,7 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
         {Icon && <Icon size={14} color={color} />}
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
       </div>
-      <div style={{ fontSize: 48, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -2, lineHeight: 0.95 }}>
+      <div style={{ fontSize: 42, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.5, lineHeight: 0.95 }}>
         {data.count}
       </div>
       <div style={{ fontSize: 13, color: Z.tm, marginTop: 8, minHeight: 18 }}>
@@ -659,6 +672,7 @@ const DeptTile = ({ dept, data, team, idx, onOpen }) => {
         {heatLabel(data.heat)}
       </div>
     </GlassCard>
+    </div>
   </div>;
 };
 
