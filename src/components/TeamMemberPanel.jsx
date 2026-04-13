@@ -194,7 +194,7 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile }) => {
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
             {notes.length === 0 && <div style={{ fontSize: FS.sm, color: Z.td, padding: "8px 0" }}>No notes yet</div>}
             {notes.slice(0, 10).map(n => {
-              const isFromMe = n.from_user === currentUser?.authId;
+              const isFromMe = n.from_user && (n.from_user === currentUser?.id || n.from_user === currentUser?.authId);
               const isTask = n.context_type === "task";
               return <div key={n.id} style={{
                 padding: "8px 10px",

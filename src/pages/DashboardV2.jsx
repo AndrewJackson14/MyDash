@@ -137,14 +137,15 @@ const DashboardV2 = (props) => {
   const [drilledDept, setDrilledDept] = useState(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [rightHandNotes, setRightHandNotes] = useState([]);
-  const [winQueue, setWinQueue] = useState([]);
-  const [currentWin, setCurrentWin] = useState(null);
+  // Rolling activity feed for the DOSE banner — newest on the right,
+  // oldest slides off the left when the ring buffer overflows.
+  const [activity, setActivity] = useState([]);
 
-  // ── Win pop: in-process bus + cross-tab Supabase realtime ──
-  // Two paths feed into the same queue via a shared fireWin helper
-  // that dedupes by event id, so a sale closed by Hayley in one tab
-  // and a sale closed by Cami from her laptop both show up here —
-  // and neither shows up twice.
+  // ── Activity stream: in-process bus + cross-tab Supabase realtime ──
+  // Two paths feed the activity feed via a shared fireWin helper that
+  // dedupes by event id, so a sale closed by Hayley in one tab and a
+  // sale closed by Cami from her laptop both show up here — and
+  // neither shows up twice.
   const bus = useEventBus();
   const seenEventIdsRef = useRef(new Set());
   const fireWin = useCallback((id, win) => {
@@ -155,7 +156,11 @@ const DashboardV2 = (props) => {
       const keep = Array.from(seenEventIdsRef.current).slice(-300);
       seenEventIdsRef.current = new Set(keep);
     }
-    setWinQueue(q => [...q, win]);
+    setActivity(prev => {
+      const next = [...prev, { ...win, id, addedAt: Date.now() }];
+      // Ring buffer — drop the oldest when we exceed 10 items
+      return next.length > 10 ? next.slice(next.length - 10) : next;
+    });
   }, []);
 
   // Path 1: in-process event bus (actions taken in this tab)
@@ -261,18 +266,6 @@ const DashboardV2 = (props) => {
     return () => { supabase.removeChannel(channel); };
   }, [clients, pubs, invoices, team, fireWin]);
 
-  // Process win queue: show one at a time, auto-dismiss after 3.5s
-  useEffect(() => {
-    if (currentWin || winQueue.length === 0) return;
-    setCurrentWin(winQueue[0]);
-    setWinQueue(q => q.slice(1));
-  }, [currentWin, winQueue]);
-  useEffect(() => {
-    if (!currentWin) return;
-    const t = setTimeout(() => setCurrentWin(null), 3500);
-    return () => clearTimeout(t);
-  }, [currentWin]);
-
   // Live tick — updates every 30s so countdown labels stay fresh.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -374,19 +367,10 @@ const DashboardV2 = (props) => {
         60% { transform: scale(1); }
         100% { transform: scale(1); }
       }
-      @keyframes bigWinPop {
-        0% { transform: scale(0.5) translateY(20px); opacity: 0; }
-        50% { transform: scale(1.08) translateY(0); opacity: 1; }
-        70% { transform: scale(0.97); }
-        100% { transform: scale(1); opacity: 1; }
-      }
-      @keyframes bigWinFadeOut {
-        0% { opacity: 1; transform: scale(1); }
-        100% { opacity: 0; transform: scale(1.05) translateY(-30px); }
-      }
-      @keyframes winRing {
-        0% { transform: scale(0.6); opacity: 0.9; }
-        100% { transform: scale(2.2); opacity: 0; }
+      @keyframes activitySlideIn {
+        0% { transform: translateX(40px) scale(0.8); opacity: 0; }
+        60% { transform: translateX(-4px) scale(1.04); opacity: 1; }
+        100% { transform: translateX(0) scale(1); opacity: 1; }
       }
       @keyframes floatDrift {
         0%, 100% { transform: translateY(0); }
@@ -431,8 +415,8 @@ const DashboardV2 = (props) => {
         </div>
       </div>
 
-      {/* ── DOSE wins strip ──────────────────────────────── */}
-      <DoseWinsStrip wins={doseWins} streak={streak} />
+      {/* ── Activity banner (streak + live event feed) ───── */}
+      <ActivityBanner activity={activity} streak={streak} allClear={doseWins?.allDeadlinesMet} />
 
       {/* ── Department tiles ─────────────────────────────── */}
       {/* Floating, urgency-responsive tiles. Hot tiles grow (larger
@@ -552,9 +536,6 @@ const DashboardV2 = (props) => {
       onNavigate={onNavigate}
       setIssueDetailId={setIssueDetailId}
     />}
-
-    {/* Win pop overlay — fires on cross-module bus events */}
-    {currentWin && <WinPopOverlay win={currentWin} onDismiss={() => setCurrentWin(null)} />}
 
     {/* Morning briefing modal */}
     <Modal open={briefingOpen} onClose={() => setBriefingOpen(false)} title="Morning Briefing" width={820}>
@@ -746,121 +727,106 @@ const TeamChip = ({ member, onClick }) => {
 };
 
 // ============================================================
-// DoseWinsStrip — horizontal pill row of today's wins.
-// Pops (scale + glow) when a pill's text actually changes
-// (e.g., "2 deals closed" → "3 deals closed").
+// ActivityBanner — anchor pills on the left (streak, all-clear)
+// + a live activity feed flowing in from the right. Newest
+// events enter with a slide+fade, push older events leftward,
+// and the ring buffer caps at 8 visible items.
 // ============================================================
-const DoseWinsStrip = ({ wins, streak }) => {
-  // Track previous pill texts so we can flag the ones that changed
-  // and pop those instead of all of them every render.
-  const prevTextsRef = useRef([]);
-
-  const pills = [];
-  if (streak > 0) pills.push({ key: "streak", icon: "🔥", text: `${streak}-day streak`, color: "#F97316" });
-  if (wins?.closedThisMonth?.count > 0) pills.push({ key: "closed", icon: "💰", text: `${wins.closedThisMonth.count} deals closed MTD · ${fmtCurrency(wins.closedThisMonth.total)}`, color: "#10B981" });
-  if (wins?.topSeller && wins.topSeller.monthlyTotal > 0) pills.push({ key: "top", icon: "⭐", text: `${(wins.topSeller.sp.name || "").split(" ")[0]}: ${fmtCurrency(wins.topSeller.monthlyTotal)} MTD`, color: "#F59E0B" });
-  if (wins?.teamEdited > 0) pills.push({ key: "edit", icon: "📝", text: `${wins.teamEdited} stories edited this month`, color: "#3B82F6" });
-  if (wins?.allDeadlinesMet) pills.push({ key: "clear", icon: "✨", text: "All deadlines met", color: "#10B981" });
-
-  // Diff: which pill texts changed since last render?
-  const changedKeys = new Set();
-  pills.forEach(p => {
-    const prev = prevTextsRef.current.find(x => x.key === p.key);
-    if (!prev || prev.text !== p.text) changedKeys.add(p.key);
-  });
-  // First render shouldn't pop everything (would feel like spam)
-  const isFirstRender = prevTextsRef.current.length === 0;
-  useEffect(() => {
-    prevTextsRef.current = pills.map(p => ({ key: p.key, text: p.text }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pills.map(p => `${p.key}:${p.text}`).join("|")]);
-
-  if (pills.length === 0) return null;
-
-  return <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-    {pills.map((p, i) => {
-      const popping = !isFirstRender && changedKeys.has(p.key);
-      return <div key={p.key} style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "6px 14px",
-        background: p.color + "14",
-        border: `1px solid ${p.color}40`,
-        borderRadius: 20,
-        animation: popping ? "winPop 0.6s ease-out" : "calmDrift 4s ease-in-out infinite",
-        animationDelay: popping ? "0s" : `${i * 0.5}s`,
-        boxShadow: popping ? `0 0 20px ${p.color}60` : "none",
-      }}>
-        <span style={{ fontSize: 13 }}>{p.icon}</span>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: p.color, fontVariantNumeric: "tabular-nums" }}>{p.text}</span>
-      </div>;
-    })}
-  </div>;
+const KIND_COLOR = {
+  sale: "#10B981",
+  proposal: "#10B981",
+  payment: "#10B981",
+  legal: "#F59E0B",
+  job: "#6366F1",
+  story: "#3B82F6",
 };
 
-// ============================================================
-// DeptDrillIn — modal-style overlay that expands when a
-// department tile is clicked. Shows the department's full
-// breakdown: heat ring, items, deadlines, key stats. Click
-// outside or X to dismiss.
-// ============================================================
-// ============================================================
-// WinPopOverlay — centered glass card that scale-pops onto the
-// screen when a real win event fires from the cross-module bus.
-// Auto-dismisses after the parent's 3.5s timer, but clicking
-// anywhere also dismisses immediately. Color tuned per win kind.
-// ============================================================
-const WinPopOverlay = ({ win, onDismiss }) => {
-  const COLOR_BY_KIND = {
-    sale: "#10B981",     // green
-    proposal: "#10B981", // green
-    payment: "#10B981",  // green
-    legal: "#F59E0B",    // amber
-    job: "#6366F1",      // indigo
-    story: "#3B82F6",    // blue
-  };
-  const c = COLOR_BY_KIND[win.kind] || "#10B981";
-  return <div onClick={onDismiss} style={{
-    position: "fixed",
-    inset: 0,
-    zIndex: 100000,
+// Compact label for each event kind — short enough to fit in a pill.
+const compactBody = (item) => {
+  // Strip "for Publication Name" tail if present to keep pills short.
+  const body = item.body || "";
+  return body.length > 50 ? body.slice(0, 48) + "…" : body;
+};
+
+const ActivityBanner = ({ activity, streak, allClear }) => {
+  // Render newest-on-the-right. Activity is stored oldest-first, which
+  // matches flex rendering order. Anchors (streak + all-clear) sit on
+  // the far left as static chips.
+  const anchors = [];
+  if (streak > 0) anchors.push({ key: "streak", emoji: "🔥", text: `${streak}-day streak`, color: "#F97316" });
+  if (allClear) anchors.push({ key: "clear", emoji: "✨", text: "All clear", color: "#10B981" });
+
+  return <div style={{
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    pointerEvents: "auto",
-    background: "transparent",
-    cursor: "pointer",
-    animation: "drillFadeIn 0.25s ease-out",
+    gap: 8,
+    overflow: "hidden",
+    minHeight: 32,
   }}>
-    <div onClick={e => e.stopPropagation()} style={{
-      position: "relative",
-      ...glass(),
-      borderRadius: R,
-      borderTop: `3px solid ${c}`,
-      padding: "36px 56px 32px",
-      textAlign: "center",
-      minWidth: 360,
-      maxWidth: 520,
-      boxShadow: `0 24px 80px ${c}55, 0 0 0 1px ${c}50, 0 0 80px ${c}30`,
-      animation: `bigWinPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), bigWinFadeOut 0.5s ease-in 3s forwards`,
-      cursor: "default",
+    {/* Anchors */}
+    {anchors.map(a => (
+      <ActivityPill key={a.key} emoji={a.emoji} text={a.text} color={a.color} anchor />
+    ))}
+
+    {/* Separator between anchors and stream */}
+    {anchors.length > 0 && activity.length > 0 && (
+      <div style={{ width: 1, height: 20, background: Z.bd, opacity: 0.5, flexShrink: 0 }} />
+    )}
+
+    {/* Live activity stream — each pill animates in on mount */}
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flex: 1,
+      overflow: "hidden",
+      minWidth: 0,
     }}>
-      {/* Expanding ring behind the icon */}
-      <div style={{
-        position: "absolute", top: 30, left: "50%",
-        width: 70, height: 70,
-        marginLeft: -35,
-        borderRadius: "50%",
-        border: `2px solid ${c}`,
-        animation: "winRing 1.4s ease-out forwards",
-        pointerEvents: "none",
-      }} />
-      <div style={{ fontSize: 64, marginBottom: 6, lineHeight: 1, position: "relative" }}>{win.emoji}</div>
-      <div style={{ fontSize: 22, fontWeight: FW.black, color: c, fontFamily: DISPLAY, letterSpacing: -0.3 }}>{win.title}</div>
-      <div style={{ fontSize: FS.md, color: Z.tx, marginTop: 8, lineHeight: 1.4 }}>{win.body}</div>
-      <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.6 }}>Click to dismiss</div>
+      {activity.map(item => {
+        const c = KIND_COLOR[item.kind] || "#10B981";
+        return <ActivityPill
+          key={item.id}
+          emoji={item.emoji}
+          text={compactBody(item)}
+          color={c}
+          fresh
+        />;
+      })}
     </div>
   </div>;
 };
+
+const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
+  <div style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 14px",
+    background: color + "14",
+    border: `1px solid ${color}40`,
+    borderRadius: 20,
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+    maxWidth: 320,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    animation: fresh
+      ? "activitySlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)"
+      : anchor
+        ? "calmDrift 4s ease-in-out infinite"
+        : undefined,
+  }}>
+    <span style={{ fontSize: 13 }}>{emoji}</span>
+    <span style={{
+      fontSize: FS.xs,
+      fontWeight: FW.bold,
+      color,
+      fontVariantNumeric: "tabular-nums",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}>{text}</span>
+  </div>
+);
 
 const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
