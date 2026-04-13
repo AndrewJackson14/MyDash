@@ -25,6 +25,24 @@ const CATEGORIES = [
 
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label]));
 
+// Category → hint words to match against QB account names.
+// Falls back to any Expense account if no match.
+const CATEGORY_ACCOUNT_HINTS = {
+  freelance: ["freelance", "contract labor", "professional", "outside services"],
+  commission: ["commission"],
+  route_driver: ["driver", "delivery", "distribution", "route"],
+  shipping: ["shipping", "delivery", "freight"],
+  printing: ["print", "printing", "reproduction"],
+  postage: ["postage", "mail", "usps"],
+  payroll: ["payroll", "wages", "salaries"],
+  rent: ["rent", "lease", "occupancy"],
+  utilities: ["utilit", "electric", "water", "gas", "internet", "phone"],
+  software: ["software", "subscription", "saas", "dues"],
+  insurance: ["insurance"],
+  marketing: ["marketing", "advertis", "promotion"],
+  other: [],
+};
+
 const STATUS_COLORS = {
   pending: Z.wa,
   approved: Z.ac,
@@ -222,7 +240,34 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
         if (!vendorId) throw new Error("Vendor created but no ID returned: " + JSON.stringify(createRes.data));
       }
 
-      // 3. Create bill
+      // 3. Look up an expense account to charge the bill to
+      const acctRes = await supabase.functions.invoke("qb-api", {
+        headers: { "x-action": "query" },
+        body: { query: "SELECT Id, Name, AccountType, AccountSubType FROM Account WHERE AccountType = 'Expense' MAXRESULTS 200" },
+      });
+      if (acctRes.error) {
+        const msg = await fnError(acctRes, "Could not load QuickBooks expense accounts");
+        throw new Error(msg);
+      }
+      const accounts = acctRes.data?.QueryResponse?.Account || [];
+      if (accounts.length === 0) {
+        throw new Error("No Expense accounts found in QuickBooks. Create one in QB first.");
+      }
+
+      // Match by category hints, else fall back to first expense account
+      const hints = CATEGORY_ACCOUNT_HINTS[bill.category] || [];
+      let accountId = null;
+      let matchedName = null;
+      for (const hint of hints) {
+        const match = accounts.find(a => (a.Name || "").toLowerCase().includes(hint));
+        if (match) { accountId = match.Id; matchedName = match.Name; break; }
+      }
+      if (!accountId) {
+        accountId = accounts[0].Id;
+        matchedName = accounts[0].Name;
+      }
+
+      // 4. Create bill
       const billRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "create-bill" },
         body: {
@@ -234,6 +279,9 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
             Amount: Number(bill.amount),
             DetailType: "AccountBasedExpenseLineDetail",
             Description: bill.description || CATEGORY_LABEL[bill.category] || bill.category,
+            AccountBasedExpenseLineDetail: {
+              AccountRef: { value: accountId, name: matchedName },
+            },
           }],
         },
       });
