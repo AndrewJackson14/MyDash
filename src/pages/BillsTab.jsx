@@ -5,7 +5,16 @@ import { useState, useMemo, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, Badge, GlassCard, PageHeader, DataTable, SB, Toggle } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
+
+const PAY_METHODS = [
+  { value: "check", label: "Check" },
+  { value: "credit_card", label: "Credit Card" },
+  { value: "ach", label: "ACH / Bank Transfer" },
+  { value: "cash", label: "Cash" },
+  { value: "wire", label: "Wire Transfer" },
+  { value: "other", label: "Other" },
+];
 
 const CATEGORIES = [
   { value: "freelance", label: "Freelance" },
@@ -141,6 +150,133 @@ const BillModal = ({ open, onClose, bill, pubs, onSave, onDelete }) => {
   );
 };
 
+// ─── Mark Paid modal ─────────────────────────────────────────
+const MarkPaidModal = ({ open, onClose, bill, onConfirm }) => {
+  const [paidMethod, setPaidMethod] = useState(bill?.paidMethod || "check");
+  const [checkNumber, setCheckNumber] = useState(bill?.checkNumber || "");
+  const [ccLastFour, setCcLastFour] = useState(bill?.ccLastFour || "");
+  const [paidDate, setPaidDate] = useState(today());
+  const [receiptUrl, setReceiptUrl] = useState(bill?.attachmentUrl || "");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const uploadReceipt = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const filename = `bill-${bill.id}-${Date.now()}.${ext}`;
+      const path = "bills/receipts";
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(EDGE_FN_URL + "/bunny-storage", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + (session?.access_token || ""),
+          "apikey": (await supabase.auth.getSession()).data.session?.access_token || "",
+          "Content-Type": file.type || "application/octet-stream",
+          "x-action": "upload",
+          "x-path": path,
+          "x-filename": filename,
+        },
+        body: file,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Upload failed: " + res.status);
+      }
+      const json = await res.json();
+      setReceiptUrl(json.cdnUrl || "");
+    } catch (e) {
+      setError("Upload failed: " + (e.message || e));
+    }
+    setUploading(false);
+  };
+
+  const confirm = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await onConfirm({
+        status: "paid",
+        paidAt: new Date(paidDate + "T12:00:00").toISOString(),
+        paidMethod,
+        checkNumber: paidMethod === "check" ? checkNumber : "",
+        ccLastFour: paidMethod === "credit_card" ? ccLastFour : "",
+        attachmentUrl: receiptUrl || "",
+      });
+      onClose();
+    } catch (e) {
+      setError(e.message || "Save failed");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Mark Paid — ${bill?.vendorName || ""}`} width={520}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ padding: "10px 14px", background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}`, fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
+          Amount: <b style={{ color: Z.tx }}>{fmtCurrency(bill?.amount || 0)}</b>
+          {bill?.category && <> · Category: <b style={{ color: Z.tx }}>{CATEGORY_LABEL[bill.category] || bill.category}</b></>}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Sel label="Payment Method" value={paidMethod} onChange={e => setPaidMethod(e.target.value)} options={PAY_METHODS} />
+          <Inp label="Paid Date" type="date" value={paidDate} onChange={e => setPaidDate(e.target.value)} />
+        </div>
+
+        {paidMethod === "check" && (
+          <Inp label="Check Number" value={checkNumber} onChange={e => setCheckNumber(e.target.value)} placeholder="e.g. 1042" />
+        )}
+
+        {paidMethod === "credit_card" && (
+          <Inp label="Last 4 of Card" value={ccLastFour} onChange={e => setCcLastFour(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" maxLength={4} />
+        )}
+
+        {/* Receipt upload */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, fontFamily: COND }}>Receipt (optional)</div>
+          {receiptUrl ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+              <a href={receiptUrl} target="_blank" rel="noopener noreferrer" style={{ color: Z.ac, fontSize: FS.sm, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                📎 {receiptUrl.split("/").pop()}
+              </a>
+              <button onClick={() => setReceiptUrl("")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 12, fontWeight: FW.bold, fontFamily: COND }}>Remove</button>
+            </div>
+          ) : (
+            <label style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "16px 14px", background: Z.sa, borderRadius: R, border: `1px dashed ${Z.bd}`,
+              cursor: uploading ? "default" : "pointer", fontSize: FS.sm, color: Z.tm, fontFamily: COND,
+            }}>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                style={{ display: "none" }}
+                onChange={e => e.target.files[0] && uploadReceipt(e.target.files[0])}
+                disabled={uploading}
+              />
+              {uploading ? "Uploading..." : "📎 Upload receipt (image or PDF)"}
+            </label>
+          )}
+        </div>
+
+        {error && (
+          <div style={{ padding: "10px 14px", borderRadius: Ri, background: Z.da + "18", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold }}>{error}</div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+          <Btn sm v="secondary" onClick={onClose} disabled={saving}>Cancel</Btn>
+          <Btn sm onClick={confirm} disabled={saving || uploading || (paidMethod === "check" && !checkNumber) || (paidMethod === "credit_card" && !ccLastFour)}>
+            {saving ? "Saving..." : "Mark Paid"}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 // ════════════════════════════════════════════════════════════
 // BILLS TAB
 // ════════════════════════════════════════════════════════════
@@ -151,6 +287,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
   const [pubFilter, setPubFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editBill, setEditBill] = useState(null);
+  const [paidModalBill, setPaidModalBill] = useState(null);
   const [syncingId, setSyncingId] = useState(null);
 
   // Local mirror of bills to guarantee instant UI updates
@@ -202,10 +339,11 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
     setLocalBills(prev => prev.filter(b => b.id !== id));
   };
 
-  const markPaid = async (bill) => {
-    const changes = { status: "paid", paidAt: new Date().toISOString() };
-    await updateBill(bill.id, changes);
-    setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, ...changes } : b));
+  const markPaid = (bill) => { setPaidModalBill(bill); };
+
+  const confirmPaid = async (changes) => {
+    await updateBill(paidModalBill.id, changes);
+    setLocalBills(prev => prev.map(b => b.id === paidModalBill.id ? { ...b, ...changes } : b));
   };
 
   // Surface the actual error from a Supabase function invoke
@@ -406,6 +544,15 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
                     color: STATUS_COLORS[b.status] || Z.tm,
                     fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND,
                   }}>{b.status}</span>
+                  {b.status === "paid" && (
+                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                      {b.paidMethod === "check" && b.checkNumber ? `Check #${b.checkNumber}`
+                        : b.paidMethod === "credit_card" && b.ccLastFour ? `Card •${b.ccLastFour}`
+                        : b.paidMethod ? PAY_METHODS.find(m => m.value === b.paidMethod)?.label || b.paidMethod
+                        : ""}
+                      {b.attachmentUrl && <> · <a href={b.attachmentUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: Z.ac, textDecoration: "underline" }}>📎</a></>}
+                    </div>
+                  )}
                 </td>
                 <td style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>
                   {b.quickbooksId ? <span title={"QB ID: " + b.quickbooksId} style={{ color: Z.go, fontWeight: FW.bold }}>✓ Synced</span>
@@ -430,7 +577,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
         </tbody>
       </DataTable>
 
-      {/* Modal */}
+      {/* Modals */}
       {modalOpen && (
         <BillModal
           open={modalOpen}
@@ -439,6 +586,14 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           pubs={pubs}
           onSave={handleSave}
           onDelete={handleDelete}
+        />
+      )}
+      {paidModalBill && (
+        <MarkPaidModal
+          open={!!paidModalBill}
+          onClose={() => setPaidModalBill(null)}
+          bill={paidModalBill}
+          onConfirm={confirmPaid}
         />
       )}
     </div>

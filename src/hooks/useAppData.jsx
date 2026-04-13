@@ -475,6 +475,8 @@ export function DataProvider({ children, localData }) {
       vendorEmail: data.vendor_email, category: data.category, description: data.description,
       amount: Number(data.amount), billDate: data.bill_date, dueDate: data.due_date,
       status: data.status, paidAt: data.paid_at, paidMethod: data.paid_method,
+      checkNumber: data.check_number || '', ccLastFour: data.cc_last_four || '',
+      attachmentUrl: data.attachment_url || '',
       quickbooksId: data.quickbooks_id, quickbooksSyncedAt: data.quickbooks_synced_at,
       notes: data.notes, createdAt: data.created_at,
     };
