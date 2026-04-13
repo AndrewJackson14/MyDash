@@ -195,6 +195,62 @@ serve(async (req: Request) => {
       );
     }
 
+    // Sync card details for all clients with stripe_customer_id
+    if (action === "sync_cards") {
+      const { data: clients } = await admin.from("clients")
+        .select("id, name, stripe_customer_id")
+        .not("stripe_customer_id", "is", null);
+
+      let synced = 0;
+      let noCard = 0;
+      for (const cl of (clients || [])) {
+        try {
+          const pms = await stripe.paymentMethods.list({ customer: cl.stripe_customer_id, type: "card" });
+          if (pms.data.length > 0) {
+            const pm = pms.data[0];
+            const card = pm.card;
+            await admin.from("clients").update({
+              stripe_payment_method_id: pm.id,
+              card_last4: card?.last4 || null,
+              card_brand: card?.brand || null,
+              card_exp: card ? `${card.exp_month}/${card.exp_year}` : null,
+            }).eq("id", cl.id);
+            synced++;
+          } else {
+            noCard++;
+          }
+        } catch (e) { noCard++; }
+      }
+      return new Response(
+        JSON.stringify({ success: true, synced, noCard, total: (clients || []).length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // List all Stripe customers (admin use only)
+    if (action === "list_customers") {
+      const customers = [];
+      let hasMore = true;
+      let startingAfter: string | undefined;
+      while (hasMore) {
+        const params: any = { limit: 100 };
+        if (startingAfter) params.starting_after = startingAfter;
+        const batch = await stripe.customers.list(params);
+        customers.push(...batch.data);
+        hasMore = batch.has_more;
+        if (batch.data.length > 0) startingAfter = batch.data[batch.data.length - 1].id;
+      }
+      return new Response(
+        JSON.stringify({ count: customers.length, customers: customers.map(c => ({
+          id: c.id, name: c.name, email: c.email, metadata: c.metadata,
+          default_source: c.default_source,
+          invoice_settings: c.invoice_settings,
+          created: c.created,
+        })) }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     throw new Error("Unknown action: " + action);
   } catch (err) {
     return new Response(
