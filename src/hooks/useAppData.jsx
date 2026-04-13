@@ -138,7 +138,7 @@ export function DataProvider({ children, localData }) {
       try {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix';
+        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         // Helper: fetch all rows from a table with automatic pagination.
@@ -203,6 +203,7 @@ export function DataProvider({ children, localData }) {
           category: c.category || '', address: c.address || '', city: c.city || '', state: c.state || '', zip: c.zip || '',
           repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null, creditBalance: Number(c.credit_balance) || 0, cardLast4: c.card_last4 || null, cardBrand: c.card_brand || null, cardExp: c.card_exp || null,
           invoicePrefix: c.invoice_prefix || null,
+          lapsedReason: c.lapsed_reason || null,
           contacts: [], comms: [], yearlySummary: [],
         })));
 
@@ -784,6 +785,7 @@ export function DataProvider({ children, localData }) {
       if (changes.interestedPubs !== undefined) db.interested_pubs = changes.interestedPubs;
       if (changes.category !== undefined) db.category = changes.category;
       if (changes.lapsedReason !== undefined) db.lapsed_reason = changes.lapsedReason;
+      if (changes.repId !== undefined) db.rep_id = changes.repId;
       if (Object.keys(db).length) await supabase.from('clients').update(db).eq('id', id);
     }
   }, []);
@@ -976,6 +978,39 @@ export function DataProvider({ children, localData }) {
     // Success — reload the affected data into local state
     // Update proposal status locally
     setProposals(pr => pr.map(p => p.id === proposalId ? { ...p, status: 'Signed & Converted', contractId: data.contract_id, convertedAt: new Date().toISOString() } : p));
+    // Fetch the new contract + its lines so Closed view has pubs + assignedTo immediately
+    if (data.contract_id) {
+      const [{ data: newContract }, { data: newLines }] = await Promise.all([
+        supabase.from('contracts').select('*').eq('id', data.contract_id).single(),
+        supabase.from('contract_lines').select('*').eq('contract_id', data.contract_id),
+      ]);
+      if (newContract) {
+        const mappedLines = (newLines || []).map(cl => ({
+          id: cl.id, pubId: cl.publication_id, adSize: cl.ad_size,
+          rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total),
+          sortOrder: cl.sort_order, notes: cl.notes || '',
+        }));
+        const mapped = {
+          id: newContract.id, clientId: newContract.client_id, name: newContract.name, status: newContract.status,
+          startDate: newContract.start_date, endDate: newContract.end_date,
+          totalValue: Number(newContract.total_value), totalPaid: Number(newContract.total_paid),
+          discountPct: Number(newContract.discount_pct), paymentTerms: newContract.payment_terms,
+          assignedTo: newContract.assigned_to, notes: newContract.notes || '',
+          isSynthetic: newContract.is_synthetic,
+          chargeDay: newContract.charge_day || 1,
+          monthlyAmount: newContract.monthly_amount ? Number(newContract.monthly_amount) : null,
+          lines: mappedLines,
+        };
+        setContracts(prev => {
+          const idx = prev.findIndex(c => c.id === mapped.id);
+          if (idx === -1) return [mapped, ...prev];
+          const next = prev.slice();
+          next[idx] = mapped;
+          return next;
+        });
+        setContractLines(prev => [...prev.filter(cl => cl.contractId !== mapped.id), ...(newLines || []).map(cl => ({ id: cl.id, contractId: cl.contract_id, pubId: cl.publication_id, adSize: cl.ad_size, rate: Number(cl.rate), quantity: cl.quantity, lineTotal: Number(cl.line_total) }))]);
+      }
+    }
     // Reload sales to pick up the new orders
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 12);
     let newSales = []; let pg = 0;
@@ -996,6 +1031,49 @@ export function DataProvider({ children, localData }) {
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
     })));
+
+    // Pull down the newly created invoices + lines for this contract and merge
+    // into local state. Without this, Billing's "needs invoice" panel flags the
+    // new Closed sales because there's no realtime listener on invoices.
+    if (data.contract_id) {
+      const { data: contractSales } = await supabase.from('sales').select('id').eq('contract_id', data.contract_id);
+      const saleIds = (contractSales || []).map(s => s.id);
+      if (saleIds.length > 0) {
+        const { data: newLines } = await supabase.from('invoice_lines').select('*').in('sale_id', saleIds);
+        const invoiceIds = [...new Set((newLines || []).map(l => l.invoice_id).filter(Boolean))];
+        if (invoiceIds.length > 0) {
+          const [{ data: newInvoices }, { data: allLinesForInvs }] = await Promise.all([
+            supabase.from('invoices').select('*').in('id', invoiceIds),
+            supabase.from('invoice_lines').select('*').in('invoice_id', invoiceIds),
+          ]);
+          const linesByInv = {};
+          (allLinesForInvs || []).forEach(l => {
+            if (!linesByInv[l.invoice_id]) linesByInv[l.invoice_id] = [];
+            linesByInv[l.invoice_id].push(l);
+          });
+          const mapped = (newInvoices || []).map(i => ({
+            id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id, subscriberId: i.subscriber_id,
+            status: i.status, billingSchedule: i.billing_schedule,
+            subtotal: Number(i.subtotal), discountPct: Number(i.discount_pct || 0), discountAmount: Number(i.discount_amount || 0),
+            tax: Number(i.tax || i.tax_amount || 0), total: Number(i.total), amountPaid: Number(i.amount_paid || 0), balanceDue: Number(i.balance_due),
+            monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
+            issueDate: i.issue_date, dueDate: i.due_date,
+            notes: i.notes || '', qbInvoiceId: i.qb_invoice_id, createdAt: i.created_at,
+            chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+            lines: (linesByInv[i.id] || []).map(l => ({
+              id: l.id, description: l.description, productType: l.product_type,
+              saleId: l.sale_id, legalNoticeId: l.legal_notice_id,
+              quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
+            })),
+          }));
+          setInvoices(prev => {
+            const byId = new Map(prev.map(x => [x.id, x]));
+            mapped.forEach(m => byId.set(m.id, m));
+            return Array.from(byId.values());
+          });
+        }
+      }
+    }
 
     // Ad projects + message threads are now created inside the RPC
     // Just update client art source locally
@@ -1687,6 +1765,20 @@ export function DataProvider({ children, localData }) {
     setContractsLoaded(true);
   }, [allContractsLoaded]);
 
+  // Delete a contract. Nulls the FK references on sales / proposals / ad_projects
+  // first (NO ACTION cascade would otherwise block the delete), then deletes the
+  // contract row. contract_lines CASCADE automatically.
+  const deleteContract = useCallback(async (id) => {
+    if (!isOnline()) return;
+    await supabase.from('sales').update({ contract_id: null }).eq('contract_id', id);
+    await supabase.from('proposals').update({ contract_id: null }).eq('contract_id', id);
+    await supabase.from('ad_projects').update({ source_contract_id: null }).eq('source_contract_id', id);
+    await supabase.from('contracts').delete().eq('id', id);
+    setContracts(prev => prev.filter(c => c.id !== id));
+    setContractLines(prev => prev.filter(cl => cl.contractId !== id));
+    setSales(prev => prev.map(s => s.contractId === id ? { ...s, contractId: null } : s));
+  }, []);
+
   const [allSalesLoaded, setAllSalesLoaded] = useState(false);
   const loadAllSales = useCallback(async () => {
     if (allSalesLoaded || !isOnline()) return;
@@ -1726,7 +1818,7 @@ export function DataProvider({ children, localData }) {
     creativeJobs, setCreativeJobs,
     contracts, setContracts, contractLines, setContractLines,
     salesSummary, setSalesSummary,
-    loadContracts, loadAllContracts, loadAllSales, contractsLoaded, allContractsLoaded, allSalesLoaded,
+    loadContracts, loadAllContracts, loadAllSales, contractsLoaded, allContractsLoaded, allSalesLoaded, deleteContract,
     loadFullSales, fullSalesLoaded, loadSalesForClient,
     // Lazy loaders for module-specific data
     loadClientDetails, clientDetailsLoaded,

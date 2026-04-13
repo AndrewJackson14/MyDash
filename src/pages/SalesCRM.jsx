@@ -37,7 +37,7 @@ const SalesCRM = (props) => {
       });
   }, []);
   const [commTab, setCommTab] = useState("Overview");
-  const [clientView, setClientView] = useState(jurisdiction?.isSalesperson ? "signals" : "list");
+  const [clientView, setClientView] = useState("signals");
   const [sr, setSr] = useState("");
   const [fClientPub, setFClientPub] = useState("all");
   const [fPub, setFPub] = useState("all");
@@ -94,7 +94,19 @@ const SalesCRM = (props) => {
   ]);
   const [actFilter, setActFilter] = useState("all");
   const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
-  const [viewContractId, setViewContractId] = useState(null);
+  const [viewContractId, setViewContractId] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("contract") || null; } catch (e) { return null; }
+  });
+  // Two-way URL sync: `?contract=<id>` deep-links into the contract modal.
+  // Mutates window.history directly so the back button still works.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (viewContractId) url.searchParams.set("contract", viewContractId);
+      else url.searchParams.delete("contract");
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {}
+  }, [viewContractId]);
   const [closedSearch, setClosedSearch] = useState("");
   const [closedRep, setClosedRep] = useState("all");
   const [showCancelled, setShowCancelled] = useState(false);
@@ -233,6 +245,18 @@ const SalesCRM = (props) => {
     setSales(sl => sl.map(x => x.id === saleId ? { ...x, status: ns, nextAction: autoAct, nextActionDate: autoAct ? nextDue.toISOString().slice(0, 10) : "" } : x));
     if (s) { logActivity(`→ ${ns}`, "pipeline", s.clientId, cn(s.clientId)); addNotif(`${cn(s.clientId)} → ${ns}`); setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `→ ${ns}` }] } : c)); }
     if (ns === "Closed" && s && bus) bus.emit("sale.closed", { saleId, clientId: s.clientId, clientName: cn(s.clientId), amount: s.amount, publication: pn(s.publication) });
+    // Auto-promote Lead → Active and assign the selling rep when a sale closes.
+    // A client who has purchased is no longer a Lead. If the client has no rep
+    // yet, they get assigned to whoever closed the deal.
+    if (ns === "Closed" && s) {
+      const client = clients.find(c => c.id === s.clientId);
+      if (client) {
+        const updates = {};
+        if (client.status === "Lead") updates.status = "Active";
+        if (!client.repId && currentUser?.id) updates.repId = currentUser.id;
+        if (Object.keys(updates).length && updateClient) updateClient(client.id, updates);
+      }
+    }
   };
 
   const handleAct = (saleId) => {
@@ -617,7 +641,7 @@ const SalesCRM = (props) => {
     </>}
 
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
-    {tab === "Clients" && !viewClientId && clientView === "signals" && <ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} />}
+    {tab === "Clients" && !viewClientId && clientView === "signals" && <ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} />}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
     {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "" }); setCmo(true); }} />}
 
@@ -722,13 +746,69 @@ const SalesCRM = (props) => {
       const repRevs = {}; filtered.forEach(c => { if (c.assignedTo) { const rn = repName(c.assignedTo); repRevs[rn] = (repRevs[rn] || 0) + (c.totalValue || 0); } });
       const topRep = Object.entries(repRevs).sort((a,b) => b[1] - a[1])[0];
 
-      // Contract detail view
+      // Contract detail — now renders as a modal alongside the table,
+      // so the underlying table keeps its sort/filter/scroll state.
       const viewContract = viewContractId ? (contracts || []).find(c => c.id === viewContractId) : null;
-      if (viewContract) {
-        const contractSales = closedSales.filter(s => s.contractId === viewContract.id);
-        const pubGroups = {};
-        (viewContract.lines || []).forEach(l => { const pk = l.pubId || "other"; if (!pubGroups[pk]) pubGroups[pk] = []; pubGroups[pk].push(l); });
-        return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      const contractSales = viewContract ? closedSales.filter(s => s.contractId === viewContract.id) : [];
+      const pubGroups = {};
+      if (viewContract) (viewContract.lines || []).forEach(l => { const pk = l.pubId || "other"; if (!pubGroups[pk]) pubGroups[pk] = []; pubGroups[pk].push(l); });
+
+      return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* STATS */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {[
+          ["Revenue", "$" + (totalRev >= 1000 ? (totalRev/1000).toFixed(0) + "K" : totalRev.toLocaleString()), Z.go],
+          ["Deals Closed", String(filtered.length), Z.ac],
+          ["Avg Deal", "$" + Math.round(totalRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
+          ["Top Seller", topRep ? topRep[0].split(" ")[0] : "\u2014", Z.ac],
+        ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Seller" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
+      </div>
+      {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>}
+      {/* TABLE */}
+      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
+            {[["Client","client"],["Publications","pubs"],["Value","amount"],["Closed","date"],["Salesperson","rep"]].map(([label, key]) => <th key={label} onClick={() => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "8px 12px", textAlign: label === "Value" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>{label}{closedSort.key === key ? (closedSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}</th>)}
+          </tr></thead>
+          <tbody>
+            {filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No deals in this period</td></tr>
+            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => setViewContractId(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
+              onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{cn(c.clientId)}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm, fontSize: FS.xs }}>{c.pubAbbrevs}</td>
+              <td style={{ padding: "8px 12px", fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(c.totalValue || 0).toLocaleString()}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.closedDate}</td>
+              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.assignedTo ? repName(c.assignedTo) : "\u2014"}</td>
+            </tr>)}
+          </tbody>
+        </table>
+        {filtered.length > 100 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 100 of {filtered.length}</div>}
+      </GlassCard>
+
+      {/* CONTRACT DETAIL MODAL */}
+      <Modal
+        open={!!viewContract}
+        onClose={() => setViewContractId(null)}
+        title={viewContract ? `${cn(viewContract.clientId)} — ${viewContract.name || "Contract"}` : ""}
+        width={1100}
+        actions={viewContract ? <>
+          <Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> Download PDF</Btn>
+          {viewContract.status === "active" && <Btn sm v="ghost" onClick={async () => {
+            const reason = await dialog.prompt("Cancellation reason:");
+            if (!reason) return;
+            const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
+            if (error) { await dialog.alert("Error: " + error.message); return; }
+            if (data?.error) { await dialog.alert(data.error); return; }
+            if (setContracts) setContracts(prev => prev.map(c => c.id === viewContract.id ? { ...c, status: "cancelled" } : c));
+            setSales(prev => prev.map(s => s.contractId === viewContract.id && s.status === "Closed" ? { ...s, status: "Cancelled" } : s));
+            await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices affected.`);
+            setViewContractId(null);
+          }} style={{ color: Z.da }}>Cancel Contract</Btn>}
+          {viewContract.status === "cancelled" && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>Cancelled</span>}
+          <Btn sm v="ghost" onClick={() => setViewContractId(null)}>Close</Btn>
+        </> : null}
+      >
+        {viewContract && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
             {[
               ["Client", cn(viewContract.clientId)],
@@ -762,56 +842,8 @@ const SalesCRM = (props) => {
               </div>)}
             </div>
           </GlassCard>}
-          <div style={{ display: "flex", gap: 6 }}>
-            <Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> Download PDF</Btn>
-            {viewContract.status === "active" && <Btn sm v="ghost" onClick={async () => {
-              const reason = await dialog.prompt("Cancellation reason:");
-              if (!reason) return;
-              const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
-              if (error) { await dialog.alert("Error: " + error.message); return; }
-              if (data?.error) { await dialog.alert(data.error); return; }
-              // Update local state immediately
-              if (setContracts) setContracts(prev => prev.map(c => c.id === viewContract.id ? { ...c, status: "cancelled" } : c));
-              setSales(prev => prev.map(s => s.contractId === viewContract.id && s.status === "Closed" ? { ...s, status: "Cancelled" } : s));
-              await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices affected.`);
-              setViewContractId(null);
-            }} style={{ color: Z.da }}>Cancel Contract</Btn>}
-            {viewContract.status === "cancelled" && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>Cancelled</span>}
-          </div>
-        </div>;
-      }
-
-      return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* STATS */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-        {[
-          ["Revenue", "$" + (totalRev >= 1000 ? (totalRev/1000).toFixed(0) + "K" : totalRev.toLocaleString()), Z.go],
-          ["Deals Closed", String(filtered.length), Z.ac],
-          ["Avg Deal", "$" + Math.round(totalRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
-          ["Top Seller", topRep ? topRep[0].split(" ")[0] : "\u2014", Z.ac],
-        ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Seller" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
-      </div>
-      {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>}
-      {/* TABLE */}
-      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
-          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            {[["Client","client"],["Publications","pubs"],["Value","amount"],["Closed","date"],["Salesperson","rep"]].map(([label, key]) => <th key={label} onClick={() => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "8px 12px", textAlign: label === "Value" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>{label}{closedSort.key === key ? (closedSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}</th>)}
-          </tr></thead>
-          <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No deals in this period</td></tr>
-            : filtered.slice(0, 100).map(c => <tr key={c.id} onClick={() => setViewContractId(c.id)} style={{ cursor: "pointer", borderBottom: `1px solid ${Z.bd}15` }}
-              onMouseEnter={e => e.currentTarget.style.background = Z.sa} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <td style={{ padding: "8px 12px", fontWeight: FW.semi, color: Z.tx }}>{cn(c.clientId)}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm, fontSize: FS.xs }}>{c.pubAbbrevs}</td>
-              <td style={{ padding: "8px 12px", fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>${(c.totalValue || 0).toLocaleString()}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.closedDate}</td>
-              <td style={{ padding: "8px 12px", color: Z.tm }}>{c.assignedTo ? repName(c.assignedTo) : "\u2014"}</td>
-            </tr>)}
-          </tbody>
-        </table>
-        {filtered.length > 100 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 100 of {filtered.length}</div>}
-      </GlassCard>
+        </div>}
+      </Modal>
       </div>; })()}
     {tab === "Renewals" && (() => {
       const calcScore = (s) => {
