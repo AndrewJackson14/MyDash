@@ -28,6 +28,7 @@ const Analytics = ({
 }) => {
   const [tab, setTab] = useState("Overview");
   const [plPub, setPlPub] = useState("all");
+  const [overviewPub, setOverviewPub] = useState("all");
 
   const _inv = invoices || [];
   const _pay = payments || [];
@@ -164,46 +165,95 @@ const Analytics = ({
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
   const oldAR = outstanding > 0 ? _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && i.issueDate < thirtyDaysAgo).reduce((s, i) => s + (i.balanceDue || 0), 0) : 0;
 
-  // 12-Month P&L Data
+  // 12-Month P&L Data — revenue broken down per publication for stacking
   const plMonths = [];
   for (let i = 11; i >= 0; i--) {
     const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const pfx = m.toISOString().slice(0, 7);
     const lbl = m.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-    
+
     const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 0).toISOString().slice(0, 10);
     const mStart = pfx + "-01";
 
-    // Revenue for month
-    const mAd = closedSales.filter(s => s.date?.startsWith(pfx)).reduce((s, x) => s + (x.amount || 0), 0);
-    // Digital subs contribute MRR every month they were active
-    const mDigitalMrr = _subs.filter(s => {
+    // Revenue contributions per publication
+    const byPub = {}; // { pubId: amount }
+    const addRev = (pubId, amt) => { if (!pubId || !amt) return; byPub[pubId] = (byPub[pubId] || 0) + amt; };
+
+    // Ad sales (incl. classifieds + legals-as-sales) — already attached to a pub
+    closedSales.filter(s => s.date?.startsWith(pfx)).forEach(s => addRev(s.publication, s.amount || 0));
+
+    // Digital MRR per pub — subs active in this month
+    _subs.filter(s => {
       if (s.type !== "digital") return false;
       const start = s.startDate || (s.createdAt ? s.createdAt.slice(0, 10) : null);
       if (!start || start > mEnd) return false;
       const end = s.status === "cancelled" || s.status === "expired" ? (s.expiryDate || s.renewalDate || "0000-00-00") : "9999-12-31";
       return end >= mStart;
-    }).reduce((s, x) => s + (x.amountPaid || 0), 0);
-    // Print subs counted once in the month they renewed (or started if no renewal date)
-    const mPrintSub = _subs.filter(s => {
+    }).forEach(s => addRev(s.publicationId, s.amountPaid || 0));
+
+    // Print sub renewals per pub (one-time)
+    _subs.filter(s => {
       if (s.type === "digital") return false;
       if (s.renewalDate && s.renewalDate.startsWith(pfx)) return true;
       if (!s.renewalDate && s.startDate && s.startDate.startsWith(pfx)) return true;
       return false;
-    }).reduce((s, x) => s + (x.amountPaid || 0), 0);
-    const mSub = mDigitalMrr + mPrintSub;
-    const mLeg = _legal.filter(l => l.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.totalAmount || 0), 0);
-    const mJob = _jobs.filter(j => j.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.finalAmount || x.quotedAmount || 0), 0);
-    const rev = mAd + mSub + mLeg + mJob;
+    }).forEach(s => addRev(s.publicationId, s.amountPaid || 0));
 
-    // Expenses for month
+    // Legal notices per pub (from legal_notices table, if tracked separately from sales)
+    _legal.filter(l => l.createdAt?.startsWith(pfx)).forEach(l => addRev(l.publicationId, l.totalAmount || 0));
+
+    // Creative jobs per pub
+    _jobs.filter(j => j.createdAt?.startsWith(pfx)).forEach(j => addRev(j.publicationId, j.finalAmount || j.quotedAmount || 0));
+
+    const rev = Object.values(byPub).reduce((s, v) => s + v, 0);
+
+    // Expenses for month (not broken down per pub — hard to allocate reliably)
     const mBil = bills?.filter(b => b.billDate?.startsWith(pfx) || b.createdAt?.startsWith(pfx)).reduce((s, b) => s + (b.amount || 0), 0) || 0;
     const mPay = commissionPayouts?.filter(p => p.period === pfx || p.createdAt?.startsWith(pfx)).reduce((s, x) => s + (x.totalAmount || 0), 0) || 0;
     const exp = mBil + mPay;
 
-    plMonths.push({ pfx, lbl, rev, exp, net: rev - exp });
+    plMonths.push({ pfx, lbl, byPub, rev, exp, net: rev - exp });
   }
-  const maxPlVal = Math.max(1, ...plMonths.map(m => Math.max(m.rev, m.exp)));
+  // Filtered view — if a pub is selected, pull that pub's slice; otherwise total
+  const plView = plMonths.map(m => {
+    const rev = overviewPub === "all" ? m.rev : (m.byPub[overviewPub] || 0);
+    // Scale expenses proportionally to the filtered pub's share of total revenue
+    const share = overviewPub === "all" ? 1 : (m.rev > 0 ? rev / m.rev : 0);
+    const exp = m.exp * share;
+    return { ...m, rev, exp, net: rev - exp };
+  });
+  const maxPlVal = Math.max(1, ...plView.map(m => Math.max(m.rev, m.exp)));
+
+  // ─── Legals & Classifieds Stats ───────────────────────────
+  // Legals come from the legal_notices table
+  const legalsStats = useMemo(() => {
+    const total = _legal.reduce((s, l) => s + (l.totalAmount || 0), 0);
+    const thisM = _legal.filter(l => l.createdAt?.startsWith(thisMonth));
+    const thisMTotal = thisM.reduce((s, l) => s + (l.totalAmount || 0), 0);
+    const byType = {};
+    _legal.forEach(l => {
+      const t = l.noticeType || "other";
+      byType[t] = (byType[t] || { count: 0, amount: 0 });
+      byType[t].count++;
+      byType[t].amount += (l.totalAmount || 0);
+    });
+    return { count: _legal.length, total, thisMCount: thisM.length, thisMTotal, byType };
+  }, [_legal]);
+
+  // Classifieds live in sales with ad_type = "Classified Line Listing"
+  const classifiedsStats = useMemo(() => {
+    const all = closedSales.filter(s => s.type === "Classified Line Listing");
+    const total = all.reduce((s, x) => s + (x.amount || 0), 0);
+    const thisM = all.filter(s => s.date?.startsWith(thisMonth));
+    const thisMTotal = thisM.reduce((s, x) => s + (x.amount || 0), 0);
+    const byPub = {};
+    all.forEach(s => {
+      byPub[s.publication] = (byPub[s.publication] || { count: 0, amount: 0 });
+      byPub[s.publication].count++;
+      byPub[s.publication].amount += (s.amount || 0);
+    });
+    return { count: all.length, total, thisMCount: thisM.length, thisMTotal, byPub };
+  }, [closedSales]);
 
   // Cash Flow Next 30 Days Arrays
   const next30 = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
@@ -286,92 +336,193 @@ const Analytics = ({
         </GlassCard>
       </div>
 
-      {/* Row 2: 12-Month P&L Bars */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>12-Month Profit & Loss</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 180, position: "relative", paddingTop: 20 }}>
-          {/* 0 Axis line */}
-          <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: Z.bd, zIndex: 1 }} />
-          
-          {plMonths.map((m, i) => {
-            const hRev = m.rev === 0 ? 0 : Math.max(2, (m.rev / maxPlVal) * 80);
-            const hExp = m.exp === 0 ? 0 : Math.max(2, (m.exp / maxPlVal) * 80);
-            
-            return (
-              <div key={m.pfx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, height: "100%" }}>
-                {/* Revenue Bar */}
-                <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%" }}>
-                  <div style={{ background: Z.tx, width: "40%", margin: "0 auto", height: `${hRev}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev: ${fmtCurrency(m.rev)}`} />
+      {/* Row 2: 12-Month P&L + Revenue Mix side-by-side */}
+      <div style={{ display: "grid", gridTemplateColumns: "65% 35%", gap: 14 }}>
+        <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>12-Month Profit & Loss</div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button onClick={() => setOverviewPub("all")}
+                style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewPub === "all" ? Z.tx : Z.bd}`, background: overviewPub === "all" ? Z.tx : "transparent", color: overviewPub === "all" ? Z.bg : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>All Pubs</button>
+              {pubs.map(p => (
+                <button key={p.id} onClick={() => setOverviewPub(p.id)}
+                  style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewPub === p.id ? (p.color || Z.tx) : Z.bd}`, background: overviewPub === p.id ? (p.color || Z.tx) : "transparent", color: overviewPub === p.id ? "#FFF" : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 4 }}>
+                  {overviewPub !== p.id && <div style={{ width: 6, height: 6, borderRadius: "50%", background: p.color || Z.tm }}/>}
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", height: 220, position: "relative", paddingTop: 22 }}>
+            {/* 0 Axis line */}
+            <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 1, background: Z.bd, zIndex: 1 }} />
+
+            {plView.map((m, i) => {
+              const hRev = m.rev === 0 ? 0 : Math.max(2, (m.rev / maxPlVal) * 80);
+              const hExp = m.exp === 0 ? 0 : Math.max(2, (m.exp / maxPlVal) * 80);
+              const isCurrent = i === 11;
+              // Build stacked segments for revenue bar (per pub)
+              const pubSegs = overviewPub === "all"
+                ? pubs.map(p => ({ id: p.id, name: p.name, color: p.color || Z.tx, amt: m.byPub[p.id] || 0 })).filter(s => s.amt > 0)
+                : [{ id: overviewPub, name: pubs.find(p => p.id === overviewPub)?.name || "", color: pubs.find(p => p.id === overviewPub)?.color || Z.tx, amt: m.rev }];
+
+              return (
+                <div key={m.pfx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, height: "100%" }}>
+                  {/* Value label above bar */}
+                  {m.rev > 0 && <div style={{ position: "absolute", top: 0, fontSize: 9, fontWeight: FW.heavy, color: isCurrent ? Z.tx : Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtK(m.rev)}</div>}
+                  {/* Revenue Bar (stacked) */}
+                  <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%", alignItems: "center" }}>
+                    <div style={{ width: "55%", height: `${hRev}%`, display: "flex", flexDirection: "column", borderTopLeftRadius: 3, borderTopRightRadius: 3, overflow: "hidden", minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev ${m.lbl}: ${fmtCurrency(m.rev)}`}>
+                      {pubSegs.map((seg, si) => {
+                        const segPct = m.rev > 0 ? (seg.amt / m.rev) * 100 : 0;
+                        return <div key={seg.id} style={{ height: `${segPct}%`, background: seg.color, borderTop: si > 0 ? `1px solid ${Z.bg}` : "none" }} title={`${seg.name}: ${fmtCurrency(seg.amt)}`} />;
+                      })}
+                    </div>
+                  </div>
+                  {/* Expense Bar */}
+                  <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-start", width: "100%", alignItems: "center" }}>
+                    <div style={{ background: Z.da, width: "55%", height: `${hExp}%`, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, minHeight: m.exp > 0 ? 2 : 0 }} title={`Exp ${m.lbl}: ${fmtCurrency(m.exp)}`} />
+                  </div>
+                  {/* Expense label */}
+                  {m.exp > 0 && <div style={{ position: "absolute", bottom: 16, fontSize: 9, fontWeight: FW.bold, color: Z.da, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtK(m.exp)}</div>}
+                  {/* Month label */}
+                  <div style={{ position: "absolute", bottom: -2, fontSize: 10, color: isCurrent ? Z.tx : Z.td, fontWeight: isCurrent ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
                 </div>
-                {/* Expense Bar */}
-                <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-start", width: "100%" }}>
-                  <div style={{ background: Z.da, width: "40%", margin: "0 auto", height: `${hExp}%`, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, minHeight: m.exp > 0 ? 2 : 0 }} title={`Exp: ${fmtCurrency(m.exp)}`} />
-                </div>
-                {/* Label */}
-                <div style={{ position: "absolute", bottom: -24, fontSize: 10, color: i === 11 ? Z.tx : Z.td, fontWeight: i === 11 ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
-              </div>
-            );
-          })}
-          {/* Connecting White Line for Net Income */}
-          <svg style={{ position: "absolute", top: 20, left: 0, width: "100%", height: "calc(100% - 20px)", pointerEvents: "none", zIndex: 3 }}>
-            <polyline
-              points={plMonths.map((m, i) => {
+              );
+            })}
+            {/* Net income line */}
+            <svg style={{ position: "absolute", top: 22, left: 0, width: "100%", height: "calc(100% - 22px)", pointerEvents: "none", zIndex: 3 }}>
+              <polyline
+                points={plView.map((m, i) => {
+                  const x = `${(i + 0.5) * (100 / 12)}%`;
+                  const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
+                  const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
+                  return `${x},${y}`;
+                }).join(" ")}
+                fill="none"
+                stroke={Z.tx}
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              {plView.map((m, i) => {
                 const x = `${(i + 0.5) * (100 / 12)}%`;
                 const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
                 const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
-                return `${x},${y}`;
-              }).join(" ")}
-              fill="none"
-              stroke={Z.tx}
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-            {plMonths.map((m, i) => {
-              const x = `${(i + 0.5) * (100 / 12)}%`;
-              const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
-              const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
-              return <circle key={i} cx={x} cy={y} r="4" fill={Z.tx} />;
-            })}
-          </svg>
-        </div>
-        <div style={{ paddingBottom: 16, marginTop: 32, display: "flex", justifyContent: "center", gap: 16, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.tx, borderRadius: 2 }}/> Revenue</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.da, borderRadius: 2 }}/> Expenses</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: Z.tx }}/> Net Income</span>
-        </div>
-      </GlassCard>
+                return <circle key={i} cx={x} cy={y} r="3" fill={Z.tx} />;
+              })}
+            </svg>
+          </div>
+          <div style={{ paddingBottom: 8, marginTop: 24, display: "flex", justifyContent: "center", gap: 14, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, flexWrap: "wrap" }}>
+            {overviewPub === "all"
+              ? pubs.map(p => <span key={p.id} style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: p.color || Z.tx, borderRadius: 2 }}/> {p.name}</span>)
+              : <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: pubs.find(p => p.id === overviewPub)?.color || Z.tx, borderRadius: 2 }}/> {pubs.find(p => p.id === overviewPub)?.name}</span>}
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.da, borderRadius: 2 }}/> Expenses</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: Z.tx }}/> Net Income</span>
+          </div>
+        </GlassCard>
 
-      {/* Row 3: Where the Money Comes From */}
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Revenue Mix (This Month)</div>
-          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Total: <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(totalMonthRev)}</span></div>
-        </div>
-        <div style={{ display: "flex", height: 28, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 12 }}>
-          {(() => {
-            const tot = Math.max(1, monthRev + digitalMrr + printRenewalsThisMonth + mLegalRev + mJobsRev);
-            const fgOnDark = Z.bg === "#08090D" ? Z.bg : "#FFF";
-            const segs = [
-              { key: "ad", label: "Ad Sales", val: monthRev, color: Z.tx, fg: fgOnDark },
-              { key: "mrr", label: "Digital MRR", val: digitalMrr, color: Z.tx + "bb", fg: fgOnDark },
-              { key: "print", label: "Print", val: printRenewalsThisMonth, color: Z.tx + "77", fg: fgOnDark },
-              { key: "legal", label: "Legal", val: mLegalRev, color: Z.wa, fg: "#000" },
-              { key: "job", label: "Creative", val: mJobsRev, color: Z.tx + "44", fg: Z.tx },
-            ];
-            return segs.filter(s => s.val > 0).map(s => {
-              const pct = (s.val / tot) * 100;
-              return <div key={s.key} style={{ width: `${pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", color: s.fg, fontSize: 10, fontWeight: FW.heavy, overflow: "hidden" }}>{pct >= 5 ? `${Math.round(pct)}%` : ""}</div>;
-            });
-          })()}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(monthRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "bb", borderRadius: 2 }}/> Digital MRR: {fmtCurrency(digitalMrr)} <span style={{ color: Z.td, fontWeight: FW.normal }}>({activeDigitalSubs.length} subs)</span></span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "77", borderRadius: 2 }}/> Print Renewals: {fmtCurrency(printRenewalsThisMonth)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.wa, borderRadius: 2 }}/> Legal: {fmtCurrency(mLegalRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "44", borderRadius: 2, border: `1px solid ${Z.bd}` }}/> Creative: {fmtCurrency(mJobsRev)}</span>
-        </div>
-      </GlassCard>
+        <GlassCard>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Revenue Mix</div>
+          <div style={{ fontSize: FS.xs, color: Z.td, marginBottom: 12 }}>This Month · <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(totalMonthRev)}</span></div>
+          <div style={{ display: "flex", height: 22, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 14 }}>
+            {(() => {
+              const tot = Math.max(1, monthRev + digitalMrr + printRenewalsThisMonth + mLegalRev + mJobsRev);
+              const fgOnDark = Z.bg === "#08090D" ? Z.bg : "#FFF";
+              const segs = [
+                { key: "ad", val: monthRev, color: Z.tx, fg: fgOnDark },
+                { key: "mrr", val: digitalMrr, color: Z.tx + "bb", fg: fgOnDark },
+                { key: "print", val: printRenewalsThisMonth, color: Z.tx + "77", fg: fgOnDark },
+                { key: "legal", val: mLegalRev, color: Z.wa, fg: "#000" },
+                { key: "job", val: mJobsRev, color: Z.tx + "44", fg: Z.tx },
+              ];
+              return segs.filter(s => s.val > 0).map(s => {
+                const pct = (s.val / tot) * 100;
+                return <div key={s.key} style={{ width: `${pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", color: s.fg, fontSize: 9, fontWeight: FW.heavy, overflow: "hidden" }}>{pct >= 8 ? `${Math.round(pct)}%` : ""}</div>;
+              });
+            })()}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: FS.xs, color: Z.tx }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 9, height: 9, background: Z.tx, borderRadius: 2 }}/> Ad Sales</span>
+              <span style={{ fontWeight: FW.heavy }}>{fmtCurrency(monthRev)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 9, height: 9, background: Z.tx + "bb", borderRadius: 2 }}/> Digital MRR <span style={{ color: Z.td }}>({activeDigitalSubs.length})</span></span>
+              <span style={{ fontWeight: FW.heavy }}>{fmtCurrency(digitalMrr)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 9, height: 9, background: Z.tx + "77", borderRadius: 2 }}/> Print Renewals</span>
+              <span style={{ fontWeight: FW.heavy }}>{fmtCurrency(printRenewalsThisMonth)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 9, height: 9, background: Z.wa, borderRadius: 2 }}/> Legal</span>
+              <span style={{ fontWeight: FW.heavy }}>{fmtCurrency(mLegalRev)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 9, height: 9, background: Z.tx + "44", borderRadius: 2, border: `1px solid ${Z.bd}` }}/> Creative</span>
+              <span style={{ fontWeight: FW.heavy }}>{fmtCurrency(mJobsRev)}</span>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* Row 3: Legals & Classifieds stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Legal Notices</div>
+            <div style={{ fontSize: FS.xs, color: Z.td }}>
+              <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{legalsStats.thisMCount}</span> this month · <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(legalsStats.thisMTotal)}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+            <div style={{ fontSize: 26, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(legalsStats.total)}</div>
+            <div style={{ fontSize: FS.xs, color: Z.td }}>{legalsStats.count.toLocaleString()} notices all-time</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: FS.xs }}>
+            {Object.entries(legalsStats.byType).sort((a, b) => b[1].amount - a[1].amount).slice(0, 5).map(([type, d]) => {
+              const pct = legalsStats.total > 0 ? (d.amount / legalsStats.total) * 100 : 0;
+              return <div key={type} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 110, color: Z.tm, fontWeight: FW.semi, textTransform: "capitalize", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{type.replace(/_/g, " ")}</div>
+                <div style={{ flex: 1, height: 6, background: Z.bg, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: Z.wa }}/>
+                </div>
+                <div style={{ width: 70, textAlign: "right", color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(d.amount)}</div>
+                <div style={{ width: 30, textAlign: "right", color: Z.td, fontWeight: FW.bold }}>{d.count}</div>
+              </div>;
+            })}
+            {legalsStats.count === 0 && <div style={{ color: Z.td, padding: 8, textAlign: "center" }}>No legal notices tracked</div>}
+          </div>
+        </GlassCard>
+
+        <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Classifieds</div>
+            <div style={{ fontSize: FS.xs, color: Z.td }}>
+              <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{classifiedsStats.thisMCount}</span> this month · <span style={{ color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(classifiedsStats.thisMTotal)}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
+            <div style={{ fontSize: 26, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(classifiedsStats.total)}</div>
+            <div style={{ fontSize: FS.xs, color: Z.td }}>{classifiedsStats.count.toLocaleString()} listings all-time</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: FS.xs }}>
+            {Object.entries(classifiedsStats.byPub).sort((a, b) => b[1].amount - a[1].amount).slice(0, 5).map(([pubId, d]) => {
+              const pub = pubs.find(p => p.id === pubId);
+              const pct = classifiedsStats.total > 0 ? (d.amount / classifiedsStats.total) * 100 : 0;
+              return <div key={pubId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 110, color: Z.tm, fontWeight: FW.semi, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pub?.name || pubId}</div>
+                <div style={{ flex: 1, height: 6, background: Z.bg, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: pub?.color || Z.tx }}/>
+                </div>
+                <div style={{ width: 70, textAlign: "right", color: Z.tx, fontWeight: FW.heavy }}>{fmtCurrency(d.amount)}</div>
+                <div style={{ width: 30, textAlign: "right", color: Z.td, fontWeight: FW.bold }}>{d.count}</div>
+              </div>;
+            })}
+            {classifiedsStats.count === 0 && <div style={{ color: Z.td, padding: 8, textAlign: "center" }}>No classifieds tracked</div>}
+          </div>
+        </GlassCard>
+      </div>
 
       {/* Row 4: Cash Flow Strip */}
       <GlassCard>
