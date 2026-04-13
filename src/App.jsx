@@ -208,7 +208,7 @@ export default function App() {
     if (pg === 'legalnotices') loads.push(appData.loadLegals?.());
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
     if (pg === 'editorial') loads.push(appData.loadEditions?.());
-    if (pg === 'analytics') loads.push(appData.loadBilling?.(), appData.loadBills?.(), appData.loadCommissions?.());
+    if (pg === 'analytics') loads.push(appData.loadBilling?.(), appData.loadBills?.(), appData.loadCommissions?.(), appData.loadFullSales?.(), appData.loadCirculation?.(), appData.loadLegals?.(), appData.loadCreative?.(), appData.loadStories?.());
     if (loads.length > 0) Promise.all(loads.filter(Boolean));
   }, [pg, online]);
 

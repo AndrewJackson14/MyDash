@@ -301,11 +301,11 @@ const Analytics = ({
               <div key={m.pfx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 2, height: "100%" }}>
                 {/* Revenue Bar */}
                 <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-end", width: "100%" }}>
-                  <div style={{ background: Z.su + "dd", width: "40%", margin: "0 auto", height: `${hRev}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev: ${fmtCurrency(m.rev)}`} />
+                  <div style={{ background: Z.tx, width: "40%", margin: "0 auto", height: `${hRev}%`, borderTopLeftRadius: 3, borderTopRightRadius: 3, minHeight: m.rev > 0 ? 2 : 0 }} title={`Rev: ${fmtCurrency(m.rev)}`} />
                 </div>
                 {/* Expense Bar */}
                 <div style={{ height: "50%", display: "flex", flexDirection: "column", justifyContent: "flex-start", width: "100%" }}>
-                  <div style={{ background: Z.da + "dd", width: "40%", margin: "0 auto", height: `${hExp}%`, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, minHeight: m.exp > 0 ? 2 : 0 }} title={`Exp: ${fmtCurrency(m.exp)}`} />
+                  <div style={{ background: Z.da, width: "40%", margin: "0 auto", height: `${hExp}%`, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, minHeight: m.exp > 0 ? 2 : 0 }} title={`Exp: ${fmtCurrency(m.exp)}`} />
                 </div>
                 {/* Label */}
                 <div style={{ position: "absolute", bottom: -24, fontSize: 10, color: i === 11 ? Z.tx : Z.td, fontWeight: i === 11 ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
@@ -322,7 +322,7 @@ const Analytics = ({
                 return `${x},${y}`;
               }).join(" ")}
               fill="none"
-              stroke="#FFF"
+              stroke={Z.tx}
               strokeWidth="2"
               strokeLinejoin="round"
             />
@@ -330,14 +330,14 @@ const Analytics = ({
               const x = `${(i + 0.5) * (100 / 12)}%`;
               const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
               const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
-              return <circle key={i} cx={x} cy={y} r="4" fill="#FFF" />;
+              return <circle key={i} cx={x} cy={y} r="4" fill={Z.tx} />;
             })}
           </svg>
         </div>
         <div style={{ paddingBottom: 16, marginTop: 32, display: "flex", justifyContent: "center", gap: 16, fontSize: FS.xs, fontWeight: FW.bold, color: Z.td }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.su, borderRadius: 2 }}/> Revenue</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.tx, borderRadius: 2 }}/> Revenue</span>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 8, height: 8, background: Z.da, borderRadius: 2 }}/> Expenses</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: "#FFF" }}/> Net Income</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 12, height: 2, background: Z.tx }}/> Net Income</span>
         </div>
       </GlassCard>
 
@@ -350,12 +350,13 @@ const Analytics = ({
         <div style={{ display: "flex", height: 28, borderRadius: Math.max((CARD?.borderRadius || 6) / 2, 4), overflow: "hidden", marginBottom: 12 }}>
           {(() => {
             const tot = Math.max(1, monthRev + digitalMrr + printRenewalsThisMonth + mLegalRev + mJobsRev);
+            const fgOnDark = Z.bg === "#08090D" ? Z.bg : "#FFF";
             const segs = [
-              { key: "ad", val: monthRev, color: Z.ac, fg: "#FFF" },
-              { key: "mrr", val: digitalMrr, color: Z.su, fg: "#FFF" },
-              { key: "print", val: printRenewalsThisMonth, color: Z.tm, fg: "#FFF" },
-              { key: "legal", val: mLegalRev, color: Z.wa, fg: "#000" },
-              { key: "job", val: mJobsRev, color: Z.pu, fg: "#FFF" },
+              { key: "ad", label: "Ad Sales", val: monthRev, color: Z.tx, fg: fgOnDark },
+              { key: "mrr", label: "Digital MRR", val: digitalMrr, color: Z.tx + "bb", fg: fgOnDark },
+              { key: "print", label: "Print", val: printRenewalsThisMonth, color: Z.tx + "77", fg: fgOnDark },
+              { key: "legal", label: "Legal", val: mLegalRev, color: Z.wa, fg: "#000" },
+              { key: "job", label: "Creative", val: mJobsRev, color: Z.tx + "44", fg: Z.tx },
             ];
             return segs.filter(s => s.val > 0).map(s => {
               const pct = (s.val / tot) * 100;
@@ -364,11 +365,11 @@ const Analytics = ({
           })()}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.ac, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(monthRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.su, borderRadius: 2 }}/> Digital MRR: {fmtCurrency(digitalMrr)} <span style={{ color: Z.td, fontWeight: FW.normal }}>({activeDigitalSubs.length} subs)</span></span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tm, borderRadius: 2 }}/> Print Renewals: {fmtCurrency(printRenewalsThisMonth)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx, borderRadius: 2 }}/> Ad Sales: {fmtCurrency(monthRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "bb", borderRadius: 2 }}/> Digital MRR: {fmtCurrency(digitalMrr)} <span style={{ color: Z.td, fontWeight: FW.normal }}>({activeDigitalSubs.length} subs)</span></span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "77", borderRadius: 2 }}/> Print Renewals: {fmtCurrency(printRenewalsThisMonth)}</span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.wa, borderRadius: 2 }}/> Legal: {fmtCurrency(mLegalRev)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.pu, borderRadius: 2 }}/> Creative: {fmtCurrency(mJobsRev)}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, background: Z.tx + "44", borderRadius: 2, border: `1px solid ${Z.bd}` }}/> Creative: {fmtCurrency(mJobsRev)}</span>
         </div>
       </GlassCard>
 
