@@ -49,7 +49,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     else if (tab === "Cancelled") list = list.filter(c => c.status === "cancelled");
     if (sr) {
       const q = sr.toLowerCase();
-      list = list.filter(c => c.name.toLowerCase().includes(q) || cn(c.clientId).toLowerCase().includes(q));
+      list = list.filter(c => (c.name || "").toLowerCase().includes(q) || cn(c.clientId).toLowerCase().includes(q));
     }
     const dir = sortDir === "asc" ? 1 : -1;
     return list.sort((a, b) => {
@@ -84,7 +84,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
           ["Client", cn(viewContract.clientId)],
           ["Status", viewContract.status.charAt(0).toUpperCase() + viewContract.status.slice(1)],
           ["Term", `${viewContract.startDate || "?"} → ${viewContract.endDate || "?"}`],
-          ["Total Value", `$${viewContract.totalValue.toLocaleString()}`],
+          ["Total Value", `$${Number(viewContract.totalValue || 0).toLocaleString()}`],
           ["Rep", rn(viewContract.assignedTo)],
         ].map(([l, v]) => <GlassCard key={l} style={{ padding: 12 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</div>
@@ -190,7 +190,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
             <td style={{ color: Z.tx }}>{cn(c.clientId)}</td>
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{c.startDate || "—"}</td>
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{c.endDate || "—"}</td>
-            <td style={{ fontWeight: FW.bold, color: Z.tx }}>${c.totalValue.toLocaleString()}</td>
+            <td style={{ fontWeight: FW.bold, color: Z.tx }}>${Number(c.totalValue || 0).toLocaleString()}</td>
             <td style={{ color: Z.tm }}>{orderCount}</td>
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{rn(c.assignedTo)}</td>
             <td><Badge status={c.status === "active" ? "Active" : c.status === "completed" ? "Completed" : "Cancelled"} small /></td>

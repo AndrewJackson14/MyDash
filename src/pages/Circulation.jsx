@@ -333,10 +333,10 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {locs.filter(l => {
-          if (sr) { const q = sr.toLowerCase(); if (!(l.name.toLowerCase().includes(q) || l.city?.toLowerCase().includes(q) || l.address?.toLowerCase().includes(q))) return false; }
+          if (sr) { const q = sr.toLowerCase(); if (!((l.name || "").toLowerCase().includes(q) || l.city?.toLowerCase().includes(q) || l.address?.toLowerCase().includes(q))) return false; }
           if (dropPubFilter.length > 0) { const lpIds = locPubs.filter(lp => lp.dropLocationId === l.id).map(lp => lp.publicationId); if (!dropPubFilter.some(pid => lpIds.includes(pid))) return false; }
           return true;
-        }).sort((a, b) => a.name.localeCompare(b.name)).map(loc => {
+        }).sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(loc => {
           const lpubs = locPubs.filter(lp => lp.dropLocationId === loc.id);
           const totalQ = lpubs.reduce((s, lp) => s + (lp.quantity || 0), 0);
           return <GlassCard key={loc.id} style={{ padding: 12, opacity: loc.isActive ? 1 : 0.5, cursor: "pointer" }} onClick={() => openLocModal(loc)}>

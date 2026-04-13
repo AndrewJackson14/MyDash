@@ -161,7 +161,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   // Filter templates
   const filtered = useMemo(() => {
     let list = templates.filter(t => t.category === category);
-    if (search) list = list.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+    if (search) list = list.filter(t => (t.name || "").toLowerCase().includes(search.toLowerCase()));
     return list;
   }, [templates, category, search]);
 

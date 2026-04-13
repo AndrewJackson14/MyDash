@@ -116,7 +116,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
         else if (statusFilter === "lead") { if (c.status !== "Lead") return false; }
         else if (statusFilter === "lapsed") { if (c.status !== "Lapsed") return false; }
       }
-      if (sr && !c.name.toLowerCase().includes(sr.toLowerCase())) return false;
+      if (sr && !(c.name || "").toLowerCase().includes(sr.toLowerCase())) return false;
       if (fPub && fPub !== "all") {
         const d = clientData[c.id];
         if (!d || !d.pubSet.has(fPub)) return false;
@@ -130,7 +130,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
       const na = nextActions[a.id];
       const nb = nextActions[b.id];
       let cmp = 0;
-      if (sortCol === "name") cmp = a.name.localeCompare(b.name);
+      if (sortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
       else if (sortCol === "status") cmp = (STATUS_ORDER[a.status] || 9) - (STATUS_ORDER[b.status] || 9);
       else if (sortCol === "spend") cmp = (da.spend || 0) - (db.spend || 0);
       else if (sortCol === "lastAd") cmp = (da.lastSale || "").localeCompare(db.lastSale || "");

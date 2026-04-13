@@ -82,6 +82,7 @@ export const TB = ({ tabs, active, onChange }) => {
   const containerRef = useRef(null);
   const btnRefs = useRef({});
   const [rect, setRect] = useState({ left: 0, width: 0, ready: false });
+  const tabsKey = Array.isArray(tabs) ? tabs.join("|") : "";
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -90,7 +91,9 @@ export const TB = ({ tabs, active, onChange }) => {
     const cRect = container.getBoundingClientRect();
     const bRect = btn.getBoundingClientRect();
     setRect({ left: bRect.left - cRect.left, width: bRect.width, ready: true });
-  }, [active, tabs.join("|")]);
+  }, [active, tabsKey]);
+
+  if (!Array.isArray(tabs) || tabs.length === 0) return null;
 
   return <div ref={containerRef} style={{
     position: "relative",
