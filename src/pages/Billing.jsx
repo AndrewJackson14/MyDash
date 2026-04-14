@@ -193,9 +193,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filteredUninvoiced]);
 
-  // Aging buckets — bucketed by days PAST DUE, not days since issue.
-  // "Current" = not yet past due (due_date >= today). Past-due buckets run 1-30, 31-60, 61-90, 90+.
-  const agingBuckets = { current: 0, "30": 0, "60": 0, "90": 0, "90+": 0 };
+  // Aging buckets — standard 4-bucket aging:
+  // Current (not past due), 30 (1-30), 60 (31-60), 90+ (61+).
+  const agingBuckets = { current: 0, "30": 0, "60": 0, "90+": 0 };
   processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).forEach(inv => {
     const bal = inv.balanceDue || 0;
     const due = inv.dueDate || inv.issueDate;
@@ -203,9 +203,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     const daysLate = daysBetween(due, today);
     if (daysLate <= 30) agingBuckets["30"] += bal;
     else if (daysLate <= 60) agingBuckets["60"] += bal;
-    else if (daysLate <= 90) agingBuckets["90"] += bal;
     else agingBuckets["90+"] += bal;
   });
+  const agingTotal = agingBuckets.current + agingBuckets["30"] + agingBuckets["60"] + agingBuckets["90+"];
 
   // ─── Invoice Generation ─────────────────────────────────
   const openNewInvoice = useCallback((clientId) => {
@@ -591,12 +591,12 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
           {[
             { label: "Current", value: agingBuckets.current, color: Z.su },
-            { label: "1-30 past due", value: agingBuckets["30"], color: Z.wa },
-            { label: "31-60 past due", value: agingBuckets["60"], color: Z.or },
-            { label: "61-90 past due", value: agingBuckets["90"], color: Z.da },
-            { label: "90+ past due", value: agingBuckets["90+"], color: Z.da },
-          ].map(b => <div key={b.label} style={{ textAlign: "center", padding: 16, background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>{b.label}</div>
+            { label: "30", value: agingBuckets["30"], color: Z.wa },
+            { label: "60", value: agingBuckets["60"], color: Z.or || Z.wa },
+            { label: "90+", value: agingBuckets["90+"], color: Z.da },
+            { label: "Total", value: agingTotal, color: Z.tx },
+          ].map(b => <div key={b.label} style={{ textAlign: "center", padding: 16, background: Z.bg, borderRadius: R, borderLeft: b.label === "Total" ? `2px solid ${Z.bd}` : undefined }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>{b.label === "Total" ? "Total" : b.label === "Current" ? "Current" : `${b.label} past due`}</div>
             <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: b.value > 0 ? b.color : Z.td, fontFamily: DISPLAY }}>{fmtCurrency(b.value)}</div>
           </div>)}
         </div>
@@ -691,7 +691,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             clientName: c?.name || "Unknown",
             repId: c?.repId || null,
             repName: (team || []).find(t => t.id === c?.repId)?.name || "—",
-            current: 0, d30: 0, d60: 0, d90: 0, over90: 0,
+            current: 0, d30: 0, d60: 0, over90: 0,
             total: 0, count: 0,
             oldestDue: inv.dueDate,
             invoices: [],
@@ -707,7 +707,6 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           const daysLate = daysBetween(due, today);
           if (daysLate <= 30) bucket.d30 += bal;
           else if (daysLate <= 60) bucket.d60 += bal;
-          else if (daysLate <= 90) bucket.d90 += bal;
           else bucket.over90 += bal;
         }
         bucket.total += bal;
@@ -719,8 +718,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       let rows = Object.values(byClient);
       if (arClientSearch) rows = rows.filter(r => r.clientName.toLowerCase().includes(arClientSearch.toLowerCase()));
       if (arClientRep !== "all") rows = rows.filter(r => r.repId === arClientRep);
-      if (arClientFilter === "chase") rows = rows.filter(r => r.d60 > 0 || r.d90 > 0 || r.over90 > 0);
-      if (arClientFilter === "overdue") rows = rows.filter(r => r.d30 + r.d60 + r.d90 + r.over90 > 0);
+      if (arClientFilter === "chase") rows = rows.filter(r => r.d60 > 0 || r.over90 > 0);
+      if (arClientFilter === "overdue") rows = rows.filter(r => r.d30 + r.d60 + r.over90 > 0);
       if (arClientFilter === "neverContacted") rows = rows.filter(r => !r.lastPaymentDate || daysBetween(r.lastPaymentDate, today) > 60);
 
       // Sort
@@ -735,16 +734,16 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
       const totals = rows.reduce((acc, r) => ({
         current: acc.current + r.current,
-        d30: acc.d30 + r.d30, d60: acc.d60 + r.d60, d90: acc.d90 + r.d90, over90: acc.over90 + r.over90,
+        d30: acc.d30 + r.d30, d60: acc.d60 + r.d60, over90: acc.over90 + r.over90,
         total: acc.total + r.total, count: acc.count + r.count,
-      }), { current: 0, d30: 0, d60: 0, d90: 0, over90: 0, total: 0, count: 0 });
+      }), { current: 0, d30: 0, d60: 0, over90: 0, total: 0, count: 0 });
 
       // CSV export
       const exportCsv = () => {
-        const header = ["Client","Rep","Invoices","Balance","Current","1-30","31-60","61-90","90+","Oldest Due","Last Payment"].join(",");
+        const header = ["Client","Rep","Invoices","Current","30","60","90+","Total","Oldest Due","Last Payment"].join(",");
         const lines = rows.map(r => [
           JSON.stringify(r.clientName), JSON.stringify(r.repName), r.count,
-          r.total.toFixed(2), r.current.toFixed(2), r.d30.toFixed(2), r.d60.toFixed(2), r.d90.toFixed(2), r.over90.toFixed(2),
+          r.current.toFixed(2), r.d30.toFixed(2), r.d60.toFixed(2), r.over90.toFixed(2), r.total.toFixed(2),
           r.oldestDue || "", r.lastPaymentDate || "",
         ].join(","));
         const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
@@ -764,11 +763,11 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* KPI row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-          <GlassStat label="Total AR" value={fmtCurrency(totals.total)} sub={`${rows.length} client${rows.length === 1 ? "" : "s"} · ${totals.count} invoices`} color={Z.ac} />
           <GlassStat label="Current" value={fmtCurrency(totals.current)} color={Z.su} />
-          <GlassStat label="1-30 Past Due" value={fmtCurrency(totals.d30)} color={Z.wa} />
-          <GlassStat label="31-90 Past Due" value={fmtCurrency(totals.d60 + totals.d90)} color={Z.or || Z.wa} />
-          <GlassStat label="90+ Past Due" value={fmtCurrency(totals.over90)} color={Z.da} />
+          <GlassStat label="30" value={fmtCurrency(totals.d30)} color={Z.wa} />
+          <GlassStat label="60" value={fmtCurrency(totals.d60)} color={Z.or || Z.wa} />
+          <GlassStat label="90+" value={fmtCurrency(totals.over90)} color={Z.da} />
+          <GlassStat label="Total AR" value={fmtCurrency(totals.total)} sub={`${rows.length} client${rows.length === 1 ? "" : "s"} · ${totals.count} invoices`} color={Z.ac} />
         </div>
 
         {/* Filters */}
@@ -800,18 +799,17 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                 <SortTh label="Client" col="client" />
                 <SortTh label="Rep" col="repName" />
                 <SortTh label="# Invs" col="count" align="right" />
-                <SortTh label="Balance" col="total" align="right" />
                 <SortTh label="Current" col="current" align="right" />
-                <SortTh label="1-30" col="d30" align="right" />
-                <SortTh label="31-60" col="d60" align="right" />
-                <SortTh label="61-90" col="d90" align="right" />
+                <SortTh label="30" col="d30" align="right" />
+                <SortTh label="60" col="d60" align="right" />
                 <SortTh label="90+" col="over90" align="right" />
+                <SortTh label="Total" col="total" align="right" />
                 <SortTh label="Oldest Due" col="oldest" align="right" />
                 <SortTh label="Last Pmt" col="lastPay" align="right" />
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No open receivables match filters</td></tr>
+              {rows.length === 0 ? <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No open receivables match filters</td></tr>
               : rows.slice(0, 500).map(r => <React.Fragment key={r.clientId}>
                 <tr onClick={() => setArExpandedClient(e => e === r.clientId ? null : r.clientId)} style={{ borderBottom: `1px solid ${Z.bd}15`, cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.background = Z.sa}
@@ -819,17 +817,16 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                   <td style={{ padding: "7px 10px", fontWeight: FW.bold, color: Z.tx }}>{r.clientName}</td>
                   <td style={{ padding: "7px 10px", color: Z.tm, fontSize: FS.xs }}>{r.repName}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: Z.tm }}>{r.count}</td>
-                  <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(r.total)}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: r.current > 0 ? Z.su : Z.td }}>{r.current > 0 ? fmtCurrency(r.current) : "—"}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: r.d30 > 0 ? Z.wa : Z.td }}>{r.d30 > 0 ? fmtCurrency(r.d30) : "—"}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: r.d60 > 0 ? Z.or || Z.wa : Z.td }}>{r.d60 > 0 ? fmtCurrency(r.d60) : "—"}</td>
-                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.d90 > 0 ? Z.da : Z.td }}>{r.d90 > 0 ? fmtCurrency(r.d90) : "—"}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: r.over90 > 0 ? FW.bold : FW.regular, color: r.over90 > 0 ? Z.da : Z.td }}>{r.over90 > 0 ? fmtCurrency(r.over90) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: FW.heavy, color: Z.tx, borderLeft: `2px solid ${Z.bd}30` }}>{fmtCurrency(r.total)}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: Z.tm, fontSize: FS.xs }}>{r.oldestDue ? fmtDate(r.oldestDue) : "—"}</td>
                   <td style={{ padding: "7px 10px", textAlign: "right", color: r.lastPaymentDate ? Z.tm : Z.da, fontSize: FS.xs }}>{r.lastPaymentDate ? `${daysBetween(r.lastPaymentDate, today)}d ago` : "never"}</td>
                 </tr>
                 {arExpandedClient === r.clientId && <tr>
-                  <td colSpan={11} style={{ padding: "10px 16px", background: Z.bg, borderBottom: `1px solid ${Z.bd}15` }}>
+                  <td colSpan={10} style={{ padding: "10px 16px", background: Z.bg, borderBottom: `1px solid ${Z.bd}15` }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                       {r.invoices.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")).map(inv => <div key={inv.id} onClick={e => { e.stopPropagation(); setViewInvId(inv.id); }} style={{ display: "grid", gridTemplateColumns: "120px 1fr 100px 100px 80px 60px", gap: 10, alignItems: "center", padding: "5px 8px", background: Z.sf, borderRadius: Ri, cursor: "pointer", fontSize: FS.xs }}>
                         <span style={{ fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</span>
@@ -1030,27 +1027,28 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         {/* ── AR Aging Report (Sec 6.3.2) ── */}
         {reportView === "aging" && (() => {
           const openInv = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub)));
-          const buckets = { current: [], d30: [], d60: [], d90: [], over90: [] };
+          const buckets = { current: [], d30: [], d60: [], over90: [] };
           openInv.forEach(inv => {
             const due = inv.dueDate || inv.issueDate;
             if (!due || due >= today) { buckets.current.push(inv); return; }
             const daysLate = daysBetween(due, today);
             if (daysLate <= 30) buckets.d30.push(inv);
             else if (daysLate <= 60) buckets.d60.push(inv);
-            else if (daysLate <= 90) buckets.d90.push(inv);
             else buckets.over90.push(inv);
           });
           const bucketSum = (arr) => arr.reduce((s, i) => s + (i.balanceDue || 0), 0);
+          const totalAging = bucketSum(buckets.current) + bucketSum(buckets.d30) + bucketSum(buckets.d60) + bucketSum(buckets.over90);
+          const totalCount = buckets.current.length + buckets.d30.length + buckets.d60.length + buckets.over90.length;
           const BUCKET_CFG = [
-            { key: "current", label: "Current (not past due)", color: Z.go },
-            { key: "d30", label: "1-30 past due", color: Z.wa },
-            { key: "d60", label: "31-60 past due", color: Z.or },
-            { key: "d90", label: "61-90 past due", color: Z.da },
-            { key: "over90", label: "90+ past due", color: Z.da },
+            { key: "current", label: "Current", color: Z.go },
+            { key: "d30", label: "30", color: Z.wa },
+            { key: "d60", label: "60", color: Z.or || Z.wa },
+            { key: "over90", label: "90+", color: Z.da },
           ];
           return <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
               {BUCKET_CFG.map(b => <GlassStat key={b.key} label={b.label} value={fmtCurrency(bucketSum(buckets[b.key]))} sub={`${buckets[b.key].length} invoice${buckets[b.key].length !== 1 ? "s" : ""}`} color={b.color} />)}
+              <GlassStat label="Total" value={fmtCurrency(totalAging)} sub={`${totalCount} invoices`} color={Z.ac} />
             </div>
             {BUCKET_CFG.map(b => {
               if (buckets[b.key].length === 0) return null;
