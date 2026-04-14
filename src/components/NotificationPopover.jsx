@@ -16,6 +16,9 @@ const STAGGER_MS = 150;
 
 export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) {
   const [stack, setStack] = useState([]); // [{id, note, shown}]
+  const [expandedId, setExpandedId] = useState(null);
+  const [drafts, setDrafts] = useState({}); // id -> reply text
+  const [sendingId, setSendingId] = useState(null);
   const dismissTimers = useRef({});
 
   const dismiss = useCallback((id) => {
@@ -23,10 +26,42 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
     // Remove from state after animation
     setTimeout(() => {
       setStack(prev => prev.filter(x => x.id !== id));
+      setDrafts(prev => { const n = { ...prev }; delete n[id]; return n; });
     }, 300);
     clearTimeout(dismissTimers.current[id]);
     delete dismissTimers.current[id];
   }, []);
+
+  const expand = useCallback((id) => {
+    // Pause auto-dismiss while composing
+    clearTimeout(dismissTimers.current[id]);
+    delete dismissTimers.current[id];
+    setExpandedId(id);
+  }, []);
+
+  const sendReply = useCallback(async (note) => {
+    const text = (drafts[note.id] || "").trim();
+    if (!text) return;
+    setSendingId(note.id);
+    const fromId = currentUser?.id || currentUser?.authId || null;
+    const { error } = await supabase.from("team_notes").insert({
+      from_user: fromId,
+      to_user: note.from_user,
+      message: text,
+      context_type: note.context_type || "general",
+      context_id: note.context_id || null,
+    });
+    if (error) {
+      console.error("NotificationPopover reply failed:", error);
+      setSendingId(null);
+      return;
+    }
+    // Mark original as read
+    await supabase.from("team_notes").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", note.id);
+    setSendingId(null);
+    setExpandedId(null);
+    dismiss(note.id);
+  }, [drafts, currentUser, dismiss]);
 
   useEffect(() => {
     const uid = currentUser?.id;
@@ -82,6 +117,8 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
     if (onOpenMemberProfile && note.from_user) onOpenMemberProfile(note.from_user);
   };
 
+  const setDraft = (id, val) => setDrafts(prev => ({ ...prev, [id]: val }));
+
   if (stack.length === 0) return null;
 
   return (
@@ -101,10 +138,13 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         const name = senderName(note.from_user);
         const role = senderRole(note.from_user);
         const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+        const isExpanded = expandedId === id;
+        const draft = drafts[id] || "";
+        const isSending = sendingId === id;
         return (
           <div
             key={id}
-            onClick={() => openSender(note)}
+            onClick={() => !isExpanded && expand(id)}
             style={{
               pointerEvents: "auto",
               background: "rgba(30, 30, 35, 0.92)",
@@ -114,7 +154,7 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
               borderRadius: 12,
               padding: "12px 14px",
               boxShadow: "0 10px 30px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2)",
-              cursor: "pointer",
+              cursor: isExpanded ? "default" : "pointer",
               transform: shown ? "translateX(0)" : "translateX(400px)",
               opacity: shown ? 1 : 0,
               transition: "transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.35s ease-out",
@@ -134,12 +174,23 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
               {/* Body */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 }}>
-                  <span style={{ fontSize: 13, fontWeight: FW.black, color: "#fff", fontFamily: COND }}>{name}</span>
+                  <span
+                    onClick={(e) => { e.stopPropagation(); openSender(note); }}
+                    style={{ fontSize: 13, fontWeight: FW.black, color: "#fff", fontFamily: COND, cursor: "pointer", textDecoration: "none" }}
+                    title="Open profile"
+                  >{name}</span>
                   <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: FW.bold, textTransform: "uppercase", letterSpacing: 0.5 }}>MyDash</span>
                 </div>
                 {role && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginBottom: 4, fontWeight: FW.semi }}>{role}</div>}
                 {task && <span style={{ display: "inline-block", padding: "1px 6px", background: "rgba(255,180,0,0.25)", color: "#ffcd6b", borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3 }}>TASK: {task}</span>}
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
+                <div style={{
+                  fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.4,
+                  overflow: "hidden",
+                  display: isExpanded ? "block" : "-webkit-box",
+                  WebkitLineClamp: isExpanded ? "unset" : 3,
+                  WebkitBoxOrient: "vertical",
+                  whiteSpace: "pre-wrap",
+                }}>
                   {body}
                 </div>
               </div>
@@ -155,6 +206,52 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
                 aria-label="Dismiss"
               >×</button>
             </div>
+            {isExpanded && (
+              <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10, display: "flex", gap: 6, alignItems: "flex-end" }}>
+                <textarea
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(note); }
+                    if (e.key === "Escape") { setExpandedId(null); }
+                  }}
+                  placeholder={`Reply to ${name.split(" ")[0]}…`}
+                  rows={2}
+                  disabled={isSending}
+                  style={{
+                    flex: 1,
+                    resize: "none",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    borderRadius: 8,
+                    color: "#fff",
+                    padding: "8px 10px",
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => sendReply(note)}
+                  disabled={isSending || !draft.trim()}
+                  style={{
+                    background: draft.trim() ? "#3b82f6" : "rgba(255,255,255,0.12)",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#fff",
+                    padding: "8px 14px",
+                    fontSize: 12,
+                    fontWeight: FW.black,
+                    cursor: draft.trim() && !isSending ? "pointer" : "default",
+                    fontFamily: COND,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    height: 36,
+                  }}
+                >{isSending ? "…" : "Send"}</button>
+              </div>
+            )}
           </div>
         );
       })}
