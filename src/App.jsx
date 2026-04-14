@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense, memo
 import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
-import { isOnline } from "./lib/supabase";
+import { supabase, isOnline } from "./lib/supabase";
 import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
 import {
