@@ -319,10 +319,21 @@ export function useSignalFeed({
   }, [focusItems, salesToGoal, _stories, deadlineAlerts, overdueJobs, openTickets, escalatedTickets, overdueInvCount, pipelineValue, expiringNext30]);
 
   // ── Global pressure (0–100) for ambient glow state ──────
+  // Weighted toward the HOTTEST department so one dept on fire visibly tints
+  // the room, even if the other three are calm. Pure average would dilute
+  // three red sales cards down to blue just because editorial is quiet.
+  // Also adds a direct "red card" count bonus — every priority-1 focus item
+  // adds +4 on top, so the user sees the background respond 1:1 to the
+  // red cards they're looking at.
   const globalPressure = useMemo(() => {
     const d = departmentPressure;
-    return Math.round((d.sales.heat + d.editorial.heat + d.production.heat + d.admin.heat) / 4);
-  }, [departmentPressure]);
+    const heats = [d.sales.heat, d.editorial.heat, d.production.heat, d.admin.heat];
+    const maxHeat = Math.max(...heats);
+    const avgHeat = heats.reduce((s, h) => s + h, 0) / heats.length;
+    const redCards = (focusItems || []).filter(fi => fi.priority <= 1).length;
+    const raw = maxHeat * 0.7 + avgHeat * 0.3 + redCards * 4;
+    return Math.min(100, Math.round(raw));
+  }, [departmentPressure, focusItems]);
 
   // ── Ad project alerts (overdue / past-press) ─────────────
   const [adProjectAlerts, setAdProjectAlerts] = useState([]);

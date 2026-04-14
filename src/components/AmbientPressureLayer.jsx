@@ -39,10 +39,13 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
       ? lerpColor(BLUE, AMBER, p / 50)
       : lerpColor(AMBER, RED, (p - 50) / 50);
     // Alpha and pulse strength scale with pressure — calm is subtle, hot is loud.
-    const alpha = 0.08 + (p / 100) * 0.14;        // 0.08 → 0.22
-    const pulseAlpha = 0.02 + (p / 100) * 0.08;   // pulse amplitude grows with heat
-    // Ripple/pulse duration: 14s at full calm, 2.2s at full heat. Shorter = more urgent.
-    const duration = 14 - (p / 100) * 11.8;
+    // Non-linear ramp: stays gentle up to ~50, then climbs faster so red really
+    // reads when the dashboard has multiple urgent cards.
+    const eased = Math.pow(p / 100, 1.4);
+    const alpha = 0.08 + eased * 0.26;             // 0.08 → 0.34
+    const pulseAlpha = 0.02 + eased * 0.10;
+    // Ripple/pulse duration: 14s at full calm, 1.8s at full heat. Shorter = more urgent.
+    const duration = 14 - eased * 12.2;
     return { color: c, alpha, duration, pulseAlpha };
   }, [p]);
 
