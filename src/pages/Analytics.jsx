@@ -59,6 +59,47 @@ const Analytics = ({
   const outstanding = useMemo(() => _inv.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
   const overdueAmt = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
 
+  // DSO (Days Sales Outstanding) — average days from invoice issue to final payment,
+  // using paid invoices only. Lower = faster collection. Also a 3-month rolling value
+  // + a 12-month sparkline for the trend widget.
+  const { dsoCurrent, dsoTrend, dsoPrior } = useMemo(() => {
+    const paymentsByInv = {};
+    _pay.forEach(p => {
+      if (!p.receivedAt || !p.invoiceId) return;
+      const prior = paymentsByInv[p.invoiceId];
+      const d = p.receivedAt.slice(0, 10);
+      if (!prior || d > prior) paymentsByInv[p.invoiceId] = d;
+    });
+    const compute = (fromDate, toDate) => {
+      let daysSum = 0, amtSum = 0;
+      _inv.forEach(i => {
+        if (i.status !== "paid" || !i.issueDate || !i.total) return;
+        const pDate = paymentsByInv[i.id];
+        if (!pDate) return;
+        if (fromDate && pDate < fromDate) return;
+        if (toDate && pDate > toDate) return;
+        const days = (new Date(pDate) - new Date(i.issueDate)) / 86400000;
+        if (days < 0) return;
+        daysSum += days * (i.total || 0);
+        amtSum += i.total || 0;
+      });
+      return amtSum > 0 ? Math.round(daysSum / amtSum) : null;
+    };
+    const now = new Date();
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().slice(0, 10);
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString().slice(0, 10);
+    const current = compute(threeMonthsAgo, null);
+    const prior = compute(sixMonthsAgo, threeMonthsAgo);
+    // 12-month sparkline
+    const trend = [];
+    for (let i = 11; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1).toISOString().slice(0, 10);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).toISOString().slice(0, 10);
+      trend.push({ month: start.slice(0, 7), value: compute(start, end) });
+    }
+    return { dsoCurrent: current, dsoTrend: trend, dsoPrior: prior };
+  }, [_inv, _pay]);
+
   // Subscription revenue: digital = MRR (monthly recurring), print = one-time per renewal
   const activeDigitalSubs = useMemo(() => _subs.filter(s => s.type === "digital" && s.status === "active"), [_subs]);
   const digitalMrr = useMemo(() => activeDigitalSubs.reduce((s, sub) => s + (sub.amountPaid || 0), 0), [activeDigitalSubs]);
@@ -290,7 +331,7 @@ const Analytics = ({
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Row 1: Hero Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
         <GlassCard style={{ padding: "16px 20px" }}>
           <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue MTD</div>
           <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -1 }}>{fmtCurrency(totalMonthRev)}</div>
@@ -337,6 +378,23 @@ const Analytics = ({
           <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: netDelta >= 0 ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
             {netDelta >= 0 ? "▲" : "▼"} {fmtCurrency(Math.abs(netDelta))} vs last month
           </div>
+        </GlassCard>
+        <GlassCard style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>DSO (90-day)</div>
+          <div style={{ fontSize: 32, fontWeight: FW.black, fontFamily: DISPLAY, color: dsoCurrent == null ? Z.td : dsoCurrent <= 30 ? Z.su : dsoCurrent <= 60 ? Z.wa : Z.da, letterSpacing: -1 }}>
+            {dsoCurrent != null ? `${dsoCurrent}d` : "—"}
+          </div>
+          {dsoPrior != null && dsoCurrent != null && <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: dsoCurrent <= dsoPrior ? Z.su : Z.wa, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+            {dsoCurrent <= dsoPrior ? "▼" : "▲"} {Math.abs(dsoCurrent - dsoPrior)}d vs prior 90d
+          </div>}
+          {/* Sparkline */}
+          {dsoTrend.some(t => t.value != null) && <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 24, marginTop: 8 }}>
+            {dsoTrend.map((t, i) => {
+              const max = Math.max(...dsoTrend.map(x => x.value || 0), 1);
+              const h = t.value ? Math.max(2, (t.value / max) * 22) : 0;
+              return <div key={i} style={{ flex: 1, height: h, background: t.value ? Z.ac : Z.bd, borderRadius: 1, opacity: t.value ? 0.7 : 0.3 }} />;
+            })}
+          </div>}
         </GlassCard>
       </div>
 

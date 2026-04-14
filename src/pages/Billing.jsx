@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, memo, useEffect, useCallback } from "react";
+import React, { useState, useRef, useMemo, memo, useEffect, useCallback, Fragment } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, glass } from "../components/ui";
 import { COMPANY } from "../constants";
@@ -111,6 +111,12 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [reportView, setReportView] = useState("revenue");
   const [reportPeriod, setReportPeriod] = useState("mtd");
   const [reportPub, setReportPub] = useState("all");
+  // AR by Client (Receivables tab)
+  const [arClientSearch, setArClientSearch] = useState("");
+  const [arClientSort, setArClientSort] = useState({ key: "total", dir: "desc" });
+  const [arClientFilter, setArClientFilter] = useState("all");
+  const [arClientRep, setArClientRep] = useState("all");
+  const [arExpandedClient, setArExpandedClient] = useState(null);
 
   // New invoice form
   const [invForm, setInvForm] = useState({
@@ -660,63 +666,189 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     {/* ════════ BILLS TAB ════════ */}
     {tab === "Bills" && <BillsTab bills={bills || []} pubs={pubs} insertBill={insertBill} updateBill={updateBill} deleteBill={deleteBill} />}
 
-    {/* ════════ RECEIVABLES TAB ════════ */}
-    {tab === "Receivables" && <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-        <GlassStat label="Total Outstanding" value={fmtCurrency(totalOutstanding)} />
-        <GlassStat label="Total Overdue" value={fmtCurrency(totalOverdue)} color={Z.da} />
-        <GlassStat label="Avg Days to Pay" value={(() => {
-          const paid = processedInvoices.filter(i => i.status === "paid" && i.issueDate);
-          if (paid.length === 0) return "—";
-          const avg = paid.reduce((s, i) => {
-            const pDate = (payments || []).filter(p => p.invoiceId === i.id).sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0]?.receivedAt?.slice(0, 10);
-            return s + (pDate ? daysBetween(i.issueDate, pDate) : 0);
-          }, 0) / paid.length;
-          return Math.round(avg) + " days";
-        })()} />
-      </div>
+    {/* ════════ RECEIVABLES TAB — AR by Client ════════ */}
+    {tab === "Receivables" && (() => {
+      // Compute per-client AR with aging buckets + rep + last payment
+      const payByClient = {};
+      (payments || []).forEach(p => {
+        const inv = processedInvoices.find(i => i.id === p.invoiceId);
+        if (!inv) return;
+        if (!payByClient[inv.clientId]) payByClient[inv.clientId] = { total: 0, last: null };
+        payByClient[inv.clientId].total += p.amount || 0;
+        const rAt = p.receivedAt?.slice(0, 10);
+        if (rAt && (!payByClient[inv.clientId].last || rAt > payByClient[inv.clientId].last)) {
+          payByClient[inv.clientId].last = rAt;
+        }
+      });
 
-      {/* Client-level receivables */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Outstanding by Client</div>
-        {(() => {
-          const clientBalances = {};
-          processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status)).forEach(inv => {
-            if (!clientBalances[inv.clientId]) clientBalances[inv.clientId] = { balance: 0, overdue: 0, count: 0, oldest: inv.issueDate };
-            clientBalances[inv.clientId].balance += inv.balanceDue || 0;
-            clientBalances[inv.clientId].count++;
-            if (inv.status === "overdue") clientBalances[inv.clientId].overdue += inv.balanceDue || 0;
-            if (inv.issueDate < clientBalances[inv.clientId].oldest) clientBalances[inv.clientId].oldest = inv.issueDate;
-          });
-          const sorted = Object.entries(clientBalances).sort((a, b) => b[1].balance - a[1].balance);
+      const byClient = {};
+      processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (i.balanceDue || 0) > 0).forEach(inv => {
+        const cid = inv.clientId;
+        if (!byClient[cid]) {
+          const c = clients.find(x => x.id === cid);
+          byClient[cid] = {
+            clientId: cid,
+            clientName: c?.name || "Unknown",
+            repId: c?.repId || null,
+            repName: (team || []).find(t => t.id === c?.repId)?.name || "—",
+            current: 0, d30: 0, d60: 0, d90: 0, over90: 0,
+            total: 0, count: 0,
+            oldestDue: inv.dueDate,
+            invoices: [],
+            lastPaymentDate: payByClient[cid]?.last || null,
+            lifetimePaid: payByClient[cid]?.total || 0,
+          };
+        }
+        const bucket = byClient[cid];
+        const due = inv.dueDate || inv.issueDate;
+        const bal = inv.balanceDue || 0;
+        if (!due || due >= today) bucket.current += bal;
+        else {
+          const daysLate = daysBetween(due, today);
+          if (daysLate <= 30) bucket.d30 += bal;
+          else if (daysLate <= 60) bucket.d60 += bal;
+          else if (daysLate <= 90) bucket.d90 += bal;
+          else bucket.over90 += bal;
+        }
+        bucket.total += bal;
+        bucket.count++;
+        bucket.invoices.push(inv);
+        if (due && (!bucket.oldestDue || due < bucket.oldestDue)) bucket.oldestDue = due;
+      });
 
-          if (sorted.length === 0) return <div style={{ fontSize: FS.base, color: Z.td, textAlign: "center" }}>No outstanding receivables</div>;
+      let rows = Object.values(byClient);
+      if (arClientSearch) rows = rows.filter(r => r.clientName.toLowerCase().includes(arClientSearch.toLowerCase()));
+      if (arClientRep !== "all") rows = rows.filter(r => r.repId === arClientRep);
+      if (arClientFilter === "chase") rows = rows.filter(r => r.d60 > 0 || r.d90 > 0 || r.over90 > 0);
+      if (arClientFilter === "overdue") rows = rows.filter(r => r.d30 + r.d60 + r.d90 + r.over90 > 0);
+      if (arClientFilter === "neverContacted") rows = rows.filter(r => !r.lastPaymentDate || daysBetween(r.lastPaymentDate, today) > 60);
 
-          return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {sorted.map(([cid, data]) => <div key={cid} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 80px 60px", gap: 10, alignItems: "center", borderRadius: R, background: Z.bg }}>
-              <div>
-                <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{cn(cid)}</div>
-                <div style={{ fontSize: FS.xs, color: Z.td }}>{data.count} invoice{data.count > 1 ? "s" : ""}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(data.balance)}</div>
-                <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Balance</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                {data.overdue > 0 && <>
-                  <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.da }}>{fmtCurrency(data.overdue)}</div>
-                  <div style={{ fontSize: FS.micro, color: Z.da, textTransform: "uppercase" }}>Overdue</div>
-                </>}
-              </div>
-              <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "right" }}>
-                {daysBetween(data.oldest, today)} days
-              </div>
-              <Btn sm v="ghost" onClick={() => openPayment(processedInvoices.find(i => i.clientId === cid && ["sent", "partially_paid", "overdue"].includes(i.status))?.id)}>Pay</Btn>
-            </div>)}
-          </div>;
-        })()}
-      </GlassCard>
-    </>}
+      // Sort
+      const dir = arClientSort.dir === "asc" ? 1 : -1;
+      rows.sort((a, b) => {
+        const k = arClientSort.key;
+        if (k === "client") return a.clientName.localeCompare(b.clientName) * dir;
+        if (k === "oldest") return ((a.oldestDue || "9") < (b.oldestDue || "9") ? -1 : 1) * dir;
+        if (k === "lastPay") return ((a.lastPaymentDate || "") < (b.lastPaymentDate || "") ? -1 : 1) * dir;
+        return ((a[k] || 0) - (b[k] || 0)) * dir;
+      });
+
+      const totals = rows.reduce((acc, r) => ({
+        current: acc.current + r.current,
+        d30: acc.d30 + r.d30, d60: acc.d60 + r.d60, d90: acc.d90 + r.d90, over90: acc.over90 + r.over90,
+        total: acc.total + r.total, count: acc.count + r.count,
+      }), { current: 0, d30: 0, d60: 0, d90: 0, over90: 0, total: 0, count: 0 });
+
+      // CSV export
+      const exportCsv = () => {
+        const header = ["Client","Rep","Invoices","Balance","Current","1-30","31-60","61-90","90+","Oldest Due","Last Payment"].join(",");
+        const lines = rows.map(r => [
+          JSON.stringify(r.clientName), JSON.stringify(r.repName), r.count,
+          r.total.toFixed(2), r.current.toFixed(2), r.d30.toFixed(2), r.d60.toFixed(2), r.d90.toFixed(2), r.over90.toFixed(2),
+          r.oldestDue || "", r.lastPaymentDate || "",
+        ].join(","));
+        const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `ar-by-client-${today}.csv`; a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      const SortTh = ({ label, col, align = "left" }) => (
+        <th onClick={() => setArClientSort({ key: col, dir: arClientSort.key === col && arClientSort.dir === "desc" ? "asc" : "desc" })}
+          style={{ padding: "8px 10px", textAlign: align, fontSize: FS.micro, fontWeight: FW.heavy, color: arClientSort.key === col ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+          {label}{arClientSort.key === col && <span style={{ marginLeft: 3, fontSize: 9 }}>{arClientSort.dir === "asc" ? "▲" : "▼"}</span>}
+        </th>
+      );
+
+      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* KPI row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          <GlassStat label="Total AR" value={fmtCurrency(totals.total)} sub={`${rows.length} client${rows.length === 1 ? "" : "s"} · ${totals.count} invoices`} color={Z.ac} />
+          <GlassStat label="Current" value={fmtCurrency(totals.current)} color={Z.su} />
+          <GlassStat label="1-30 Past Due" value={fmtCurrency(totals.d30)} color={Z.wa} />
+          <GlassStat label="31-90 Past Due" value={fmtCurrency(totals.d60 + totals.d90)} color={Z.or || Z.wa} />
+          <GlassStat label="90+ Past Due" value={fmtCurrency(totals.over90)} color={Z.da} />
+        </div>
+
+        {/* Filters */}
+        <GlassCard>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <SB value={arClientSearch} onChange={setArClientSearch} placeholder="Search client..." style={{ minWidth: 200 }} />
+            <Sel value={arClientRep} onChange={e => setArClientRep(e.target.value)} options={[
+              { value: "all", label: "All Reps" },
+              ...(team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name })),
+            ]} />
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {[
+                { k: "all", l: "All Open" },
+                { k: "overdue", l: "All Past Due" },
+                { k: "chase", l: "60+ Days (Chase)" },
+                { k: "neverContacted", l: "Stale (60d no payment)" },
+              ].map(opt => <Pill key={opt.k} label={opt.l} active={arClientFilter === opt.k} onClick={() => setArClientFilter(opt.k)} />)}
+            </div>
+            <div style={{ flex: 1 }} />
+            <Btn sm v="secondary" onClick={exportCsv}><Ic.download size={12} /> Export CSV</Btn>
+          </div>
+        </GlassCard>
+
+        {/* Table */}
+        <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+            <thead style={{ background: Z.sa }}>
+              <tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
+                <SortTh label="Client" col="client" />
+                <SortTh label="Rep" col="repName" />
+                <SortTh label="# Invs" col="count" align="right" />
+                <SortTh label="Balance" col="total" align="right" />
+                <SortTh label="Current" col="current" align="right" />
+                <SortTh label="1-30" col="d30" align="right" />
+                <SortTh label="31-60" col="d60" align="right" />
+                <SortTh label="61-90" col="d90" align="right" />
+                <SortTh label="90+" col="over90" align="right" />
+                <SortTh label="Oldest Due" col="oldest" align="right" />
+                <SortTh label="Last Pmt" col="lastPay" align="right" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No open receivables match filters</td></tr>
+              : rows.slice(0, 500).map(r => <React.Fragment key={r.clientId}>
+                <tr onClick={() => setArExpandedClient(e => e === r.clientId ? null : r.clientId)} style={{ borderBottom: `1px solid ${Z.bd}15`, cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = Z.sa}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "7px 10px", fontWeight: FW.bold, color: Z.tx }}>{r.clientName}</td>
+                  <td style={{ padding: "7px 10px", color: Z.tm, fontSize: FS.xs }}>{r.repName}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: Z.tm }}>{r.count}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(r.total)}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.current > 0 ? Z.su : Z.td }}>{r.current > 0 ? fmtCurrency(r.current) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.d30 > 0 ? Z.wa : Z.td }}>{r.d30 > 0 ? fmtCurrency(r.d30) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.d60 > 0 ? Z.or || Z.wa : Z.td }}>{r.d60 > 0 ? fmtCurrency(r.d60) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.d90 > 0 ? Z.da : Z.td }}>{r.d90 > 0 ? fmtCurrency(r.d90) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: r.over90 > 0 ? FW.bold : FW.regular, color: r.over90 > 0 ? Z.da : Z.td }}>{r.over90 > 0 ? fmtCurrency(r.over90) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: Z.tm, fontSize: FS.xs }}>{r.oldestDue ? fmtDate(r.oldestDue) : "—"}</td>
+                  <td style={{ padding: "7px 10px", textAlign: "right", color: r.lastPaymentDate ? Z.tm : Z.da, fontSize: FS.xs }}>{r.lastPaymentDate ? `${daysBetween(r.lastPaymentDate, today)}d ago` : "never"}</td>
+                </tr>
+                {arExpandedClient === r.clientId && <tr>
+                  <td colSpan={11} style={{ padding: "10px 16px", background: Z.bg, borderBottom: `1px solid ${Z.bd}15` }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {r.invoices.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")).map(inv => <div key={inv.id} onClick={e => { e.stopPropagation(); setViewInvId(inv.id); }} style={{ display: "grid", gridTemplateColumns: "120px 1fr 100px 100px 80px 60px", gap: 10, alignItems: "center", padding: "5px 8px", background: Z.sf, borderRadius: Ri, cursor: "pointer", fontSize: FS.xs }}>
+                        <span style={{ fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</span>
+                        <span style={{ color: Z.tm }}>{inv.notes?.slice(0, 60) || "—"}</span>
+                        <span style={{ color: Z.tm, textAlign: "right" }}>{fmtDate(inv.issueDate)}</span>
+                        <span style={{ color: inv.dueDate < today ? Z.da : Z.tm, fontWeight: inv.dueDate < today ? FW.bold : FW.regular, textAlign: "right" }}>{fmtDate(inv.dueDate)}</span>
+                        <span style={{ fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.balanceDue)}</span>
+                        <span style={{ textAlign: "right" }}><InvBadge status={inv.status} /></span>
+                      </div>)}
+                    </div>
+                  </td>
+                </tr>}
+              </React.Fragment>)}
+            </tbody>
+          </table>
+          {rows.length > 500 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing top 500 of {rows.length}</div>}
+        </GlassCard>
+      </div>;
+    })()}
 
     {/* ════════ PAYMENT PLANS TAB ════════ */}
     {tab === "Payment Plans" && (() => {
@@ -822,8 +954,16 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       return <>
         {/* Report selector + period filter */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[{ k: "revenue", l: "Revenue Summary" }, { k: "aging", l: "AR Aging" }, { k: "uninvoiced", l: "Uninvoiced" }, { k: "performance", l: "Sales Performance" }].map(r => (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {[
+              { k: "revenue", l: "Revenue" },
+              { k: "aging", l: "AR Aging" },
+              { k: "uninvoiced", l: "Uninvoiced" },
+              { k: "performance", l: "Sales Perf" },
+              { k: "collections", l: "Rep Collections" },
+              { k: "methods", l: "Payment Methods" },
+              { k: "writeoffs", l: "Write-offs / Credits" },
+            ].map(r => (
               <Pill key={r.k} label={r.l} active={reportView === r.k} onClick={() => setReportView(r.k)} />
             ))}
           </div>
@@ -1022,6 +1162,194 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                 })}
               </div>
             </GlassCard>
+          </>;
+        })()}
+
+        {/* ── Rep Collections (closed vs collected) ── */}
+        {reportView === "collections" && (() => {
+          const salespeople = _team.filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin"));
+          const periodClosed = _sales.filter(s => s.status === "Closed" && inPeriod(s.date || s.closedAt));
+
+          const rows = salespeople.map(sp => {
+            const myClients = new Set((clients || []).filter(c => c.repId === sp.id).map(c => c.id));
+            const myClosed = periodClosed.filter(s => myClients.has(s.clientId));
+            const closedAmt = myClosed.reduce((s, x) => s + (x.amount || 0), 0);
+            const myInvs = processedInvoices.filter(i => myClients.has(i.clientId) && inPeriod(i.issueDate));
+            const invoiced = myInvs.reduce((s, i) => s + (i.total || 0), 0);
+            const openBal = myInvs.filter(i => ["sent","overdue","partially_paid","draft"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0);
+            const collected = invoiced - openBal;
+            const collectRate = invoiced > 0 ? Math.round((collected / invoiced) * 100) : 0;
+            // DSO for this rep's paid invoices
+            const paid = myInvs.filter(i => i.status === "paid" && i.issueDate);
+            let totalDays = 0, dsoCount = 0;
+            paid.forEach(i => {
+              const lastPay = (payments || []).filter(p => p.invoiceId === i.id).sort((a,b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0]?.receivedAt?.slice(0,10);
+              if (lastPay) { totalDays += daysBetween(i.issueDate, lastPay); dsoCount++; }
+            });
+            const dso = dsoCount > 0 ? Math.round(totalDays / dsoCount) : null;
+            return { sp, closedAmt, closedCount: myClosed.length, invoiced, collected, openBal, collectRate, dso };
+          }).filter(r => r.closedAmt > 0 || r.invoiced > 0).sort((a, b) => b.closedAmt - a.closedAmt);
+
+          return <>
+            <GlassCard>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Rep Performance — Closed vs. Collected</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+                <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
+                  <th style={{ padding: "6px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Rep</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Deals</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Closed</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Invoiced</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Collected</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Open</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Collect %</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>DSO</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map(r => <tr key={r.sp.id} style={{ borderBottom: `1px solid ${Z.bd}15` }}>
+                    <td style={{ padding: "8px", fontWeight: FW.bold, color: Z.tx }}>{r.sp.name}</td>
+                    <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{r.closedCount}</td>
+                    <td style={{ padding: "8px", textAlign: "right", fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(r.closedAmt)}</td>
+                    <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{fmtCurrency(r.invoiced)}</td>
+                    <td style={{ padding: "8px", textAlign: "right", fontWeight: FW.heavy, color: Z.go }}>{fmtCurrency(r.collected)}</td>
+                    <td style={{ padding: "8px", textAlign: "right", color: r.openBal > 0 ? Z.da : Z.td }}>{fmtCurrency(r.openBal)}</td>
+                    <td style={{ padding: "8px", textAlign: "right", fontWeight: FW.bold, color: r.collectRate >= 80 ? Z.go : r.collectRate >= 50 ? Z.wa : Z.da }}>{r.collectRate}%</td>
+                    <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{r.dso != null ? `${r.dso}d` : "—"}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+              {rows.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.td }}>No rep data for this period</div>}
+            </GlassCard>
+          </>;
+        })()}
+
+        {/* ── Payment Method Mix ── */}
+        {reportView === "methods" && (() => {
+          const periodPayments = _payments.filter(p => {
+            const d = p.receivedAt?.slice(0, 10);
+            return d && inPeriod(d);
+          });
+
+          // Aggregate by MyDash method enum (extract original from notes if present)
+          const methodTotals = {};
+          periodPayments.forEach(p => {
+            // Extract the raw NM method from notes if present (e.g., "NM: Visa | ...")
+            let label = PAYMENT_METHODS.find(m => m.value === p.method)?.label || p.method || "Other";
+            const nmMatch = /^NM:\s*([^|]+)/.exec(p.notes || "");
+            if (nmMatch) label = nmMatch[1].trim();
+            if (!methodTotals[label]) methodTotals[label] = { amount: 0, count: 0 };
+            methodTotals[label].amount += p.amount || 0;
+            methodTotals[label].count++;
+          });
+          const totalAmt = Object.values(methodTotals).reduce((s, x) => s + x.amount, 0);
+          const sorted = Object.entries(methodTotals).sort((a, b) => b[1].amount - a[1].amount);
+
+          // Trend: group by month for the last 12 months
+          const now = new Date();
+          const months = [];
+          for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push(d.toISOString().slice(0, 7));
+          }
+          const monthlyMix = months.map(m => {
+            const row = { month: m, total: 0 };
+            _payments.forEach(p => {
+              if (!p.receivedAt || !p.receivedAt.startsWith(m)) return;
+              row.total += p.amount || 0;
+              const method = p.method || "other";
+              row[method] = (row[method] || 0) + (p.amount || 0);
+            });
+            return row;
+          });
+
+          return <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <GlassStat label="Total Collected" value={fmtCurrency(totalAmt)} sub={`${periodPayments.length} payments`} color={Z.go} />
+              <GlassStat label="Top Method" value={sorted[0]?.[0] || "—"} sub={sorted[0] ? fmtCurrency(sorted[0][1].amount) : ""} />
+              <GlassStat label="Methods Used" value={sorted.length} />
+            </div>
+            <GlassCard>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Payment Method Breakdown</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {sorted.map(([label, data]) => {
+                  const pct = totalAmt > 0 ? Math.round((data.amount / totalAmt) * 100) : 0;
+                  return <div key={label} style={{ display: "grid", gridTemplateColumns: "160px 120px 70px 1fr 40px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "8px 12px" }}>
+                    <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{label}</div>
+                    <div style={{ textAlign: "right", fontSize: FS.md, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(data.amount)}</div>
+                    <div style={{ textAlign: "right", fontSize: FS.sm, color: Z.td }}>{data.count}</div>
+                    <div style={{ height: 6, background: Z.sa, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: Z.ac, borderRadius: 3 }} />
+                    </div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>{pct}%</div>
+                  </div>;
+                })}
+              </div>
+            </GlassCard>
+            <GlassCard>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Last 12 Months Trend</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 140 }}>
+                {monthlyMix.map(m => {
+                  const max = Math.max(...monthlyMix.map(x => x.total), 1);
+                  const h = m.total > 0 ? Math.max(4, (m.total / max) * 110) : 2;
+                  return <div key={m.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <div style={{ fontSize: FS.micro, color: Z.td }}>{m.total > 0 ? `$${Math.round(m.total / 1000)}K` : ""}</div>
+                    <div style={{ width: "80%", height: h, background: Z.ac, borderRadius: 2 }} />
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontWeight: FW.bold }}>{m.month.slice(5)}</div>
+                  </div>;
+                })}
+              </div>
+            </GlassCard>
+          </>;
+        })()}
+
+        {/* ── Write-offs & Credit Memos ── */}
+        {reportView === "writeoffs" && (() => {
+          // Filter payments by original NM method being Credit Memo, Write Off, or Barter
+          const adjustments = _payments.filter(p => {
+            const nmMatch = /^NM:\s*([^|]+)/.exec(p.notes || "");
+            const rawMethod = nmMatch ? nmMatch[1].trim() : "";
+            return /credit memo|write.?off|barter|invoice credit/i.test(rawMethod);
+          });
+          const periodAdj = adjustments.filter(p => {
+            const d = p.receivedAt?.slice(0, 10);
+            return d && inPeriod(d);
+          });
+
+          const byType = {};
+          periodAdj.forEach(p => {
+            const nmMatch = /^NM:\s*([^|]+)/.exec(p.notes || "");
+            const type = nmMatch ? nmMatch[1].trim() : "Other";
+            if (!byType[type]) byType[type] = { amount: 0, count: 0, rows: [] };
+            byType[type].amount += p.amount || 0;
+            byType[type].count++;
+            byType[type].rows.push(p);
+          });
+
+          return <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <GlassStat label="Total Adjustments" value={fmtCurrency(periodAdj.reduce((s, p) => s + (p.amount || 0), 0))} sub={`${periodAdj.length} records`} color={Z.wa} />
+              <GlassStat label="Write-offs" value={fmtCurrency((byType["Write Off"]?.amount || 0))} sub={`${byType["Write Off"]?.count || 0} records`} color={Z.da} />
+              <GlassStat label="Credit Memos" value={fmtCurrency((byType["Credit Memo"]?.amount || 0))} sub={`${byType["Credit Memo"]?.count || 0} records`} color={Z.pu} />
+            </div>
+            {Object.entries(byType).sort((a, b) => b[1].amount - a[1].amount).map(([type, data]) => (
+              <GlassCard key={type}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>{type} — {fmtCurrency(data.amount)} · {data.count} records</div>
+                </div>
+                <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+                  {data.rows.sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || "")).slice(0, 100).map(p => {
+                    const inv = processedInvoices.find(i => i.id === p.invoiceId);
+                    const memoMatch = /Memo:\s*([^|]+)/.exec(p.notes || "");
+                    return <div key={p.id} onClick={() => inv && setViewInvId(inv.id)} style={{ display: "grid", gridTemplateColumns: "100px 1fr 120px 100px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "6px 10px", cursor: inv ? "pointer" : "default" }}>
+                      <div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtDate(p.receivedAt?.slice(0, 10))}</div>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{inv ? cn(inv.clientId) : "—"}</div>
+                      <div style={{ fontSize: FS.xs, color: Z.td }}>{memoMatch ? memoMatch[1].trim() : ""}</div>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.wa, textAlign: "right" }}>{fmtCurrency(p.amount)}</div>
+                    </div>;
+                  })}
+                </div>
+              </GlassCard>
+            ))}
+            {periodAdj.length === 0 && <GlassCard><div style={{ padding: 24, textAlign: "center", color: Z.td }}>No write-offs or credit memos in this period</div></GlassCard>}
           </>;
         })()}
       </>;

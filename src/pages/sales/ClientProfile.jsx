@@ -8,6 +8,7 @@ import { useAppData } from "../../hooks/useAppData";
 
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
+  invoices, payments, team,
   commForm, setCommForm, onBack, onNavTo, onOpenProposal, onSetViewPropId,
   onOpenEditClient, bus,
 }) => {
@@ -77,6 +78,35 @@ const ClientProfile = ({
   // Contracts for this client
   const clientContracts = (contracts || []).filter(c => c.clientId === vc.id).sort((a, b) => (b.startDate || "").localeCompare(a.startDate || ""));
   const activeContracts = clientContracts.filter(c => c.status === "active");
+
+  // ─── Financial: invoices & payments for this client ─────────
+  const clientInvoices = (invoices || []).filter(i => i.clientId === vc.id);
+  const clientInvoiceIds = new Set(clientInvoices.map(i => i.id));
+  const clientPayments = (payments || []).filter(p => clientInvoiceIds.has(p.invoiceId));
+  const openInvoices = clientInvoices.filter(i => ["sent","overdue","partially_paid","draft"].includes(i.status) && (i.balanceDue || 0) > 0);
+  const paidInvoices = clientInvoices.filter(i => i.status === "paid");
+  const currentBalance = openInvoices.reduce((s, i) => s + (i.balanceDue || 0), 0);
+  const overdueBalance = openInvoices.filter(i => i.dueDate && i.dueDate < today).reduce((s, i) => s + (i.balanceDue || 0), 0);
+  const lifetimeBilled = clientInvoices.reduce((s, i) => s + (i.total || 0), 0);
+  const lifetimePaid = clientPayments.reduce((s, p) => s + (p.amount || 0), 0);
+  // DSO for this client's paid invoices
+  const clientDso = (() => {
+    let totalDays = 0, totalAmt = 0;
+    paidInvoices.forEach(i => {
+      if (!i.issueDate || !i.total) return;
+      const lastPay = clientPayments.filter(p => p.invoiceId === i.id).sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0];
+      if (!lastPay?.receivedAt) return;
+      const days = (new Date(lastPay.receivedAt.slice(0, 10)) - new Date(i.issueDate)) / 86400000;
+      if (days < 0) return;
+      totalDays += days * i.total;
+      totalAmt += i.total;
+    });
+    return totalAmt > 0 ? Math.round(totalDays / totalAmt) : null;
+  })();
+  const lastPayment = [...clientPayments].sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0];
+  const oldestOpenInvoice = openInvoices.length > 0 ? [...openInvoices].sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"))[0] : null;
+
+  const [finTab, setFinTab] = useState("invoices"); // invoices | payments
 
   // Purchase Timeline — group contracts, standalone sales, and orphan proposals by year.
   // A proposal is shown only if it did not convert to a contract, or if the contract it
@@ -190,6 +220,87 @@ const ClientProfile = ({
       </div>
       <Btn sm onClick={() => { if (onOpenProposal) onOpenProposal(vc.id); }}>Create Renewal Proposal</Btn>
     </div>}
+
+    {/* ── FINANCIAL — AR at-a-glance, invoices, payments ── */}
+    {(clientInvoices.length > 0 || clientPayments.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.pu}`, marginBottom: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Financial</span>
+        <span style={{ fontSize: FS.xs, color: Z.td }}>{clientInvoices.length} invoice{clientInvoices.length === 1 ? "" : "s"} · {clientPayments.length} payment{clientPayments.length === 1 ? "" : "s"}</span>
+      </div>
+      {/* At-a-glance */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 12 }}>
+        <div style={{ background: Z.bg, borderRadius: Ri, padding: "10px 12px" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Current Balance</div>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: currentBalance > 0 ? (overdueBalance > 0 ? Z.da : Z.wa) : Z.su, fontFamily: DISPLAY }}>${currentBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          {overdueBalance > 0 && <div style={{ fontSize: FS.micro, color: Z.da, fontWeight: FW.bold }}>${overdueBalance.toLocaleString()} overdue</div>}
+        </div>
+        <div style={{ background: Z.bg, borderRadius: Ri, padding: "10px 12px" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Lifetime Billed</div>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>${Math.round(lifetimeBilled).toLocaleString()}</div>
+        </div>
+        <div style={{ background: Z.bg, borderRadius: Ri, padding: "10px 12px" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Lifetime Paid</div>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>${Math.round(lifetimePaid).toLocaleString()}</div>
+        </div>
+        <div style={{ background: Z.bg, borderRadius: Ri, padding: "10px 12px" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Last Payment</div>
+          {lastPayment ? <>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>${Math.round(lastPayment.amount).toLocaleString()}</div>
+            <div style={{ fontSize: FS.micro, color: Z.tm }}>{fmtD(lastPayment.receivedAt?.slice(0, 10))}</div>
+          </> : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>Never</div>}
+        </div>
+        <div style={{ background: Z.bg, borderRadius: Ri, padding: "10px 12px" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>DSO</div>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: clientDso == null ? Z.td : clientDso <= 30 ? Z.go : clientDso <= 60 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{clientDso != null ? `${clientDso}d` : "—"}</div>
+          {oldestOpenInvoice && <div style={{ fontSize: FS.micro, color: Z.tm }}>Oldest: {fmtD(oldestOpenInvoice.dueDate)}</div>}
+        </div>
+      </div>
+      {/* Tabs: Invoices / Payments */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        <button onClick={() => setFinTab("invoices")} style={{ padding: "4px 12px", borderRadius: Ri, border: `1px solid ${finTab === "invoices" ? Z.ac : Z.bd}`, background: finTab === "invoices" ? Z.ac + "15" : "transparent", color: finTab === "invoices" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase" }}>Invoices ({clientInvoices.length})</button>
+        <button onClick={() => setFinTab("payments")} style={{ padding: "4px 12px", borderRadius: Ri, border: `1px solid ${finTab === "payments" ? Z.ac : Z.bd}`, background: finTab === "payments" ? Z.ac + "15" : "transparent", color: finTab === "payments" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase" }}>Payments ({clientPayments.length})</button>
+      </div>
+      {/* Invoices list */}
+      {finTab === "invoices" && <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+        {clientInvoices.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, borderRadius: Ri }}>No invoices</div>
+        : [...clientInvoices].sort((a, b) => (b.issueDate || "").localeCompare(a.issueDate || "")).slice(0, 100).map(inv => {
+          const invPaid = clientPayments.filter(p => p.invoiceId === inv.id).reduce((s, p) => s + (p.amount || 0), 0);
+          const isOverdue = inv.dueDate && inv.dueDate < today && (inv.balanceDue || 0) > 0;
+          return <div key={inv.id} style={{ display: "grid", gridTemplateColumns: "140px 100px 100px 100px 100px 80px", gap: 10, alignItems: "center", padding: "5px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+            <span style={{ fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</span>
+            <span style={{ color: Z.tm, fontSize: FS.xs }}>{fmtD(inv.issueDate)}</span>
+            <span style={{ color: isOverdue ? Z.da : Z.tm, fontWeight: isOverdue ? FW.bold : FW.regular, fontSize: FS.xs }}>{fmtD(inv.dueDate)}</span>
+            <span style={{ textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>${(inv.total || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <span style={{ textAlign: "right", color: invPaid > 0 ? Z.go : Z.td, fontWeight: FW.bold }}>{invPaid > 0 ? `$${invPaid.toLocaleString()}` : "—"}</span>
+            <span style={{ textAlign: "right" }}>
+              <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: FW.heavy, background: inv.status === "paid" ? Z.go + "20" : inv.status === "overdue" ? Z.da + "20" : inv.status === "partially_paid" ? Z.wa + "20" : Z.ac + "20", color: inv.status === "paid" ? Z.go : inv.status === "overdue" ? Z.da : inv.status === "partially_paid" ? Z.wa : Z.ac, textTransform: "uppercase" }}>
+                {inv.status === "partially_paid" ? "Partial" : inv.status}
+              </span>
+            </span>
+          </div>;
+        })}
+        {clientInvoices.length > 100 && <div style={{ padding: 6, textAlign: "center", fontSize: FS.micro, color: Z.td }}>Showing 100 of {clientInvoices.length}</div>}
+      </div>}
+      {/* Payments list */}
+      {finTab === "payments" && <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+        {clientPayments.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, borderRadius: Ri }}>No payments recorded</div>
+        : [...clientPayments].sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || "")).slice(0, 100).map(p => {
+          const inv = clientInvoices.find(i => i.id === p.invoiceId);
+          const nmMatch = /^NM:\s*([^|]+)/.exec(p.notes || "");
+          const methodLabel = nmMatch ? nmMatch[1].trim() : (p.method || "other");
+          const memoMatch = /Memo:\s*([^|]+)/.exec(p.notes || "");
+          return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "100px 100px 120px 140px 1fr 100px", gap: 10, alignItems: "center", padding: "5px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+            <span style={{ color: Z.tm, fontSize: FS.xs }}>{fmtD(p.receivedAt?.slice(0, 10))}</span>
+            <span style={{ fontWeight: FW.heavy, color: Z.go }}>${(p.amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{methodLabel}</span>
+            <span style={{ fontSize: FS.xs, color: Z.ac, fontFamily: COND }}>{inv?.invoiceNumber || "—"}</span>
+            <span style={{ fontSize: FS.xs, color: Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{memoMatch ? memoMatch[1].trim() : ""}</span>
+            <span style={{ textAlign: "right", fontSize: FS.micro, color: Z.td }}>{p.referenceNumber || ""}</span>
+          </div>;
+        })}
+        {clientPayments.length > 100 && <div style={{ padding: 6, textAlign: "center", fontSize: FS.micro, color: Z.td }}>Showing 100 of {clientPayments.length}</div>}
+      </div>}
+    </Card>}
 
     {/* ── PURCHASE TIMELINE — contracts, standalone ads, orphan proposals grouped by year ── */}
     {(timelineYears.length > 0 || clientProposals.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>
