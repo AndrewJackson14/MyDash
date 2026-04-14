@@ -110,6 +110,17 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         0%, 100% { opacity: 0.82; }
         50%      { opacity: 1; }
       }
+      /* Halo pulse — one dotted ring every 4s, starts small at the
+         center and expands outward with ease-out so it moves fast at
+         the middle and slows toward the edge, fading to transparent
+         as it goes. Uses SVG 'r' attribute animation with a non-
+         scaling stroke so the dot dash size stays constant as the
+         ring grows. */
+      @keyframes halo-pulse {
+        0%   { r: 40; opacity: 0; }
+        8%   { opacity: 0.35; }
+        100% { r: 1400; opacity: 0; }
+      }
     `}</style>
     {/* Amoeba lobe A — wide horizontal ellipse at center */}
     <div aria-hidden style={{
@@ -131,5 +142,32 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
       animation: `ambient-amoeba-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
     }} />
+    {/* Halo pulse — one dotted ring emanating from center every 4s.
+        Circle's r attribute animates from 40 → 1400 on ease-out, so
+        motion is fastest at the center and slows as it approaches the
+        edges. strokeDasharray gives the ring a dotted look; the stroke
+        width stays constant because we animate r, not CSS scale. */}
+    <svg aria-hidden
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 0,
+        overflow: "visible",
+      }}
+    >
+      <circle
+        cx="50%"
+        cy="50%"
+        r="40"
+        fill="none"
+        stroke={`rgba(${rgb},0.5)`}
+        strokeWidth="1.5"
+        strokeDasharray="3 5"
+        style={{ animation: "halo-pulse 4s ease-out infinite" }}
+      />
+    </svg>
   </>;
 }
