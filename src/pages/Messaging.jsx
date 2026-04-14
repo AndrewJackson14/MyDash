@@ -31,11 +31,14 @@ const Messaging = memo(({ team, currentUser }) => {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      // DMs are team_notes rows with no context_id attached. context_type
+      // may be "general" (legacy default) or null — we only exclude rows
+      // tied to a specific entity (ad_project, sale, story, task, etc).
       const { data, error } = await supabase
         .from("team_notes")
         .select("*")
         .or(`from_user.eq.${meId},to_user.eq.${meId}`)
-        .is("context_type", null)
+        .is("context_id", null)
         .order("created_at", { ascending: true });
       if (error) console.error("Messaging load error:", error);
       if (!cancelled) {
@@ -52,7 +55,7 @@ const Messaging = memo(({ team, currentUser }) => {
     const ch = supabase.channel(`messaging_${meId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_notes" }, (payload) => {
         const n = payload.new;
-        if (n.context_type) return; // contextual threads belong to ad projects etc
+        if (n.context_id) return; // contextual threads belong to ad projects etc
         if (n.from_user !== meId && n.to_user !== meId) return;
         setNotes(prev => prev.some(x => x.id === n.id) ? prev : [...prev, n]);
       })
@@ -72,6 +75,7 @@ const Messaging = memo(({ team, currentUser }) => {
     for (const n of notes) {
       const otherId = n.from_user === meId ? n.to_user : n.from_user;
       if (!otherId) continue;
+      if (otherId === meId) continue; // skip self-messages
       if (!byOther.has(otherId)) byOther.set(otherId, { otherId, messages: [], unread: 0 });
       const conv = byOther.get(otherId);
       conv.messages.push(n);
@@ -175,7 +179,7 @@ const Messaging = memo(({ team, currentUser }) => {
             style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center" }}
             title="New direct message"
           >
-            <Ic.edit size={13} color="#fff" />
+            <Ic.edit size={13} color={Z.bg} />
           </button>
         </div>
 
@@ -275,13 +279,13 @@ const Messaging = memo(({ team, currentUser }) => {
                       padding: "8px 12px",
                       borderRadius: 14,
                       background: isMe ? Z.ac : Z.sf,
-                      color: isMe ? "#fff" : Z.tx,
+                      color: isMe ? Z.bg : Z.tx,
                       border: isMe ? "none" : `1px solid ${Z.bd}`,
                       marginTop: grouped ? 2 : 8,
                     }}
                   >
                     <div style={{ fontSize: FS.sm, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.message}</div>
-                    <div style={{ fontSize: 9, marginTop: 3, opacity: 0.7, textAlign: isMe ? "right" : "left" }}>{fmtTime(m.created_at)}</div>
+                    <div style={{ fontSize: 9, marginTop: 3, opacity: 0.6, textAlign: isMe ? "right" : "left" }}>{fmtTime(m.created_at)}</div>
                   </div>
                 );
               })}
@@ -324,7 +328,7 @@ const Messaging = memo(({ team, currentUser }) => {
                 }}
                 aria-label="Send"
               >
-                <Ic.send size={14} color={draft.trim() ? "#fff" : Z.td} />
+                <Ic.send size={14} color={draft.trim() ? Z.bg : Z.td} />
               </button>
             </div>
           </>
@@ -335,7 +339,7 @@ const Messaging = memo(({ team, currentUser }) => {
             <div style={{ fontSize: 13, color: Z.td }}>or start a new one</div>
             <button
               onClick={() => setShowPicker(true)}
-              style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: "#fff", fontSize: 13, fontWeight: FW.bold }}
+              style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: Z.bg, fontSize: 13, fontWeight: FW.bold }}
             >
               New Message
             </button>
