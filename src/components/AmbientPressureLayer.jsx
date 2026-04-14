@@ -83,7 +83,7 @@ export default function AmbientPressureLayer({ pressure = 20, serenityColor = "b
     position: "fixed",
     inset: "-20%",
     pointerEvents: "none",
-    zIndex: 0,
+    zIndex: 2,
     willChange: "transform, opacity",
     filter: "blur(60px)",
   };
