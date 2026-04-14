@@ -121,7 +121,7 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         0%   { transform: translate(-50%, -50%) scale(0.35); opacity: 0; }
         10%  { opacity: 0.9; }
         70%  { opacity: 0.4; }
-        100% { transform: translate(-50%, -50%) scale(17); opacity: 0; }
+        100% { transform: translate(-50%, -50%) scale(13.5); opacity: 0; }
       }
     `}</style>
     {/* Amoeba lobe A — wide horizontal ellipse at center */}
@@ -161,7 +161,7 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         overflow: "visible",
         pointerEvents: "none",
         zIndex: 1,
-        animation: "halo-pulse 4s ease-out infinite",
+        animation: "halo-pulse 4.5s cubic-bezier(0.22, 1, 0.36, 1) infinite",
         transformOrigin: "center center",
       }}
     >
