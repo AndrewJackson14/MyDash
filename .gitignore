@@ -3,3 +3,11 @@ dist
 .env
 .DS_Store
 .vercel
+
+# Local data imports + archives — do not commit
+Archive.zip
+FullSales/
+FullSales-*/
+scripts/import-*.mjs
+scripts/apply-*.mjs
+scripts/nmReimport/
