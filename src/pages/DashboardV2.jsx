@@ -391,15 +391,9 @@ const DashboardV2 = (props) => {
       }
     `}</style>
 
-    {/* Ambient pressure glow */}
-    <div aria-hidden style={{
-      position: "absolute",
-      inset: -120,
-      background: `radial-gradient(ellipse 80% 60% at 50% 30%, ${ambientTint.color}, transparent 70%)`,
-      pointerEvents: "none",
-      transition: "background 2s ease",
-      zIndex: 0,
-    }} />
+    {/* Ambient pressure glow used to live here as a page-local radial
+        gradient. Removed — the global AmbientPressureLayer at the App
+        shell level now covers every page. */}
 
     <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 44 }}>
 

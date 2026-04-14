@@ -428,7 +428,7 @@ export default function App() {
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
     <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
-    <div style={{ display: "flex", height: "100vh", background: ambientOverlay, color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
+    <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 
     {/* ── Sidebar Nav ──────────────────────────────────── */}
