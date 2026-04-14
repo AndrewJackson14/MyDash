@@ -51,12 +51,13 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
       : lerpColor(AMBER, RED, (p - 50) / 50);
     // Eased alpha ramp: calm up to ~50, then climbs. Dark mode needs a
     // much higher base so the blue actually reads over the near-black
-    // wallpaper; light mode needs a higher ceiling so red doesn't wash
-    // to pink.
+    // wallpaper; light mode needs a high base too so the calm blue
+    // actually shows instead of being a faint wash, plus a strong
+    // ceiling so red doesn't read as pink.
     const eased = Math.pow(p / 100, 1.4);
-    const alphaBase = isDark ? 0.22 : 0.12;
-    const alphaRamp = isDark ? 0.32 : 0.40;
-    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.22→0.54, light: 0.12→0.52
+    const alphaBase = isDark ? 0.22 : 0.28;
+    const alphaRamp = isDark ? 0.32 : 0.32;
+    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.22→0.54, light: 0.28→0.60
     // Base duration that each layer multiplies against. 22s fully calm,
     // ~3s at full heat.
     const baseDuration = 22 - eased * 19;
