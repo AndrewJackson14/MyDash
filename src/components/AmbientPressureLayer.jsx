@@ -110,16 +110,17 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         0%, 100% { opacity: 0.82; }
         50%      { opacity: 1; }
       }
-      /* Halo pulse — one dotted ring every 4s, starts small at the
-         center and expands outward with ease-out so it moves fast at
-         the middle and slows toward the edge, fading to transparent
-         as it goes. Uses SVG 'r' attribute animation with a non-
-         scaling stroke so the dot dash size stays constant as the
-         ring grows. */
+      /* Halo pulse — one dotted navy ring every 4s. Starts small at
+         the center and expands outward with ease-out so it moves
+         fast at the middle and slows toward the edge, fading to
+         transparent as it approaches the corners. Uses CSS scale
+         on the SVG parent with vector-effect: non-scaling-stroke on
+         the child circle, so the stroke width and dash pattern stay
+         constant even as the ring grows 30x. */
       @keyframes halo-pulse {
-        0%   { r: 40; opacity: 0; }
-        8%   { opacity: 0.35; }
-        100% { r: 1400; opacity: 0; }
+        0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        10%  { opacity: 0.9; }
+        100% { transform: translate(-50%, -50%) scale(28); opacity: 0; }
       }
     `}</style>
     {/* Amoeba lobe A — wide horizontal ellipse at center */}
@@ -143,32 +144,36 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
       animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
     }} />
     {/* Halo pulse — one navy dotted ring emanating from center every
-        4s, but ONLY when the amoeba is in its deep-blue calm state
-        (pressure <= 10, i.e. blue near full saturation). The navy
-        contrasts with the brighter amoeba blue so it reads as a
-        distinct breathing accent rather than blending in.
-        Hidden entirely once pressure climbs past 10 — no point
-        showing a blue halo while the room is warming up. */}
+        4s. Only visible when the amoeba is in its deep-blue calm
+        state (pressure <= 10); hidden once the room starts warming.
+        The SVG is a fixed 100px box centered on the viewport; the
+        parent transform scales it from 0.5x to 28x (so ~1400px diameter
+        at peak), while vector-effect: non-scaling-stroke on the circle
+        keeps the stroke width and dash pattern constant. */}
     {p <= 10 && <svg aria-hidden
       style={{
         position: "fixed",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        zIndex: 0,
+        top: "50%",
+        left: "50%",
+        width: 100,
+        height: 100,
         overflow: "visible",
+        pointerEvents: "none",
+        zIndex: 1,
+        animation: "halo-pulse 4s ease-out infinite",
+        transformOrigin: "center center",
       }}
     >
       <circle
-        cx="50%"
-        cy="50%"
-        r="40"
+        cx="50"
+        cy="50"
+        r="48"
         fill="none"
-        stroke="rgba(30,58,138,0.55)"
-        strokeWidth="1.5"
-        strokeDasharray="3 5"
-        style={{ animation: "halo-pulse 4s ease-out infinite" }}
+        stroke="#1E3A8A"
+        strokeOpacity="0.85"
+        strokeWidth="2"
+        strokeDasharray="4 6"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>}
   </>;
