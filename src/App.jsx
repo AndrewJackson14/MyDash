@@ -531,13 +531,15 @@ export default function App() {
     {/* ── Main Content ─────────────────────────────────── */}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-      {/* ── Top Bar — hidden on dashboard ─────────────── */}
-      {pg !== "dashboard" && <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: `1px solid ${Z.bd}`, background: isDark ? "rgba(14,16,24,0.7)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
+      {/* ── Top Bar — always visible so the notification bell stays in
+          the same place across every page. Back button hides on the
+          dashboard since there's nowhere to go back to. */}
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: pg === "dashboard" ? "none" : `1px solid ${Z.bd}`, background: isDark ? "rgba(14,16,24,0.7)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
         <div>
-          <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
+          {pg !== "dashboard" && <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
             onMouseOver={e => e.currentTarget.style.color = Z.tx}
             onMouseOut={e => e.currentTarget.style.color = Z.tm}
-          ><Ic.back size={14} /> Back</button>
+          ><Ic.back size={14} /> Back</button>}
         </div>
         <div style={{ position: "relative" }}>
           <button onClick={() => setShowNotifs(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, padding: 4 }}>
@@ -553,7 +555,7 @@ export default function App() {
             {[...(notifications || [])].sort((a, b) => a.read === b.read ? 0 : a.read ? 1 : -1).slice(0, 12).map(n => <div key={n.id} onClick={() => { setNotifications(ns => ns.map(x => x.id === n.id ? { ...x, read: !x.read } : x)); if (n.route && !n.read) { handleNav(n.route); setShowNotifs(false); } }} style={{ padding: "10px 16px", borderBottom: `1px solid ${Z.bd}`, cursor: n.route ? "pointer" : "default", background: n.read ? "transparent" : Z.as }}><div style={{ fontSize: 13, color: n.read ? Z.td : Z.tx, fontWeight: n.read ? 400 : 700 }}>{n.text}</div><div style={{ fontSize: 11, color: Z.td, marginTop: 3 }}>{n.time}</div></div>)}
           </div>}
         </div>
-      </header>}
+      </header>
 
       {/* ── Page Content ──────────────────────────────────── */}
       <main data-main style={{ flex: 1, overflow: "auto", padding: pg === "dashboard" ? 0 : 28, background: "transparent" }}>
