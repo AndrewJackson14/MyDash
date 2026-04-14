@@ -151,7 +151,12 @@ export default function App() {
   const bus = useCrossModuleWiring({ setNotifications, setInvoices, invoices, clients, pubs, issues, sales });
 
   // ─── Navigation State ───────────────────────────────────
-  const [pg, setPg] = useState("dashboard");
+  // Persist current page across hard refresh — read from localStorage on
+  // first mount, write whenever pg changes. Team-member and issue detail
+  // sub-views also persist so a mid-flow refresh lands you where you left off.
+  const [pg, setPg] = useState(() => {
+    try { return localStorage.getItem("mydash-pg") || "dashboard"; } catch (e) { return "dashboard"; }
+  });
   const [pgHistory, setPgHistory] = useState([]);
   const [col, setCol] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -162,7 +167,21 @@ export default function App() {
   const [, forceRender] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState({});
   const [deepLink, setDeepLink] = useState(null);
-  const [selectedTeamMemberId, setSelectedTeamMemberId] = useState(null);
+  const [selectedTeamMemberId, setSelectedTeamMemberId] = useState(() => {
+    try { return localStorage.getItem("mydash-team-member-id") || null; } catch (e) { return null; }
+  });
+
+  // Persist pg + selectedTeamMemberId whenever they change so refreshing
+  // lands back on the same page/sub-view.
+  useEffect(() => {
+    try { localStorage.setItem("mydash-pg", pg); } catch (e) { }
+  }, [pg]);
+  useEffect(() => {
+    try {
+      if (selectedTeamMemberId) localStorage.setItem("mydash-team-member-id", selectedTeamMemberId);
+      else localStorage.removeItem("mydash-team-member-id");
+    } catch (e) { }
+  }, [selectedTeamMemberId]);
   // Global "newsroom pressure" — 0 (calm blue) → 100 (hot red). Dashboard /
   // DashboardV2 compute this via useSignalFeed and push it up so the ambient
   // background layer can tint/animate the whole app, not just the dashboard.
@@ -365,7 +384,10 @@ export default function App() {
   if (currentSection.items.length > 0) navSections.push(currentSection);
 
   // Helper: lazy-mount pages — only mount a page when first visited, then keep mounted
-  const [visited, setVisited] = useState(new Set(["dashboard"]));
+  // Seed visited with both "dashboard" and the persisted pg so a refresh
+  // on a non-default page renders immediately without a one-frame flash
+  // back to the dashboard.
+  const [visited, setVisited] = useState(() => new Set(["dashboard", pg].filter(Boolean)));
   useEffect(() => { setVisited(prev => { if (prev.has(pg)) return prev; const n = new Set(prev); n.add(pg); return n; }); }, [pg]);
   const vis = (pageId) => ({ display: pg === pageId ? "block" : "none" });
   const show = (pageId) => visited.has(pageId);
