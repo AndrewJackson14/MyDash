@@ -6,6 +6,7 @@ import ChatPanel from "../components/ChatPanel";
 import AssetPanel from "../components/AssetPanel";
 import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
+import { uploadMedia } from "../lib/media";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -58,17 +59,32 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   // ── Load data ──────────────────────────────────────────
   useEffect(() => {
     if (!isOnline()) { setLoading(false); return; }
-    Promise.all([
-      supabase.from("ad_projects").select("*").order("created_at", { ascending: false }),
-      supabase.from("ad_proofs").select("*").order("version", { ascending: false }),
-      supabase.from("message_threads").select("*").eq("type", "ad_project"),
-    ]).then(([projRes, proofRes, threadRes]) => {
-      if (projRes.data) setProjects(projRes.data);
-      if (proofRes.data) setProofs(proofRes.data);
-      if (threadRes.data) setThreads(threadRes.data);
-      setLoading(false);
+    // Expire stale proofs first — any proof older than 7 days that hasn't
+    // been explicitly saved (saved_at IS NULL) gets dropped. Then we load
+    // the surviving list.
+    const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
+    supabase.from("ad_proofs").delete().is("saved_at", null).lt("created_at", cutoff).then(() => {
+      Promise.all([
+        supabase.from("ad_projects").select("*").order("created_at", { ascending: false }),
+        supabase.from("ad_proofs").select("*").order("version", { ascending: false }),
+        supabase.from("message_threads").select("*").eq("type", "ad_project"),
+      ]).then(([projRes, proofRes, threadRes]) => {
+        if (projRes.data) setProjects(projRes.data);
+        if (proofRes.data) setProofs(proofRes.data);
+        if (threadRes.data) setThreads(threadRes.data);
+        setLoading(false);
+      });
     });
   }, []);
+
+  // Save a proof (stamps saved_at so it's retained past the 7-day expiration).
+  const saveProof = async (proofId) => {
+    const nowIso = new Date().toISOString();
+    const { data } = await supabase.from("ad_proofs")
+      .update({ saved_at: nowIso, saved_by: currentUser?.id || null })
+      .eq("id", proofId).select().single();
+    if (data) setProofs(prev => prev.map(p => p.id === proofId ? { ...p, saved_at: data.saved_at, saved_by: data.saved_by } : p));
+  };
 
   // ── Filtered list ──────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
@@ -135,26 +151,40 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   };
 
   // ── Upload proof ───────────────────────────────────────
+  // Cap each project at 5 proofs total. If there are already 5, the oldest
+  // unsaved proof gets deleted to make room (saved proofs are preserved).
+  // If all 5 are saved, the upload is rejected with a dialog.
   const uploadProof = async (projectId) => {
+    const existing = proofs.filter(p => p.project_id === projectId);
+    if (existing.length >= 5) {
+      const oldestUnsaved = existing.filter(p => !p.saved_at).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
+      if (!oldestUnsaved) {
+        await dialog.alert("This project has 5 saved proofs already. Delete one before uploading a new version.");
+        return;
+      }
+      // Drop the oldest unsaved to free a slot
+      await supabase.from("ad_proofs").delete().eq("id", oldestUnsaved.id);
+      setProofs(prev => prev.filter(p => p.id !== oldestUnsaved.id));
+    }
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*,application/pdf";
     inp.onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
       setUploading(true);
       const proj = projects.find(p => p.id === projectId);
-      const clientSlug = cn(proj?.client_id).toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const version = (proofs.filter(p => p.project_id === projectId).length || 0) + 1;
-      const ext = f.name.split(".").pop() || "pdf";
-      const filename = `proof-v${version}.${ext}`;
-      const path = `clients/${clientSlug}/ads/${projectId}`;
 
       try {
-        const res = await fetch(PROXY_URL, {
-          method: "POST",
-          headers: { "Content-Type": f.type, "x-action": "upload", "x-path": path, "x-filename": encodeURIComponent(filename) },
-          body: f,
+        // Land the file on Bunny + write a tagged media_assets row so the
+        // Media Library can surface it by ad_project_id/client filter.
+        const mediaRow = await uploadMedia(f, {
+          category: "ad_proof",
+          adProjectId: projectId,
+          clientId: proj?.client_id || null,
+          publicationId: proj?.publication_id || null,
+          caption: `Proof v${version}`,
         });
-        if (!res.ok) throw new Error("Upload failed");
-        const cdnUrl = `${CDN_BASE}/${path}/${filename}`;
+        const cdnUrl = mediaRow.cdn_url;
+        const filename = mediaRow.file_name;
 
         const { data: proof } = await supabase.from("ad_proofs").insert({
           project_id: projectId, version, proof_url: cdnUrl, proof_filename: filename,
@@ -334,10 +364,18 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                 {latestProof ? <>
                   <div style={{ padding: "12px 14px", borderBottom: `1px solid ${Z.bd}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx }}>v{latestProof.version}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx }}>v{latestProof.version}</span>
+                        {(() => {
+                          if (latestProof.saved_at) return <span style={{ fontSize: 9, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>Saved</span>;
+                          const daysOld = Math.floor((Date.now() - new Date(latestProof.created_at)) / 86400000);
+                          const expiresIn = Math.max(0, 7 - daysOld);
+                          return <span style={{ fontSize: 9, fontWeight: FW.bold, color: Z.wa, background: Z.wa + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>Expires {expiresIn}d</span>;
+                        })()}
+                      </div>
                       {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: 10, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 6px", borderRadius: Ri }}>{lbl}</span>; })()}
                     </div>
-                    <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(latestProof.created_at)}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(latestProof.created_at)} · {viewProofs.length}/5 proofs</div>
                   </div>
                   {/* Image preview */}
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, overflow: "hidden" }}>
@@ -350,10 +388,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                   {/* Actions */}
                   <div style={{ padding: "10px 14px", borderTop: `1px solid ${Z.bd}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
                     <Btn sm v="ghost" onClick={() => window.open(latestProof.proof_url, "_blank")} style={{ flex: 1 }}>View Full</Btn>
+                    {!latestProof.saved_at && <Btn sm v="success" onClick={() => saveProof(latestProof.id)} style={{ flex: 1 }} title="Save permanently — unsaved proofs expire in 7 days"><Ic.check size={11} /> Save</Btn>}
                     {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }} style={{ flex: 1 }}>Mark Ready</Btn>}
                     {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }} style={{ flex: 1 }}>Request Edit</Btn>}
                     {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved") && <Btn sm onClick={() => copyApprovalLink(latestProof)} style={{ flex: 1 }}>Send to Client</Btn>}
-                    <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading} style={{ flex: 1 }}><Ic.up size={11} /> New Version</Btn>
+                    <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading || viewProofs.length >= 5} title={viewProofs.length >= 5 ? "Proof cap reached (5)" : undefined} style={{ flex: 1 }}><Ic.up size={11} /> New Version</Btn>
                   </div>
                 </> : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 24 }}>
                   <div style={{ fontSize: FS.sm, color: Z.td }}>No proof yet</div>
@@ -370,24 +409,35 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
             if (!clientCode) return null;
             return <GlassCard>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <AssetPanel path={`clients/${clientCode}/projects/${viewProject.id}`} title="Project Assets" compact />
-                <AssetPanel path={`clients/${clientCode}/assets`} title="Client Library" compact />
+                <AssetPanel path={`clients/${clientCode}/projects/${viewProject.id}`} title="Project Assets" compact adProjectId={viewProject.id} clientId={viewProject.client_id} publicationId={viewProject.publication_id} category="ad_creative" />
+                <AssetPanel path={`clients/${clientCode}/assets`} title="Client Library" compact clientId={viewProject.client_id} category="client_logo" />
               </div>
             </GlassCard>;
           })()}
 
-          {/* Proof Version History (previous versions) */}
+          {/* Proof Version History (previous versions, up to 4 prior) */}
           {viewProofs.length > 1 && <GlassCard>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Version History</div>
-            {viewProofs.slice(1).map(proof => {
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Version History</div>
+              <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic" }}>Unsaved proofs auto-delete after 7 days</div>
+            </div>
+            {viewProofs.slice(1, 5).map(proof => {
               const is = proof.internal_status || "uploaded";
               const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm;
+              const daysOld = Math.floor((Date.now() - new Date(proof.created_at)) / 86400000);
+              const expiresIn = Math.max(0, 7 - daysOld);
               return <div key={proof.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, borderLeft: `2px solid ${clr}` }}>
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>v{proof.version}</span>
-                  <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 6 }}>{fmtDate(proof.created_at)}</span>
+                  <span style={{ fontSize: FS.xs, color: Z.tm }}>{fmtDate(proof.created_at)}</span>
+                  {proof.saved_at
+                    ? <span style={{ fontSize: 9, fontWeight: FW.bold, color: Z.go, background: Z.go + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>Saved</span>
+                    : <span style={{ fontSize: 9, fontWeight: FW.bold, color: Z.wa, background: Z.wa + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>Expires {expiresIn}d</span>}
                 </div>
-                <Btn sm v="ghost" onClick={() => window.open(proof.proof_url, "_blank")}>View</Btn>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {!proof.saved_at && <Btn sm v="success" onClick={() => saveProof(proof.id)} title="Save permanently"><Ic.check size={10} /> Save</Btn>}
+                  <Btn sm v="ghost" onClick={() => window.open(proof.proof_url, "_blank")}>View</Btn>
+                </div>
               </div>;
             })}
           </GlassCard>}

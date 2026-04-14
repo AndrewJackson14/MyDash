@@ -7,6 +7,7 @@ import { useState, useEffect, memo } from "react";
 import { Z, FS, FW, Ri, R, COND } from "../lib/theme";
 import { Ic, Btn } from "../components/ui";
 import { EDGE_FN_URL } from "../lib/supabase";
+import { uploadMedia } from "../lib/media";
 
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
@@ -15,7 +16,7 @@ const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
 const isPdf = (name) => /\.pdf$/i.test(name);
 const fmtSize = (bytes) => bytes < 1024 ? `${bytes}B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / 1048576).toFixed(1)}MB`;
 
-const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact = false }) => {
+const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact = false, clientId, adProjectId, publicationId, category = "general" }) => {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -43,7 +44,9 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     })();
   }, [path]);
 
-  // Upload
+  // Upload — routes through the shared uploadMedia() helper so every
+  // asset gets a tagged media_assets row with the context metadata
+  // (client_id, ad_project_id, publication_id, category) baked in.
   const handleUpload = () => {
     const inp = document.createElement("input");
     inp.type = "file";
@@ -55,24 +58,13 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
       setUploading(true);
       for (const f of files) {
         try {
-          const res = await fetch(PROXY_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": f.type,
-              "x-action": "upload",
-              "x-path": path,
-              "x-filename": encodeURIComponent(f.name),
-            },
-            body: f,
-          });
-          if (res.ok) {
-            setAssets(prev => [...prev, {
-              name: f.name,
-              url: `${CDN_BASE}/${path}/${f.name}`,
-              size: f.size,
-              date: new Date().toISOString(),
-            }]);
-          }
+          const row = await uploadMedia(f, { clientId, adProjectId, publicationId, category });
+          setAssets(prev => [...prev, {
+            name: row.file_name,
+            url: row.cdn_url,
+            size: row.file_size || f.size,
+            date: row.created_at || new Date().toISOString(),
+          }]);
         } catch (err) { console.error("Upload error:", err); }
       }
       setUploading(false);

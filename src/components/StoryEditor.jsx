@@ -12,6 +12,7 @@ import { STORY_STATUSES } from "../constants";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import MediaModal from "./MediaModal";
 import { useDialog } from "../hooks/useDialog";
+import { uploadMedia } from "../lib/media";
 
 // ── Constants ────────────────────────────────────────────────────
 const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "On Page", "Approved"];
@@ -335,9 +336,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     if (!file) return;
     setImageUploading(true);
     try {
-      const ps = selectedPubs[0] ? pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "-") : "general";
-      const url = await uploadImage(file, "articles/" + ps + "/" + new Date().getFullYear());
-      setPendingImageUrl(url); setImageCaption(""); setImageModalOpen(true);
+      const row = await uploadMedia(file, {
+        category: "story_image",
+        storyId: story?.id || null,
+        publicationId: selectedPubs[0] || null,
+      });
+      setPendingImageUrl(row.cdn_url); setImageCaption(""); setImageModalOpen(true);
     } catch (err) { console.error("Image upload failed:", err); await dialog.alert("Image upload failed: " + err.message); }
     setImageUploading(false);
   };
@@ -351,7 +355,20 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
   const setFeaturedImage = async () => {
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
-    inp.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; setImageUploading(true); try { const ps = selectedPubs[0] ? pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "-") : "general"; const url = await uploadImage(f, "featured/" + ps); await saveMeta("featured_image_url", url); } catch (err) { await dialog.alert("Upload failed: " + err.message); } setImageUploading(false); };
+    inp.onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      setImageUploading(true);
+      try {
+        const row = await uploadMedia(f, {
+          category: "story_image",
+          storyId: story?.id || null,
+          publicationId: selectedPubs[0] || null,
+          caption: "Featured image",
+        });
+        await saveMeta("featured_image_url", row.cdn_url);
+      } catch (err) { await dialog.alert("Upload failed: " + err.message); }
+      setImageUploading(false);
+    };
     inp.click();
   };
 

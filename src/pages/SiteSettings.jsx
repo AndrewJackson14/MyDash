@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
+import { uploadMedia } from "../lib/media";
 
 // ── Upload via Edge Function ─────────────────────────────────────
 async function uploadImage(file, path) {
@@ -104,7 +105,7 @@ const OrderableList = ({ items, onChange, placeholder, showSlug }) => {
 };
 
 // ── Image Upload Field ──────────────────────────────────────────
-const ImageField = ({ value, onChange, uploadPath, label }) => {
+const ImageField = ({ value, onChange, uploadPath, publicationId, category, label }) => {
   const dialog = useDialog();
   const [uploading, setUploading] = useState(false);
   const handleUpload = async () => {
@@ -112,7 +113,14 @@ const ImageField = ({ value, onChange, uploadPath, label }) => {
     inp.onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
       setUploading(true);
-      try { const url = await uploadImage(f, uploadPath || "sites"); onChange(url); }
+      try {
+        const row = await uploadMedia(f, {
+          category: category || "pub_asset",
+          publicationId: publicationId || null,
+          caption: label || null,
+        });
+        onChange(row.cdn_url);
+      }
       catch (err) { await dialog.alert("Upload failed: " + err.message); }
       setUploading(false);
     };
@@ -565,8 +573,8 @@ export default function SiteSettings({ pubs, setPubs }) {
           {/* LEFT COLUMN */}
           <div>
             <Section title="Branding">
-              <ImageField label="Logo" value={draft.logo_url} onChange={v => update("logo_url", v)} uploadPath={"sites/" + (site?.slug || "general")} />
-              <ImageField label="Favicon" value={draft.favicon_url} onChange={v => update("favicon_url", v)} uploadPath={"sites/" + (site?.slug || "general")} />
+              <ImageField label="Logo" value={draft.logo_url} onChange={v => update("logo_url", v)} publicationId={site?.id} category="pub_logo" />
+              <ImageField label="Favicon" value={draft.favicon_url} onChange={v => update("favicon_url", v)} publicationId={site?.id} category="pub_asset" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="Primary Color">
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -673,17 +681,12 @@ export default function SiteSettings({ pubs, setPubs }) {
                           const f = e.target.files[0]; if (!f) return;
                           setAdUploading(uploadKey);
                           try {
-                            const uploadPath = PUB_CDN_FOLDER[selectedId] || "general";
-                            const ext = f.name?.split(".").pop()?.toLowerCase() || "jpg";
-                            const fname = Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
-                            const res = await fetch(EDGE_FN_URL + "/bunny-storage", {
-                              method: "POST",
-                              headers: { "Content-Type": f.type || "image/jpeg", "x-action": "upload", "x-path": uploadPath, "x-filename": fname },
-                              body: f,
+                            const row = await uploadMedia(f, {
+                              category: "ad_creative",
+                              publicationId: selectedId || null,
+                              caption: `${loc.name} ad creative`,
                             });
-                            if (!res.ok) throw new Error("Upload failed: " + res.status);
-                            const result = await res.json();
-                            updateAd(i, "creative_url", result.cdnUrl || `https://cdn.13stars.media/${uploadPath}/${fname}`);
+                            updateAd(i, "creative_url", row.cdn_url);
                           } catch (err) { await dialog.alert("Upload failed: " + err.message); }
                           setAdUploading(null);
                         };

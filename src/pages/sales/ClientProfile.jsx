@@ -586,7 +586,7 @@ const ClientProfile = ({
         </Card>
         {/* Client Asset Library */}
         {vc?.clientCode && <Card style={{ marginTop: 10 }}>
-          <AssetPanel path={`clients/${vc.clientCode}/assets`} title="Asset Library" />
+          <AssetPanel path={`clients/${vc.clientCode}/assets`} title="Asset Library" clientId={vc.id} category="client_logo" />
         </Card>}
       </div>
     </div>
