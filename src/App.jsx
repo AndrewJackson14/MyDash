@@ -374,6 +374,9 @@ export default function App() {
       zIndex: 0,
       pointerEvents: "none",
     }} />
+    {/* Global ambient pressure tint — tracks with the newsroom heat map.
+        Serene rippling blue when calm, pulsing red when on fire. */}
+    <AmbientPressureLayer pressure={globalPressure} />
     <div style={{ display: "flex", height: "100vh", background: ambientOverlay, color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 

@@ -126,7 +126,7 @@ const Dashboard = ({
   tickets, legalNotices, creativeJobs,
   onNavigate, setIssueDetailId, userName, currentUser, salespersonPubAssignments, jurisdiction,
   myPriorities, priorityHelpers, outreachCampaigns, outreachEntries, commissionGoals,
-  billingLoaded, onOpenMemberProfile,
+  billingLoaded, onOpenMemberProfile, onPressureChange,
 }) => {
   const dialog = useDialog();
 
@@ -153,6 +153,12 @@ const Dashboard = ({
   // Re-export under their old names so the existing render code Just Works
   const { adRevMTD, issueRevThisMonth, monthlyIssueCount, outstandingAR, overdueBalance, overdueInvCount, pipelineValue, pipelineCount, uninvoicedContracts } = revenueCommand;
   const overdue = overdueBalance;
+
+  // Push newsroom heat up to the app shell so the ambient background layer
+  // can tint/animate across every page, not just the dashboard.
+  useEffect(() => {
+    if (onPressureChange) onPressureChange(globalPressure);
+  }, [globalPressure, onPressureChange]);
 
   const actLabel = (s) => { const a = actInfo(s?.nextAction); return a ? a.label : ""; };
   const actIcon = (s) => { const a = actInfo(s?.nextAction); return a?.icon || "→"; };

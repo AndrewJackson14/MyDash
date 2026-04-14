@@ -134,6 +134,12 @@ const DashboardV2 = (props) => {
     _sales, _clients, _issues, _pubs, _stories, _inv, _tickets, _legal, _jobs,
   } = feed;
 
+  // Push newsroom heat up to the app shell so the ambient background layer
+  // can tint/animate across every page, not just the dashboard.
+  useEffect(() => {
+    if (props.onPressureChange) props.onPressureChange(globalPressure);
+  }, [globalPressure, props.onPressureChange]);
+
   const [openMember, setOpenMember] = useState(null);
   const [openSignal, setOpenSignal] = useState(null);
   const [drilledDept, setDrilledDept] = useState(null);
