@@ -10,18 +10,20 @@ import { isDark as _isDark } from "../lib/theme";
 //   50 = muted amber (warming)
 //   100 = pulsing red (on fire — fast pulse + stronger alpha)
 //
-// Renders three layered radial gradients at different positions
-// with CSS keyframe animations that drift + pulse. Animation
-// speed and color alpha interpolate continuously so pressure
-// changes feel like a living background.
-//
-// Fixed-position, pointer-events: none. Meant to sit ABOVE the
-// wallpaper image layer and BELOW the app content.
-//
-// Light-mode tuning: a coral red (#EF4444) blended at low alpha
-// on top of a near-white background reads as pink. We swap in a
-// deeper red (#B91C1C) and raise the alpha cap for light mode so
-// the hot state actually looks red, not pastel.
+// Design notes:
+// - Three independent layers (not one div with three gradients)
+//   each run their own keyframe animation on different durations
+//   and phase offsets so the blobs drift across each other like
+//   slow waves instead of moving as a rigid unit. That's what
+//   makes the motion feel fluid instead of like a single sliding
+//   panel.
+// - Each layer has a blur filter applied to soften the gradient
+//   falloff even further — without it the radial edges look hard
+//   against the wallpaper.
+// - Light mode and dark mode need different alpha ceilings: light
+//   mode needs a deeper red to avoid reading as pink; dark mode
+//   needs a louder blue so it actually shows through the near-
+//   black wallpaper.
 // ============================================================
 
 // Linearly interpolate between two RGB triples
@@ -41,60 +43,93 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
   const p = Math.max(0, Math.min(100, pressure));
   const isDark = _isDark();
 
-  const { color, alpha, duration, pulseAlpha } = useMemo(() => {
+  const { color, alpha, baseDuration } = useMemo(() => {
     // Two-stage interpolation: 0→50 is blue→amber, 50→100 is amber→red.
-    // The red target shifts per theme so it reads as red in both modes.
     const RED = isDark ? RED_DARK_MODE : RED_LIGHT_MODE;
     const c = p < 50
       ? lerpColor(BLUE, AMBER, p / 50)
       : lerpColor(AMBER, RED, (p - 50) / 50);
-    // Alpha and pulse strength scale with pressure — calm is subtle, hot is loud.
-    // Non-linear ramp: stays gentle up to ~50, then climbs faster so red really
-    // reads when the dashboard has multiple urgent cards. Light mode needs a
-    // noticeably higher ceiling to avoid looking pink when blended over white.
+    // Eased alpha ramp: calm up to ~50, then climbs. Dark mode needs a
+    // much higher base so the blue actually reads over the near-black
+    // wallpaper; light mode needs a higher ceiling so red doesn't wash
+    // to pink.
     const eased = Math.pow(p / 100, 1.4);
-    const alphaBase = isDark ? 0.08 : 0.10;
-    const alphaRamp = isDark ? 0.26 : 0.38;
-    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.08→0.34, light: 0.10→0.48
-    const pulseAlpha = 0.02 + eased * 0.10;
-    // Ripple/pulse duration: 14s at full calm, 1.8s at full heat. Shorter = more urgent.
-    const duration = 14 - eased * 12.2;
-    return { color: c, alpha, duration, pulseAlpha };
+    const alphaBase = isDark ? 0.22 : 0.12;
+    const alphaRamp = isDark ? 0.32 : 0.40;
+    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.22→0.54, light: 0.12→0.52
+    // Base duration that each layer multiplies against. 22s fully calm,
+    // ~3s at full heat.
+    const baseDuration = 22 - eased * 19;
+    return { color: c, alpha, baseDuration };
   }, [p, isDark]);
 
   const rgb = `${color.r},${color.g},${color.b}`;
-  const g1 = `rgba(${rgb},${alpha.toFixed(3)})`;
-  const g2 = `rgba(${rgb},${(alpha * 0.75).toFixed(3)})`;
-  const g3 = `rgba(${rgb},${(alpha * 0.5).toFixed(3)})`;
+  // Three layers each at a slightly different alpha so crossfades
+  // between them create organic brightness variation.
+  const a1 = alpha.toFixed(3);
+  const a2 = (alpha * 0.85).toFixed(3);
+  const a3 = (alpha * 0.7).toFixed(3);
+
+  // Each blob uses a different keyframe + duration + phase offset so
+  // they drift past each other instead of moving as a rigid unit.
+  const d1 = baseDuration.toFixed(2);
+  const d2 = (baseDuration * 1.35).toFixed(2);  // 35% slower
+  const d3 = (baseDuration * 0.8).toFixed(2);   // 20% faster
+
+  const layerBase = {
+    position: "fixed",
+    inset: "-20%",
+    pointerEvents: "none",
+    zIndex: 0,
+    willChange: "transform, opacity",
+    filter: "blur(60px)",
+  };
 
   return <>
     <style>{`
-      @keyframes ambient-ripple {
-        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-        25%      { transform: translate3d(1.5%, 0.8%, 0) scale(1.015); }
-        50%      { transform: translate3d(-0.8%, 1.6%, 0) scale(0.99); }
-        75%      { transform: translate3d(0.6%, -0.9%, 0) scale(1.01); }
+      @keyframes ambient-drift-a {
+        0%   { transform: translate3d(0, 0, 0) scale(1); }
+        33%  { transform: translate3d(6%, 3%, 0) scale(1.08); }
+        66%  { transform: translate3d(-4%, 5%, 0) scale(0.95); }
+        100% { transform: translate3d(0, 0, 0) scale(1); }
       }
-      @keyframes ambient-pulse {
-        0%, 100% { opacity: 0.85; }
+      @keyframes ambient-drift-b {
+        0%   { transform: translate3d(0, 0, 0) scale(1); }
+        25%  { transform: translate3d(-5%, 4%, 0) scale(1.06); }
+        50%  { transform: translate3d(3%, -3%, 0) scale(0.93); }
+        75%  { transform: translate3d(-2%, -5%, 0) scale(1.04); }
+        100% { transform: translate3d(0, 0, 0) scale(1); }
+      }
+      @keyframes ambient-drift-c {
+        0%   { transform: translate3d(0, 0, 0) scale(1); }
+        40%  { transform: translate3d(4%, -4%, 0) scale(1.05); }
+        80%  { transform: translate3d(-6%, 2%, 0) scale(0.97); }
+        100% { transform: translate3d(0, 0, 0) scale(1); }
+      }
+      @keyframes ambient-breath {
+        0%, 100% { opacity: 0.8; }
         50%      { opacity: 1; }
       }
     `}</style>
-    <div
-      aria-hidden
-      style={{
-        position: "fixed",
-        inset: "-12%",
-        backgroundImage:
-          `radial-gradient(ellipse 60% 50% at 25% 30%, ${g1}, transparent 65%),` +
-          `radial-gradient(ellipse 55% 55% at 75% 70%, ${g2}, transparent 65%),` +
-          `radial-gradient(ellipse 70% 40% at 50% 90%, ${g3}, transparent 70%)`,
-        animation: `ambient-ripple ${duration.toFixed(2)}s ease-in-out infinite, ambient-pulse ${(duration / 2).toFixed(2)}s ease-in-out infinite`,
-        transition: "background-image 4s ease",
-        pointerEvents: "none",
-        zIndex: 0,
-        willChange: "transform, opacity",
-      }}
-    />
+    {/* Layer A — top-left blob, slow drift */}
+    <div aria-hidden style={{
+      ...layerBase,
+      background: `radial-gradient(ellipse 70% 60% at 25% 25%, rgba(${rgb},${a1}), transparent 70%)`,
+      animation: `ambient-drift-a ${d1}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.7).toFixed(2)}s ease-in-out infinite`,
+    }} />
+    {/* Layer B — bottom-right blob, slower drift, offset phase */}
+    <div aria-hidden style={{
+      ...layerBase,
+      background: `radial-gradient(ellipse 65% 65% at 80% 75%, rgba(${rgb},${a2}), transparent 70%)`,
+      animation: `ambient-drift-b ${d2}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.9).toFixed(2)}s ease-in-out infinite`,
+      animationDelay: `-${(baseDuration * 0.4).toFixed(2)}s, -${(baseDuration * 0.25).toFixed(2)}s`,
+    }} />
+    {/* Layer C — center-bottom blob, faster drift, cross-phase */}
+    <div aria-hidden style={{
+      ...layerBase,
+      background: `radial-gradient(ellipse 80% 50% at 55% 90%, rgba(${rgb},${a3}), transparent 70%)`,
+      animation: `ambient-drift-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
+      animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
+    }} />
   </>;
 }
