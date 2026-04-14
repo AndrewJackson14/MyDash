@@ -18,6 +18,7 @@ import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
 // Eagerly loaded (always needed on boot)
 import Dashboard from "./pages/Dashboard";
+import { NotificationPopover } from "./components/NotificationPopover";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import DashboardV2 from "./pages/DashboardV2";
 import IssueDetail from "./pages/IssueDetail";
@@ -375,10 +376,11 @@ export default function App() {
       pointerEvents: "none",
     }} />
     {/* Global ambient pressure tint — tracks with the newsroom heat map.
-        Serene rippling blue when calm, pulsing red when on fire.
-        TEMPORARY: pressure hardcoded to 0 so we can see the pure calm blue
-        state. Change back to {globalPressure} to re-enable tracking. */}
-    <AmbientPressureLayer pressure={0} />
+        Serene rippling blue when calm, pulsing red when on fire. */}
+    <AmbientPressureLayer pressure={globalPressure} />
+    {/* macOS-style notification popover — fixed top-right, subscribes to
+        team_notes INSERTs for the current user and stacks incoming messages. */}
+    <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
     <div style={{ display: "flex", height: "100vh", background: ambientOverlay, color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 
@@ -543,7 +545,7 @@ export default function App() {
         {show("dataimport") && <div style={vis("dataimport")}><DataImport onClose={() => handleNav("integrations")} /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
         {show("team") && <div style={vis("team")}><TeamModule team={team} setTeam={setTeam} sales={jSales} stories={jStories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} pubs={pubs} clients={jClients} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} onOpenMemberProfile={openTeamMemberProfile} /></div>}
-        {show("team-member") && <div style={vis("team-member")}><TeamMemberProfile memberId={selectedTeamMemberId} team={team} pubs={pubs} clients={jClients} sales={jSales} stories={jStories} setStories={setStories} issues={jIssues} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} invoices={jInvoices} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} salespersonPubAssignments={appData.salespersonPubAssignments || []} upsertPubAssignment={appData.upsertPubAssignment} deletePubAssignment={appData.deletePubAssignment} commissionRates={appData.commissionRates || []} upsertCommissionRate={appData.upsertCommissionRate} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></div>}
+        {show("team-member") && <div style={vis("team-member")}><TeamMemberProfile memberId={selectedTeamMemberId} team={team} pubs={pubs} clients={jClients} sales={jSales} stories={jStories} setStories={setStories} issues={jIssues} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} invoices={jInvoices} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} salespersonPubAssignments={appData.salespersonPubAssignments || []} upsertPubAssignment={appData.upsertPubAssignment} deletePubAssignment={appData.deletePubAssignment} commissionRates={appData.commissionRates || []} upsertCommissionRate={appData.upsertCommissionRate} currentUser={currentUser} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></div>}
         {show("circulation") && <div style={vis("circulation")}><Circulation pubs={pubs} issues={jIssues} subscribers={subscribers} setSubscribers={setSubscribers} subscriptions={appData.subscriptions || []} setSubscriptions={appData.setSubscriptions} subscriptionPayments={appData.subscriptionPayments || []} mailingLists={appData.mailingLists || []} setMailingLists={appData.setMailingLists} dropLocations={dropLocations} setDropLocations={setDropLocations} dropLocationPubs={dropLocationPubs} setDropLocationPubs={setDropLocationPubs} drivers={drivers} setDrivers={setDrivers} driverRoutes={driverRoutes} setDriverRoutes={setDriverRoutes} routeStops={routeStops} setRouteStops={setRouteStops} bus={bus} team={team} currentUser={currentUser} /></div>}
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={jClients} subscribers={subscribers} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} /></div>}

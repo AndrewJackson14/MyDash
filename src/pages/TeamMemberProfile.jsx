@@ -144,6 +144,113 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
   </div>;
 }
 
+// ─── Messages panel ─────────────────────────────────────────
+// Shows all team_notes to/from this member, newest first. Includes
+// a quick-send input to reply or start a new thread.
+function MessagesPanel({ member, team, currentUser }) {
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const load = async () => {
+    if (!member?.id) return;
+    const { data, error } = await supabase.from("team_notes").select("*")
+      .or(`to_user.eq.${member.id},from_user.eq.${member.id}`)
+      .order("created_at", { ascending: false }).limit(100);
+    if (error) { console.error("messages load:", error); return; }
+    setNotes(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [member?.id]);
+
+  // Realtime: subscribe to new team_notes touching this member
+  useEffect(() => {
+    if (!member?.id) return;
+    const channel = supabase.channel(`team_notes_${member.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_notes" }, (payload) => {
+        const n = payload.new;
+        if (n.to_user === member.id || n.from_user === member.id) {
+          setNotes(prev => [n, ...prev.filter(x => x.id !== n.id)]);
+        }
+      }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [member?.id]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    const fromId = currentUser?.id || currentUser?.authId || null;
+    const { data, error } = await supabase.from("team_notes").insert({
+      from_user: fromId,
+      to_user: member.id,
+      message: text,
+      context_type: "general",
+    }).select().single();
+    if (error) console.error("messages send:", error);
+    if (data) setNotes(prev => [data, ...prev]);
+    setDraft("");
+    setSending(false);
+  };
+
+  const markRead = async (noteId) => {
+    await supabase.from("team_notes").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", noteId);
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n));
+  };
+
+  const nameFor = (uid) => (team || []).find(t => t.id === uid)?.name || "Unknown";
+  const parseTask = (msg) => {
+    const m = (msg || "").match(/^\[Task: ([^\]]+)\]\s*(.*)$/s);
+    return m ? { task: m[1], body: m[2] } : { task: null, body: msg || "" };
+  };
+  const fmtWhen = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    {/* Compose */}
+    <div style={{ display: "flex", gap: 8 }}>
+      <Inp placeholder={`Message ${member.name}…`} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+      <Btn onClick={send} disabled={!draft.trim() || sending}>{sending ? "…" : "Send"}</Btn>
+    </div>
+    {/* Thread */}
+    {loading ? <div style={{ padding: 24, textAlign: "center", color: Z.tm }}>Loading…</div>
+    : notes.length === 0 ? <div style={{ padding: 24, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No messages yet. Send one above.</div>
+    : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 520, overflowY: "auto" }}>
+      {notes.map(n => {
+        const fromSelf = n.from_user !== member.id; // you sent this TO the member
+        const { task, body } = parseTask(n.message);
+        const unread = !n.is_read && !fromSelf;
+        return <div key={n.id} onClick={() => unread && markRead(n.id)} style={{
+          alignSelf: fromSelf ? "flex-end" : "flex-start",
+          maxWidth: "75%",
+          padding: "8px 12px",
+          background: fromSelf ? Z.ac + "15" : Z.bg,
+          borderLeft: unread ? `3px solid ${Z.ac}` : undefined,
+          borderRadius: Ri,
+          cursor: unread ? "pointer" : "default",
+        }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+            {fromSelf ? `→ ${member.name}` : `${nameFor(n.from_user)} →`} · {fmtWhen(n.created_at)}
+          </div>
+          {task && <div style={{ display: "inline-block", padding: "1px 8px", background: Z.wa + "20", color: Z.wa, borderRadius: Ri, fontSize: FS.micro, fontWeight: FW.heavy, marginRight: 6 }}>TASK: {task}</div>}
+          <span style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{body}</span>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
 // ─── Permissions panel ──────────────────────────────────────
 function PermissionsPanel({ member, updateTeamMember }) {
   const [localPerms, setLocalPerms] = useState(member.modulePermissions || member.module_permissions || []);
@@ -240,7 +347,7 @@ const TeamMemberProfile = ({
   tickets, legalNotices, creativeJobs, invoices, setStories,
   updateTeamMember, deleteTeamMember, onNavigate, setIssueDetailId,
   salespersonPubAssignments, upsertPubAssignment, deletePubAssignment,
-  commissionRates, upsertCommissionRate,
+  commissionRates, upsertCommissionRate, currentUser,
 }) => {
   // Default to Dashboard view — publishers open this page to see the member's
   // realtime dashboard; Settings is a click away via the top tab.
@@ -297,8 +404,8 @@ const TeamMemberProfile = ({
       {inviteResult.success ? inviteResult.message : `Error: ${inviteResult.error}`}
     </div>}
 
-    {/* View switcher — Dashboard (default) vs Settings */}
-    <TabRow><TB tabs={["Dashboard", "Settings"]} active={tab} onChange={setTab} /></TabRow>
+    {/* View switcher — Dashboard (default) / Messages / Settings */}
+    <TabRow><TB tabs={["Dashboard", "Messages", "Settings"]} active={tab} onChange={setTab} /></TabRow>
 
     {tab === "Dashboard" && <RoleDashboard
       role={member.role}
@@ -320,6 +427,10 @@ const TeamMemberProfile = ({
       onNavigate={onNavigate}
       setIssueDetailId={setIssueDetailId}
     />}
+
+    {tab === "Messages" && <GlassCard>
+      <MessagesPanel member={member} team={team} currentUser={currentUser} />
+    </GlassCard>}
 
     {tab === "Settings" && <GlassCard>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
