@@ -9,6 +9,7 @@ import { supabase } from "../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
+import { fmtTimeRelative } from "../lib/formatters";
 import ClientList from "./sales/ClientList";
 import ClientProfile from "./sales/ClientProfile";
 import ClientSignals from "./sales/ClientSignals";
@@ -776,6 +777,16 @@ const SalesCRM = (props) => {
         else fp = fp.filter(p => p.status === propStatus);
         if (propSearch) { const q = propSearch.toLowerCase(); fp = fp.filter(p => (p.name || "").toLowerCase().includes(q) || cn(p.clientId).toLowerCase().includes(q) || propPubNames(p).toLowerCase().includes(q)); }
         return fp.length === 0 ? <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No proposals match filters</GlassCard> : fp.map(p => <div key={p.id} onClick={() => setViewPropId(p.id)} style={{ ...glass(), borderRadius: R, padding: 16, cursor: "pointer" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.name}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{cn(p.clientId)} · {p.lines.length} items</div><div style={{ fontSize: FS.sm, color: Z.ac }}>{propPubNames(p)}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su }}>${p.total.toLocaleString()}</span><Badge status={p.status} small />
+        {p.sentAt && <span
+          title={`Sent ${new Date(p.sentAt).toLocaleString()}${p.sentTo?.length ? `\nTo: ${p.sentTo.join(", ")}` : ""}`}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 3,
+            padding: "2px 7px", borderRadius: 10,
+            fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND,
+            textTransform: "uppercase", letterSpacing: 0.4,
+            background: Z.ss, color: Z.go, whiteSpace: "nowrap",
+          }}
+        >{`\u2714 Sent ${fmtTimeRelative(p.sentAt)}`}</span>}
       </div></div></div>);
       })()}</div>}
     {tab === "Proposals" && viewPropId && (() => { const p = proposals.find(x => x.id === viewPropId); if (!p) return null; const grouped = {}; p.lines.forEach(li => { if (!grouped[li.pubName]) grouped[li.pubName] = []; grouped[li.pubName].push(li); });

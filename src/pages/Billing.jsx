@@ -7,7 +7,7 @@ import { generatePdf } from "../lib/pdf";
 import { sendGmailEmail } from "../lib/gmail";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
-import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
+import { fmtCurrency, fmtDate, daysBetween, fmtTimeRelative } from "../lib/formatters";
 import BillsTab from "./BillsTab";
 
 // ─── Invoice Status Colors ──────────────────────────────────
@@ -228,6 +228,32 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       if (openNewInvoiceRef.current) openNewInvoiceRef.current(clientId);
     });
   }, [bus]);
+
+  // ─── Invoice send log — one query pulls every email_log row with
+  //     ref_type='invoice'; we index the latest per invoice id so each row
+  //     can show a "Sent" pill + tooltip without per-row queries.
+  const [invoiceSendMap, setInvoiceSendMap] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("email_log")
+        .select("id, ref_id, to_email, status, error_message, created_at")
+        .eq("ref_type", "invoice")
+        .order("created_at", { ascending: false });
+      if (error) { console.error("invoice email_log load error:", error); return; }
+      if (cancelled) return;
+      const map = {};
+      for (const row of data || []) {
+        if (!row.ref_id) continue;
+        const prev = map[row.ref_id];
+        if (!prev) map[row.ref_id] = { ...row, count: 1 };
+        else map[row.ref_id] = { ...prev, count: prev.count + 1 };
+      }
+      setInvoiceSendMap(map);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ─── Helpers ────────────────────────────────────────────
   const cn = (cid) => clients.find(c => c.id === cid)?.name || "Unknown";
@@ -767,19 +793,45 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           <tbody>
             {filtered.length === 0
               ? <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No invoices match your filters</td></tr>
-              : filtered.map(inv => <tr key={inv.id} onClick={() => setViewInvId(inv.id)} style={{ cursor: "pointer" }}>
-                <td style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</td>
-                <td style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{cn(inv.clientId)}</td>
-                <td style={{ fontSize: FS.sm, color: Z.tm }}>{fmtDate(inv.issueDate)}</td>
-                <td style={{ fontSize: FS.sm, color: inv.status === "overdue" ? Z.da : Z.tm, fontWeight: inv.status === "overdue" ? 700 : 400 }}>{fmtDate(inv.dueDate)}</td>
-                <td style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.total)}</td>
-                <td style={{ fontSize: FS.base, fontWeight: FW.bold, color: inv.balanceDue > 0 ? Z.da : Z.su, textAlign: "right" }}>{fmtCurrency(inv.balanceDue)}</td>
-                <td style={{ padding: "10px 14px" }}><InvBadge status={inv.status} /></td>
-                <td style={{ padding: "10px 14px" }}>
-                  {inv.status === "draft" && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); sendInvoice(inv.id); }}>Send</Btn>}
-                  {["sent", "partially_paid", "overdue"].includes(inv.status) && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); openPayment(inv.id); }}>Pay</Btn>}
-                </td>
-              </tr>)}
+              : filtered.map(inv => {
+                const send = invoiceSendMap[inv.id];
+                const sendOk = send && send.status === "sent";
+                const sendFailed = send && send.status === "failed";
+                const sendTitle = send
+                  ? `${sendOk ? "Emailed" : sendFailed ? "Send failed" : send.status} ${fmtTimeRelative(send.created_at)} \u2192 ${send.to_email}${send.count > 1 ? ` (${send.count}x)` : ""}${send.error_message ? `\n${send.error_message}` : ""}`
+                  : null;
+                return <tr key={inv.id} onClick={() => setViewInvId(inv.id)} style={{ cursor: "pointer" }}>
+                  <td style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</td>
+                  <td style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{cn(inv.clientId)}</td>
+                  <td style={{ fontSize: FS.sm, color: Z.tm }}>{fmtDate(inv.issueDate)}</td>
+                  <td style={{ fontSize: FS.sm, color: inv.status === "overdue" ? Z.da : Z.tm, fontWeight: inv.status === "overdue" ? 700 : 400 }}>{fmtDate(inv.dueDate)}</td>
+                  <td style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.total)}</td>
+                  <td style={{ fontSize: FS.base, fontWeight: FW.bold, color: inv.balanceDue > 0 ? Z.da : Z.su, textAlign: "right" }}>{fmtCurrency(inv.balanceDue)}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <InvBadge status={inv.status} />
+                      {send && <span
+                        title={sendTitle}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 3,
+                          padding: "2px 7px", borderRadius: 10,
+                          fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND,
+                          textTransform: "uppercase", letterSpacing: 0.4,
+                          background: sendOk ? Z.ss : sendFailed ? Z.ds : Z.ws,
+                          color: sendOk ? Z.go : sendFailed ? Z.da : Z.wa,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {sendOk ? "\u2714 Sent" : sendFailed ? "\u26A0 Failed" : "Draft"} {fmtTimeRelative(send.created_at)}
+                      </span>}
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    {inv.status === "draft" && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); sendInvoice(inv.id); }}>Send</Btn>}
+                    {["sent", "partially_paid", "overdue"].includes(inv.status) && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); openPayment(inv.id); }}>Pay</Btn>}
+                  </td>
+                </tr>;
+              })}
           </tbody>
         </DataTable>
       </GlassCard>
