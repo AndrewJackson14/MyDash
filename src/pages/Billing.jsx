@@ -117,6 +117,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [arClientFilter, setArClientFilter] = useState("all");
   const [arClientRep, setArClientRep] = useState("all");
   const [arExpandedClient, setArExpandedClient] = useState(null);
+  // AR Aging flat report (Reports tab)
+  const [agingReportSort, setAgingReportSort] = useState({ key: "total", dir: "desc" });
 
   // New invoice form
   const [invForm, setInvForm] = useState({
@@ -1048,7 +1050,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             row.total += bal;
           });
 
-          const rows = Object.values(byClient).sort((a, b) => b.total - a.total);
+          const rows = Object.values(byClient);
+          const sortDir = agingReportSort.dir === "asc" ? 1 : -1;
+          rows.sort((a, b) => {
+            const k = agingReportSort.key;
+            if (k === "client") return a.clientName.localeCompare(b.clientName) * sortDir;
+            return ((a[k] || 0) - (b[k] || 0)) * sortDir;
+          });
           const totals = rows.reduce((acc, r) => ({
             current: acc.current + r.current,
             d30: acc.d30 + r.d30,
@@ -1074,9 +1082,22 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             URL.revokeObjectURL(url);
           };
 
-          const Th = ({ children, align = "left" }) => (
-            <th style={{ padding: "10px 14px", textAlign: align, fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `2px solid ${Z.bd}`, whiteSpace: "nowrap", background: Z.sa }}>{children}</th>
-          );
+          const Th = ({ children, align = "left", col }) => {
+            const active = agingReportSort.key === col;
+            const toggle = () => setAgingReportSort(prev => ({
+              key: col,
+              dir: prev.key === col && prev.dir === "desc" ? "asc" : "desc",
+            }));
+            // For the client (text) column, "asc" = A→Z, "desc" = Z→A.
+            // For numeric columns, "asc" = low→high, "desc" = high→low.
+            const arrow = active ? (col === "client"
+              ? (agingReportSort.dir === "asc" ? " A→Z" : " Z→A")
+              : (agingReportSort.dir === "asc" ? " ▲" : " ▼")) : "";
+            return <th onClick={toggle}
+              style={{ padding: "10px 14px", textAlign: align, fontSize: FS.xs, fontWeight: FW.heavy, color: active ? Z.ac : Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `2px solid ${Z.bd}`, whiteSpace: "nowrap", background: Z.sa, cursor: "pointer", userSelect: "none" }}>
+              {children}{arrow}
+            </th>;
+          };
           const Td = ({ children, align = "left", bold = false, color, borderLeft = false }) => (
             <td style={{ padding: "8px 14px", textAlign: align, fontSize: FS.sm, fontWeight: bold ? FW.heavy : FW.regular, color: color || Z.tx, borderBottom: `1px solid ${Z.bd}15`, borderLeft: borderLeft ? `2px solid ${Z.bd}30` : undefined, fontFamily: COND }}>{children}</td>
           );
@@ -1093,12 +1114,12 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
                 <thead>
                   <tr>
-                    <Th>Client</Th>
-                    <Th align="right">Current</Th>
-                    <Th align="right">30</Th>
-                    <Th align="right">60</Th>
-                    <Th align="right">90+</Th>
-                    <Th align="right">Total</Th>
+                    <Th col="client">Client</Th>
+                    <Th col="current" align="right">Current</Th>
+                    <Th col="d30" align="right">30</Th>
+                    <Th col="d60" align="right">60</Th>
+                    <Th col="over90" align="right">90+</Th>
+                    <Th col="total" align="right">Total</Th>
                   </tr>
                 </thead>
                 <tbody>
