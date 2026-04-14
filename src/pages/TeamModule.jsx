@@ -9,10 +9,10 @@ const today = new Date().toISOString().slice(0, 10);
 // ── Constants ────────────────────────────────────────────────
 const DEPARTMENTS = [
   { key: "leadership", label: "Leadership", roles: ["Publisher", "Editor-in-Chief"] },
+  { key: "admin", label: "Administration", roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
   { key: "sales", label: "Sales", roles: ["Sales Manager", "Salesperson"] },
   { key: "editorial", label: "Editorial", roles: ["Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor"] },
   { key: "design", label: "Design / Production", roles: ["Graphic Designer", "Layout Designer", "Ad Designer", "Production Manager"] },
-  { key: "admin", label: "Administration", roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
 ];
 const getDept = (role) => DEPARTMENTS.find(d => d.roles.includes(role))?.label || "Other";
 const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
