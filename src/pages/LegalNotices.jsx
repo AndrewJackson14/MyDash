@@ -159,9 +159,9 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     const nowIso = new Date().toISOString();
 
     // On create (not edit): use the picked client if any, otherwise find or
-    // create one and auto-flag it as a legal-notice client so it appears in
-    // the picker next time. Fictitious business filings auto-flag the client
-    // as a Lead per the sales policy.
+    // create one. The legal-notice flag is managed manually on the client
+    // profile — we no longer auto-tag here. Fictitious business filings
+    // still auto-flag the client as a Lead per the sales policy.
     let clientId = form.clientId || null;
     if (!editId && !clientId) {
       const orgName = form.organization || form.contactName;
@@ -174,7 +174,6 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
           name: orgName,
           status: isFbn ? "Lead" : "Active",
           totalSpend: 0,
-          category: "Legal Notice",
           contacts: [{ name: form.contactName, email: form.contactEmail, phone: form.contactPhone, role: "Business Owner" }],
         });
         clientId = created?.id || null;

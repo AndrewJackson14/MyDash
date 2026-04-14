@@ -205,6 +205,21 @@ const ClientProfile = ({
             <option value="duplicate">Duplicate</option>
             <option value="other">Other</option>
           </select>
+          {/* Legal Notices flag — controls whether this client appears in the
+              Legal Notices modal client picker. Stored in clients.category. */}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "3px 8px", background: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac + "15" : Z.bg, border: `1px solid ${(vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.bd}`, borderRadius: Ri }}>
+            <input
+              type="checkbox"
+              checked={(vc.category || "").toLowerCase() === "legal notice"}
+              onChange={e => {
+                const next = e.target.checked ? "Legal Notice" : "";
+                setClients(cl => cl.map(c => c.id === vc.id ? { ...c, category: next } : c));
+                if (appData?.updateClient) appData.updateClient(vc.id, { category: next });
+              }}
+              style={{ cursor: "pointer", margin: 0 }}
+            />
+            <span style={{ fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, color: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.td }}>Legal Notices Client</span>
+          </label>
         </div>
       </div>
     </div>
