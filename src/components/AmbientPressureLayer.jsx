@@ -118,9 +118,10 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
          the child circle, so the stroke width and dash pattern stay
          constant even as the ring grows 30x. */
       @keyframes halo-pulse {
-        0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
         10%  { opacity: 0.9; }
-        100% { transform: translate(-50%, -50%) scale(28); opacity: 0; }
+        70%  { opacity: 0.4; }
+        100% { transform: translate(-50%, -50%) scale(7); opacity: 0; }
       }
     `}</style>
     {/* Amoeba lobe A — wide horizontal ellipse at center */}
