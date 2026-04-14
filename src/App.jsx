@@ -247,6 +247,7 @@ export default function App() {
         setPgHistory(h => [...h, pg]);
         setPg(pageName);
         setIssueDetailId(null);
+        try { localStorage.setItem("mydash-pg", pageName); } catch (e) { }
       }
       return;
     }
@@ -255,6 +256,7 @@ export default function App() {
       setPgHistory(h => [...h, pg]);
       setPg(newPg);
       setIssueDetailId(null);
+      try { localStorage.setItem("mydash-pg", newPg); } catch (e) { }
     }
   };
 

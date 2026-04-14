@@ -20,7 +20,11 @@ const INV_COLORS = {
   void:           { bg: Z.sa, text: Z.td },
 };
 
-const INV_STATUSES = ["All", "draft", "sent", "partially_paid", "paid", "overdue", "void"];
+// Overdue is the default because that's the view that drives AR collections.
+// Draft + partially_paid are intentionally absent from the filter strip — they
+// live inline on the Overview tab ("Drafts" stat) and are rarely worth an
+// isolated list at the tab level.
+const INV_STATUSES = ["overdue", "paid", "sent", "void", "All"];
 const BILLING_SCHEDULES = [
   { value: "lump_sum", label: "Lump Sum" },
   { value: "per_issue", label: "Per Issue" },
@@ -186,7 +190,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [sr, setSr] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("overdue");
   const [invModal, setInvModal] = useState(false);
   const [payModal, setPayModal] = useState(false);
   const [viewInvId, setViewInvId] = useState(null);
@@ -638,7 +642,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Overdue: "overdue", Paid: "paid", Sent: "sent", Void: "void" }; setStatusFilter(map[v] || "overdue"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>

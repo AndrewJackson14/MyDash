@@ -664,7 +664,7 @@ const Dashboard = ({
     <RevenueCommandBar glass={glass} cards={[
       { label: "Ad Revenue MTD", value: fmtCurrency(adRevMTD), color: Z.go, tags: ["sales", "financials"], onClick: () => onNavigate?.("sales") },
       { label: "Issue Revenue", value: fmtCurrency(issueRevThisMonth), color: ACCENT.blue, tags: ["sales", "financials"], sub: `${monthlyIssueCount} issues this month`, onClick: () => onNavigate?.("schedule") },
-      { label: "Outstanding AR", value: billingLoaded ? fmtCurrency(outstandingAR) : "—", color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: billingLoaded ? (overdueInvCount > 0 ? `${overdueInvCount} overdue` : "All current") : "Loading…", onClick: () => onNavigate?.("billing") },
+      { label: "Outstanding AR", value: billingLoaded ? fmtCurrency(outstandingAR) : "—", color: overdueInvCount > 0 ? Z.da : Z.wa, tags: ["financials"], sub: billingLoaded ? (overdueInvCount > 0 ? `${overdueInvCount} 60+ days overdue` : "All current") : "Loading…", onClick: () => onNavigate?.("billing") },
       { label: "Pipeline Value", value: fmtCurrency(pipelineValue), color: Z.wa, tags: ["sales"], sub: `${pipelineCount} deals`, onClick: () => onNavigate?.("sales") },
       { label: "Uninvoiced", value: billingLoaded ? fmtCurrency(uninvoicedContracts) : "—", color: uninvoicedContracts > 0 ? Z.wa : Z.go, tags: ["financials", "sales"], sub: billingLoaded ? (uninvoicedContracts > 0 ? "Needs invoicing" : "All invoiced") : "Loading…", onClick: () => onNavigate?.("billing") },
     ].filter(c => showInFocus(c.tags))} />

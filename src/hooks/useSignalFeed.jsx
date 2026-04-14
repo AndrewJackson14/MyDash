@@ -60,8 +60,22 @@ export function useSignalFeed({
   }, [_sales, _issues, thisMonth]);
   const monthlyIssueCount = useMemo(() => _issues.filter(i => i.date?.startsWith(thisMonth)).length, [_issues, thisMonth]);
   const outstandingAR = useMemo(() => _inv.filter(i => ["overdue", "sent"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv]);
-  const overdueInvCount = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length, [_inv, today]);
-  const overdueBalance = useMemo(() => _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv, today]);
+  // Admin dashboard is noisy when every 1-day-late invoice lights up red, so
+  // the "overdue" signal shown on the dashboard is filtered to invoices 60+
+  // days past due. Billing.jsx still shows all overdue invoices on the
+  // Invoices tab — this stricter signal only drives the admin dashboard
+  // stat card, the focus-feed item, and the admin heat score.
+  const sixtyDaysAgo = useMemo(() => {
+    const d = new Date(Date.now() - 60 * MS_PER_DAY);
+    return d.toISOString().slice(0, 10);
+  }, [today]);
+  const isDashboardOverdue = (i) => {
+    if (!i.dueDate) return false;
+    if (i.dueDate >= sixtyDaysAgo) return false;
+    return i.status === "overdue" || i.status === "sent" || i.status === "partially_paid";
+  };
+  const overdueInvCount = useMemo(() => _inv.filter(isDashboardOverdue).length, [_inv, sixtyDaysAgo]);
+  const overdueBalance = useMemo(() => _inv.filter(isDashboardOverdue).reduce((s, i) => s + (i.balanceDue || 0), 0), [_inv, sixtyDaysAgo]);
   // Pipeline = every non-closed deal (includes Follow-up). Only
   // Closed is subtracted from the total.
   const pipelineValue = useMemo(() => _sales.filter(s => s.status !== "Closed").reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
@@ -233,8 +247,7 @@ export function useSignalFeed({
     const reviewStory = _stories.filter(s => s.status === "Edited" || s.status === "Needs Editing").sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"))[0];
     if (reviewStory) items.push({ id: "fi-story", title: `Review "${reviewStory.title}"`, sub: `${reviewStory.author} · ${pn(reviewStory.publication)} · ${reviewStory.status}`, action: "Editorial", page: "editorial", dept: "editorial", priority: 3 });
     if (overdueBalance > 0) {
-      const oc = _inv.filter(i => i.status === "overdue" || (i.status === "sent" && i.dueDate && i.dueDate < today)).length;
-      items.push({ id: "fi-overdue", title: `${oc} overdue invoice${oc > 1 ? "s" : ""} — ${overdueBalance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`, sub: "Requires follow-up", action: "Billing", page: "billing", dept: "admin", priority: 2 });
+      items.push({ id: "fi-overdue", title: `${overdueInvCount} invoice${overdueInvCount > 1 ? "s" : ""} 60+ days past due — ${overdueBalance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`, sub: "Escalate collections", action: "Billing", page: "billing", dept: "admin", priority: 2 });
     }
     if (escalatedTickets > 0) items.push({ id: "fi-esc", title: `${escalatedTickets} escalated ticket${escalatedTickets > 1 ? "s" : ""}`, sub: "Escalated by office manager", action: "Service Desk", page: "servicedesk", dept: "admin", priority: 2 });
     if (overdueJobs > 0) items.push({ id: "fi-jobs", title: `${overdueJobs} creative job${overdueJobs > 1 ? "s" : ""} past deadline`, sub: "Client deliverables at risk", action: "Creative", page: "creativejobs", dept: "production", priority: 2 });
