@@ -375,8 +375,10 @@ export default function App() {
       pointerEvents: "none",
     }} />
     {/* Global ambient pressure tint — tracks with the newsroom heat map.
-        Serene rippling blue when calm, pulsing red when on fire. */}
-    <AmbientPressureLayer pressure={globalPressure} />
+        Serene rippling blue when calm, pulsing red when on fire.
+        TEMPORARY: pressure hardcoded to 0 so we can see the pure calm blue
+        state. Change back to {globalPressure} to re-enable tracking. */}
+    <AmbientPressureLayer pressure={0} />
     <div style={{ display: "flex", height: "100vh", background: ambientOverlay, color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 
