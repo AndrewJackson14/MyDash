@@ -88,48 +88,47 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
 
   return <>
     <style>{`
-      @keyframes ambient-drift-a {
-        0%   { transform: translate3d(0, 0, 0) scale(1); }
-        33%  { transform: translate3d(6%, 3%, 0) scale(1.08); }
-        66%  { transform: translate3d(-4%, 5%, 0) scale(0.95); }
-        100% { transform: translate3d(0, 0, 0) scale(1); }
+      /* Each amoeba lobe anchors near the middle and wobbles via
+         asymmetric scale so the silhouette warps instead of uniformly
+         growing. Slight translate keeps the lobes from sitting dead-
+         center on top of each other. */
+      @keyframes ambient-amoeba-a {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+        33%      { transform: translate3d(1.5%, -1%, 0) scale(1.14, 0.92); }
+        66%      { transform: translate3d(-1%, 1.5%, 0) scale(0.94, 1.12); }
       }
-      @keyframes ambient-drift-b {
-        0%   { transform: translate3d(0, 0, 0) scale(1); }
-        25%  { transform: translate3d(-5%, 4%, 0) scale(1.06); }
-        50%  { transform: translate3d(3%, -3%, 0) scale(0.93); }
-        75%  { transform: translate3d(-2%, -5%, 0) scale(1.04); }
-        100% { transform: translate3d(0, 0, 0) scale(1); }
+      @keyframes ambient-amoeba-b {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+        50%      { transform: translate3d(-1.5%, -0.5%, 0) scale(1.08, 1.15); }
       }
-      @keyframes ambient-drift-c {
-        0%   { transform: translate3d(0, 0, 0) scale(1); }
-        40%  { transform: translate3d(4%, -4%, 0) scale(1.05); }
-        80%  { transform: translate3d(-6%, 2%, 0) scale(0.97); }
-        100% { transform: translate3d(0, 0, 0) scale(1); }
+      @keyframes ambient-amoeba-c {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+        40%      { transform: translate3d(0.8%, 1.5%, 0) scale(0.9, 1.06); }
+        80%      { transform: translate3d(-1.2%, -1%, 0) scale(1.1, 0.94); }
       }
       @keyframes ambient-breath {
-        0%, 100% { opacity: 0.8; }
+        0%, 100% { opacity: 0.82; }
         50%      { opacity: 1; }
       }
     `}</style>
-    {/* Layer A — top-left blob, slow drift */}
+    {/* Amoeba lobe A — wide horizontal ellipse at center */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 70% 60% at 25% 25%, rgba(${rgb},${a1}), transparent 70%)`,
-      animation: `ambient-drift-a ${d1}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.7).toFixed(2)}s ease-in-out infinite`,
+      background: `radial-gradient(ellipse 45% 35% at 50% 50%, rgba(${rgb},${a1}), transparent 72%)`,
+      animation: `ambient-amoeba-a ${d1}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.7).toFixed(2)}s ease-in-out infinite`,
     }} />
-    {/* Layer B — bottom-right blob, slower drift, offset phase */}
+    {/* Amoeba lobe B — taller vertical ellipse, offset phase */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 65% 65% at 80% 75%, rgba(${rgb},${a2}), transparent 70%)`,
-      animation: `ambient-drift-b ${d2}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.9).toFixed(2)}s ease-in-out infinite`,
+      background: `radial-gradient(ellipse 32% 45% at 50% 50%, rgba(${rgb},${a2}), transparent 72%)`,
+      animation: `ambient-amoeba-b ${d2}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.9).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.4).toFixed(2)}s, -${(baseDuration * 0.25).toFixed(2)}s`,
     }} />
-    {/* Layer C — center-bottom blob, faster drift, cross-phase */}
+    {/* Amoeba lobe C — slight off-axis warp, faster drift */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 80% 50% at 55% 90%, rgba(${rgb},${a3}), transparent 70%)`,
-      animation: `ambient-drift-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
+      background: `radial-gradient(ellipse 38% 30% at 50% 50%, rgba(${rgb},${a3}), transparent 72%)`,
+      animation: `ambient-amoeba-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
     }} />
   </>;
