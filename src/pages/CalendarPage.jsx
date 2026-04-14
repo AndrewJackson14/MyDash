@@ -392,8 +392,13 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
           const isCur = d.getMonth() === selMonth;
           const isT = isSameDay(d, today);
           const de = eventsForDate(d);
-          return <div key={i} onClick={() => { setSelectedDate(d); setView("day"); }} style={{ height: 120, padding: "6px 8px", borderRight: (i + 1) % 7 !== 0 ? `1px solid ${Z.bd}` : "none", borderBottom: i < 35 ? `1px solid ${Z.bd}` : "none", background: isT ? Z.ac + "08" : isCur ? "transparent" : Z.sa, cursor: "pointer", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <div style={{ fontSize: FS.sm, fontWeight: isT ? FW.black : FW.semi, color: isCur ? (isT ? Z.ac : Z.tx) : Z.td, marginBottom: 4 }}>{d.getDate()}</div>
+          // Current-month days take the solid surface color so the ambient
+          // wallpaper doesn't leak through the grid; leading/trailing days
+          // fall back to the page background to read as visibly "outside".
+          const cellBg = isT ? Z.sf : isCur ? Z.sf : Z.bg;
+          return <div key={i} onClick={() => { setSelectedDate(d); setView("day"); }} style={{ height: 120, padding: "6px 8px", borderRight: (i + 1) % 7 !== 0 ? `1px solid ${Z.bd}` : "none", borderBottom: i < 35 ? `1px solid ${Z.bd}` : "none", background: cellBg, cursor: "pointer", overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" }}>
+            {isT && <div aria-hidden style={{ position: "absolute", inset: 0, background: Z.ac + "10", pointerEvents: "none" }} />}
+            <div style={{ fontSize: FS.sm, fontWeight: isT ? FW.black : FW.semi, color: isCur ? (isT ? Z.ac : Z.tx) : Z.td, marginBottom: 4, position: "relative" }}>{d.getDate()}</div>
             <div style={{ flex: 1, overflow: "hidden" }}>
               {de.slice(0, 4).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e); }} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, marginBottom: 2, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><Dot color={e.color || Z.ac} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span></div>)}
               {de.length > 4 && <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND, padding: "0 4px" }}>+{de.length - 4} more</div>}

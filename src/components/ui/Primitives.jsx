@@ -252,7 +252,7 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) =>
     padding: "5px 12px", borderRadius: 14,
     border: "none",
     background: active ? (color || Z.tx) + "18" : Z.sa,
-    color: active ? (color || Z.tx) : Z.td,
+    color: active ? (color || Z.tx) : Z.tm,
     cursor: disabled ? "not-allowed" : "pointer",
     fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
     whiteSpace: "nowrap", transition: "all 0.15s",
