@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isDark as _isDark } from "../lib/theme";
 
 // ============================================================
 // AmbientPressureLayer — global animated background tint that
@@ -16,6 +17,11 @@ import { useMemo } from "react";
 //
 // Fixed-position, pointer-events: none. Meant to sit ABOVE the
 // wallpaper image layer and BELOW the app content.
+//
+// Light-mode tuning: a coral red (#EF4444) blended at low alpha
+// on top of a near-white background reads as pink. We swap in a
+// deeper red (#B91C1C) and raise the alpha cap for light mode so
+// the hot state actually looks red, not pastel.
 // ============================================================
 
 // Linearly interpolate between two RGB triples
@@ -26,28 +32,35 @@ function lerpColor(a, b, t) {
     b: Math.round(a.b + (b.b - a.b) * t),
   };
 }
-const BLUE = { r: 59, g: 130, b: 246 };   // #3B82F6 — serene
-const AMBER = { r: 245, g: 158, b: 11 };  // #F59E0B — warming
-const RED = { r: 239, g: 68, b: 68 };     // #EF4444 — urgent
+const BLUE = { r: 59, g: 130, b: 246 };       // #3B82F6 — serene (both modes)
+const AMBER = { r: 245, g: 158, b: 11 };      // #F59E0B — warming
+const RED_DARK_MODE = { r: 239, g: 68, b: 68 };   // #EF4444 — reads fine on dark
+const RED_LIGHT_MODE = { r: 185, g: 28, b: 28 };  // #B91C1C — deeper, avoids pink wash
 
 export default function AmbientPressureLayer({ pressure = 20 }) {
   const p = Math.max(0, Math.min(100, pressure));
+  const isDark = _isDark();
 
   const { color, alpha, duration, pulseAlpha } = useMemo(() => {
     // Two-stage interpolation: 0→50 is blue→amber, 50→100 is amber→red.
+    // The red target shifts per theme so it reads as red in both modes.
+    const RED = isDark ? RED_DARK_MODE : RED_LIGHT_MODE;
     const c = p < 50
       ? lerpColor(BLUE, AMBER, p / 50)
       : lerpColor(AMBER, RED, (p - 50) / 50);
     // Alpha and pulse strength scale with pressure — calm is subtle, hot is loud.
     // Non-linear ramp: stays gentle up to ~50, then climbs faster so red really
-    // reads when the dashboard has multiple urgent cards.
+    // reads when the dashboard has multiple urgent cards. Light mode needs a
+    // noticeably higher ceiling to avoid looking pink when blended over white.
     const eased = Math.pow(p / 100, 1.4);
-    const alpha = 0.08 + eased * 0.26;             // 0.08 → 0.34
+    const alphaBase = isDark ? 0.08 : 0.10;
+    const alphaRamp = isDark ? 0.26 : 0.38;
+    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.08→0.34, light: 0.10→0.48
     const pulseAlpha = 0.02 + eased * 0.10;
     // Ripple/pulse duration: 14s at full calm, 1.8s at full heat. Shorter = more urgent.
     const duration = 14 - eased * 12.2;
     return { color: c, alpha, duration, pulseAlpha };
-  }, [p]);
+  }, [p, isDark]);
 
   const rgb = `${color.r},${color.g},${color.b}`;
   const g1 = `rgba(${rgb},${alpha.toFixed(3)})`;
