@@ -328,6 +328,37 @@ export default function App() {
   const subExpiringCutoff = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const subExpiring = (subscribers || []).filter(s => s.status === "active" && s.renewalDate && s.renewalDate <= subExpiringCutoff && s.renewalDate >= today).length;
 
+  // ─── Unread DM count (for the Messages nav badge) ────
+  // Counts unread team_notes sent TO me that are not tied to an ad project
+  // or other context thread. Loads once and stays live via realtime.
+  const [unreadDMs, setUnreadDMs] = useState(0);
+  useEffect(() => {
+    const meId = currentUser?.id;
+    if (!meId) { setUnreadDMs(0); return; }
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("team_notes")
+        .select("*", { count: "exact", head: true })
+        .eq("to_user", meId)
+        .eq("is_read", false)
+        .is("context_type", null);
+      if (!cancelled) setUnreadDMs(count || 0);
+    })();
+    const ch = supabase.channel(`unread_dms_${meId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "team_notes" }, async () => {
+        const { count } = await supabase
+          .from("team_notes")
+          .select("*", { count: "exact", head: true })
+          .eq("to_user", meId)
+          .eq("is_read", false)
+          .is("context_type", null);
+        if (!cancelled) setUnreadDMs(count || 0);
+      })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [currentUser?.id]);
+
   // ─── Nav Config (with permission keys) ────────────────
   // Map nav IDs to module permission keys
   // Each nav item is its own permission — granular control
@@ -342,7 +373,7 @@ export default function App() {
   const NAV = [
     { id: "dashboard", label: "My Dash", icon: Ic.dash },
     { id: "calendar", label: "Calendar", icon: Ic.cal },
-    { id: "messaging", label: "Messages", icon: Ic.chat },
+    { id: "messaging", label: "Messages", icon: Ic.chat, badge: unreadDMs || null, badgeColor: unreadDMs > 0 ? Z.ac : null },
     { id: "mail", label: "Mail", icon: Ic.mail },
     { id: "_revenue", section: true, label: "Revenue" },
     { id: "sales", label: "Sales", icon: Ic.sale, badge: (salesActive || 0) + (newInquiries || 0) || null, badgeColor: newInquiries > 0 ? Z.ac : null },

@@ -1,234 +1,238 @@
 // ============================================================
-// Messaging.jsx — Global team messaging (DMs, groups, contextual threads)
-// Built on message_threads + messages tables
+// Messaging.jsx — Team direct messages, backed by team_notes.
+//
+// One inbox, grouped by the other team member. Left pane lists
+// conversations (other party, latest preview, unread count). Right
+// pane renders the full thread with a composer. Shares the same
+// team_notes table as the NotificationPopover and TeamMemberProfile
+// Messages tab so sends and reads stay consistent across surfaces.
 // ============================================================
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
-import { Z, COND, FS, FW, Ri, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Modal, SB, PageHeader } from "../components/ui";
+import { Z, COND, FS, FW, Ri, R } from "../lib/theme";
+import { Ic, Btn, Modal } from "../components/ui";
 import { supabase } from "../lib/supabase";
-import ChatPanel from "../components/ChatPanel";
 import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
-const THREAD_TYPES = {
-  direct: { label: "Direct", icon: "user", color: Z.ac },
-  general: { label: "General", color: Z.tm },
-  ad_project: { label: "Ad Project", color: Z.pu },
-  sale: { label: "Sale", color: Z.go },
-  story: { label: "Story", color: Z.wa },
-  client: { label: "Client", color: Z.ac },
-};
-
-
 const Messaging = memo(({ team, currentUser }) => {
-  const [threads, setThreads] = useState([]);
-  const [latestMessages, setLatestMessages] = useState({});
-  const [activeThread, setActiveThread] = useState(null);
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeOther, setActiveOther] = useState(null); // team_members.id of the other party
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ type: "direct", title: "", recipientId: "" });
+  const [showPicker, setShowPicker] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
 
-  // ─── Load threads ─────────────────────────────────────
+  const meId = currentUser?.id || null;
+
+  // ─── Load every DM this user is part of ───────────────
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!meId) return;
+    let cancelled = false;
     (async () => {
-      const { data } = await supabase.from("message_threads").select("*").order("updated_at", { ascending: false });
-      if (data) {
-        // Filter to threads the user participates in (or all for admins)
-        const mine = data.filter(t =>
-          !t.participants?.length || t.participants.includes(currentUser.id)
-        );
-        setThreads(mine);
-
-        // Fetch latest message per thread for preview
-        const threadIds = mine.map(t => t.id);
-        if (threadIds.length > 0) {
-          const { data: msgs } = await supabase.from("messages").select("*")
-            .in("thread_id", threadIds).order("created_at", { ascending: false });
-          if (msgs) {
-            const latest = {};
-            msgs.forEach(m => { if (!latest[m.thread_id]) latest[m.thread_id] = m; });
-            setLatestMessages(latest);
-          }
-        }
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("team_notes")
+        .select("*")
+        .or(`from_user.eq.${meId},to_user.eq.${meId}`)
+        .is("context_type", null)
+        .order("created_at", { ascending: true });
+      if (error) console.error("Messaging load error:", error);
+      if (!cancelled) {
+        setNotes(data || []);
+        setLoading(false);
       }
-      setLoading(false);
     })();
-  }, [currentUser?.id]);
+    return () => { cancelled = true; };
+  }, [meId]);
 
-  // ─── Realtime: new messages update previews ───────────
+  // ─── Realtime: new DMs land without reload ────────────
   useEffect(() => {
-    const channel = supabase.channel("global-msgs")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const msg = payload.new;
-          setLatestMessages(prev => ({ ...prev, [msg.thread_id]: msg }));
-          // Bump thread to top
-          setThreads(prev => {
-            const idx = prev.findIndex(t => t.id === msg.thread_id);
-            if (idx <= 0) return prev;
-            const updated = [...prev];
-            const [thread] = updated.splice(idx, 1);
-            return [thread, ...updated];
-          });
-        })
+    if (!meId) return;
+    const ch = supabase.channel(`messaging_${meId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_notes" }, (payload) => {
+        const n = payload.new;
+        if (n.context_type) return; // contextual threads belong to ad projects etc
+        if (n.from_user !== meId && n.to_user !== meId) return;
+        setNotes(prev => prev.some(x => x.id === n.id) ? prev : [...prev, n]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "team_notes" }, (payload) => {
+        const n = payload.new;
+        if (n.from_user !== meId && n.to_user !== meId) return;
+        setNotes(prev => prev.map(x => x.id === n.id ? n : x));
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => { supabase.removeChannel(ch); };
+  }, [meId]);
 
-  // ─── Create new thread ────────────────────────────────
-  const createThread = async () => {
-    if (newForm.type === "direct" && !newForm.recipientId) return;
-    if (newForm.type !== "direct" && !newForm.title.trim()) return;
-
-    let title = newForm.title.trim();
-    let participants = [currentUser.id];
-
-    if (newForm.type === "direct") {
-      const recipient = (team || []).find(t => t.id === newForm.recipientId);
-      title = `${currentUser.name} ↔ ${recipient?.name || "Unknown"}`;
-      participants.push(newForm.recipientId);
-
-      // Check for existing DM thread
-      const existing = threads.find(t =>
-        t.type === "direct" && t.participants?.includes(currentUser.id) && t.participants?.includes(newForm.recipientId)
-      );
-      if (existing) {
-        setActiveThread(existing.id);
-        setShowNew(false);
-        return;
-      }
+  // ─── Group into conversations by the other-party id ───
+  // Each conversation: { otherId, messages[], latest, unread }
+  const conversations = useMemo(() => {
+    const byOther = new Map();
+    for (const n of notes) {
+      const otherId = n.from_user === meId ? n.to_user : n.from_user;
+      if (!otherId) continue;
+      if (!byOther.has(otherId)) byOther.set(otherId, { otherId, messages: [], unread: 0 });
+      const conv = byOther.get(otherId);
+      conv.messages.push(n);
+      if (n.to_user === meId && !n.is_read) conv.unread += 1;
     }
-
-    const { data: thread } = await supabase.from("message_threads").insert({
-      type: newForm.type, title, participants,
-    }).select().single();
-
-    if (thread) {
-      setThreads(prev => [thread, ...prev]);
-      setActiveThread(thread.id);
-      // System message
-      await supabase.from("messages").insert({
-        thread_id: thread.id, sender_name: "System",
-        body: newForm.type === "direct"
-          ? `Direct message started by ${currentUser.name}.`
-          : `Channel "${title}" created by ${currentUser.name}.`,
-        is_system: true,
-      });
-    }
-    setShowNew(false);
-    setNewForm({ type: "direct", title: "", recipientId: "" });
-  };
-
-  // ─── Filtered threads ────────────────────────────────
-  const filtered = useMemo(() => {
-    let list = threads;
-    if (filter !== "all") list = list.filter(t => t.type === filter);
-    if (search) {
-      const s = search.toLowerCase();
-      list = list.filter(t => t.title?.toLowerCase().includes(s));
-    }
+    const list = Array.from(byOther.values());
+    list.forEach(c => { c.latest = c.messages[c.messages.length - 1]; });
+    list.sort((a, b) => (b.latest?.created_at || "").localeCompare(a.latest?.created_at || ""));
     return list;
-  }, [threads, filter, search]);
+  }, [notes, meId]);
 
-  const activeThreadData = threads.find(t => t.id === activeThread);
+  const teamById = useMemo(() => {
+    const m = new Map();
+    for (const t of (team || [])) m.set(t.id, t);
+    return m;
+  }, [team]);
 
-  const tn = (id) => (team || []).find(t => t.id === id)?.name || "Unknown";
+  const nameOf = (id) => teamById.get(id)?.name || "Unknown";
+  const roleOf = (id) => teamById.get(id)?.role || "";
 
-  const threadDisplayName = (t) => {
-    if (t.type === "direct") {
-      const other = (t.participants || []).find(id => id !== currentUser?.id);
-      return other ? tn(other) : t.title;
-    }
-    return t.title || "Untitled";
+  // ─── Active conversation view ─────────────────────────
+  const activeConv = useMemo(() => {
+    if (!activeOther) return null;
+    return conversations.find(c => c.otherId === activeOther)
+      || { otherId: activeOther, messages: [], unread: 0, latest: null };
+  }, [conversations, activeOther]);
+
+  // Auto-scroll to bottom when the active conversation updates
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [activeConv?.messages.length, activeOther]);
+
+  // Mark unread messages from the active partner as read when opened
+  useEffect(() => {
+    if (!activeConv || !meId) return;
+    const unreadIds = activeConv.messages
+      .filter(m => m.to_user === meId && !m.is_read)
+      .map(m => m.id);
+    if (unreadIds.length === 0) return;
+    (async () => {
+      const nowIso = new Date().toISOString();
+      await supabase.from("team_notes").update({ is_read: true, read_at: nowIso }).in("id", unreadIds);
+      setNotes(prev => prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true, read_at: nowIso } : n));
+    })();
+  }, [activeOther, activeConv?.messages.length, meId]);
+
+  // ─── Send ─────────────────────────────────────────────
+  const send = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || !activeOther || !meId || sending) return;
+    setSending(true);
+    const { data, error } = await supabase.from("team_notes").insert({
+      from_user: meId,
+      to_user: activeOther,
+      message: text,
+      context_type: null,
+      context_id: null,
+    }).select().single();
+    setSending(false);
+    if (error) { console.error("send failed:", error); return; }
+    setDraft("");
+    if (data) setNotes(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
+  }, [draft, activeOther, meId, sending]);
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const threadIcon = (t) => {
-    const meta = THREAD_TYPES[t.type] || THREAD_TYPES.general;
-    if (t.type === "direct") {
-      const other = (t.participants || []).find(id => id !== currentUser?.id);
-      const member = (team || []).find(m => m.id === other);
-      const initials = member?.name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
-      return (
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: FW.bold, color: Z.ac, flexShrink: 0 }}>
-          {initials}
-        </div>
-      );
-    }
-    return (
-      <div style={{ width: 36, height: 36, borderRadius: 8, background: (meta.color || Z.tm) + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Ic.chat size={16} color={meta.color || Z.tm} />
-      </div>
-    );
+  // ─── Search filter over the conversation list ─────────
+  const filteredConvs = useMemo(() => {
+    if (!search.trim()) return conversations;
+    const q = search.toLowerCase();
+    return conversations.filter(c => {
+      const name = nameOf(c.otherId).toLowerCase();
+      const body = (c.latest?.message || "").toLowerCase();
+      return name.includes(q) || body.includes(q);
+    });
+  }, [conversations, search, teamById]);
+
+  // ─── New DM: pick a team member to start or jump to ───
+  const pickTeamMember = (id) => {
+    setShowPicker(false);
+    setActiveOther(id);
   };
+
+  // Team members available to message (everyone except self)
+  const pickerTeam = (team || []).filter(t => t.id !== meId && t.isActive !== false);
 
   // ─── Render ───────────────────────────────────────────
+  const activeName = activeOther ? nameOf(activeOther) : "";
+  const activeRole = activeOther ? roleOf(activeOther) : "";
+
   return (
     <div style={{ display: "flex", height: "calc(100vh - 100px)", borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, background: Z.sf }}>
-
-      {/* Left: Thread List */}
+      {/* ─── Left: conversation list ─── */}
       <div style={{ width: 320, flexShrink: 0, borderRight: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", background: Z.bg }}>
-
-        {/* Header */}
         <div style={{ padding: "14px 16px", borderBottom: `1px solid ${Z.bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 16, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>Messages</span>
-          <button onClick={() => setShowNew(true)} style={{
-            width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
-            background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
+          <button
+            onClick={() => setShowPicker(true)}
+            style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="New direct message"
+          >
             <Ic.edit size={13} color="#fff" />
           </button>
         </div>
 
-        {/* Search + Filters */}
-        <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations..."
-            style={{ padding: "7px 12px", borderRadius: 20, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 12, outline: "none", fontFamily: "inherit" }} />
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {[{ k: "all", l: "All" }, { k: "direct", l: "DMs" }, { k: "general", l: "Channels" }, { k: "ad_project", l: "Ad Projects" }].map(f => (
-              <button key={f.k} onClick={() => setFilter(f.k)} style={{
-                padding: "3px 10px", borderRadius: 14, border: "none", cursor: "pointer",
-                fontSize: 11, fontWeight: filter === f.k ? FW.bold : 500,
-                background: filter === f.k ? Z.tx + "12" : "transparent",
-                color: filter === f.k ? Z.tx : Z.td,
-              }}>{f.l}</button>
-            ))}
-          </div>
+        <div style={{ padding: "8px 12px" }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search conversations..."
+            style={{ width: "100%", padding: "7px 12px", borderRadius: 20, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+          />
         </div>
 
-        {/* Thread List */}
         <div style={{ flex: 1, overflowY: "auto" }}>
           {loading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading...</div>}
-          {!loading && filtered.length === 0 && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>No conversations</div>}
-          {filtered.map(t => {
-            const latest = latestMessages[t.id];
-            const isActive = t.id === activeThread;
+          {!loading && filteredConvs.length === 0 && (
+            <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>
+              {search ? "No matches" : "No conversations yet. Tap + to start one."}
+            </div>
+          )}
+          {filteredConvs.map(c => {
+            const other = teamById.get(c.otherId);
+            const name = other?.name || "Unknown";
+            const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+            const isActive = c.otherId === activeOther;
+            const fromMe = c.latest?.from_user === meId;
             return (
-              <div key={t.id} onClick={() => setActiveThread(t.id)} style={{
-                display: "flex", gap: 10, padding: "10px 14px", cursor: "pointer",
-                background: isActive ? Z.sa : "transparent",
-                borderLeft: isActive ? `3px solid ${Z.ac}` : "3px solid transparent",
-                transition: "background 0.1s",
-              }}
+              <div
+                key={c.otherId}
+                onClick={() => setActiveOther(c.otherId)}
+                style={{
+                  display: "flex", gap: 10, padding: "10px 14px", cursor: "pointer",
+                  background: isActive ? Z.sa : "transparent",
+                  borderLeft: isActive ? `3px solid ${Z.ac}` : "3px solid transparent",
+                }}
                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = Z.sa; }}
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
-                {threadIcon(t)}
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: FW.black, flexShrink: 0 }}>
+                  {initials}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {threadDisplayName(t)}
+                    <div style={{ fontSize: 13, fontWeight: c.unread > 0 ? FW.black : FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {name}
                     </div>
-                    <span style={{ fontSize: 10, color: Z.td, flexShrink: 0 }}>{fmtTime(latest?.created_at || t.updated_at)}</span>
+                    <span style={{ fontSize: 10, color: Z.td, flexShrink: 0 }}>{fmtTime(c.latest?.created_at)}</span>
                   </div>
-                  {latest && (
-                    <div style={{ fontSize: 11, color: Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
-                      {latest.is_system ? "System: " : latest.sender_id === currentUser?.id ? "You: " : `${latest.sender_name}: `}
-                      {latest.body?.slice(0, 60)}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: c.unread > 0 ? Z.tx : Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: c.unread > 0 ? FW.semi : 400 }}>
+                      {fromMe ? "You: " : ""}{(c.latest?.message || "").slice(0, 60)}
                     </div>
-                  )}
-                  {!latest && <div style={{ fontSize: 11, color: Z.td, marginTop: 2, fontStyle: "italic" }}>No messages</div>}
+                    {c.unread > 0 && (
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 9, padding: "0 6px", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: FW.black, flexShrink: 0 }}>
+                        {c.unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -236,29 +240,92 @@ const Messaging = memo(({ team, currentUser }) => {
         </div>
       </div>
 
-      {/* Right: Active Conversation */}
+      {/* ─── Right: active conversation ─── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {activeThread ? (
+        {activeOther ? (
           <>
-            {/* Chat Header */}
+            {/* Header */}
             <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
-              {activeThreadData && threadIcon(activeThreadData)}
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: FW.black }}>
+                {activeName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: FW.bold, color: Z.tx }}>
-                  {activeThreadData ? threadDisplayName(activeThreadData) : ""}
-                </div>
-                <div style={{ fontSize: 11, color: Z.td }}>
-                  {activeThreadData?.type === "direct" ? "Direct message"
-                    : THREAD_TYPES[activeThreadData?.type]?.label || "Thread"
-                  }
-                  {activeThreadData?.participants?.length > 0 && ` · ${activeThreadData.participants.length} member${activeThreadData.participants.length !== 1 ? "s" : ""}`}
-                </div>
+                <div style={{ fontSize: 14, fontWeight: FW.bold, color: Z.tx }}>{activeName}</div>
+                <div style={{ fontSize: 11, color: Z.td }}>{activeRole || "Direct message"}</div>
               </div>
             </div>
 
-            {/* Chat Messages */}
-            <div style={{ flex: 1 }}>
-              <ChatPanel threadId={activeThread} currentUser={currentUser} height="100%" />
+            {/* Messages */}
+            <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 6, background: Z.bg }}>
+              {activeConv.messages.length === 0 && (
+                <div style={{ padding: 30, textAlign: "center", color: Z.td, fontSize: 13 }}>
+                  No messages yet. Start the conversation below.
+                </div>
+              )}
+              {activeConv.messages.map((m, i) => {
+                const isMe = m.from_user === meId;
+                const prev = activeConv.messages[i - 1];
+                const grouped = prev && prev.from_user === m.from_user && (new Date(m.created_at) - new Date(prev.created_at)) < 5 * 60 * 1000;
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      alignSelf: isMe ? "flex-end" : "flex-start",
+                      maxWidth: "72%",
+                      padding: "8px 12px",
+                      borderRadius: 14,
+                      background: isMe ? Z.ac : Z.sf,
+                      color: isMe ? "#fff" : Z.tx,
+                      border: isMe ? "none" : `1px solid ${Z.bd}`,
+                      marginTop: grouped ? 2 : 8,
+                    }}
+                  >
+                    <div style={{ fontSize: FS.sm, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.message}</div>
+                    <div style={{ fontSize: 9, marginTop: 3, opacity: 0.7, textAlign: isMe ? "right" : "left" }}>{fmtTime(m.created_at)}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Composer */}
+            <div style={{ display: "flex", gap: 8, padding: "10px 14px", borderTop: `1px solid ${Z.bd}`, background: Z.sf, alignItems: "flex-end" }}>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={`Message ${activeName.split(" ")[0] || "…"}`}
+                rows={1}
+                disabled={sending}
+                style={{
+                  flex: 1, resize: "none",
+                  padding: "9px 14px",
+                  borderRadius: 18,
+                  border: `1px solid ${Z.bd}`,
+                  background: Z.bg,
+                  color: Z.tx,
+                  fontSize: FS.sm,
+                  fontFamily: "inherit",
+                  outline: "none",
+                  minHeight: 18,
+                  maxHeight: 140,
+                  lineHeight: 1.4,
+                }}
+              />
+              <button
+                onClick={send}
+                disabled={!draft.trim() || sending}
+                style={{
+                  width: 38, height: 38, borderRadius: "50%", border: "none",
+                  cursor: draft.trim() && !sending ? "pointer" : "default",
+                  background: draft.trim() ? Z.ac : Z.sa,
+                  opacity: draft.trim() ? 1 : 0.4,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}
+                aria-label="Send"
+              >
+                <Ic.send size={14} color={draft.trim() ? "#fff" : Z.td} />
+              </button>
             </div>
           </>
         ) : (
@@ -266,67 +333,51 @@ const Messaging = memo(({ team, currentUser }) => {
             <Ic.chat size={48} color={Z.bd} />
             <div style={{ fontSize: 16, fontWeight: FW.bold, color: Z.td }}>Select a conversation</div>
             <div style={{ fontSize: 13, color: Z.td }}>or start a new one</div>
-            <button onClick={() => setShowNew(true)} style={{
-              marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer",
-              background: Z.ac, color: "#fff", fontSize: 13, fontWeight: FW.bold,
-            }}>New Message</button>
+            <button
+              onClick={() => setShowPicker(true)}
+              style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: "#fff", fontSize: 13, fontWeight: FW.bold }}
+            >
+              New Message
+            </button>
           </div>
         )}
       </div>
 
-      {/* New Thread Modal */}
-      {showNew && (
-        <Modal title="New Conversation" onClose={() => setShowNew(false)} width={420}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Type */}
-            <div>
-              <label style={lbl}>Type</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[{ k: "direct", l: "Direct Message" }, { k: "general", l: "Group Channel" }].map(t => (
-                  <button key={t.k} onClick={() => setNewForm(f => ({ ...f, type: t.k }))} style={{
-                    flex: 1, padding: "8px 12px", borderRadius: Ri, cursor: "pointer",
-                    border: `1px solid ${newForm.type === t.k ? Z.ac : Z.bd}`,
-                    background: newForm.type === t.k ? Z.ac + "10" : Z.bg,
-                    color: newForm.type === t.k ? Z.ac : Z.tm,
-                    fontSize: 12, fontWeight: FW.bold,
-                  }}>{t.l}</button>
-                ))}
+      {/* ─── New-DM picker modal ─── */}
+      <Modal
+        open={showPicker}
+        onClose={() => setShowPicker(false)}
+        title="New Direct Message"
+        width={420}
+        actions={<Btn v="secondary" onClick={() => setShowPicker(false)}>Cancel</Btn>}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 420, overflowY: "auto" }}>
+          {pickerTeam.length === 0 && <div style={{ padding: 16, color: Z.td, fontSize: 13, textAlign: "center" }}>No other team members to message.</div>}
+          {pickerTeam.map(t => {
+            const initials = (t.name || "").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+            return (
+              <div
+                key={t.id}
+                onClick={() => pickTeamMember(t.id)}
+                style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderRadius: Ri }}
+                onMouseEnter={(e) => e.currentTarget.style.background = Z.sa}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black }}>
+                  {initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
+                  {t.role && <div style={{ fontSize: 11, color: Z.td }}>{t.role}</div>}
+                </div>
               </div>
-            </div>
-
-            {/* DM: Recipient */}
-            {newForm.type === "direct" && (
-              <div>
-                <label style={lbl}>To</label>
-                <select value={newForm.recipientId} onChange={(e) => setNewForm(f => ({ ...f, recipientId: e.target.value }))}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: 13, fontFamily: "inherit" }}>
-                  <option value="">Select team member...</option>
-                  {(team || []).filter(t => t.id !== currentUser?.id && t.isActive !== false).map(t => (
-                    <option key={t.id} value={t.id}>{t.name} · {t.role}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Channel: Name */}
-            {newForm.type === "general" && (
-              <div>
-                <label style={lbl}>Channel Name</label>
-                <input value={newForm.title} onChange={(e) => setNewForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="e.g. Production, Sales Team"
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
-              </div>
-            )}
-
-            <Btn onClick={createThread} style={{ marginTop: 4 }}>Start Conversation</Btn>
-          </div>
-        </Modal>
-      )}
+            );
+          })}
+        </div>
+      </Modal>
     </div>
   );
 });
-
-const lbl = { display: "block", fontSize: 11, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 };
 
 Messaging.displayName = "Messaging";
 export default Messaging;
