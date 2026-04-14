@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
@@ -72,15 +72,26 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   const pn = (pid) => pubs.find(p => p.id === pid)?.name || "";
   const tn = (tid) => team?.find(t => t.id === tid)?.name || "";
 
+  // Legal-notice clients are a small curated set (law firms, trustees,
+  // government agencies) flagged via category === "Legal Notice". Showing
+  // only these in the picker keeps the modal fast and uncluttered.
+  const legalClients = useMemo(
+    () => (clients || [])
+      .filter(c => (c.category || "").toLowerCase() === "legal notice")
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [clients]
+  );
+
   // ─── Form ───────────────────────────────────────────────
   const blank = {
+    clientId: "",
     contactName: "", contactEmail: "", contactPhone: "", organization: "",
     noticeType: "fictitious_business", status: "received",
     content: "", publicationId: newspapers[0]?.id || "",
     issuesRequested: 1,
     // New per-character billing. Keep legacy ratePerLine / flatRate fields on
     // existing rows so history reads still work, but new notices use ratePerChar.
-    ratePerChar: 0, ratePerLine: 0, lineCount: 0, flatRate: 0, totalAmount: 0,
+    ratePerChar: 0.09, ratePerLine: 0, lineCount: 0, flatRate: 0, totalAmount: 0,
     notes: "",
   };
   const [form, setForm] = useState(blank);
@@ -99,6 +110,26 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       const next = { ...f, ...updates };
       next.totalAmount = calcTotal(next);
       return next;
+    });
+  };
+
+  // Pick a client from the flagged legal-notice list and auto-fill the
+  // organization + primary contact. Leaves content/rate/publication alone
+  // so the user's in-progress entry doesn't get clobbered.
+  const pickClient = (clientId) => {
+    if (!clientId) {
+      updateForm({ clientId: "", organization: "", contactName: "", contactEmail: "", contactPhone: "" });
+      return;
+    }
+    const c = (clients || []).find(x => x.id === clientId);
+    if (!c) return;
+    const primary = (c.contacts || []).find(ct => ct.is_primary) || (c.contacts || [])[0] || {};
+    updateForm({
+      clientId: c.id,
+      organization: c.name || "",
+      contactName: primary.name || "",
+      contactEmail: primary.email || "",
+      contactPhone: primary.phone || "",
     });
   };
 
@@ -127,11 +158,12 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     const total = calcTotal(form);
     const nowIso = new Date().toISOString();
 
-    // On create (not edit): find or create a client for the legal-notice contact,
-    // then auto-create a draft invoice line for the calculated total. Fictitious
-    // business name filings auto-flag the client as a Lead per the sales policy.
-    let clientId = null;
-    if (!editId) {
+    // On create (not edit): use the picked client if any, otherwise find or
+    // create one and auto-flag it as a legal-notice client so it appears in
+    // the picker next time. Fictitious business filings auto-flag the client
+    // as a Lead per the sales policy.
+    let clientId = form.clientId || null;
+    if (!editId && !clientId) {
       const orgName = form.organization || form.contactName;
       const existing = (clients || []).find(c => (c.name || "").toLowerCase() === orgName.toLowerCase());
       if (existing) {
@@ -462,6 +494,17 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
+        {/* Client picker — filtered to the curated "Legal Notice" client list */}
+        {!editId && <Sel
+          label={`Client${legalClients.length ? ` (${legalClients.length} flagged)` : ""}`}
+          value={form.clientId}
+          onChange={e => pickClient(e.target.value)}
+          options={[
+            { value: "", label: legalClients.length ? "— Select client or add new below —" : "— No legal-notice clients yet; fill in below —" },
+            ...legalClients.map(c => ({ value: c.id, label: c.name })),
+          ]}
+        />}
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Sel label="Notice Type" value={form.noticeType} onChange={e => updateForm({ noticeType: e.target.value })} options={NOTICE_TYPES} />
           <Sel label="Publication" value={form.publicationId} onChange={e => updateForm({ publicationId: e.target.value })} options={newspapers.map(p => ({ value: p.id, label: p.name }))} />
@@ -485,24 +528,27 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Inp label="Issues to Run" type="number" min="1" value={form.issuesRequested} onChange={e => updateForm({ issuesRequested: Number(e.target.value) || 1 })} />
-          <Inp label="Rate per Character ($)" type="number" step="0.001" value={form.ratePerChar || ""} onChange={e => updateForm({ ratePerChar: Number(e.target.value) || 0 })} placeholder="0.050" />
+          <Inp label="Rate per Character ($)" type="number" step="0.01" min="0" value={form.ratePerChar} onChange={e => updateForm({ ratePerChar: Number(e.target.value) || 0 })} placeholder="0.09" />
         </div>
 
         {/* Live invoice preview — rate × characters × runs */}
-        <div style={{ padding: "12px 16px", background: Z.sa, borderRadius: R }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Auto-Calculated Total</span>
-            <span style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(calcTotal(form))}</span>
-          </div>
-          <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>
-            {form.ratePerChar > 0
-              ? `$${form.ratePerChar}/char × ${(form.content || "").length.toLocaleString()} chars × ${form.issuesRequested} run${form.issuesRequested > 1 ? "s" : ""}`
-              : "Set a per-character rate to calculate the total."}
-          </div>
-          <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6, fontStyle: "italic" }}>
-            Invoice will be auto-generated on save and added to the client's AR.
-          </div>
-        </div>
+        {(() => {
+          const chars = (form.content || "").length;
+          const runs = form.issuesRequested || 1;
+          const total = calcTotal(form);
+          return <div style={{ padding: "12px 16px", background: Z.sa, borderRadius: R }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Auto-Calculated Total</span>
+              <span style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(total)}</span>
+            </div>
+            <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>
+              ${Number(form.ratePerChar || 0).toFixed(2)}/char × {chars.toLocaleString()} char{chars === 1 ? "" : "s"} × {runs} run{runs > 1 ? "s" : ""}
+            </div>
+            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6, fontStyle: "italic" }}>
+              Invoice will be auto-generated on save and added to the client's AR.
+            </div>
+          </div>;
+        })()}
 
         <TA label="Notes" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
 
