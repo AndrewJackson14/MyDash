@@ -213,7 +213,8 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
                   value={draft}
                   onChange={(e) => setDraft(id, e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(note); }
+                    // Enter sends, Shift+Enter inserts a newline
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(note); }
                     if (e.key === "Escape") { setExpandedId(null); }
                   }}
                   placeholder={`Reply to ${name.split(" ")[0]}…`}
