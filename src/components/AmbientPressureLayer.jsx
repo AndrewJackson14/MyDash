@@ -173,7 +173,7 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         strokeOpacity="0.85"
         strokeWidth="0.39"
         strokeLinecap="round"
-        strokeDasharray="0 8"
+        strokeDasharray="0.01 6"
         vectorEffect="non-scaling-stroke"
       />
     </svg>}
