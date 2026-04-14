@@ -179,9 +179,20 @@ export default function App() {
   });
   useEffect(() => {
     let cancelled = false;
-    const load = () => {
-      supabase.from("org_settings").select("*").limit(1).maybeSingle()
-        .then(({ data }) => { if (!cancelled && data) setOrgSettings(data); });
+    const load = async () => {
+      try {
+        const { data, error } = await supabase.from("org_settings").select("*").limit(1).maybeSingle();
+        if (error) { console.error("org_settings load error:", error); return; }
+        if (!cancelled && data) {
+          setOrgSettings(prev => ({
+            ...prev,
+            global_pressure_enabled: data.global_pressure_enabled ?? true,
+            serenity_color: data.serenity_color || "blue",
+            background_image_url: data.background_image_url || null,
+            background_image_opacity: Number(data.background_image_opacity ?? 0.3),
+          }));
+        }
+      } catch (err) { console.error("org_settings load threw:", err); }
     };
     load();
     const handler = () => load();

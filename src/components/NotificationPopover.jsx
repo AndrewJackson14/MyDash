@@ -8,9 +8,8 @@
 // Renders in a portal-like fixed container at the top-right of the
 // viewport, stacked vertically. Dismissed notifications animate out.
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Z, COND, FS, FW, Ri, R, INV } from "../lib/theme";
+import { COND, FW } from "../lib/theme";
 import { supabase } from "../lib/supabase";
-import { Ic } from "./ui/Icons";
 
 const AUTO_DISMISS_MS = 8000;
 const STAGGER_MS = 150;
@@ -33,7 +32,9 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
     const uid = currentUser?.id;
     if (!uid) return;
 
-    const channel = supabase.channel(`notif_${uid}`)
+    let channel;
+    try {
+      channel = supabase.channel(`notif_${uid}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "team_notes" }, (payload) => {
         const n = payload.new;
         // Only surface incoming messages addressed to me, and skip my own sends
@@ -55,9 +56,12 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         dismissTimers.current[n.id] = setTimeout(() => dismiss(n.id), AUTO_DISMISS_MS);
       })
       .subscribe();
+    } catch (err) {
+      console.error("NotificationPopover subscribe failed:", err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      try { if (channel) supabase.removeChannel(channel); } catch (_) {}
       Object.values(dismissTimers.current).forEach(clearTimeout);
       dismissTimers.current = {};
     };
