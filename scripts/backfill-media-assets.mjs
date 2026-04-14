@@ -2,21 +2,23 @@
 /**
  * backfill-media-assets.mjs
  * ────────────────────────
- * Recursively lists every file in BunnyCDN storage, and for each file that
- * doesn't already have a media_assets row, inserts one with publication_id
- * inferred from the top-level folder name. Safe to re-run — uses storage_path
- * as the dedupe key.
+ * Recursively walks every file in the BunnyCDN storage zone (via the
+ * existing `bunny-storage` edge function — no local Bunny credentials
+ * needed) and inserts a media_assets row for any file that doesn't
+ * already have one. Publication is inferred from the top-level folder
+ * name; category is inferred from path heuristics. Re-run safe — uses
+ * storage_path as the dedupe key.
+ *
+ * Why the edge function: the Bunny Storage API key is a Supabase
+ * secret, not something we want duplicated in local env files. The
+ * edge function already holds it, and its LIST endpoint is exactly
+ * what we need here.
  *
  * Usage:
  *   node --env-file=.env scripts/backfill-media-assets.mjs [--dry-run]
  *
- * Inference rules:
- *   - Top-level folder "malibu-times"            → publication_id 'pub-the-malibu-times'
- *   - Top-level folder "paso-robles-press"       → 'pub-paso-robles-press'
- *   - Top-level folder "atascadero-news"         → 'pub-atascadero-news'
- *   - (etc. — see PUB_FOLDER_MAP below)
- *   - Anything else (general/, shared/, /media/) → publication_id NULL
- *   - Category defaults to 'general' on backfill — users can re-tag later
+ * Env:
+ *   SUPABASE_SERVICE_ROLE_KEY   — required for media_assets INSERT
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -24,26 +26,17 @@ import { createClient } from '@supabase/supabase-js';
 const DRY_RUN = process.argv.includes('--dry-run');
 
 const SUPABASE_URL = 'https://hqywacyhpllapdwccmaw.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_KEY) {
-  console.error('Missing SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY in env');
+  console.error('Missing SUPABASE_SERVICE_ROLE_KEY in env. Get it from');
+  console.error('  Supabase dashboard → Project Settings → API → service_role');
+  console.error('Then:  SUPABASE_SERVICE_ROLE_KEY=... node --env-file=.env scripts/backfill-media-assets.mjs');
   process.exit(1);
 }
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Bunny Storage API — writes require the storage zone access key. Reads work
-// via the CDN pull-zone but we need the LIST endpoint which needs the storage
-// API key. Grab it from the env.
-const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE;
-const BUNNY_ACCESS_KEY = process.env.BUNNY_ACCESS_KEY;
-const BUNNY_REGION = process.env.BUNNY_REGION || ''; // e.g. 'la' — blank = default (NY)
-if (!BUNNY_STORAGE_ZONE || !BUNNY_ACCESS_KEY) {
-  console.error('Missing BUNNY_STORAGE_ZONE or BUNNY_ACCESS_KEY in env');
-  console.error('Add these to .env before running (Bunny dashboard → Storage Zone → Connect).');
-  process.exit(1);
-}
-const BUNNY_HOST = BUNNY_REGION ? `${BUNNY_REGION}.storage.bunnycdn.com` : 'storage.bunnycdn.com';
-const CDN_BASE = process.env.BUNNY_CDN_BASE || 'https://cdn.13stars.media';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const EDGE_URL = `${SUPABASE_URL}/functions/v1/bunny-storage`;
+const CDN_BASE = 'https://cdn.13stars.media';
 
 // ── Folder → publication_id inference ──────────────────
 const PUB_FOLDER_MAP = {
@@ -68,29 +61,41 @@ function inferCategory(storagePath) {
   if (lower.includes('/featured/') || lower.includes('story') || lower.includes('article')) return 'story_image';
   if (lower.includes('/ads/') || lower.includes('/ad-')) return 'ad_creative';
   if (lower.includes('/legal') || lower.includes('/notice')) return 'legal_scan';
+  if (lower.includes('/proof')) return 'ad_proof';
+  if (lower.includes('/clients/') && lower.includes('/assets')) return 'client_logo';
   return 'general';
 }
 
-// ── Bunny LIST API ─────────────────────────────────────
+// ── List via bunny-storage edge function ──────────────
+// The edge function enriches each file with `fullPath` and `cdnUrl`
+// so we get exactly what media_assets needs.
 async function bunnyList(path) {
-  const url = `https://${BUNNY_HOST}/${BUNNY_STORAGE_ZONE}/${path}${path.endsWith('/') ? '' : '/'}`;
-  const res = await fetch(url, { headers: { AccessKey: BUNNY_ACCESS_KEY, Accept: 'application/json' } });
+  const res = await fetch(EDGE_URL, {
+    method: 'GET',
+    headers: {
+      'x-action': 'list',
+      'x-path': path || '',
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'apikey': SUPABASE_KEY,
+    },
+  });
   if (!res.ok) {
-    if (res.status === 404) return [];
-    throw new Error(`Bunny list failed for ${path}: ${res.status}`);
+    const text = await res.text().catch(() => '');
+    throw new Error(`list ${path}: ${res.status} ${text}`);
   }
   return res.json();
 }
 
-// Recursively walk every folder, yielding leaf files (not directories).
 async function* walk(path = '') {
-  const items = await bunnyList(path).catch(err => { console.warn(`skip ${path}: ${err.message}`); return []; });
+  let items;
+  try { items = await bunnyList(path); }
+  catch (err) { console.warn(`  skip ${path || '/'}: ${err.message}`); return; }
+  if (!Array.isArray(items)) return;
   for (const item of items) {
-    const name = item.ObjectName;
     if (item.IsDirectory) {
-      yield* walk(path ? `${path}/${name}` : name);
+      yield* walk(path ? `${path}/${item.ObjectName}` : item.ObjectName);
     } else {
-      yield { ...item, fullPath: path ? `${path}/${name}` : name };
+      yield item;
     }
   }
 }
@@ -98,57 +103,83 @@ async function* walk(path = '') {
 // ── Main ───────────────────────────────────────────────
 async function main() {
   console.log(`Backfill ${DRY_RUN ? '(DRY RUN) ' : ''}starting...`);
+  console.log(`  Edge function: ${EDGE_URL}`);
 
-  // Load existing storage_path set so we can skip
+  // Load existing storage_path set so we skip anything already tagged
   const existingPaths = new Set();
   let pg = 0;
   while (true) {
-    const { data, error } = await sb.from('media_assets').select('storage_path').not('storage_path', 'is', null).range(pg * 1000, (pg + 1) * 1000 - 1);
+    const { data, error } = await sb.from('media_assets')
+      .select('storage_path')
+      .not('storage_path', 'is', null)
+      .range(pg * 1000, (pg + 1) * 1000 - 1);
     if (error) { console.error('Failed to read media_assets:', error); process.exit(1); }
     if (!data?.length) break;
     data.forEach(r => r.storage_path && existingPaths.add(r.storage_path));
     if (data.length < 1000) break;
     pg++;
   }
-  console.log(`Existing media_assets rows: ${existingPaths.size}`);
+  console.log(`  Existing media_assets rows: ${existingPaths.size}`);
 
-  // Walk Bunny and collect new rows
+  // Walk Bunny via the edge function and queue new rows
   const toInsert = [];
   let scanned = 0;
   for await (const file of walk('')) {
     scanned++;
     if (scanned % 500 === 0) console.log(`  scanned ${scanned}, queued ${toInsert.length}`);
-    if (existingPaths.has(file.fullPath)) continue;
+    const storagePath = file.fullPath;
+    if (!storagePath || existingPaths.has(storagePath)) continue;
     toInsert.push({
       file_name: file.ObjectName,
       mime_type: null,
       file_type: null,
       file_size: file.Length || null,
-      storage_path: file.fullPath,
-      cdn_url: `${CDN_BASE}/${file.fullPath}`,
-      file_url: `${CDN_BASE}/${file.fullPath}`,
+      storage_path: storagePath,
+      cdn_url: file.cdnUrl || `${CDN_BASE}/${storagePath}`,
+      file_url: file.cdnUrl || `${CDN_BASE}/${storagePath}`,
       width: null,
       height: null,
-      publication_id: inferPublicationId(file.fullPath),
-      category: inferCategory(file.fullPath),
+      publication_id: inferPublicationId(storagePath),
+      category: inferCategory(storagePath),
       tags: [],
       created_at: file.DateCreated || new Date().toISOString(),
     });
   }
-  console.log(`Scanned ${scanned} Bunny files. Inserting ${toInsert.length} new rows.`);
+  console.log(`  Scanned ${scanned} Bunny files. New rows to insert: ${toInsert.length}`);
+
+  // Summary breakdown — by top-level folder, inferred publication, category
+  const byTopFolder = {};
+  const byPub = {};
+  const byCat = {};
+  for (const row of toInsert) {
+    const seg = row.storage_path.split('/')[0] || '(root)';
+    byTopFolder[seg] = (byTopFolder[seg] || 0) + 1;
+    byPub[row.publication_id || '(none)'] = (byPub[row.publication_id || '(none)'] || 0) + 1;
+    byCat[row.category] = (byCat[row.category] || 0) + 1;
+  }
+  const sortEntries = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+  console.log('\nBreakdown by top-level folder:');
+  sortEntries(byTopFolder).slice(0, 20).forEach(([k, v]) => console.log(`  ${String(v).padStart(8)}  ${k}`));
+  console.log('\nBreakdown by inferred publication:');
+  sortEntries(byPub).forEach(([k, v]) => console.log(`  ${String(v).padStart(8)}  ${k}`));
+  console.log('\nBreakdown by inferred category:');
+  sortEntries(byCat).forEach(([k, v]) => console.log(`  ${String(v).padStart(8)}  ${k}`));
 
   if (DRY_RUN) {
-    console.log('DRY RUN — showing first 5 rows that would be inserted:');
-    toInsert.slice(0, 5).forEach(r => console.log('  ', r.storage_path, '→', r.publication_id || '(none)', r.category));
+    console.log('\nDRY RUN — first 10 row paths:');
+    toInsert.slice(0, 10).forEach(r =>
+      console.log(`  ${r.storage_path}  → ${r.publication_id || '(none)'}  ${r.category}`)
+    );
+    if (toInsert.length === 0) console.log('  (nothing new — everything already tagged)');
     return;
   }
 
-  // Batch insert (1000 at a time)
+  // Batch insert 1000 at a time
   let inserted = 0;
   for (let i = 0; i < toInsert.length; i += 1000) {
     const batch = toInsert.slice(i, i + 1000);
     const { error } = await sb.from('media_assets').insert(batch);
-    if (error) { console.error(`Batch ${i} insert failed:`, error.message); continue; }
+    if (error) { console.error(`  Batch ${i}-${i + batch.length} insert failed:`, error.message); continue; }
     inserted += batch.length;
     console.log(`  inserted ${inserted}/${toInsert.length}`);
   }
