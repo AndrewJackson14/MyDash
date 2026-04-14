@@ -1024,49 +1024,109 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           </GlassCard>
         </>}
 
-        {/* ── AR Aging Report (Sec 6.3.2) ── */}
+        {/* ── AR Aging Report — flat one-row-per-client table ── */}
         {reportView === "aging" && (() => {
           const openInv = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub)));
-          const buckets = { current: [], d30: [], d60: [], over90: [] };
+
+          // One row per client with 4-bucket + total
+          const byClient = {};
           openInv.forEach(inv => {
+            const cid = inv.clientId;
+            if (!byClient[cid]) {
+              byClient[cid] = { clientId: cid, clientName: cn(cid), current: 0, d30: 0, d60: 0, over90: 0, total: 0 };
+            }
+            const row = byClient[cid];
+            const bal = inv.balanceDue || 0;
             const due = inv.dueDate || inv.issueDate;
-            if (!due || due >= today) { buckets.current.push(inv); return; }
-            const daysLate = daysBetween(due, today);
-            if (daysLate <= 30) buckets.d30.push(inv);
-            else if (daysLate <= 60) buckets.d60.push(inv);
-            else buckets.over90.push(inv);
+            if (!due || due >= today) row.current += bal;
+            else {
+              const daysLate = daysBetween(due, today);
+              if (daysLate <= 30) row.d30 += bal;
+              else if (daysLate <= 60) row.d60 += bal;
+              else row.over90 += bal;
+            }
+            row.total += bal;
           });
-          const bucketSum = (arr) => arr.reduce((s, i) => s + (i.balanceDue || 0), 0);
-          const totalAging = bucketSum(buckets.current) + bucketSum(buckets.d30) + bucketSum(buckets.d60) + bucketSum(buckets.over90);
-          const totalCount = buckets.current.length + buckets.d30.length + buckets.d60.length + buckets.over90.length;
-          const BUCKET_CFG = [
-            { key: "current", label: "Current", color: Z.go },
-            { key: "d30", label: "30", color: Z.wa },
-            { key: "d60", label: "60", color: Z.or || Z.wa },
-            { key: "over90", label: "90+", color: Z.da },
-          ];
-          return <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
-              {BUCKET_CFG.map(b => <GlassStat key={b.key} label={b.label} value={fmtCurrency(bucketSum(buckets[b.key]))} sub={`${buckets[b.key].length} invoice${buckets[b.key].length !== 1 ? "s" : ""}`} color={b.color} />)}
-              <GlassStat label="Total" value={fmtCurrency(totalAging)} sub={`${totalCount} invoices`} color={Z.ac} />
+
+          const rows = Object.values(byClient).sort((a, b) => b.total - a.total);
+          const totals = rows.reduce((acc, r) => ({
+            current: acc.current + r.current,
+            d30: acc.d30 + r.d30,
+            d60: acc.d60 + r.d60,
+            over90: acc.over90 + r.over90,
+            total: acc.total + r.total,
+          }), { current: 0, d30: 0, d60: 0, over90: 0, total: 0 });
+
+          // CSV export — same flat shape
+          const exportCsv = () => {
+            const header = ["Client","Current","30","60","90+","Total"].join(",");
+            const lines = rows.map(r => [
+              JSON.stringify(r.clientName),
+              r.current.toFixed(2), r.d30.toFixed(2), r.d60.toFixed(2), r.over90.toFixed(2), r.total.toFixed(2),
+            ].join(","));
+            const footer = ["Total",
+              totals.current.toFixed(2), totals.d30.toFixed(2), totals.d60.toFixed(2), totals.over90.toFixed(2), totals.total.toFixed(2),
+            ].join(",");
+            const blob = new Blob([header + "\n" + lines.join("\n") + "\n" + footer], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = `ar-aging-${today}.csv`; a.click();
+            URL.revokeObjectURL(url);
+          };
+
+          const Th = ({ children, align = "left" }) => (
+            <th style={{ padding: "10px 14px", textAlign: align, fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `2px solid ${Z.bd}`, whiteSpace: "nowrap", background: Z.sa }}>{children}</th>
+          );
+          const Td = ({ children, align = "left", bold = false, color, borderLeft = false }) => (
+            <td style={{ padding: "8px 14px", textAlign: align, fontSize: FS.sm, fontWeight: bold ? FW.heavy : FW.regular, color: color || Z.tx, borderBottom: `1px solid ${Z.bd}15`, borderLeft: borderLeft ? `2px solid ${Z.bd}30` : undefined, fontFamily: COND }}>{children}</td>
+          );
+
+          return <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: `1px solid ${Z.bd}` }}>
+              <div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>AR Aging — {fmtDate(today)}</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm }}>{rows.length} client{rows.length === 1 ? "" : "s"} with open balance · {fmtCurrency(totals.total)} total</div>
+              </div>
+              <Btn sm v="secondary" onClick={exportCsv}><Ic.download size={12} /> Export CSV</Btn>
             </div>
-            {BUCKET_CFG.map(b => {
-              if (buckets[b.key].length === 0) return null;
-              return <GlassCard key={b.key}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: b.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{b.label} — {fmtCurrency(bucketSum(buckets[b.key]))}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {buckets[b.key].sort((a2, b2) => (b2.balanceDue || 0) - (a2.balanceDue || 0)).map(inv => (
-                    <div key={inv.id} onClick={() => setViewInvId(inv.id)} style={{ display: "grid", gridTemplateColumns: "1fr 100px 80px 60px", gap: 10, alignItems: "center", background: Z.bg, borderRadius: R, padding: "6px 10px", cursor: "pointer" }}>
-                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(inv.clientId)}</div>
-                      <div style={{ textAlign: "right", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(inv.balanceDue)}</div>
-                      <div style={{ textAlign: "right", fontSize: FS.xs, color: Z.td }}>{fmtDate(inv.issueDate)}</div>
-                      <InvBadge status={inv.status} />
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>;
-            })}
-          </>;
+            <div style={{ maxHeight: "70vh", overflow: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
+                <thead>
+                  <tr>
+                    <Th>Client</Th>
+                    <Th align="right">Current</Th>
+                    <Th align="right">30</Th>
+                    <Th align="right">60</Th>
+                    <Th align="right">90+</Th>
+                    <Th align="right">Total</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? <tr><td colSpan={6} style={{ padding: 32, textAlign: "center", color: Z.td }}>No open receivables</td></tr>
+                  : rows.map(r => <tr key={r.clientId} onClick={() => { setArExpandedClient(r.clientId); setTab("Receivables"); }} style={{ cursor: "pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.background = Z.sa}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      <Td bold>{r.clientName}</Td>
+                      <Td align="right" color={r.current > 0 ? Z.su : Z.td}>{r.current > 0 ? fmtCurrency(r.current) : "—"}</Td>
+                      <Td align="right" color={r.d30 > 0 ? Z.wa : Z.td}>{r.d30 > 0 ? fmtCurrency(r.d30) : "—"}</Td>
+                      <Td align="right" color={r.d60 > 0 ? (Z.or || Z.wa) : Z.td}>{r.d60 > 0 ? fmtCurrency(r.d60) : "—"}</Td>
+                      <Td align="right" bold={r.over90 > 0} color={r.over90 > 0 ? Z.da : Z.td}>{r.over90 > 0 ? fmtCurrency(r.over90) : "—"}</Td>
+                      <Td align="right" bold borderLeft>{fmtCurrency(r.total)}</Td>
+                    </tr>)}
+                </tbody>
+                {rows.length > 0 && <tfoot>
+                  <tr style={{ background: Z.sa, position: "sticky", bottom: 0 }}>
+                    <td style={{ padding: "12px 14px", fontSize: FS.sm, fontWeight: FW.black, color: Z.tx, textTransform: "uppercase", letterSpacing: 0.5, borderTop: `2px solid ${Z.bd}`, fontFamily: COND }}>TOTAL</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.sm, fontWeight: FW.black, color: Z.su, borderTop: `2px solid ${Z.bd}`, fontFamily: COND }}>{fmtCurrency(totals.current)}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.sm, fontWeight: FW.black, color: Z.wa, borderTop: `2px solid ${Z.bd}`, fontFamily: COND }}>{fmtCurrency(totals.d30)}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.sm, fontWeight: FW.black, color: Z.or || Z.wa, borderTop: `2px solid ${Z.bd}`, fontFamily: COND }}>{fmtCurrency(totals.d60)}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.sm, fontWeight: FW.black, color: Z.da, borderTop: `2px solid ${Z.bd}`, fontFamily: COND }}>{fmtCurrency(totals.over90)}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: Z.tx, borderTop: `2px solid ${Z.bd}`, borderLeft: `2px solid ${Z.bd}30`, fontFamily: DISPLAY }}>{fmtCurrency(totals.total)}</td>
+                  </tr>
+                </tfoot>}
+              </table>
+            </div>
+          </GlassCard>;
         })()}
 
         {/* ── Uninvoiced Contracts (Sec 6.2) ── */}
