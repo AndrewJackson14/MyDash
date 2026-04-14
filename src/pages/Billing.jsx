@@ -6,6 +6,7 @@ import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { generatePdf } from "../lib/pdf";
 import { sendGmailEmail } from "../lib/gmail";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 import { fmtCurrency, fmtDate, daysBetween } from "../lib/formatters";
 import BillsTab from "./BillsTab";
 
@@ -96,8 +97,92 @@ const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
   </GlassCard>;
 };
 
+// ─── Billing Settings Tab ───────────────────────────────────
+// Publisher-level billing automation config (stored in org_settings)
+const BillingSettings = ({ dialog, generatePending }) => {
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("org_settings").select("*").limit(1).maybeSingle();
+      setSettings(data || { auto_generate_magazine_invoices: false, auto_generate_newspaper_bulk: false, magazine_lead_days: 30 });
+      setLoading(false);
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("org_settings").update({
+      auto_generate_magazine_invoices: settings.auto_generate_magazine_invoices,
+      auto_generate_newspaper_bulk: settings.auto_generate_newspaper_bulk,
+      magazine_lead_days: settings.magazine_lead_days,
+      updated_at: new Date().toISOString(),
+    }).eq("singleton", true);
+    setSaving(false);
+    if (error) { await dialog.alert("Failed to save: " + error.message); return; }
+    await dialog.alert("Settings saved.");
+  };
+
+  if (loading) return <GlassCard><div style={{ padding: 24, textAlign: "center", color: Z.tm }}>Loading…</div></GlassCard>;
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <GlassCard>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Invoice Generation Rules</div>
+      <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 14 }}>
+        Invoices are generated when you click <strong style={{ color: Z.tx }}>Generate Invoices</strong> in the header. Automation toggles below let you run those rules on a schedule (coming soon).
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 12, alignItems: "center", padding: 12, background: Z.bg, borderRadius: R }}>
+          <div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>Magazine Lead Days</div>
+            <div style={{ fontSize: FS.xs, color: Z.tm }}>How many days before publication a magazine invoice is generated.</div>
+          </div>
+          <Inp type="number" min="1" max="90" value={settings.magazine_lead_days || 30} onChange={e => setSettings(s => ({ ...s, magazine_lead_days: Number(e.target.value) || 30 }))} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12, alignItems: "center", padding: 12, background: Z.bg, borderRadius: R }}>
+          <div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>Auto-Generate Magazine Invoices</div>
+            <div style={{ fontSize: FS.xs, color: Z.tm }}>When enabled, the rolling window regenerates daily. (Daily cron — requires setup)</div>
+          </div>
+          <div onClick={() => setSettings(s => ({ ...s, auto_generate_magazine_invoices: !s.auto_generate_magazine_invoices }))} style={{ cursor: "pointer", padding: "6px 12px", borderRadius: Ri, background: settings.auto_generate_magazine_invoices ? Z.su + "20" : Z.sa, color: settings.auto_generate_magazine_invoices ? Z.su : Z.tm, fontWeight: FW.bold, fontSize: FS.sm, textAlign: "center", border: `1px solid ${settings.auto_generate_magazine_invoices ? Z.su : Z.bd}` }}>
+            {settings.auto_generate_magazine_invoices ? "ON" : "OFF"}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12, alignItems: "center", padding: 12, background: Z.bg, borderRadius: R }}>
+          <div>
+            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>Auto-Generate Newspaper Monthly Bulk</div>
+            <div style={{ fontSize: FS.xs, color: Z.tm }}>When enabled, runs on the 1st of each month and bundles all newspaper ads for the month. (Monthly cron — requires setup)</div>
+          </div>
+          <div onClick={() => setSettings(s => ({ ...s, auto_generate_newspaper_bulk: !s.auto_generate_newspaper_bulk }))} style={{ cursor: "pointer", padding: "6px 12px", borderRadius: Ri, background: settings.auto_generate_newspaper_bulk ? Z.su + "20" : Z.sa, color: settings.auto_generate_newspaper_bulk ? Z.su : Z.tm, fontWeight: FW.bold, fontSize: FS.sm, textAlign: "center", border: `1px solid ${settings.auto_generate_newspaper_bulk ? Z.su : Z.bd}` }}>
+            {settings.auto_generate_newspaper_bulk ? "ON" : "OFF"}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+        <Btn sm onClick={generatePending}><Ic.invoice size={12} /> Run Now</Btn>
+        <Btn sm v="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Settings"}</Btn>
+      </div>
+    </GlassCard>
+
+    <GlassCard>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>How it works</div>
+      <div style={{ fontSize: FS.sm, color: Z.tm, lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 8px 0" }}><strong style={{ color: Z.tx }}>Magazines:</strong> One rolling invoice per client, covering all magazine ads publishing within the lead-days window. Append to the existing draft if it hasn't been sent or downloaded yet; otherwise a new one is created.</p>
+        <p style={{ margin: "0 0 8px 0" }}><strong style={{ color: Z.tx }}>Newspapers:</strong> Monthly bulk per client per publication, due last day of month. Mid-month additions append to the draft until it's sent or downloaded.</p>
+        <p style={{ margin: "0 0 8px 0" }}><strong style={{ color: Z.tx }}>Special Publications (annual guides):</strong> Invoice-on-sign, via the proposal flow — unchanged.</p>
+        <p style={{ margin: 0 }}><strong style={{ color: Z.tx }}>Lump-sum &amp; monthly-plan contracts:</strong> Unchanged — still auto-invoice at contract signing.</p>
+      </div>
+    </GlassCard>
+  </div>;
+};
+
 // ─── Billing Module ─────────────────────────────────────────
 const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, bills, insertBill, updateBill, deleteBill }) => {
+  const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [sr, setSr] = useState("");
@@ -327,10 +412,22 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     setInvModal(false);
   };
 
+  // Lock an invoice — once sent or downloaded, it leaves containment and the
+  // auto-generator cannot append new lines to it.
+  const lockInvoice = async (invId) => {
+    const lockedAt = new Date().toISOString();
+    setInvoices(prev => (prev || []).map(i => i.id === invId ? { ...i, lockedAt } : i));
+    try { await supabase.from("invoices").update({ locked_at: lockedAt }).eq("id", invId); }
+    catch (err) { console.error("lockInvoice error:", err); }
+  };
+
   const sendInvoice = async (invId) => {
     const inv = processedInvoices.find(i => i.id === invId);
     if (!inv) return;
-    setInvoices(prev => (prev || []).map(i => i.id === invId ? { ...i, status: "sent" } : i));
+    const lockedAt = new Date().toISOString();
+    setInvoices(prev => (prev || []).map(i => i.id === invId ? { ...i, status: "sent", lockedAt } : i));
+    try { await supabase.from("invoices").update({ status: "sent", locked_at: lockedAt }).eq("id", invId); }
+    catch (err) { console.error("sendInvoice DB error:", err); }
     if (bus) bus.emit("invoice.sent", { invoiceId: invId, clientId: inv.clientId });
 
     // Generate and send invoice email
@@ -353,6 +450,24 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           emailType: "invoice", clientId: inv.clientId, refId: inv.id, refType: "invoice",
         });
       } catch (err) { console.error("Invoice email error:", err); }
+    }
+  };
+
+  const downloadInvoice = async (invId) => {
+    generatePdf("invoice", invId);
+    // Lock — once downloaded, the invoice has left containment
+    const inv = processedInvoices.find(i => i.id === invId);
+    if (inv && !inv.lockedAt) await lockInvoice(invId);
+  };
+
+  const generatePending = async () => {
+    try {
+      const { data, error } = await supabase.rpc("generate_pending_invoices", { p_mode: "all" });
+      if (error) throw error;
+      await dialog.alert(`Generated ${data.invoices_created || 0} new invoices, updated ${data.invoices_updated || 0}, added ${data.lines_added || 0} lines totaling $${Number(data.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Refresh to see them.`);
+    } catch (err) {
+      console.error("generate_pending_invoices error:", err);
+      await dialog.alert("Failed to generate: " + err.message);
     }
   };
 
@@ -460,7 +575,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           <Ic.check size={13} /> Record Payment
         </Btn>}
         {viewInv.status !== "void" && viewInv.status !== "paid" && <Btn v="ghost" onClick={() => { voidInvoice(viewInv.id); setViewInvId(null); }}>Void</Btn>}
-        <Btn v="secondary" onClick={() => generatePdf("invoice", viewInv.id)}><Ic.download size={13} /> Download PDF</Btn>
+        <Btn v="secondary" onClick={() => downloadInvoice(viewInv.id)}><Ic.download size={13} /> Download PDF</Btn>
       </div>
 
       {/* Line Items */}
@@ -519,10 +634,11 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="Billing">
       {tab === "Invoices" && <SB value={sr} onChange={setSr} placeholder="Search invoices..." />}
+      <Btn sm v="secondary" onClick={generatePending}><Ic.invoice size={13} /> Generate Invoices</Btn>
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s === "partially_paid" ? "Partial" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter === "partially_paid" ? "Partial" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Draft: "draft", Sent: "sent", Partial: "partially_paid", Paid: "paid", Overdue: "overdue", Void: "void" }; setStatusFilter(map[v] || "All"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>
@@ -1433,6 +1549,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         })()}
       </>;
     })()}
+
+    {/* ════════ SETTINGS TAB ════════ */}
+    {tab === "Settings" && <BillingSettings dialog={dialog} generatePending={generatePending} />}
 
     {/* ════════ CREATE INVOICE MODAL ════════ */}
     <Modal open={invModal} onClose={() => setInvModal(false)} title={`Invoice — ${cn(invForm.clientId)}`} width={720} onSubmit={saveInvoice}>

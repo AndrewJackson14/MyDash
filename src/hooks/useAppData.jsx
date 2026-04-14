@@ -462,6 +462,7 @@ export function DataProvider({ children, localData }) {
           monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
           issueDate: i.issue_date, dueDate: i.due_date,
           notes: i.notes || '', createdAt: i.created_at,
+          lockedAt: i.locked_at || null,
           chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
           lines: (linesByInv[i.id] || []).map(l => ({
             id: l.id, description: l.description,
