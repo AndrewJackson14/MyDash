@@ -34,20 +34,22 @@ function lerpColor(a, b, t) {
     b: Math.round(a.b + (b.b - a.b) * t),
   };
 }
-const BLUE = { r: 59, g: 130, b: 246 };       // #3B82F6 — serene (both modes)
+const BLUE = { r: 59, g: 130, b: 246 };       // #3B82F6 — serene blue
+const GREEN = { r: 34, g: 197, b: 94 };       // #22C55E — serene green
 const AMBER = { r: 245, g: 158, b: 11 };      // #F59E0B — warming
 const RED_DARK_MODE = { r: 239, g: 68, b: 68 };   // #EF4444 — reads fine on dark
 const RED_LIGHT_MODE = { r: 185, g: 28, b: 28 };  // #B91C1C — deeper, avoids pink wash
 
-export default function AmbientPressureLayer({ pressure = 20 }) {
+export default function AmbientPressureLayer({ pressure = 20, serenityColor = "blue" }) {
   const p = Math.max(0, Math.min(100, pressure));
   const isDark = _isDark();
 
   const { color, alpha, baseDuration } = useMemo(() => {
-    // Two-stage interpolation: 0→50 is blue→amber, 50→100 is amber→red.
+    // Two-stage interpolation: 0→50 is serenity→amber, 50→100 is amber→red.
+    const SERENITY = serenityColor === "green" ? GREEN : BLUE;
     const RED = isDark ? RED_DARK_MODE : RED_LIGHT_MODE;
     const c = p < 50
-      ? lerpColor(BLUE, AMBER, p / 50)
+      ? lerpColor(SERENITY, AMBER, p / 50)
       : lerpColor(AMBER, RED, (p - 50) / 50);
     // Eased alpha ramp: calm up to ~50, then climbs. Dark mode needs a
     // much higher base so the blue actually reads over the near-black
@@ -62,7 +64,7 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
     // ~3s at full heat.
     const baseDuration = 22 - eased * 19;
     return { color: c, alpha, baseDuration };
-  }, [p, isDark]);
+  }, [p, isDark, serenityColor]);
 
   const rgb = `${color.r},${color.g},${color.b}`;
   // Three layers each at a slightly different alpha so crossfades

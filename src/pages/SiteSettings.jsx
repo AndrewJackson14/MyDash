@@ -291,6 +291,153 @@ const SiteAnalytics = ({ siteId }) => {
 };
 
 // ══════════════════════════════════════════════════════════════════
+// ORG APPEARANCE PANEL
+// Publisher-wide controls for ambient pressure + background image.
+// ══════════════════════════════════════════════════════════════════
+function OrgAppearancePanel() {
+  const [s, setS] = useState({
+    global_pressure_enabled: true,
+    serenity_color: "blue",
+    background_image_url: "",
+    background_image_opacity: 0.30,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    supabase.from("org_settings").select("*").limit(1).maybeSingle()
+      .then(({ data }) => {
+        if (data) setS({
+          global_pressure_enabled: data.global_pressure_enabled ?? true,
+          serenity_color: data.serenity_color || "blue",
+          background_image_url: data.background_image_url || "",
+          background_image_opacity: Number(data.background_image_opacity ?? 0.30),
+        });
+        setLoading(false);
+      });
+  }, []);
+
+  const save = async (nextState) => {
+    const payload = nextState || s;
+    setSaving(true);
+    const { error } = await supabase.from("org_settings").update({
+      global_pressure_enabled: payload.global_pressure_enabled,
+      serenity_color: payload.serenity_color,
+      background_image_url: payload.background_image_url || null,
+      background_image_opacity: payload.background_image_opacity,
+      updated_at: new Date().toISOString(),
+    }).eq("singleton", true);
+    setSaving(false);
+    if (error) { console.error("org_settings save:", error); return; }
+    setSavedAt(Date.now());
+    // Let the App.jsx loader know to refresh
+    window.dispatchEvent(new Event("org-settings-updated"));
+  };
+
+  const onUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadImage(file, "app-backgrounds");
+      const next = { ...s, background_image_url: url };
+      setS(next);
+      await save(next);
+    } catch (err) {
+      console.error("upload error:", err);
+      alert("Upload failed: " + err.message);
+    }
+    setUploading(false);
+  };
+
+  if (loading) return null;
+
+  return (
+    <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Org Appearance</div>
+          <div style={{ fontSize: 11, color: Z.tm }}>Publisher-wide background and ambient pressure settings.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {savedAt && Date.now() - savedAt < 2500 && <span style={{ fontSize: 11, color: Z.go, fontWeight: FW.bold }}>✓ Saved</span>}
+          <Btn sm onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Global Pressure toggle */}
+        <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx }}>Global Pressure</div>
+              <div style={{ fontSize: 11, color: Z.tm, marginTop: 2 }}>Ambient background tint that reacts to newsroom heat.</div>
+            </div>
+            <Toggle checked={s.global_pressure_enabled} onChange={(v) => setS(p => ({ ...p, global_pressure_enabled: v }))} label="" />
+          </div>
+        </div>
+
+        {/* Serenity color */}
+        <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Serenity Color</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[{ k: "blue", label: "Blue", color: "#3B82F6" }, { k: "green", label: "Green", color: "#22C55E" }].map(opt => (
+              <button key={opt.k} onClick={() => setS(p => ({ ...p, serenity_color: opt.k }))} style={{
+                flex: 1, padding: "8px 10px", borderRadius: 4,
+                border: `2px solid ${s.serenity_color === opt.k ? opt.color : Z.bd}`,
+                background: s.serenity_color === opt.k ? opt.color + "15" : "transparent",
+                color: s.serenity_color === opt.k ? opt.color : Z.tm,
+                cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: COND,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}>
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 5, background: opt.color }} />
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Background image URL + upload */}
+        <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd, gridColumn: "1 / -1" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Background Image</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              placeholder="Paste an image URL, or upload →"
+              value={s.background_image_url || ""}
+              onChange={e => setS(p => ({ ...p, background_image_url: e.target.value }))}
+              style={getInputStyle()}
+            />
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onUpload} />
+            <Btn sm v="secondary" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : "Upload"}</Btn>
+            {s.background_image_url && <Btn sm v="ghost" onClick={() => setS(p => ({ ...p, background_image_url: "" }))}>Clear</Btn>}
+          </div>
+          {s.background_image_url && (
+            <div style={{ marginTop: 10, borderRadius: 4, overflow: "hidden", border: "1px solid " + Z.bd, position: "relative", aspectRatio: "16/6", background: Z.bg }}>
+              <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${s.background_image_url}')`, backgroundSize: "cover", backgroundPosition: "center", opacity: s.background_image_opacity }} />
+              <div style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10, padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>Preview @ {Math.round(s.background_image_opacity * 100)}%</div>
+            </div>
+          )}
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: Z.tm, width: 60 }}>Opacity</span>
+            <input
+              type="range" min="0" max="1" step="0.01"
+              value={s.background_image_opacity}
+              onChange={e => setS(p => ({ ...p, background_image_opacity: Number(e.target.value) }))}
+              style={{ flex: 1, accentColor: Z.ac }}
+            />
+            <span style={{ fontSize: 11, color: Z.tx, fontWeight: 700, width: 40, textAlign: "right" }}>{Math.round(s.background_image_opacity * 100)}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // SITE SETTINGS PAGE
 // ══════════════════════════════════════════════════════════════════
 export default function SiteSettings({ pubs, setPubs }) {
@@ -514,6 +661,9 @@ export default function SiteSettings({ pubs, setPubs }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* ─── Org-wide Appearance ─────────────────────────── */}
+      <OrgAppearancePanel />
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>MyWebsites</h2>

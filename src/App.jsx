@@ -168,6 +168,27 @@ export default function App() {
   // background layer can tint/animate the whole app, not just the dashboard.
   const [globalPressure, setGlobalPressure] = useState(20);
 
+  // Org-wide appearance settings: pressure toggle, serenity color,
+  // custom background image + opacity. Loaded once on mount and refreshed
+  // whenever the settings panel saves (via a custom event).
+  const [orgSettings, setOrgSettings] = useState({
+    global_pressure_enabled: true,
+    serenity_color: "blue",
+    background_image_url: null,
+    background_image_opacity: 0.30,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      supabase.from("org_settings").select("*").limit(1).maybeSingle()
+        .then(({ data }) => { if (!cancelled && data) setOrgSettings(data); });
+    };
+    load();
+    const handler = () => load();
+    window.addEventListener("org-settings-updated", handler);
+    return () => { cancelled = true; window.removeEventListener("org-settings-updated", handler); };
+  }, []);
+
   const toggleSection = (key) => setCollapsedSections(s => ({ ...s, [key]: !s[key] }));
 
   // Navigate to a team member's profile page — used by Dashboard Team Direction
@@ -360,9 +381,8 @@ export default function App() {
 
   // ─── Render ─────────────────────────────────────────────
   return <>
-    {/* Fixed, permanently blurred wallpaper layer. Negative inset hides
-        the soft edge bleed that filter: blur creates. Sits behind every
-        glass panel at z-index 0. */}
+    {/* Base wallpaper — the default blurred backdrop. Sits at the very
+        bottom of the stack, below any publisher-set background image. */}
     <div aria-hidden style={{
       position: "fixed",
       inset: "-80px",
@@ -375,9 +395,25 @@ export default function App() {
       zIndex: 0,
       pointerEvents: "none",
     }} />
+    {/* Publisher-set custom background image, layered above the base
+        wallpaper at the configured opacity and below the pressure layer. */}
+    {orgSettings.background_image_url && (
+      <div aria-hidden style={{
+        position: "fixed",
+        inset: 0,
+        backgroundImage: `url('${orgSettings.background_image_url}')`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        opacity: Number(orgSettings.background_image_opacity ?? 0.3),
+        zIndex: 0,
+        pointerEvents: "none",
+      }} />
+    )}
     {/* Global ambient pressure tint — tracks with the newsroom heat map.
-        Serene rippling blue when calm, pulsing red when on fire. */}
-    <AmbientPressureLayer pressure={globalPressure} />
+        Publisher can disable this from Org Appearance settings. */}
+    {orgSettings.global_pressure_enabled !== false && (
+      <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
+    )}
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
     <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
