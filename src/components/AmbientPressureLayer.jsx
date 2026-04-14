@@ -142,12 +142,14 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
       animation: `ambient-amoeba-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
     }} />
-    {/* Halo pulse — one dotted ring emanating from center every 4s.
-        Circle's r attribute animates from 40 → 1400 on ease-out, so
-        motion is fastest at the center and slows as it approaches the
-        edges. strokeDasharray gives the ring a dotted look; the stroke
-        width stays constant because we animate r, not CSS scale. */}
-    <svg aria-hidden
+    {/* Halo pulse — one navy dotted ring emanating from center every
+        4s, but ONLY when the amoeba is in its deep-blue calm state
+        (pressure <= 10, i.e. blue near full saturation). The navy
+        contrasts with the brighter amoeba blue so it reads as a
+        distinct breathing accent rather than blending in.
+        Hidden entirely once pressure climbs past 10 — no point
+        showing a blue halo while the room is warming up. */}
+    {p <= 10 && <svg aria-hidden
       style={{
         position: "fixed",
         inset: 0,
@@ -163,11 +165,11 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
         cy="50%"
         r="40"
         fill="none"
-        stroke={`rgba(${rgb},0.5)`}
+        stroke="rgba(30,58,138,0.55)"
         strokeWidth="1.5"
         strokeDasharray="3 5"
         style={{ animation: "halo-pulse 4s ease-out infinite" }}
       />
-    </svg>
+    </svg>}
   </>;
 }
