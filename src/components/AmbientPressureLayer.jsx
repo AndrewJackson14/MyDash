@@ -114,20 +114,20 @@ export default function AmbientPressureLayer({ pressure = 20 }) {
     {/* Amoeba lobe A — wide horizontal ellipse at center */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 45% 35% at 50% 50%, rgba(${rgb},${a1}), transparent 72%)`,
+      background: `radial-gradient(ellipse 80% 65% at 50% 50%, rgba(${rgb},${a1}), transparent 82%)`,
       animation: `ambient-amoeba-a ${d1}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.7).toFixed(2)}s ease-in-out infinite`,
     }} />
     {/* Amoeba lobe B — taller vertical ellipse, offset phase */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 32% 45% at 50% 50%, rgba(${rgb},${a2}), transparent 72%)`,
+      background: `radial-gradient(ellipse 60% 85% at 50% 50%, rgba(${rgb},${a2}), transparent 82%)`,
       animation: `ambient-amoeba-b ${d2}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.9).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.4).toFixed(2)}s, -${(baseDuration * 0.25).toFixed(2)}s`,
     }} />
     {/* Amoeba lobe C — slight off-axis warp, faster drift */}
     <div aria-hidden style={{
       ...layerBase,
-      background: `radial-gradient(ellipse 38% 30% at 50% 50%, rgba(${rgb},${a3}), transparent 72%)`,
+      background: `radial-gradient(ellipse 75% 60% at 50% 50%, rgba(${rgb},${a3}), transparent 82%)`,
       animation: `ambient-amoeba-c ${d3}s ease-in-out infinite, ambient-breath ${(baseDuration * 0.6).toFixed(2)}s ease-in-out infinite`,
       animationDelay: `-${(baseDuration * 0.7).toFixed(2)}s, -${(baseDuration * 0.5).toFixed(2)}s`,
     }} />
