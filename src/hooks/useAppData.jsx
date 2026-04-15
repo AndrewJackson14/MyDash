@@ -58,6 +58,9 @@ export function DataProvider({ children, localData }) {
   const [editions, setEditions] = useState([]);
   // Ad inquiries (inbound from StellarPress)
   const [adInquiries, setAdInquiries] = useState([]);
+  // Ad projects — design workflow state, one per sale (see migration 027)
+  const [adProjects, setAdProjects] = useState([]);
+  const [adProjectsLoaded, setAdProjectsLoaded] = useState(false);
 
   const [loaded, setLoaded] = useState(!isOnline());
 
@@ -810,6 +813,82 @@ export function DataProvider({ children, localData }) {
     })));
     setCreativeLoaded(true);
   }, [creativeLoaded]);
+
+  // Ad Projects — design-state overlay keyed by sale_id. Post-migration 027,
+  // every row has a non-null sale_id, so callers should look up by sale.
+  // Lazy-loaded when Design Studio (or any consumer) first asks.
+  const loadAdProjects = useCallback(async () => {
+    if (adProjectsLoaded || !isOnline()) return;
+    const { data, error } = await supabase
+      .from('ad_projects')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    if (error) { console.error('loadAdProjects failed:', error); return; }
+    setAdProjects(data || []);
+    setAdProjectsLoaded(true);
+  }, [adProjectsLoaded]);
+
+  // Map<saleId, adProject> — O(1) design-state lookup for any sale.
+  // Post-migration 027, sale_id is unique so this map is 1:1.
+  const adProjectBySaleId = useMemo(() => {
+    const m = new Map();
+    for (const p of adProjects) {
+      if (p.sale_id) m.set(p.sale_id, p);
+    }
+    return m;
+  }, [adProjects]);
+
+  // Design state overlay for a given sale. Returns the canonical shape that
+  // Design Studio (and any future consumer) reads: either an existing project
+  // or a synthetic `needs_brief` placeholder so empty cards render uniformly.
+  const getDesignStateForSale = useCallback((saleId) => {
+    if (!saleId) return { status: 'needs_brief', project: null };
+    const project = adProjectBySaleId.get(saleId) || null;
+    if (!project) return { status: 'needs_brief', project: null };
+    return { status: project.status, project };
+  }, [adProjectBySaleId]);
+
+  // Insert or update the ad_project row for a given sale. Enforces the
+  // one-project-per-sale invariant at the call site so callers don't have to
+  // care whether a row already exists. Patch uses snake_case DB columns.
+  const upsertAdProject = useCallback(async ({ saleId, patch = {} }) => {
+    if (!saleId) throw new Error('upsertAdProject requires saleId');
+    if (!isOnline()) return null;
+    const existing = adProjectBySaleId.get(saleId);
+    if (existing) {
+      const { data, error } = await supabase
+        .from('ad_projects')
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (error) { console.error('upsertAdProject update failed:', error); return null; }
+      setAdProjects(prev => prev.map(p => p.id === data.id ? data : p));
+      return data;
+    }
+    // Insert path — we need enough denormalized context on the row that it
+    // can render even before the sale is joined in. Pull from the sales list
+    // in-memory so the caller only has to supply saleId + patch.
+    const sale = (sales || []).find(s => s.id === saleId);
+    if (!sale) { console.error('upsertAdProject: sale not found', saleId); return null; }
+    const row = {
+      sale_id: saleId,
+      client_id: sale.clientId || sale.client_id,
+      publication_id: sale.publicationId || sale.publication_id,
+      issue_id: sale.issueId || sale.issue_id,
+      ad_size: sale.size || sale.ad_size || null,
+      status: 'brief',
+      ...patch,
+    };
+    const { data, error } = await supabase
+      .from('ad_projects')
+      .insert(row)
+      .select()
+      .single();
+    if (error) { console.error('upsertAdProject insert failed:', error); return null; }
+    setAdProjects(prev => [data, ...prev]);
+    return data;
+  }, [adProjectBySaleId, sales]);
 
   // Commissions — loaded when Commissions tab is opened
   const [commissionsLoaded, setCommissionsLoaded] = useState(false);
@@ -1991,6 +2070,9 @@ export function DataProvider({ children, localData }) {
     pushMediaAsset, removeMediaAsset,
     // Ad proof lifecycle
     saveAdProof, expireStaleProofs,
+    // Ad Projects (design-state overlay, keyed by sale_id)
+    adProjects, setAdProjects, adProjectsLoaded, loadAdProjects,
+    adProjectBySaleId, getDesignStateForSale, upsertAdProject,
   }), [
     // Data arrays (re-render consumers only when actual data changes)
     pubs, activePubs, issues, stories, clients, sales, proposals, team, notifications,
@@ -2000,16 +2082,17 @@ export function DataProvider({ children, localData }) {
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
     subscriptions, subscriptionPayments, mailingLists, editions, adInquiries,
-    mediaAssets,
+    mediaAssets, adProjects, adProjectBySaleId,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
     billingLoaded, circulationLoaded, ticketsLoaded, legalsLoaded, creativeLoaded,
     commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
-    mediaAssetsLoaded,
+    mediaAssetsLoaded, adProjectsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
     loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
+    loadAdProjects, getDesignStateForSale, upsertAdProject,
   ]);
 
   return <DataContext.Provider value={value}>{loaded ? children : null}</DataContext.Provider>;
