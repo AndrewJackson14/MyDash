@@ -476,10 +476,9 @@ export default function App() {
       }} />
     )}
     {/* Global ambient pressure tint — tracks with the newsroom heat map.
-        Publisher can disable this from Org Appearance settings.
-        TEMP: pressure hard-pinned to 0 to preview the serene blue state. */}
+        Publisher can disable this from Org Appearance settings. */}
     {orgSettings.global_pressure_enabled !== false && (
-      <AmbientPressureLayer pressure={0} serenityColor={orgSettings.serenity_color || "blue"} />
+      <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
     )}
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
