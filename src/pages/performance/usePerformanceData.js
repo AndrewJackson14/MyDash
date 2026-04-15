@@ -664,12 +664,40 @@ export function usePerformanceData({
   // Single-source heat scores the dashboard + ambient layer can read.
   // 0 = calm, 100 = on fire. Matches the spec color thresholds inverted
   // so "100 − onTrackPct" maps big-behind = hot.
+  //
+  // IMPORTANT: every formula is gated on "do we have data to measure?"
+  // Empty-data cases return 0, not 100. Previously zero-story / zero-lead
+  // departments were pinning at heat 100 because "100 − 0% = 100" reads
+  // as catastrophically behind when it really means "nothing to grade".
   const heatScores = useMemo(() => {
-    const salesHeat = Math.max(0, Math.min(100, 100 - (salesMetrics.leadToClosePct || 0)));
-    const edHeat = Math.max(0, Math.min(100, 100 - (editorialMetrics.onTrackPct || 0)));
-    const layoutPct = productionMetrics.layout?.onTrackPct || 0;
-    const adsPct = productionMetrics.ads?.onTrackPct || 0;
-    const prodHeat = Math.max(0, Math.min(100, 100 - Math.min(layoutPct, adsPct || layoutPct || 0)));
+    // Sales: calm unless there's actual lead or close activity in range.
+    // A rep with 10 leads and 0 closes is still legitimately red — it's
+    // the total-silence case we're protecting against.
+    const salesHasActivity = (salesMetrics.leadsInRange || 0) > 0 || (salesMetrics.closedInRange || 0) > 0;
+    const salesHeat = salesHasActivity
+      ? Math.max(0, Math.min(100, 100 - (salesMetrics.leadToClosePct || 0)))
+      : 0;
+
+    // Editorial: calm unless there are stories in the in-window issues.
+    const edCount = editorialMetrics.count || 0;
+    const edHeat = edCount === 0
+      ? 0
+      : Math.max(0, Math.min(100, 100 - (editorialMetrics.onTrackPct || 0)));
+
+    // Production: measure whichever lanes have items. If both lanes are
+    // empty (ads not loaded, no layout-stage stories), heat = 0. If only
+    // one lane has data, use that lane. Otherwise worst of the two.
+    const layoutC = productionMetrics.layout?.count || 0;
+    const adsC = productionMetrics.ads?.count || 0;
+    const measuredLanePcts = [];
+    if (layoutC > 0) measuredLanePcts.push(productionMetrics.layout.onTrackPct || 0);
+    if (adsC > 0) measuredLanePcts.push(productionMetrics.ads.onTrackPct || 0);
+    const prodHeat = measuredLanePcts.length === 0
+      ? 0
+      : Math.max(0, Math.min(100, 100 - Math.min(...measuredLanePcts)));
+
+    // Admin: already defaults to 0 when adminMetrics is null; the max()
+    // of zero signals still yields 0 on fresh-install data.
     const adminHeatRaw = adminMetrics
       ? Math.max(
           (adminMetrics.avgFirstResponseHours || 0) > 1 ? ((adminMetrics.avgFirstResponseHours - 1) * 20) : 0,
@@ -679,6 +707,7 @@ export function usePerformanceData({
         )
       : 0;
     const adminHeat = Math.max(0, Math.min(100, adminHeatRaw));
+
     return { sales: salesHeat, editorial: edHeat, production: prodHeat, admin: adminHeat };
   }, [salesMetrics, editorialMetrics, productionMetrics, adminMetrics]);
 
