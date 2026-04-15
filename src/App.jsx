@@ -43,6 +43,7 @@ const Billing = lazyLoad(() => import("./pages/Billing"));
 const Circulation = lazyLoad(() => import("./pages/Circulation"));
 const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
+const Performance = lazyLoad(() => import("./pages/Performance"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
@@ -392,6 +393,7 @@ export default function App() {
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.bell, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
     { id: "legalnotices", label: "Legal Notices", icon: Ic.gavel, badge: activeLegal || null },
+    { id: "performance", label: "Performance", icon: Ic.barChart },
     { id: "_revenue_analytics", section: true, label: "Revenue" },
     { id: "analytics", label: "Analytics", icon: Ic.barChart },
     { id: "_systems", section: true, label: "Systems" },
@@ -652,6 +654,7 @@ export default function App() {
         {show("team-member") && <div style={vis("team-member")}><TeamMemberProfile memberId={selectedTeamMemberId} team={team} pubs={pubs} clients={jClients} sales={jSales} stories={jStories} setStories={setStories} issues={jIssues} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} invoices={jInvoices} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} salespersonPubAssignments={appData.salespersonPubAssignments || []} upsertPubAssignment={appData.upsertPubAssignment} deletePubAssignment={appData.deletePubAssignment} commissionRates={appData.commissionRates || []} upsertCommissionRate={appData.upsertCommissionRate} currentUser={currentUser} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></div>}
         {show("circulation") && <div style={vis("circulation")}><Circulation pubs={pubs} issues={jIssues} subscribers={subscribers} setSubscribers={setSubscribers} subscriptions={appData.subscriptions || []} setSubscriptions={appData.setSubscriptions} subscriptionPayments={appData.subscriptionPayments || []} mailingLists={appData.mailingLists || []} setMailingLists={appData.setMailingLists} dropLocations={dropLocations} setDropLocations={setDropLocations} dropLocationPubs={dropLocationPubs} setDropLocationPubs={setDropLocationPubs} drivers={drivers} setDrivers={setDrivers} driverRoutes={driverRoutes} setDriverRoutes={setDriverRoutes} routeStops={routeStops} setRouteStops={setRouteStops} bus={bus} team={team} currentUser={currentUser} /></div>}
         {show("servicedesk") && <div style={vis("servicedesk")}><ServiceDesk tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={jClients} subscribers={subscribers} pubs={pubs} issues={jIssues} team={team} bus={bus} /></div>}
+        {show("performance") && <div style={vis("performance")}><Performance sales={jSales} clients={jClients} stories={jStories} issues={jIssues} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} team={team} onNavigate={handleNav} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} /></div>}
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
