@@ -207,7 +207,6 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [viewInvId, setViewInvId] = useState(null);
   const [sortCol, setSortCol] = useState("issue_date");
   const [sortDir, setSortDir] = useState("desc");
-  const [uninvRange, setUninvRange] = useState("30days");
   const [reportView, setReportView] = useState("revenue");
   const [reportPeriod, setReportPeriod] = useState("mtd");
   const [reportPub, setReportPub] = useState("all");
@@ -294,21 +293,19 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     return sales.filter(s => s.status === "Closed" && !invoicedSaleIds.has(s.id));
   }, [sales, processedInvoices]);
 
-  // Date-filtered uninvoiced sales for the Overview display.
-  // "Last N days" = sales dated within the last N days. "Quarter"/"Year" = sales
-  // dated within the current quarter/year. "All" = no filter.
+  // Billing-module-wide rule: we only care about the rolling ±30 day
+  // window for uninvoiced sales. Older sales that missed invoicing stay
+  // visible so nothing silently drops off, and sales more than 30 days in
+  // the future are hidden because they're not ready to bill yet. Client
+  // Profile pages are the exception — they still show the full uninvoiced
+  // list for that client.
   const filteredUninvoiced = useMemo(() => {
-    if (uninvRange === "all") return uninvoicedSales;
-    const now = new Date();
-    let cutoff;
-    if (uninvRange === "30days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 30); }
-    else if (uninvRange === "60days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 60); }
-    else if (uninvRange === "90days") { cutoff = new Date(); cutoff.setDate(now.getDate() - 90); }
-    else if (uninvRange === "quarter") { cutoff = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); }
-    else if (uninvRange === "year") { cutoff = new Date(now.getFullYear(), 0, 1); }
-    const cut = cutoff.toISOString().slice(0, 10);
-    return uninvoicedSales.filter(s => s.date && s.date >= cut);
-  }, [uninvoicedSales, uninvRange]);
+    const past = new Date(); past.setDate(past.getDate() - 30);
+    const future = new Date(); future.setDate(future.getDate() + 30);
+    const lo = past.toISOString().slice(0, 10);
+    const hi = future.toISOString().slice(0, 10);
+    return uninvoicedSales.filter(s => s.date && s.date >= lo && s.date <= hi);
+  }, [uninvoicedSales]);
 
   // Pre-aggregated uninvoiced by client (for the Overview display)
   const uninvoicedByClient = useMemo(() => {
@@ -725,15 +722,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           </div>
           <Btn onClick={() => openNewInvoice(null)}>Generate Invoices</Btn>
         </div>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-          {[
-            { value: "30days", label: "Last 30 Days", icon: Ic.clock },
-            { value: "60days", label: "Last 60 Days", icon: Ic.clock },
-            { value: "90days", label: "Last 90 Days", icon: Ic.clock },
-            { value: "quarter", label: "This Quarter", icon: Ic.chart },
-            { value: "year", label: "This Year", icon: Ic.cal },
-            { value: "all", label: "All Time", icon: Ic.list },
-          ].map(opt => <Pill key={opt.value} label={opt.label} icon={opt.icon} active={uninvRange === opt.value} onClick={() => setUninvRange(opt.value)} />)}
+        <div style={{ marginBottom: 10, fontSize: FS.micro, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Rolling window: 30 days back &middot; 30 days forward. Client Profile shows the full uninvoiced list.
         </div>
         <div style={{ maxHeight: 280, overflowY: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
@@ -1361,13 +1351,23 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         {reportView === "uninvoiced" && (() => {
           const invSaleIds = new Set();
           processedInvoices.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); }));
+          // Billing-module rolling window: 30 days back → 30 days forward.
+          // Older or further-out uninvoiced sales are only visible on the
+          // Client Profile, not on any Billing tab view.
+          const cutoffPast30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
           const cutoff30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-          const uninv = _sales.filter(s => s.status === "Closed" && !invSaleIds.has(s.id) && (reportPub === "all" || s.publication === reportPub))
-            .sort((a, b) => {
-              const issA = (issues || []).find(i => i.id === a.issueId);
-              const issB = (issues || []).find(i => i.id === b.issueId);
-              return (issA?.date || "9").localeCompare(issB?.date || "9");
-            });
+          const uninv = _sales.filter(s => {
+            if (s.status !== "Closed" || invSaleIds.has(s.id)) return false;
+            if (reportPub !== "all" && s.publication !== reportPub) return false;
+            const iss = (issues || []).find(i => i.id === s.issueId);
+            const issDate = iss?.date;
+            if (!issDate) return false;
+            return issDate >= cutoffPast30 && issDate <= cutoff30;
+          }).sort((a, b) => {
+            const issA = (issues || []).find(i => i.id === a.issueId);
+            const issB = (issues || []).find(i => i.id === b.issueId);
+            return (issA?.date || "9").localeCompare(issB?.date || "9");
+          });
           const published = uninv.filter(s => { const iss = (issues || []).find(i => i.id === s.issueId); return iss && iss.date && iss.date < today; });
           const upcoming = uninv.filter(s => { const iss = (issues || []).find(i => i.id === s.issueId); return iss && iss.date && iss.date >= today && iss.date <= cutoff30; });
           const totalUninv = uninv.reduce((s, x) => s + (x.amount || 0), 0);

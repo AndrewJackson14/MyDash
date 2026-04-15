@@ -80,11 +80,19 @@ export function useSignalFeed({
   // Closed is subtracted from the total.
   const pipelineValue = useMemo(() => _sales.filter(s => s.status !== "Closed").reduce((s, x) => s + (x.amount || 0), 0), [_sales]);
   const pipelineCount = useMemo(() => _sales.filter(s => s.status !== "Closed").length, [_sales]);
+  // Dashboard "Uninvoiced" card: rolling +/- 30 day window from today,
+  // matching the Billing-module-wide rule. Older un-invoiced sales don't
+  // bleed into the dashboard number; future sales beyond 30 days out
+  // aren't ready to bill yet. The Client Profile page is the only place
+  // that shows the full uninvoiced list for a client.
   const uninvoicedContracts = useMemo(() => {
     const invSaleIds = new Set();
     _inv.forEach(inv => inv.lines?.forEach(l => { if (l.saleId) invSaleIds.add(l.saleId); }));
-    const cutoff30 = new Date(Date.now() + 30 * MS_PER_DAY).toISOString().slice(0, 10);
-    return _sales.filter(s => s.status === "Closed" && !invSaleIds.has(s.id) && s.date && s.date <= cutoff30).reduce((s, x) => s + (x.amount || 0), 0);
+    const past30 = new Date(Date.now() - 30 * MS_PER_DAY).toISOString().slice(0, 10);
+    const future30 = new Date(Date.now() + 30 * MS_PER_DAY).toISOString().slice(0, 10);
+    return _sales
+      .filter(s => s.status === "Closed" && !invSaleIds.has(s.id) && s.date && s.date >= past30 && s.date <= future30)
+      .reduce((s, x) => s + (x.amount || 0), 0);
   }, [_sales, _inv]);
 
   const revenueCommand = { adRevMTD, issueRevThisMonth, monthlyIssueCount, outstandingAR, overdueBalance, overdueInvCount, pipelineValue, pipelineCount, uninvoicedContracts };
