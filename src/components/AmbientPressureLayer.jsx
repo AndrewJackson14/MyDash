@@ -57,9 +57,9 @@ export default function AmbientPressureLayer({ pressure = 20, serenityColor = "b
     // actually shows instead of being a faint wash, plus a strong
     // ceiling so red doesn't read as pink.
     const eased = Math.pow(p / 100, 1.4);
-    const alphaBase = isDark ? 0.14 : 0.18;
-    const alphaRamp = isDark ? 0.20 : 0.22;
-    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.14→0.34, light: 0.18→0.40
+    const alphaBase = isDark ? 0.08 : 0.10;
+    const alphaRamp = isDark ? 0.13 : 0.15;
+    const alpha = alphaBase + eased * alphaRamp;  // dark: 0.08→0.21, light: 0.10→0.25
     // Base duration that each layer multiplies against. 22s fully calm,
     // ~3s at full heat.
     const baseDuration = 22 - eased * 19;
