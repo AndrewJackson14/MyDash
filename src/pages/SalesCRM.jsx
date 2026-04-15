@@ -20,7 +20,7 @@ import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, I
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
+  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
   const dialog = useDialog();
   // Publications for dropdowns: filtered by jurisdiction for salespeople, all for admins
   const dropdownPubs = jurisdiction?.myPubs || pubs;
@@ -61,6 +61,11 @@ const SalesCRM = (props) => {
   const [profFPub, setProfFPub] = useState("all");
   const [pipeView, setPipeView] = useState("actions");
   const [dragSaleId, setDragSaleId] = useState(null);
+  // Issue picker modal — fires when a sale is moved to Closed without an
+  // issueId. Required by migration 028's CHECK constraint on display_print
+  // sales.
+  const [closeIssueModal, setCloseIssueModal] = useState(null); // { saleId, pubId } | null
+  const [closeIssueChoice, setCloseIssueChoice] = useState("");
   const [editOppId, setEditOppId] = useState(null);
   const [opp, setOpp] = useState({ company: "", contact: "", email: "", phone: "", source: "Referral", notes: "", nextAction: "Send media kit", nextActionDate: "" });
   const OPP_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client"];
@@ -241,6 +246,42 @@ const SalesCRM = (props) => {
     setCmo(false);
   };
 
+  // Finalize a Closed transition once we know the sale has an issue. Persists
+  // status + issueId to Supabase via updateSale (the only path in SalesCRM
+  // that actually writes to the DB right now), then runs the existing local
+  // bookkeeping: notifications, comms log, bus event, Lead→Active promotion.
+  const finalizeClose = (saleId, issueIdOverride) => {
+    const s = sales.find(x => x.id === saleId);
+    if (!s) return;
+    const autoAct = STAGE_AUTO_ACTIONS["Closed"] || null;
+    const nextDue = new Date(today); nextDue.setDate(nextDue.getDate() + 3);
+    const nextActDate = autoAct ? nextDue.toISOString().slice(0, 10) : "";
+    const finalIssueId = issueIdOverride || s.issueId;
+    if (updateSale) {
+      updateSale(saleId, {
+        status: "Closed",
+        issueId: finalIssueId,
+        closedAt: new Date().toISOString(),
+        nextAction: autoAct,
+        nextActionDate: nextActDate,
+      });
+    } else {
+      // Fallback if updateSale isn't wired (offline or older harness)
+      setSales(sl => sl.map(x => x.id === saleId ? { ...x, status: "Closed", issueId: finalIssueId, nextAction: autoAct, nextActionDate: nextActDate } : x));
+    }
+    logActivity(`→ Closed`, "pipeline", s.clientId, cn(s.clientId));
+    addNotif(`${cn(s.clientId)} → Closed`);
+    setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `→ Closed` }] } : c));
+    if (bus) bus.emit("sale.closed", { saleId, clientId: s.clientId, clientName: cn(s.clientId), amount: s.amount, publication: pn(s.publication) });
+    const client = clients.find(c => c.id === s.clientId);
+    if (client) {
+      const updates = {};
+      if (client.status === "Lead") updates.status = "Active";
+      if (!client.repId && currentUser?.id) updates.repId = currentUser.id;
+      if (Object.keys(updates).length && updateClient) updateClient(client.id, updates);
+    }
+  };
+
   const moveToStage = (saleId, ns) => {
     const s = sales.find(x => x.id === saleId);
     if (["Proposal", "Negotiation", "Closed", "Follow-up"].includes(ns) && !hasProposal(saleId)) {
@@ -254,23 +295,23 @@ const SalesCRM = (props) => {
         return;
       }
     }
+    // Closed transition needs an issue_id (DB CHECK constraint). If the sale
+    // doesn't have one yet, open the picker — finalizeClose runs after the
+    // user confirms.
+    if (ns === "Closed") {
+      if (!s) return;
+      if (!s.issueId) {
+        setCloseIssueChoice("");
+        setCloseIssueModal({ saleId, pubId: s.publication });
+        return;
+      }
+      finalizeClose(saleId);
+      return;
+    }
     const autoAct = STAGE_AUTO_ACTIONS[ns] || null;
     const nextDue = new Date(today); nextDue.setDate(nextDue.getDate() + 3);
     setSales(sl => sl.map(x => x.id === saleId ? { ...x, status: ns, nextAction: autoAct, nextActionDate: autoAct ? nextDue.toISOString().slice(0, 10) : "" } : x));
     if (s) { logActivity(`→ ${ns}`, "pipeline", s.clientId, cn(s.clientId)); addNotif(`${cn(s.clientId)} → ${ns}`); setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `→ ${ns}` }] } : c)); }
-    if (ns === "Closed" && s && bus) bus.emit("sale.closed", { saleId, clientId: s.clientId, clientName: cn(s.clientId), amount: s.amount, publication: pn(s.publication) });
-    // Auto-promote Lead → Active and assign the selling rep when a sale closes.
-    // A client who has purchased is no longer a Lead. If the client has no rep
-    // yet, they get assigned to whoever closed the deal.
-    if (ns === "Closed" && s) {
-      const client = clients.find(c => c.id === s.clientId);
-      if (client) {
-        const updates = {};
-        if (client.status === "Lead") updates.status = "Active";
-        if (!client.repId && currentUser?.id) updates.repId = currentUser.id;
-        if (Object.keys(updates).length && updateClient) updateClient(client.id, updates);
-      }
-    }
   };
 
   const handleAct = (saleId) => {
@@ -1149,6 +1190,54 @@ const SalesCRM = (props) => {
         )}
       </div>;
     })()}
+
+    {/* CLOSE-TIME ISSUE PICKER: every display_print sale must belong to an
+        issue (DB CHECK constraint). When a sale is moved to Closed without
+        one, this modal forces the salesperson to pick. */}
+    <Modal open={!!closeIssueModal} onClose={() => setCloseIssueModal(null)} title="Pick an issue to close into" width={480}>
+      {closeIssueModal && (() => {
+        const targetSale = sales.find(x => x.id === closeIssueModal.saleId);
+        const pubName = pn(closeIssueModal.pubId);
+        const candidateIssues = (issues || [])
+          .filter(i => i.pubId === closeIssueModal.pubId && i.date >= today)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontSize: FS.sm, color: Z.tm }}>
+              {targetSale ? `${cn(targetSale.clientId)} — ${pubName} ${targetSale.size || ""}` : pubName}
+            </div>
+            {candidateIssues.length === 0 ? (
+              <div style={{ padding: 12, background: Z.bg, borderRadius: Ri, color: Z.tm, fontSize: FS.sm }}>
+                No upcoming issues for {pubName}. Add one in Publications first, then come back to close this sale.
+              </div>
+            ) : (
+              <Sel
+                label="Issue"
+                value={closeIssueChoice}
+                onChange={e => setCloseIssueChoice(e.target.value)}
+                options={[
+                  { value: "", label: "Select an issue..." },
+                  ...candidateIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}` })),
+                ]}
+              />
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Btn v="secondary" sm onClick={() => setCloseIssueModal(null)}>Cancel</Btn>
+              <Btn
+                sm
+                disabled={!closeIssueChoice}
+                onClick={() => {
+                  const saleId = closeIssueModal.saleId;
+                  const issueId = closeIssueChoice;
+                  setCloseIssueModal(null);
+                  finalizeClose(saleId, issueId);
+                }}
+              >Close into issue</Btn>
+            </div>
+          </div>
+        );
+      })()}
+    </Modal>
 
     {/* MODALS: Client, Opportunity, Proposal, Email Compose, Next Step */}
     <Modal open={cmo} onClose={() => setCmo(false)} title={ec ? "Edit Client" : "New Client"} width={640}>
