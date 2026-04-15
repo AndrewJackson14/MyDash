@@ -196,7 +196,7 @@ const BillingSettings = ({ dialog, generatePending }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill, onNavigate }) => {
   const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
@@ -744,7 +744,15 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             <tbody>
               {uninvoicedByClient.slice(0, 50).map(uc => (
                 <tr key={uc.clientId} style={{ borderBottom: `1px solid ${Z.bd}15` }}>
-                  <td style={{ padding: "6px 10px", fontWeight: FW.semi, color: Z.tx }}>{cn(uc.clientId)}</td>
+                  <td style={{ padding: "6px 10px", fontWeight: FW.semi, color: Z.tx }}>
+                    {onNavigate ? (
+                      <a
+                        href={`/sales?tab=clients&id=${uc.clientId}`}
+                        onClick={e => { e.preventDefault(); onNavigate(`/sales?tab=clients&id=${uc.clientId}`); }}
+                        style={{ color: Z.tx, textDecoration: "none", borderBottom: `1px dotted ${Z.tm}`, cursor: "pointer" }}
+                      >{cn(uc.clientId)}</a>
+                    ) : cn(uc.clientId)}
+                  </td>
                   <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(uc.total)}</td>
                   <td style={{ padding: "6px 10px", textAlign: "center", color: Z.tm }}>{uc.count}</td>
                   <td style={{ padding: "6px 10px", textAlign: "right" }}><Btn sm v="secondary" onClick={() => openNewInvoice(uc.clientId)}>Invoice</Btn></td>
@@ -784,7 +792,15 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {[...processedInvoices].sort((a, b) => (b.issueDate || "").localeCompare(a.issueDate || "")).slice(0, 8).map(inv => <div key={inv.id} onClick={() => setViewInvId(inv.id)} style={{ display: "grid", gridTemplateColumns: "100px 1fr 100px 80px 60px", gap: 10, alignItems: "center", borderRadius: R, cursor: "pointer", background: "transparent", transition: "background 0.1s" }}>
                 <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{inv.invoiceNumber}</span>
-                <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{cn(inv.clientId)}</span>
+                <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>
+                  {onNavigate ? (
+                    <a
+                      href={`/sales?tab=clients&id=${inv.clientId}`}
+                      onClick={e => { e.stopPropagation(); e.preventDefault(); onNavigate(`/sales?tab=clients&id=${inv.clientId}`); }}
+                      style={{ color: Z.tx, textDecoration: "none", borderBottom: `1px dotted ${Z.tm}`, cursor: "pointer" }}
+                    >{cn(inv.clientId)}</a>
+                  ) : cn(inv.clientId)}
+                </span>
                 <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.total)}</span>
                 <span style={{ fontSize: FS.xs, color: Z.td, textAlign: "right" }}>{fmtDate(inv.dueDate)}</span>
                 <span style={{ textAlign: "right" }}><InvBadge status={inv.status} /></span>

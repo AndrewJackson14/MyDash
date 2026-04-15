@@ -123,11 +123,17 @@ const SalesCRM = (props) => {
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
-  // Deep-link handling from notifications
+  // Deep-link handling from notifications + cross-page client jumps
   useEffect(() => {
     if (props.deepLink?.tab === "inquiries") {
       setTab("Inquiries");
       if (loadInquiries && !inquiriesLoaded) loadInquiries();
+    }
+    // /sales?tab=clients&id=<clientId> opens the client profile directly.
+    // Used by Billing → client name links and any other cross-page jump.
+    if (props.deepLink?.tab === "clients" && props.deepLink?.id) {
+      setTab("Clients");
+      setViewClientId(props.deepLink.id);
     }
   }, [props.deepLink]);
 
