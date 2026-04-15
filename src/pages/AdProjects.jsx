@@ -133,7 +133,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const gridData = useMemo(() => {
     if (tab !== "Active") return [];
     const pastCutoff = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
-    const futureCutoff = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+    const futureCutoff = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
 
     const upcomingIssues = (issues || [])
       .filter(i => i.date && i.date >= pastCutoff && i.date <= futureCutoff)
@@ -729,7 +729,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                             setForm(f => ({
                               ...f,
                               clientId: sale.clientId || "",
-                              publicationId: sale.publicationId || "",
+                              publicationId: sale.publication || "",
                               issueId: sale.issueId || "",
                               adSize: sale.size || "",
                               _saleId: sale.id,
@@ -844,7 +844,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                 setForm(f => ({
                   ...f,
                   clientId: sale.clientId || "",
-                  publicationId: sale.publicationId || "",
+                  publicationId: sale.publication || "",
                   issueId: sale.issueId || "",
                   adSize: sale.size || "",
                   _saleId: sale.id,
@@ -854,7 +854,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
             };
             return <tr key={rowKey} onClick={onClick} style={{ cursor: "pointer" }}>
               <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(sale.clientId)}</td>
-              <td style={{ color: Z.tm }}>{pn(sale.publicationId)}</td>
+              <td style={{ color: Z.tm }}>{pn(sale.publication)}</td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{issue.label || "—"}</td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{sale.size || "—"}</td>
               <td>{project

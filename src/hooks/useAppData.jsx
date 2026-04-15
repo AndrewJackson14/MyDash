@@ -873,8 +873,9 @@ export function DataProvider({ children, localData }) {
     if (!sale) { console.error('upsertAdProject: sale not found', saleId); return null; }
     const row = {
       sale_id: saleId,
+      // useAppData maps sales with { clientId, publication, issueId, size }
       client_id: sale.clientId || sale.client_id,
-      publication_id: sale.publicationId || sale.publication_id,
+      publication_id: sale.publication || sale.publicationId || sale.publication_id,
       issue_id: sale.issueId || sale.issue_id,
       ad_size: sale.size || sale.ad_size || null,
       status: 'brief',
@@ -1086,6 +1087,7 @@ export function DataProvider({ children, localData }) {
       if (changes.gridRow !== undefined) db.grid_row = changes.gridRow;
       if (changes.gridCol !== undefined) db.grid_col = changes.gridCol;
       if (changes.proposalId !== undefined) db.proposal_id = changes.proposalId;
+      if (changes.issueId !== undefined) db.issue_id = changes.issueId;
       if (Object.keys(db).length) await supabase.from('sales').update(db).eq('id', id);
     }
   }, []);
