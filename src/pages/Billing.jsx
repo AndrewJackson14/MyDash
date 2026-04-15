@@ -196,7 +196,7 @@ const BillingSettings = ({ dialog, generatePending }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, bills, insertBill, updateBill, deleteBill }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill }) => {
   const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
@@ -242,6 +242,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   // ─── Invoice send log — one query pulls every email_log row with
   //     ref_type='invoice'; we index the latest per invoice id so each row
   //     can show a "Sent" pill + tooltip without per-row queries.
+  // Hydrate full invoice lines on demand when the detail modal opens.
+  // loadBilling only fetches skinny line columns (sale_id, publication_id)
+  // so the rest of the invoice fields lazy-load here.
+  useEffect(() => {
+    if (viewInvId && loadInvoiceLines) loadInvoiceLines(viewInvId);
+  }, [viewInvId, loadInvoiceLines]);
+
   const [invoiceSendMap, setInvoiceSendMap] = useState({});
   useEffect(() => {
     let cancelled = false;
@@ -643,7 +650,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             </tr>
           </thead>
           <tbody>
-            {(viewInv.lines || []).map((l, i) => <tr key={i} style={{ borderBottom: `1px solid ${Z.bd}` }}>
+            {!viewInv.linesHydrated && <tr><td colSpan={4} style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.sm, fontStyle: "italic" }}>Loading line items…</td></tr>}
+            {viewInv.linesHydrated && (viewInv.lines || []).map((l, i) => <tr key={l.id || i} style={{ borderBottom: `1px solid ${Z.bd}` }}>
               <td style={{ fontSize: FS.base, color: Z.tx }}>{l.description}</td>
               <td style={{ fontSize: FS.base, color: Z.tm, textAlign: "right" }}>{l.quantity}</td>
               <td style={{ fontSize: FS.base, color: Z.tm, textAlign: "right" }}>{fmtCurrency(l.unitPrice)}</td>

@@ -424,31 +424,35 @@ export function DataProvider({ children, localData }) {
   const loadBilling = useCallback(async () => {
     if (billingLoaded || !isOnline()) return;
 
-    // ORDER BY id for stable pagination; non-unique columns like issue_date cause
-    // rows to shift between pages, dropping/duping rows.
-    const paginate = async (table, select) => {
+    // Parallel paginate: count first, then fire every page at once so the
+    // wait is ~one round-trip instead of serial page-by-page.
+    const paginateParallel = async (table, select, filterFn) => {
+      const PAGE = 1000;
+      const countRes = await (filterFn ? filterFn(supabase.from(table).select('*', { count: 'exact', head: true })) : supabase.from(table).select('*', { count: 'exact', head: true }));
+      const total = countRes.count || 0;
+      if (total === 0) return [];
+      const pages = Math.ceil(total / PAGE);
+      const results = await Promise.all(Array.from({ length: pages }, (_, pg) => {
+        const base = supabase.from(table).select(select).order('id', { ascending: true }).range(pg * PAGE, (pg + 1) * PAGE - 1);
+        return filterFn ? filterFn(base) : base;
+      }));
       const out = [];
-      let pg = 0;
-      while (true) {
-        const { data } = await supabase.from(table).select(select)
-          .order('id', { ascending: true })
-          .range(pg * 1000, (pg + 1) * 1000 - 1);
-        if (!data?.length) break;
-        out.push(...data);
-        if (data.length < 1000) break;
-        pg++;
-      }
+      for (const r of results) if (r.data) out.push(...r.data);
       return out;
     };
 
-    // Run all three queries in parallel — invoices, invoice_lines, and payments
-    // are independent. The previous serial version made a 39-page lines fetch
-    // wait for the invoices fetch to finish.
-    const [allInv, allLines, payRes] = await Promise.all([
-      paginate('invoices', '*'),
-      paginate('invoice_lines', '*'),
+    // Win 1: only load the narrow columns from invoice_lines that the
+    // Billing module actually needs at render time — sale_id + publication_id.
+    // Full line records (description, quantity, unit_price, total) are
+    // lazy-loaded per invoice via loadInvoiceLines() when the detail modal
+    // opens. Before this change, loadBilling fetched ~22k full-fat line
+    // rows on every first Billing visit, which was the dominant wait.
+    const [allInv, allLinesSkinny, payRes] = await Promise.all([
+      paginateParallel('invoices', '*'),
+      paginateParallel('invoice_lines', 'id, invoice_id, sale_id, publication_id'),
       supabase.from('payments').select('*').order('received_at', { ascending: false }),
     ]);
+    const allLines = allLinesSkinny;
 
     // Index lines by invoice_id for fast lookup
     const linesByInv = {};
@@ -474,11 +478,17 @@ export function DataProvider({ children, localData }) {
           notes: i.notes || '', createdAt: i.created_at,
           lockedAt: i.locked_at || null,
           chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+          // Skinny lines — only the fields needed by the Billing module's
+          // filters (saleId for uninvoiced-sales detection, publicationId
+          // for the aging report pub filter). Full line details
+          // (description, quantity, unit_price, total) lazy-load via
+          // loadInvoiceLines(invoiceId) when the detail modal opens.
           lines: (linesByInv[i.id] || []).map(l => ({
-            id: l.id, description: l.description,
-            saleId: l.sale_id, publicationId: l.publication_id, issueId: l.issue_id,
-            quantity: l.quantity, unitPrice: Number(l.unit_price), total: Number(l.total),
+            id: l.id,
+            saleId: l.sale_id,
+            publicationId: l.publication_id,
           })),
+          linesHydrated: false,
         };
       }));
     }
@@ -489,6 +499,36 @@ export function DataProvider({ children, localData }) {
     })));
     setBillingLoaded(true);
   }, [billingLoaded]);
+
+  // Lazy per-invoice hydrate for the detail modal. loadBilling only fetches
+  // the skinny line columns (sale_id, publication_id) — when the user opens
+  // an invoice, this runs and swaps the line array for the full records.
+  // Idempotent: re-opening an already-hydrated invoice is a no-op.
+  const loadInvoiceLines = useCallback(async (invoiceId) => {
+    if (!invoiceId || !isOnline()) return;
+    const current = (invoices || []).find(i => i.id === invoiceId);
+    if (current?.linesHydrated) return;
+    const { data, error } = await supabase
+      .from('invoice_lines')
+      .select('id, description, sale_id, publication_id, issue_id, quantity, unit_price, total')
+      .eq('invoice_id', invoiceId)
+      .order('id', { ascending: true });
+    if (error) { console.error('loadInvoiceLines error:', error); return; }
+    setInvoices(prev => (prev || []).map(inv => inv.id === invoiceId ? {
+      ...inv,
+      linesHydrated: true,
+      lines: (data || []).map(l => ({
+        id: l.id,
+        description: l.description,
+        saleId: l.sale_id,
+        publicationId: l.publication_id,
+        issueId: l.issue_id,
+        quantity: l.quantity,
+        unitPrice: Number(l.unit_price),
+        total: Number(l.total),
+      })),
+    } : inv));
+  }, [invoices]);
 
   // ── Media assets — lazy loader ─────────────────────────
   const loadMediaAssets = useCallback(async () => {
@@ -2023,7 +2063,7 @@ export function DataProvider({ children, localData }) {
     loadClientDetails, clientDetailsLoaded,
     loadProposals, proposalsLoaded,
     loadStories, storiesLoaded,
-    loadBilling, billingLoaded,
+    loadBilling, billingLoaded, loadInvoiceLines,
     bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
     loadCirculation, circulationLoaded,
     loadTickets, ticketsLoaded,
