@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
 import { Ic, Btn, GlassCard, Modal, glass } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
 import { useSignalFeed } from "../hooks/useSignalFeed";
+import { usePerformanceData } from "./performance/usePerformanceData";
 import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import { supabase, isOnline } from "../lib/supabase";
@@ -129,16 +130,86 @@ const DashboardV2 = (props) => {
   });
   const {
     focusItems, deadlineAlerts, doseWins,
-    departmentPressure, globalPressure,
+    departmentPressure: _legacyDeptPressure, globalPressure: _legacyGlobalPressure,
     teamStatus, needsDir,
     _sales, _clients, _issues, _pubs, _stories, _inv, _tickets, _legal, _jobs,
   } = feed;
+
+  // Performance hook is the single source of truth for the four dept
+  // tiles. The legacy departmentPressure/globalPressure from useSignalFeed
+  // are still used for the signal feed strip and briefing.
+  const perfData = usePerformanceData({
+    preset: "month",
+    sales: _sales,
+    clients: _clients,
+    stories: _stories,
+    issues: _issues,
+    adProjects: props.adProjects || [],
+    team,
+    publisherId: currentUser?.id || null,
+  });
+  const { heatScores, globalPressure: perfGlobalPressure } = perfData;
+
+  // Synthesized department pressure shape the rest of the dashboard
+  // (drill-ins, tiles) reads from. Fields match the legacy shape +
+  // actionItems so the card can cycle through issues.
+  const departmentPressure = useMemo(() => ({
+    sales: {
+      heat: heatScores.sales,
+      count: perfData.sales.actionItems?.length || 0,
+      items: perfData.sales.actionItems || [],
+      wins: perfData.sales.wins || [],
+      topRep: perfData.sales.topRep,
+      pctToGoal: Math.round(perfData.sales.leadToClosePct || 0),
+      pipelineValue: perfData.sales.totalRev || 0,
+      revenueDelta: perfData.sales.revenueDelta || 0,
+    },
+    editorial: {
+      heat: heatScores.editorial,
+      count: perfData.editorial.actionItems?.length || 0,
+      items: perfData.editorial.actionItems || [],
+      wins: perfData.editorial.wins || [],
+      onTrackPct: Math.round(perfData.editorial.onTrackPct || 0),
+      stuckStories: (perfData.editorial.count || 0) - (perfData.editorial.onTrack || 0),
+      editDeadlines: deadlineAlerts.filter(a => a.type === "ed").length,
+    },
+    production: {
+      heat: heatScores.production,
+      count: perfData.production.actionItems?.length || 0,
+      items: perfData.production.actionItems || [],
+      wins: perfData.production.wins || [],
+      layoutOnTrack: Math.round(perfData.production.layout?.onTrackPct || 0),
+      adsOnTrack: Math.round(perfData.production.ads?.onTrackPct || 0),
+      avgRevisions: perfData.production.ads?.avgRevisions || 0,
+      adDeadlines: deadlineAlerts.filter(a => a.type === "ad").length,
+    },
+    admin: {
+      heat: heatScores.admin,
+      count: (perfData.admin?.actionItems?.length) || 0,
+      items: perfData.admin?.actionItems || [],
+      wins: perfData.admin?.wins || [],
+      firstResponseHours: perfData.admin?.avgFirstResponseHours || 0,
+      unreadNoteCount: perfData.admin?.unreadNoteCount || 0,
+      escalatedCount: perfData.admin?.escalatedCount || 0,
+      churnRate: perfData.admin?.churnRate || 0,
+    },
+  }), [heatScores, perfData, deadlineAlerts]);
+
+  // Global pressure from Performance heat takes precedence; fall back to
+  // the legacy calc while admin metrics are still loading.
+  const globalPressure = perfData.admin ? perfGlobalPressure : _legacyGlobalPressure;
 
   // Push newsroom heat up to the app shell so the ambient background layer
   // can tint/animate across every page, not just the dashboard.
   useEffect(() => {
     if (props.onPressureChange) props.onPressureChange(globalPressure);
   }, [globalPressure, props.onPressureChange]);
+
+  // Ad projects are lazy-loaded elsewhere; trigger the load so the
+  // Production tile has real data to cycle through on first visit.
+  useEffect(() => {
+    if (props.loadAdProjects) props.loadAdProjects();
+  }, [props.loadAdProjects]);
 
   const [openMember, setOpenMember] = useState(null);
   const [openSignal, setOpenSignal] = useState(null);
@@ -561,6 +632,7 @@ const DashboardV2 = (props) => {
       <BriefingContent
         firstName={firstName}
         feed={feed}
+        perfData={perfData}
         stories={stories}
         subscribers={subscribers}
         onClose={() => setBriefingOpen(false)}
@@ -625,6 +697,24 @@ const DeptTile = ({ dept, data, team, idx, onOpen, onOpenMember, onNavigate }) =
   const isHot = data.heat >= 75;
   const deptMembers = membersForDept(team, dept, 3);
   const dark = Z.bg === "#08090D";
+
+  // Cycling action items — the card rotates through every concurrent
+  // issue so nothing gets hidden. Pauses on hover. Manual prev/next arrows
+  // always override auto-cycle. Admin gets a slower cadence because the
+  // items are comms-centric and want to be read, not skimmed.
+  const items = data.items || [];
+  const [cycleIdx, setCycleIdx] = useState(0);
+  const [pausedAt, setPausedAt] = useState(null);
+  useEffect(() => { setCycleIdx(0); }, [items.length]);
+  useEffect(() => {
+    if (items.length <= 1 || pausedAt) return;
+    const tick = dept === "admin" ? 9000 : 6000;
+    const t = setInterval(() => {
+      setCycleIdx(i => (i + 1) % items.length);
+    }, tick);
+    return () => clearInterval(t);
+  }, [items.length, pausedAt, dept]);
+  const currentItem = items[cycleIdx] || null;
 
   // Urgency-responsive sizing via a single scale transform, anchored
   // to the tile's CENTER so the card grows outward in both axes
@@ -716,37 +806,75 @@ const DeptTile = ({ dept, data, team, idx, onOpen, onOpenMember, onNavigate }) =
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>{meta.label}</span>
       </div>
 
-      {/* Big count — click-through to primary page */}
-      <div
-        onClick={(e) => { e.stopPropagation(); onNavigate?.(DEPT_ROUTES[dept]?.primary); }}
-        style={{ fontSize: 36, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.2, lineHeight: 0.95, cursor: "pointer", display: "inline-block", transition: "color 0.15s ease" }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = color; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = Z.tx; }}
-      >
-        {data.count}
+      {/* Count + hero metric */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <div
+          onClick={(e) => { e.stopPropagation(); onNavigate?.(DEPT_ROUTES[dept]?.primary); }}
+          style={{ fontSize: 36, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -1.2, lineHeight: 0.95, cursor: "pointer", transition: "color 0.15s ease" }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = color; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = Z.tx; }}
+          title="Total action items"
+        >
+          {data.count}
+        </div>
+        <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.6 }}>
+          {dept === "sales" && `${data.pctToGoal || 0}% lead→close`}
+          {dept === "editorial" && `${data.onTrackPct || 0}% on track`}
+          {dept === "production" && `${Math.min(data.layoutOnTrack || 0, data.adsOnTrack || 0)}% on track`}
+          {dept === "admin" && `${data.unreadNoteCount || 0} msgs · ${(data.firstResponseHours || 0).toFixed(1)}h reply`}
+        </div>
       </div>
 
-      {/* Sub text — individual metrics are their own click-throughs */}
-      <div style={{ fontSize: 12, color: Z.tm, marginTop: 6, minHeight: 16, display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {dept === "sales" && (
-          data.pctToGoal != null
-            ? <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.sales.primary)}>{data.pctToGoal}% to goal</SubLink>
-            : <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.sales.primary)}>{fmtCurrency(data.pipelineValue || 0)} pipeline</SubLink>
+      {/* Cycling action item — rotates through every flagged issue so
+          the publisher sees each one, not just the worst. Prev/next
+          arrows and paging dots let them stop and scrub manually. */}
+      <div
+        onMouseEnter={() => setPausedAt(Date.now())}
+        onMouseLeave={() => setPausedAt(null)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (currentItem?.navTo?.page) onNavigate?.(currentItem.navTo.page);
+        }}
+        style={{
+          marginTop: 10,
+          padding: "10px 12px",
+          minHeight: 56,
+          borderRadius: Ri,
+          background: items.length > 0 ? color + "12" : (dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"),
+          border: `1px solid ${items.length > 0 ? color + "33" : Z.bd}`,
+          cursor: items.length > 0 && currentItem?.navTo ? "pointer" : "default",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {items.length === 0 && (
+          <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic", alignSelf: "center", margin: "auto 0" }}>
+            No action items — {dept} is clear.
+          </div>
         )}
-        {dept === "editorial" && <>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.editorial.stuck)}>{data.stuckStories || 0} stuck</SubLink>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.editorial.deadlines)}>{data.editDeadlines || 0} deadlines</SubLink>
-        </>}
-        {dept === "production" && <>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.production.adDeadlines)}>{data.adDeadlines || 0} ad deadlines</SubLink>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.production.overdue)}>{data.overdueJobs || 0} overdue</SubLink>
-        </>}
-        {dept === "admin" && <>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.admin.tickets)}>{data.openTickets || 0} tickets</SubLink>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <SubLink onClick={() => onNavigate?.(DEPT_ROUTES.admin.invoices)}>{data.overdueInvCount || 0} overdue inv</SubLink>
+        {items.length > 0 && currentItem && <>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {currentItem.headline}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: FS.micro, color, fontFamily: COND, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              {currentItem.cta} →
+            </span>
+            {items.length > 1 && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setCycleIdx(i => (i - 1 + items.length) % items.length); setPausedAt(Date.now()); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: 0, lineHeight: 1 }}
+                aria-label="Previous"
+              >‹</button>
+              <span style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{cycleIdx + 1} / {items.length}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setCycleIdx(i => (i + 1) % items.length); setPausedAt(Date.now()); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: 0, lineHeight: 1 }}
+                aria-label="Next"
+              >›</button>
+            </div>}
+          </div>
         </>}
       </div>
 
@@ -1019,25 +1147,66 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
       </div>
 
       {/* Department-specific stats — every card clicks through to
-          where that data point actually lives. */}
+          where that data point actually lives. Sourced from the
+          Performance hook. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         {dept === "sales" && <>
-          <DrillStat label="Pipeline" value={fmtCurrency(pressure.pipelineValue || 0)} onClick={() => navigateAndClose("sales")} />
-          <DrillStat label="To monthly goal" value={`${pressure.pctToGoal ?? 0}%`} onClick={() => navigateAndClose("sales")} />
+          <DrillStat label="Lead → Close" value={`${pressure.pctToGoal ?? 0}%`} onClick={() => navigateAndClose("performance")} />
+          <DrillStat label="Revenue this period" value={fmtCurrency(pressure.pipelineValue || 0)} onClick={() => navigateAndClose("performance")} />
         </>}
         {dept === "editorial" && <>
-          <DrillStat label="Stories stuck" value={pressure.stuckStories || 0} onClick={() => navigateAndClose("editorial")} />
-          <DrillStat label="Editorial deadlines" value={pressure.editDeadlines || 0} onClick={() => navigateAndClose("schedule")} />
+          <DrillStat label="On-track %" value={`${pressure.onTrackPct || 0}%`} onClick={() => navigateAndClose("performance")} />
+          <DrillStat label="Stuck stories" value={pressure.stuckStories || 0} onClick={() => navigateAndClose("editorial")} />
         </>}
         {dept === "production" && <>
-          <DrillStat label="Ad deadlines" value={pressure.adDeadlines || 0} onClick={() => navigateAndClose("schedule")} />
-          <DrillStat label="Overdue jobs" value={pressure.overdueJobs || 0} onClick={() => navigateAndClose("creativejobs")} />
+          <DrillStat label="Layout on-track" value={`${pressure.layoutOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
+          <DrillStat label="Ad on-track" value={`${pressure.adsOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
         </>}
         {dept === "admin" && <>
-          <DrillStat label="Open tickets" value={pressure.openTickets || 0} onClick={() => navigateAndClose("servicedesk")} />
-          <DrillStat label="Overdue invoices" value={pressure.overdueInvCount || 0} onClick={() => navigateAndClose("billing")} />
+          <DrillStat label="Unread messages" value={pressure.unreadNoteCount || 0} onClick={() => navigateAndClose("messaging")} />
+          <DrillStat label="Escalated tickets" value={pressure.escalatedCount || 0} onClick={() => navigateAndClose("servicedesk")} />
         </>}
       </div>
+
+      {/* Wins strip — celebrate what's going right in the department */}
+      {(pressure.wins || []).length > 0 && <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.go, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Wins</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {pressure.wins.slice(0, 6).map(w => <div key={w.id} style={{
+            padding: "8px 12px",
+            background: Z.go + "18",
+            borderLeft: `3px solid ${Z.go}`,
+            borderRadius: Ri,
+            fontSize: FS.sm,
+            color: Z.tx,
+          }}>
+            <div style={{ fontWeight: FW.bold }}>{w.label}</div>
+            {w.sub && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 2 }}>{w.sub}</div>}
+          </div>)}
+        </div>
+      </div>}
+
+      {/* Cycling action-item stream — everything needing the publisher's
+          attention in this department, not just the single worst thing. */}
+      {(pressure.items || []).length > 0 && <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Action items ({pressure.items.length})</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+          {pressure.items.slice(0, 10).map(item => <div
+            key={item.id}
+            onClick={() => { if (item.navTo?.page) navigateAndClose(item.navTo.page); }}
+            style={{
+              padding: "10px 14px",
+              background: Z.bg === "#08090D" ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.6)",
+              borderLeft: `3px solid ${color}`,
+              borderRadius: Ri,
+              cursor: item.navTo ? "pointer" : "default",
+            }}
+          >
+            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{item.headline}</div>
+            <div style={{ fontSize: FS.micro, color, fontFamily: COND, fontWeight: FW.heavy, textTransform: "uppercase", marginTop: 3 }}>{item.cta} →</div>
+          </div>)}
+        </div>
+      </div>}
 
       {/* Team — look / click / act. Dept members + admin always visible. */}
       {allMembers.length > 0 && <div>
@@ -1252,7 +1421,7 @@ const DrillStat = ({ label, value, onClick }) => {
 const STAGE_COLORS = { Draft: "#9CA3AF", "Needs Editing": "#EF4444", Edited: "#3B82F6", Approved: "#10B981", "On Page": "#6366F1" };
 const STAGE_ORDER = ["Draft", "Needs Editing", "Edited", "Approved", "On Page"];
 
-const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => {
+const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose }) => {
   const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -1274,8 +1443,28 @@ const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => 
   ];
 
   // Text version (still copyable)
+  const isMonday = new Date().getDay() === 1;
   const briefingText = useMemo(() => {
     const l = [`13 STARS MEDIA — DAILY BRIEFING for ${firstName}`, dateStr, ""];
+
+    // Monday Wins callout — summary of last week's victories, only
+    // shown Mondays so it doesn't become daily noise.
+    if (isMonday && perfData) {
+      const winLines = [];
+      if (perfData.sales?.wins?.length) {
+        const total = perfData.sales.wins.reduce((s, w) => s + (w.amount || 0), 0);
+        winLines.push(`Sales · ${perfData.sales.wins.length} deals closed · ${fmtCurrency(total)}`);
+      }
+      if (perfData.editorial?.wins?.length) winLines.push(`Editorial · ${perfData.editorial.wins.length} stories shipped`);
+      if (perfData.production?.wins?.length) winLines.push(`Production · ${perfData.production.wins.length} items placed / on page`);
+      if (perfData.admin?.wins?.length) perfData.admin.wins.forEach(w => winLines.push(`Admin · ${w.label}`));
+      if (winLines.length > 0) {
+        l.push("═══ WEEKLY WINS ═══");
+        winLines.forEach(line => l.push(line));
+        l.push("");
+      }
+    }
+
     l.push("═══ REVENUE ═══");
     l.push(`Ad Revenue MTD (closed): ${fmtCurrency(revenueCommand.adRevMTD)}`);
     l.push(`Issue Revenue (publishing this month): ${fmtCurrency(revenueCommand.issueRevThisMonth)}`);
@@ -1305,7 +1494,7 @@ const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => 
     }
     if (focusItems.length === 0 && deadlineAlerts.length === 0) l.push("✨ All clear. Take a breath, then prospect or work renewals.");
     return l.join("\n");
-  }, [firstName, dateStr, revenueCommand, issueCountdown, focusItems, deadlineAlerts, stageCounts, totalStories, activeSubs, pn]);
+  }, [firstName, dateStr, revenueCommand, issueCountdown, focusItems, deadlineAlerts, stageCounts, totalStories, activeSubs, pn, isMonday, perfData]);
 
   const copy = () => { try { navigator.clipboard?.writeText(briefingText); } catch (e) {} };
 
@@ -1321,6 +1510,31 @@ const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => 
         <Btn sm onClick={() => { copy(); onClose(); }}>Copy & Close</Btn>
       </div>
     </div>
+
+    {/* Monday Wins — weekly victory recap, only rendered on Mondays so
+        it doesn't become every-day background noise. */}
+    {isMonday && perfData && ((perfData.sales?.wins || []).length > 0 || (perfData.editorial?.wins || []).length > 0 || (perfData.production?.wins || []).length > 0 || (perfData.admin?.wins || []).length > 0) && (
+      <div style={{
+        padding: "14px 18px",
+        borderRadius: R,
+        background: Z.go + "12",
+        borderLeft: `3px solid ${Z.go}`,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.go, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND }}>Weekly Wins</div>
+          <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>Last 7 days</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {perfData.sales?.wins?.length > 0 && (() => {
+            const total = perfData.sales.wins.reduce((s, w) => s + (w.amount || 0), 0);
+            return <div style={{ fontSize: FS.sm, color: Z.tx }}>• <strong>Sales</strong> · {perfData.sales.wins.length} deals closed · <span style={{ color: Z.go, fontWeight: FW.bold }}>{fmtCurrency(total)}</span></div>;
+          })()}
+          {perfData.editorial?.wins?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tx }}>• <strong>Editorial</strong> · {perfData.editorial.wins.length} stories shipped</div>}
+          {perfData.production?.wins?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tx }}>• <strong>Production</strong> · {perfData.production.wins.length} items placed / on page</div>}
+          {perfData.admin?.wins?.length > 0 && perfData.admin.wins.map(w => <div key={w.id} style={{ fontSize: FS.sm, color: Z.tx }}>• <strong>Admin</strong> · {w.label}</div>)}
+        </div>
+      </div>
+    )}
 
     {/* Revenue stat tiles */}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>

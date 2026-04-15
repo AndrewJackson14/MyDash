@@ -6,6 +6,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
 import { GlassCard, GlassStat, DataTable } from "../../components/ui";
 import { fmtCurrencyWhole } from "../../lib/formatters";
 import { proximityColorKey } from "./deadlineProximity";
+import WinsCard from "./WinsCard";
 
 const colorFor = (key) => key === "green" ? Z.go : key === "amber" ? Z.wa : Z.da;
 
@@ -54,36 +55,48 @@ export default function SalesMetrics({ data, onNavigate }) {
       />
     </div>
 
-    {/* Revenue mix bar with 70/30 target */}
-    <GlassCard>
-      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Mix — existing vs new clients (target 70 / 30)</div>
-      <MixBar existingPct={data.existingPct} newPct={data.newPct} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.xs, color: Z.tm, marginTop: 6 }}>
-        <span>Existing ({Math.round(data.existingPct)}%)</span>
-        <span>New ({Math.round(data.newPct)}%)</span>
-      </div>
-    </GlassCard>
+    {/* Middle band: Revenue Mix + Retention on the left, Wins on the right */}
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, alignItems: "start" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Revenue mix bar with 70/30 target */}
+        <GlassCard>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Mix — existing vs new clients (target 70 / 30)</div>
+          <MixBar existingPct={data.existingPct} newPct={data.newPct} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.xs, color: Z.tm, marginTop: 6 }}>
+            <span>Existing ({Math.round(data.existingPct)}%)</span>
+            <span>New ({Math.round(data.newPct)}%)</span>
+          </div>
+        </GlassCard>
 
-    {/* Rolling retention */}
-    <GlassCard>
-      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Client Retention (rolling)</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-        {[
-          { label: "30 days", value: data.retention30 },
-          { label: "60 days", value: data.retention60 },
-          { label: "90 days", value: data.retention90 },
-        ].map(r => {
-          const color = colorFor(proximityColorKey(r.value));
-          return <div key={r.label} style={{ padding: 14, background: Z.sa, borderRadius: R, borderLeft: `3px solid ${color}` }}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{r.label}</div>
-            <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>{Math.round(r.value)}%</div>
-            <div style={{ marginTop: 6, height: 5, background: Z.bg, borderRadius: 3, overflow: "hidden" }}>
-              <div style={{ width: `${Math.min(100, r.value)}%`, height: "100%", background: color, transition: "width 0.4s" }} />
-            </div>
-          </div>;
-        })}
+        {/* Rolling retention */}
+        <GlassCard>
+          <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Client Retention (rolling)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {[
+              { label: "30 days", value: data.retention30 },
+              { label: "60 days", value: data.retention60 },
+              { label: "90 days", value: data.retention90 },
+            ].map(r => {
+              const color = colorFor(proximityColorKey(r.value));
+              return <div key={r.label} style={{ padding: 14, background: Z.sa, borderRadius: R, borderLeft: `3px solid ${color}` }}>
+                <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{r.label}</div>
+                <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>{Math.round(r.value)}%</div>
+                <div style={{ marginTop: 6, height: 5, background: Z.bg, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, r.value)}%`, height: "100%", background: color, transition: "width 0.4s" }} />
+                </div>
+              </div>;
+            })}
+          </div>
+        </GlassCard>
       </div>
-    </GlassCard>
+
+      {/* Wins column — occupies the red-box area in the reference screenshot */}
+      <WinsCard
+        title="Wins — This Period"
+        wins={(data.wins || []).map(w => ({ id: w.id, label: w.label, sub: new Date(w.closedAt).toLocaleDateString(), amount: w.amount }))}
+        footer={data.topRep ? `Top rep: ${data.topRep.name} · ${fmtCurrencyWhole(data.topRep.revenue)}` : null}
+      />
+    </div>
 
     {/* Per-rep table */}
     <GlassCard style={{ padding: 0, overflow: "hidden" }}>

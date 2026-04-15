@@ -113,6 +113,61 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
     };
   }).sort((a, b) => b.revenue - a.revenue);
 
+  // Action items — reps that trip one of the three thresholds, ordered by
+  // severity. The dashboard cycles through these one at a time, so every
+  // struggling rep gets surface time instead of the worst one permanently
+  // owning the card.
+  const actionItems = [];
+  for (const rep of perRep) {
+    const reasons = [];
+    if (rep.leads >= 3 && rep.leadToClose < 20) {
+      reasons.push({ key: "leadClose", label: `Lead→close ${Math.round(rep.leadToClose)}%`, severity: 20 - rep.leadToClose });
+    }
+    // Proposals closed in the last 60 days — approximation: use sales closed
+    // vs sales touched in the trailing 60-day window.
+    const sixtyAgo = daysAgo(60);
+    const repRecent = (sales || []).filter(s => (s.repId === rep.id || s.rep_id === rep.id) && (new Date(s.createdAt || s.created_at || s.date) >= sixtyAgo));
+    const repRecentClosed = repRecent.filter(s => s.status === "Closed").length;
+    if (repRecent.length >= 3) {
+      const closeRate = (repRecentClosed / repRecent.length) * 100;
+      if (closeRate < 50) {
+        reasons.push({ key: "proposalClose60", label: `${Math.round(closeRate)}% proposals closed · last 60d`, severity: 50 - closeRate });
+      }
+    }
+    if (reasons.length === 0) continue;
+    const severity = reasons.reduce((s, r) => s + r.severity, 0);
+    actionItems.push({
+      id: rep.id,
+      kind: "rep_flag",
+      repId: rep.id,
+      name: rep.name,
+      primary: reasons[0].label,
+      reasons,
+      severity,
+      headline: `${rep.name} — ${reasons.map(r => r.label).join(" · ")}`,
+      cta: "Open rep profile",
+      navTo: { page: "performance", params: { dept: "Sales", teamFilter: rep.id } },
+    });
+  }
+  actionItems.sort((a, b) => b.severity - a.severity);
+
+  // Wins — closed deals in the period, top 5 by amount. Used by the Wins
+  // panel on Performance > Sales and the Monday briefing callout.
+  const wins = closedInRange
+    .map(s => ({
+      id: s.id,
+      clientId: s.clientId || s.client_id,
+      amount: Number(s.amount) || 0,
+      closedAt: s.closedAt || s.closed_at || s.date,
+      repId: s.repId || s.rep_id,
+      label: (clients || []).find(c => c.id === (s.clientId || s.client_id))?.name || "Client",
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+
+  // Top performer — non-action callout for when no rep is flagged
+  const topRep = perRep[0] || null;
+
   return {
     leadToClosePct,
     leadsInRange: leadsInRange.length,
@@ -127,6 +182,9 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
     retention60: retention(60),
     retention90: retention(90),
     perRep,
+    actionItems,
+    wins,
+    topRep,
   };
 }
 
@@ -174,12 +232,55 @@ function buildEditorialMetrics({ stories, issues, team, range, teamFilter }) {
     };
   });
 
+  // Action items — every behind-pace story across every in-window issue,
+  // ranked by severity (most negative proximityScore first). Cycling card
+  // walks through one at a time, so every concurrent issue gets airtime.
+  const scoredWithStory = scopeStories
+    .map(story => {
+      const issue = issueById.get(story.issueId || story.issue_id);
+      const score = scoreItem("editorial", story, issue);
+      if (!score) return null;
+      return { ...score, story, issue };
+    })
+    .filter(Boolean);
+
+  const actionItems = scoredWithStory
+    .filter(s => !s.onTrack)
+    .sort((a, b) => a.proximityScore - b.proximityScore)
+    .slice(0, 20)
+    .map(s => ({
+      id: s.id,
+      kind: "story_behind",
+      title: s.story.title || "Untitled story",
+      author: s.story.author || s.story.assigneeName || "Unassigned",
+      issue: s.issue?.label || "",
+      pubId: s.issue?.pubId || s.issue?.pub_id,
+      status: s.status,
+      proximityScore: Math.round(s.proximityScore),
+      severity: -s.proximityScore,
+      headline: `${s.story.title || "Untitled"} — ${Math.round(s.proximityScore)}pts behind · ${s.issue?.label || ""}`,
+      cta: "Open story",
+      navTo: { page: "editorial", params: { storyId: s.story.id } },
+    }));
+
+  // Wins — stories moved to On Page / Sent to Web during the period
+  const wins = scopeStories
+    .filter(s => ["On Page", "Sent to Web", "Approved"].includes(s.status))
+    .slice(0, 5)
+    .map(s => ({
+      id: s.id,
+      label: s.title || "Untitled",
+      sub: `${s.author || ""} · ${issueById.get(s.issueId || s.issue_id)?.label || ""}`,
+    }));
+
   return {
     ...aggregate,
     scored,
     stories: scopeStories,
     issuesInRange,
     perEditor,
+    actionItems,
+    wins,
   };
 }
 
@@ -232,27 +333,117 @@ function buildProductionMetrics({ stories, adProjects, issues, team, range, team
     };
   });
 
+  // Action items — pull the worst ads AND the worst layout stories into
+  // one stream so the dashboard can cycle across both lanes. Billable-
+  // threshold revisions (≥3 rounds) jump to the top regardless of proximity.
+  const layoutScoredWithStory = scopeLayout
+    .map(story => {
+      const issue = issueById.get(story.issueId || story.issue_id);
+      const score = scoreItem("editorial", story, issue);
+      if (!score) return null;
+      return { ...score, story, issue };
+    })
+    .filter(Boolean);
+  const adScoredWithItem = scopeAds
+    .map(ad => {
+      const issue = issueById.get(ad.issueId || ad.issue_id);
+      const score = scoreItem("ad", ad, issue);
+      if (!score) return null;
+      return { ...score, ad, issue };
+    })
+    .filter(Boolean);
+
+  const layoutActions = layoutScoredWithStory
+    .filter(s => !s.onTrack)
+    .map(s => ({
+      id: s.id,
+      kind: "layout_behind",
+      title: s.story.title || "Untitled",
+      issue: s.issue?.label || "",
+      pubId: s.issue?.pubId || s.issue?.pub_id,
+      proximityScore: Math.round(s.proximityScore),
+      severity: -s.proximityScore,
+      headline: `${s.story.title || "Untitled"} — layout ${Math.round(s.proximityScore)}pts behind · ${s.issue?.label || ""}`,
+      cta: "Open in flatplan",
+      navTo: { page: "flatplan", params: { storyId: s.story.id } },
+    }));
+
+  const adActions = adScoredWithItem.map(s => {
+    const revCount = s.ad.revisionCount || s.ad.revision_count || 0;
+    const isBillable = revCount >= 3;
+    const off = !s.onTrack;
+    if (!isBillable && !off) return null;
+    // Billable revisions always jump priority (+1000 severity)
+    const severity = (isBillable ? 1000 : 0) + Math.max(0, -s.proximityScore);
+    const headline = isBillable
+      ? `${s.ad.clientName || s.ad.title || "Ad"} — round ${revCount} revisions (billable) · ${s.issue?.label || ""}`
+      : `${s.ad.clientName || s.ad.title || "Ad"} — ${Math.round(s.proximityScore)}pts behind · ${s.issue?.label || ""}`;
+    return {
+      id: s.ad.id,
+      kind: isBillable ? "ad_billable_revisions" : "ad_behind",
+      title: s.ad.clientName || s.ad.title || "Ad project",
+      issue: s.issue?.label || "",
+      pubId: s.issue?.pubId || s.issue?.pub_id,
+      revisionCount: revCount,
+      proximityScore: Math.round(s.proximityScore),
+      severity,
+      headline,
+      cta: "Open ad project",
+      navTo: { page: "adprojects", params: { adId: s.ad.id } },
+    };
+  }).filter(Boolean);
+
+  const actionItems = [...adActions, ...layoutActions]
+    .sort((a, b) => b.severity - a.severity)
+    .slice(0, 20);
+
+  // Wins — recently placed ads and On-Page stories
+  const wins = [
+    ...adScoredWithItem
+      .filter(s => s.ad.status === "placed" || s.ad.status === "signed_off")
+      .slice(0, 3)
+      .map(s => ({ id: s.ad.id, label: s.ad.clientName || s.ad.title || "Ad", sub: `Placed · ${s.issue?.label || ""}` })),
+    ...layoutScoredWithStory
+      .filter(s => s.story.status === "On Page" || s.story.status === "Sent to Web")
+      .slice(0, 2)
+      .map(s => ({ id: s.story.id, label: s.story.title || "Story", sub: `On page · ${s.issue?.label || ""}` })),
+  ];
+
   return {
     layout: { ...layoutAgg, items: scopeLayout },
     ads: { ...adAgg, items: scopeAds, avgRevisions, revisionTotal },
     perDesigner,
     issuesInRange,
+    actionItems,
+    wins,
   };
 }
 
 // ─── ADMIN ──────────────────────────────────────────────────
-async function buildAdminMetrics({ range, teamFilter }) {
-  // Tickets + subscribers live in service_tickets / subscribers tables.
-  // Pulled live because they're not always in the app's preloaded state.
-  const [ticketRes, commentRes, subsRes] = await Promise.all([
-    supabase.from("service_tickets").select("id, status, assigned_to, first_response_at, resolved_at, created_at"),
+// Admin is a comms-first surface: the Office Administrator passes work TO
+// the publisher (escalations, signoffs, flagged clients). We pull team_notes
+// addressed to the publisher alongside the ticket/subscriber metrics so the
+// card can cycle through "what the admin needs from you" items, not just
+// raw KPIs.
+async function buildAdminMetrics({ range, teamFilter, publisherId }) {
+  const [ticketRes, commentRes, subsRes, notesRes] = await Promise.all([
+    supabase.from("service_tickets").select("id, subject, status, assigned_to, escalated_to, first_response_at, resolved_at, created_at, client_id"),
     supabase.from("ticket_comments").select("ticket_id, author_id, is_internal, created_at").order("created_at", { ascending: true }),
     supabase.from("subscribers").select("id, status, created_at, renewal_date, expiry_date, amount_paid"),
+    publisherId
+      ? supabase.from("team_notes")
+          .select("id, from_user, to_user, message, is_read, context_type, context_id, created_at")
+          .eq("to_user", publisherId)
+          .is("is_read", false)
+          .order("created_at", { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const tickets = ticketRes.data || [];
   const comments = commentRes.data || [];
   const subs = subsRes.data || [];
+  const unreadNotes = notesRes.data || [];
 
   // First response: use column when set, otherwise fall back to first
   // non-internal comment's created_at.
@@ -315,6 +506,64 @@ async function buildAdminMetrics({ range, teamFilter }) {
     .filter(s => inRange(s.created_at, range))
     .reduce((sum, s) => sum + (Number(s.amount_paid) || 0), 0);
 
+  // Action items — comms-first, not metrics-first. Ordered:
+  //   1. Unread team_notes addressed to the publisher (admin asks)
+  //   2. Escalated tickets (tickets with escalated_to set)
+  //   3. Open tickets past target (> 48h unresolved)
+  // Each item links to ServiceDesk or the message thread.
+  const actionItems = [];
+
+  for (const note of unreadNotes) {
+    actionItems.push({
+      id: note.id,
+      kind: "admin_message",
+      headline: note.message?.slice(0, 120) || "New message from admin",
+      severity: 1000 - (Date.now() - new Date(note.created_at).getTime()) / 86400000,
+      cta: "Reply",
+      navTo: { page: "messaging", params: { fromUser: note.from_user } },
+    });
+  }
+
+  const escalated = tickets.filter(t => t.escalated_to && t.status !== "resolved" && t.status !== "closed");
+  for (const t of escalated) {
+    actionItems.push({
+      id: t.id,
+      kind: "escalated_ticket",
+      headline: `Escalated: ${t.subject || "Service ticket"}`,
+      severity: 500 + (Date.now() - new Date(t.created_at).getTime()) / 3600000,
+      cta: "Open ticket",
+      navTo: { page: "servicedesk", params: { ticketId: t.id } },
+    });
+  }
+
+  const staleOpen = tickets.filter(t => {
+    if (t.status === "resolved" || t.status === "closed") return false;
+    const age = (Date.now() - new Date(t.created_at).getTime()) / 3600000;
+    return age > 48;
+  }).slice(0, 10);
+  for (const t of staleOpen) {
+    const hours = Math.round((Date.now() - new Date(t.created_at).getTime()) / 3600000);
+    actionItems.push({
+      id: t.id,
+      kind: "stale_ticket",
+      headline: `${hours}h open: ${t.subject || "Service ticket"}`,
+      severity: hours,
+      cta: "Open ticket",
+      navTo: { page: "servicedesk", params: { ticketId: t.id } },
+    });
+  }
+
+  actionItems.sort((a, b) => b.severity - a.severity);
+
+  // Wins — tickets resolved under target + net positive subs
+  const underSla = closedInRange.filter(t => {
+    if (!t.resolved_at || !t.created_at) return false;
+    return (new Date(t.resolved_at) - new Date(t.created_at)) / 3600000 <= 48;
+  }).length;
+  const wins = [];
+  if (underSla > 0) wins.push({ id: "sla-cleared", label: `${underSla} tickets resolved inside 48h`, sub: "Under target" });
+  if (netSubs > 0) wins.push({ id: "net-subs", label: `+${netSubs} subscribers net`, sub: `${newSubs} new, ${cancelledInRange} lost` });
+
   return {
     avgFirstResponseHours,
     avgResolutionHours,
@@ -327,6 +576,10 @@ async function buildAdminMetrics({ range, teamFilter }) {
     churnRate,
     renewalRate,
     subRevenue,
+    actionItems,
+    wins,
+    unreadNoteCount: unreadNotes.length,
+    escalatedCount: escalated.length,
   };
 }
 
@@ -342,6 +595,7 @@ export function usePerformanceData({
   issues = [],
   adProjects = [],
   team = [],
+  publisherId = null,
 }) {
   const range = useMemo(() => rangeForPreset(preset, customStart, customEnd), [preset, customStart, customEnd]);
 
@@ -366,12 +620,40 @@ export function usePerformanceData({
   useEffect(() => {
     let cancelled = false;
     setAdminLoading(true);
-    buildAdminMetrics({ range, teamFilter })
+    buildAdminMetrics({ range, teamFilter, publisherId })
       .then(result => { if (!cancelled) setAdminMetrics(result); })
       .catch(err => { console.error("admin metrics failed:", err); if (!cancelled) setAdminMetrics(null); })
       .finally(() => { if (!cancelled) setAdminLoading(false); });
     return () => { cancelled = true; };
-  }, [range, teamFilter]);
+  }, [range, teamFilter, publisherId]);
+
+  // Single-source heat scores the dashboard + ambient layer can read.
+  // 0 = calm, 100 = on fire. Matches the spec color thresholds inverted
+  // so "100 − onTrackPct" maps big-behind = hot.
+  const heatScores = useMemo(() => {
+    const salesHeat = Math.max(0, Math.min(100, 100 - (salesMetrics.leadToClosePct || 0)));
+    const edHeat = Math.max(0, Math.min(100, 100 - (editorialMetrics.onTrackPct || 0)));
+    const layoutPct = productionMetrics.layout?.onTrackPct || 0;
+    const adsPct = productionMetrics.ads?.onTrackPct || 0;
+    const prodHeat = Math.max(0, Math.min(100, 100 - Math.min(layoutPct, adsPct || layoutPct || 0)));
+    const adminHeatRaw = adminMetrics
+      ? Math.max(
+          (adminMetrics.avgFirstResponseHours || 0) > 1 ? ((adminMetrics.avgFirstResponseHours - 1) * 20) : 0,
+          (adminMetrics.churnRate || 0) * 10,
+          (adminMetrics.unreadNoteCount || 0) * 15,
+          (adminMetrics.escalatedCount || 0) * 25
+        )
+      : 0;
+    const adminHeat = Math.max(0, Math.min(100, adminHeatRaw));
+    return { sales: salesHeat, editorial: edHeat, production: prodHeat, admin: adminHeat };
+  }, [salesMetrics, editorialMetrics, productionMetrics, adminMetrics]);
+
+  // Global pressure = weighted-max so one hot dept tints the whole room.
+  const globalPressure = useMemo(() => {
+    const vals = Object.values(heatScores);
+    if (vals.length === 0) return 0;
+    return Math.max(...vals);
+  }, [heatScores]);
 
   return {
     range,
@@ -380,5 +662,7 @@ export function usePerformanceData({
     production: productionMetrics,
     admin: adminMetrics,
     adminLoading,
+    heatScores,
+    globalPressure,
   };
 }
