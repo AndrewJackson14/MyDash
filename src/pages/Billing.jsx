@@ -482,6 +482,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         invoice: inv,
         clientName: client?.name || "",
         clientCode: client?.clientCode || "",
+        billingAddress: {
+          line1: client?.billingAddress || client?.address || "",
+          line2: client?.billingAddress2 || "",
+          city: client?.billingCity || client?.city || "",
+          state: client?.billingState || client?.state || "",
+          zip: client?.billingZip || client?.zip || "",
+        },
       });
       try {
         await sendGmailEmail({

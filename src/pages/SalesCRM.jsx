@@ -54,7 +54,7 @@ const SalesCRM = (props) => {
   const [oppKitMsg, setOppKitMsg] = useState("");
   const [oppKitSent, setOppKitSent] = useState(false);
   const [ec, setEc] = useState(null);
-  const [cf, setCf] = useState({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""] });
+  const [cf, setCf] = useState({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" });
   const [viewClientId, setViewClientId] = useState(null);
   const [commForm, setCommForm] = useState({ type: "Comment", author: "Account Manager", note: "" });
   const [profFYear, setProfFYear] = useState("all");
@@ -214,17 +214,22 @@ const SalesCRM = (props) => {
     if (!cf.name) return;
     const cleanCc = (cf.billingCcEmails || []).map(e => (e || "").trim()).filter(Boolean).slice(0, 2);
     const billingEmail = (cf.billingEmail || "").trim() || null;
+    const billingAddress = (cf.billingAddress || "").trim() || null;
+    const billingAddress2 = (cf.billingAddress2 || "").trim() || null;
+    const billingCity = (cf.billingCity || "").trim() || null;
+    const billingState = (cf.billingState || "").trim() || null;
+    const billingZip = (cf.billingZip || "").trim() || null;
     if (ec) {
       // Edit existing client
       if (updateClient) {
-        await updateClient(ec.id, { name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc });
+        await updateClient(ec.id, { name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
       } else {
-        setClients(cl => cl.map(c => c.id === ec.id ? { ...c, name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc } : c));
+        setClients(cl => cl.map(c => c.id === ec.id ? { ...c, name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip } : c));
       }
     } else {
       // Create new client — persists to Supabase with real UUID
       if (insertClient) {
-        const newClient = await insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc });
+        const newClient = await insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
         if (newClient?.id) {
           logActivity(`New client: ${cf.name}`, "pipeline", newClient.id, cf.name);
           addNotif(`Client "${cf.name}" created`);
@@ -590,6 +595,13 @@ const SalesCRM = (props) => {
           invoice: mapped,
           clientName: client?.name || "",
           clientCode: client?.clientCode || "",
+          billingAddress: {
+            line1: client?.billingAddress || client?.address || "",
+            line2: client?.billingAddress2 || "",
+            city: client?.billingCity || client?.city || "",
+            state: client?.billingState || client?.state || "",
+            zip: client?.billingZip || client?.zip || "",
+          },
         });
         await sendGmailEmail({
           teamMemberId: currentUser?.id || null,
@@ -613,7 +625,7 @@ const SalesCRM = (props) => {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <PageHeader title="Sales">
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
-      {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""] }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
+      {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
       {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
       {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
@@ -766,7 +778,7 @@ const SalesCRM = (props) => {
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
     {tab === "Clients" && !viewClientId && clientView === "signals" && <ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} />}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
-    {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} invoices={invoices} payments={payments} team={props.team} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2) }); setCmo(true); }} />}
+    {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} invoices={invoices} payments={payments} team={props.team} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2), billingAddress: vc.billingAddress || "", billingAddress2: vc.billingAddress2 || "", billingCity: vc.billingCity || "", billingState: vc.billingState || "", billingZip: vc.billingZip || "" }); setCmo(true); }} />}
 
     {/* PROPOSALS */}
     {tab === "Proposals" && !viewPropId && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1195,6 +1207,16 @@ const SalesCRM = (props) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
             <Inp label="CC #1" type="email" value={(cf.billingCcEmails || ["", ""])[0] || ""} onChange={e => setCf(x => { const cc = [...((x.billingCcEmails || ["", ""]))]; cc[0] = e.target.value; return { ...x, billingCcEmails: cc }; })} placeholder="ap@company.com" />
             <Inp label="CC #2" type="email" value={(cf.billingCcEmails || ["", ""])[1] || ""} onChange={e => setCf(x => { const cc = [...((x.billingCcEmails || ["", ""]))]; cc[1] = e.target.value; return { ...x, billingCcEmails: cc }; })} placeholder="accountant@company.com" />
+          </div>
+          <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 12, marginBottom: 6, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5 }}>Billing Address (for the invoice template + mailed invoices)</div>
+          <Inp label="Street" value={cf.billingAddress || ""} onChange={e => setCf(x => ({ ...x, billingAddress: e.target.value }))} placeholder="123 Main St" />
+          <div style={{ marginTop: 8 }}>
+            <Inp label="Line 2 (Suite, Floor, ATTN)" value={cf.billingAddress2 || ""} onChange={e => setCf(x => ({ ...x, billingAddress2: e.target.value }))} placeholder="Attn: Accounts Payable" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 120px", gap: 10, marginTop: 8 }}>
+            <Inp label="City" value={cf.billingCity || ""} onChange={e => setCf(x => ({ ...x, billingCity: e.target.value }))} placeholder="Paso Robles" />
+            <Inp label="State" value={cf.billingState || ""} onChange={e => setCf(x => ({ ...x, billingState: e.target.value }))} placeholder="CA" maxLength={2} />
+            <Inp label="ZIP" value={cf.billingZip || ""} onChange={e => setCf(x => ({ ...x, billingZip: e.target.value }))} placeholder="93446" />
           </div>
         </div>
 

@@ -28,15 +28,31 @@ const COMPANY = {
  * @param {object} params.invoice - { invoiceNumber, issueDate, dueDate, total, balanceDue, status, lines }
  * @param {string} params.clientName
  * @param {string} params.clientCode - for portal link
+ * @param {object} params.billingAddress - { line1, line2, city, state, zip }
+ *                 Falls back to main address when billing address is blank.
  * @param {number} params.pastDueBalance - any carried-forward balance
  * @param {string} params.reminderLevel - null | 'first' | 'second' | 'final'
  * @param {string} params.portalUrl - override portal URL
  * @param {string} params.payUrl - override Stripe pay URL
  */
-export function generateInvoiceHtml({ invoice, clientName, clientCode = "", pastDueBalance = 0, reminderLevel = null, config = {}, portalUrl = "", payUrl = "" }) {
+export function generateInvoiceHtml({ invoice, clientName, clientCode = "", billingAddress = null, pastDueBalance = 0, reminderLevel = null, config = {}, portalUrl = "", payUrl = "" }) {
   const lines = invoice?.lines || [];
   const isOverdue = reminderLevel !== null;
   const accentColor = isOverdue ? RED : NAVY;
+
+  // Build the Bill To address block. Expect { line1, line2, city, state, zip }.
+  // Any blank field is dropped. Whole block is skipped when nothing is set.
+  const addrLines = [];
+  if (billingAddress) {
+    if (billingAddress.line1) addrLines.push(billingAddress.line1);
+    if (billingAddress.line2) addrLines.push(billingAddress.line2);
+    const cityState = [billingAddress.city, billingAddress.state].filter(Boolean).join(", ");
+    const cityLine = [cityState, billingAddress.zip].filter(Boolean).join(" ");
+    if (cityLine) addrLines.push(cityLine);
+  }
+  const addrHtml = addrLines.length
+    ? addrLines.map(l => `<div style="font-family:${SANS};font-size:12px;color:${GRAY};margin-top:2px">${l}</div>`).join("")
+    : "";
 
   const portalLink = portalUrl || "https://mydash.media/portal";
   const payLink = payUrl || (invoice?.invoiceNumber ? `https://mydash.media/pay/${invoice.invoiceNumber}` : "");
@@ -88,6 +104,7 @@ export function generateInvoiceHtml({ invoice, clientName, clientCode = "", past
         <td style="width:50%">
           <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};text-transform:uppercase">Bill To</div>
           <div style="font-family:${SANS};font-size:14px;font-weight:bold;color:${BLACK};margin-top:2px">${clientName}</div>
+          ${addrHtml}
         </td>
         <td style="width:25%">
           <div style="font-family:${SANS};font-size:11px;color:${GRAY_LT};text-transform:uppercase">Issue Date</div>

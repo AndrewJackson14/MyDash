@@ -226,6 +226,13 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       },
       clientName: client?.name || "",
       clientCode: client?.clientCode || client?.client_code || "",
+      billingAddress: {
+        line1: client?.billingAddress || client?.address || "",
+        line2: client?.billingAddress2 || "",
+        city: client?.billingCity || client?.city || "",
+        state: client?.billingState || client?.state || "",
+        zip: client?.billingZip || client?.zip || "",
+      },
     });
 
     const result = await sendGmailEmail({
