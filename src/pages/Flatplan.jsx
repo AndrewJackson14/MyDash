@@ -170,13 +170,11 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       // Create new invoice with sequential invoice number
       const clientName = clients.find(c => c.id === sale.clientId)?.name || "";
       const pubName = pubs.find(p => p.id === sale.publication)?.name || "";
-      const clientObj = clients.find(c => c.id === sale.clientId);
-      const clientCode = clientObj?.clientCode || clientObj?.client_code || "X0000";
-      const { data: invNum } = await supabase.rpc("next_invoice_number", { p_client_code: clientCode });
+      const { data: invNum } = await supabase.rpc("next_invoice_number");
       const net30 = new Date(); net30.setDate(net30.getDate() + 30);
       const { data: inv } = await supabase.from("invoices").insert({
         client_id: sale.clientId,
-        invoice_number: invNum || `${clientCode}-${Date.now()}`,
+        invoice_number: invNum || `13XX-${Date.now()}`,
         status: "draft",
         issue_date: today,
         due_date: net30.toISOString().slice(0, 10),

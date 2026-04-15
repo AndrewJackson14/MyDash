@@ -408,21 +408,19 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     }));
   };
 
-  const saveInvoice = () => {
+  const saveInvoice = async () => {
     if (!invForm.clientId || selectedLines.length === 0) return;
-    // New invoice number format: <client.invoicePrefix>-<13000 + next per-client seq>
-    // Fall back to the legacy INV-##### scheme only if a client somehow has no prefix.
-    const client = (clients || []).find(c => c.id === invForm.clientId);
+    // Invoice numbers are minted by the next_invoice_number() RPC so the
+    // format stays consistent with auto-generated invoices (Flatplan,
+    // generate_pending_invoices). Fallback only if the RPC is unreachable.
     let invNum;
-    if (client?.invoicePrefix) {
-      const existing = (invoices || []).filter(i => i.clientId === client.id);
-      const maxSeq = existing.reduce((m, i) => {
-        const match = /-(\d{5})$/.exec(i.invoiceNumber || "");
-        return match ? Math.max(m, parseInt(match[1], 10)) : m;
-      }, 13000);
-      invNum = `${client.invoicePrefix}-${maxSeq + 1}`;
-    } else {
-      invNum = `INV-${String((invoices?.length || 0) + 1001).padStart(5, "0")}`;
+    try {
+      const { data, error } = await supabase.rpc("next_invoice_number");
+      if (error) throw error;
+      invNum = data;
+    } catch (err) {
+      console.error("next_invoice_number RPC failed:", err);
+      invNum = `13XX-${String((invoices?.length || 0) + 13001).padStart(5, "0")}`;
     }
     const monthly = invForm.billingSchedule === "monthly_plan" && invForm.planMonths > 0
       ? Math.round((invTotal / invForm.planMonths) * 100) / 100 : 0;
