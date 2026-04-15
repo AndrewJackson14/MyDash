@@ -155,9 +155,16 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   }, [story.id]);
 
   // ── Load categories for selected publications ───────────────
+  // Order by sort_order so the publication's intended ordering wins
+  // (e.g. Featured first for magazines), falling back to alphabetical
+  // for any category that shares a sort_order.
   useEffect(() => {
     if (!selectedPubs.length) { setCategories([]); return; }
-    supabase.from("categories").select("id, name, slug, publication_id").in("publication_id", selectedPubs).order("name")
+    supabase.from("categories")
+      .select("id, name, slug, publication_id, sort_order")
+      .in("publication_id", selectedPubs)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("name")
       .then(({ data }) => { if (data) setCategories(data); });
   }, [selectedPubs.join(",")]);
 
