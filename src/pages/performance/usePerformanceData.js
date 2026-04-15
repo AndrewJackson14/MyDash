@@ -223,9 +223,14 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter, adInquirie
 
 // ─── EDITORIAL ──────────────────────────────────────────────
 function buildEditorialMetrics({ stories, issues, team, range, teamFilter }) {
-  // Story "status" uses the Editorial stage enum. We only score stories
-  // inside an issue whose ed_deadline sits anywhere in or before range.end
-  // and ispublishing forward of range.start.
+  // New 4-value status model: Draft | Edit | Ready | Archived.
+  // Editorial metrics measure progress TOWARD Ready — stories that
+  // are already Ready and have shipped (sent_to_web or sent_to_print)
+  // are excluded from the denominator because the editorial work is
+  // done. Archived stories are likewise excluded.
+  //
+  // Only stories linked to an in-window issue count. Magazine and
+  // newspaper issues are both handled now that issues is unified.
   const issuesInRange = (issues || []).filter(iss => {
     const ed = iss.edDeadline || iss.ed_deadline;
     if (!ed) return false;
@@ -238,6 +243,10 @@ function buildEditorialMetrics({ stories, issues, team, range, teamFilter }) {
     if (teamFilter !== "all") {
       if (s.assigneeId !== teamFilter && s.author !== teamFilter && s.editorId !== teamFilter) return false;
     }
+    if (s.status === "Archived") return false;
+    // Stories fully shipped to both channels no longer need editorial
+    // attention — they've left the editorial workflow.
+    if (s.status === "Ready" && (s.sent_to_web || s.sentToWeb) && (s.sent_to_print || s.sentToPrint)) return false;
     return issueById.has(s.issueId || s.issue_id);
   });
 

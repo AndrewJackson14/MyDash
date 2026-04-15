@@ -16,7 +16,11 @@ import { daysUntil } from "../lib/formatters";
 // props passed in.
 // ============================================================
 
-const STORY_STAGE_PCT = { Draft: 0, "Needs Editing": 0.33, Edited: 0.33, Approved: 0.66, "On Page": 1, Published: 1, "Sent to Web": 1 };
+// Editorial percent-complete by stage. Single-source model: Ready is
+// editorial done regardless of where it goes next (web/print). A story
+// that's already sent_to_web or sent_to_print is 1.0 regardless of
+// status — the caller handles that case.
+const STORY_STAGE_PCT = { Draft: 0, Edit: 0.5, Ready: 1, Archived: 0 };
 
 const actInfo = (act) => {
   if (!act) return null;
@@ -108,7 +112,7 @@ export function useSignalFeed({
       }
       if (iss.edDeadline && iss.edDeadline >= today && iss.edDeadline <= cutoff48h) {
         const d = daysUntil(iss.edDeadline);
-        const editingCount = _stories.filter(s => s.publication === iss.pubId && ["Needs Editing", "Draft"].includes(s.status)).length;
+        const editingCount = _stories.filter(s => s.publication === iss.pubId && ["Draft", "Edit"].includes(s.status)).length;
         alerts.push({ id: "ed-" + iss.id, type: "ed", label: `Ed Deadline — ${pn(iss.pubId)} ${iss.label}${editingCount > 0 ? ` (${editingCount} still editing)` : ""}`, date: iss.edDeadline, days: d, color: d <= 1 ? Z.da : Z.wa });
       }
     });
@@ -132,7 +136,10 @@ export function useSignalFeed({
   const issueReadiness = useMemo(() => weeklyNewspapers.map(pub => {
     const nextIssue = _issues.filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
     if (!nextIssue) return { pub, issue: null, daysOut: 999, editorialPct: 0, adPct: 0, blended: 0 };
-    const assignedStories = _stories.filter(s => s.issueId === nextIssue.id || (s.publication === pub.id && s.status !== "Published"));
+    // "Assigned" = tied to the next issue, OR belonging to this pub and
+    // not yet live on either channel. Under the new model, "not live"
+    // means no sent_to_web and no sent_to_print.
+    const assignedStories = _stories.filter(s => s.issueId === nextIssue.id || (s.publication === pub.id && !(s.sent_to_web || s.sentToWeb) && !(s.sent_to_print || s.sentToPrint)));
     const editorialPct = assignedStories.length > 0 ? Math.round(assignedStories.reduce((s, st) => s + (STORY_STAGE_PCT[st.status] || 0), 0) / assignedStories.length * 100) : 0;
     const issSales = _sales.filter(s => s.issueId === nextIssue.id && s.status === "Closed");
     const totalAds = issSales.length;
@@ -243,7 +250,7 @@ export function useSignalFeed({
       const np = pubMap[nearestIssue.pubId];
       const ns = Math.floor((np?.pageCount || 24) * 0.4);
       const sold = _sales.filter(s => s.issueId === nearestIssue.id && s.status === "Closed").length;
-      const ne = _stories.filter(s => s.publication === nearestIssue.pubId && ["Needs Editing", "Draft"].includes(s.status)).length;
+      const ne = _stories.filter(s => s.publication === nearestIssue.pubId && ["Draft", "Edit"].includes(s.status)).length;
       const os = Math.max(0, ns - sold);
       items.push({ id: "fi-pub", title: `${np?.name} ${nearestIssue.label} — ${daysUntil(nearestIssue.date)}d to publish`, sub: `${os > 0 ? os + " open ad slots" : "Ads full"}${ne > 0 ? " · " + ne + " stories in editing" : ""}`, action: "Review", issueId: nearestIssue.id, dept: "production", priority: 1 });
     }
@@ -252,7 +259,10 @@ export function useSignalFeed({
       const ai = actInfo(topDeal.nextAction);
       items.push({ id: "fi-deal", title: `${ai?.label || "Follow up"} — ${cn(topDeal.clientId)}`, sub: `${(topDeal.amount || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} deal value`, action: "Go to deal", page: "sales", dept: "sales", priority: 2 });
     }
-    const reviewStory = _stories.filter(s => s.status === "Edited" || s.status === "Needs Editing").sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"))[0];
+    // "Review needed" = anything sitting in Edit. Under the single-source
+    // model there's no distinction between 'Needs Editing' vs 'Edited';
+    // an editor owns it until it moves to Ready.
+    const reviewStory = _stories.filter(s => s.status === "Edit").sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"))[0];
     if (reviewStory) items.push({ id: "fi-story", title: `Review "${reviewStory.title}"`, sub: `${reviewStory.author} · ${pn(reviewStory.publication)} · ${reviewStory.status}`, action: "Editorial", page: "editorial", dept: "editorial", priority: 3 });
     if (overdueBalance > 0) {
       items.push({ id: "fi-overdue", title: `${overdueInvCount} invoice${overdueInvCount > 1 ? "s" : ""} 60+ days past due — ${overdueBalance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`, sub: "Escalate collections", action: "Billing", page: "billing", dept: "admin", priority: 2 });
@@ -268,7 +278,12 @@ export function useSignalFeed({
     const isSales = ["Sales Manager", "Salesperson"].includes(t.role);
     const myClientIds = new Set(_clients.filter(c => c.repId === t.id).map(c => c.id));
     const md = isSales ? _sales.filter(s => myClientIds.has(s.clientId) && !["Closed", "Follow-up"].includes(s.status)) : [];
-    const ms = _stories.filter(s => s.author === t.name && !["On Page", "Sent to Web"].includes(s.status));
+    // In-progress stories for this editor = anything they own that
+    // isn't yet fully shipped to every channel it targets. Under the
+    // new model "still in play" means not both flags set (if it's a
+    // dual-channel story) or not the one flag set (if single-channel).
+    // Simplest honest rule: status != 'Ready' OR neither flag is true.
+    const ms = _stories.filter(s => s.author === t.name && (s.status !== "Ready" || !((s.sent_to_web || s.sentToWeb) || (s.sent_to_print || s.sentToPrint))));
     const od = md.filter(s => s.nextActionDate && s.nextActionDate < today);
     const ss = ms.filter(s => s.dueDate && s.dueDate < today);
     const needsDirection = od.length > 0 || ss.length > 0;
@@ -318,7 +333,7 @@ export function useSignalFeed({
     const salesHeat = Math.min(100, Math.round(salesGapAvg + deptItems.sales.filter(i => i.priority <= 1).length * 15));
 
     // Editorial: stories stuck + deadline pressure
-    const stuckStories = _stories.filter(s => ["Needs Editing", "Draft"].includes(s.status)).length;
+    const stuckStories = _stories.filter(s => ["Draft", "Edit"].includes(s.status)).length;
     const editDeadlines = deadlineAlerts.filter(a => a.type === "ed").length;
     const edHeat = Math.min(100, stuckStories * 5 + editDeadlines * 20);
 

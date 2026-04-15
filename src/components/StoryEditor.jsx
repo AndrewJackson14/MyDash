@@ -15,12 +15,11 @@ import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
 
 // ── Constants ────────────────────────────────────────────────────
-const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "On Page", "Approved"];
-const STAGE_TO_STATUS = { "Draft": "Draft", "Edit": "Needs Editing", "Ready": "Approved", "On Page": "On Page", "Approved": "Approved" };
-const STATUS_TO_STAGE = {}; Object.entries(STAGE_TO_STATUS).forEach(([k, v]) => { if (!STATUS_TO_STAGE[v]) STATUS_TO_STAGE[v] = k; });
-STATUS_TO_STAGE["Edited"] = "Edit";
-STATUS_TO_STAGE["Needs Editing"] = "Edit";
-STATUS_TO_STAGE["On Page"] = "On Page";
+// Single-source status model: Draft → Edit → Ready → Archived.
+// Destination flags (sent_to_web / sent_to_print) track where it shipped.
+const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "Archived"];
+const STAGE_TO_STATUS = { "Draft": "Draft", "Edit": "Edit", "Ready": "Ready", "Archived": "Archived" };
+const STATUS_TO_STAGE = { Draft: "Draft", Edit: "Edit", Ready: "Ready", Archived: "Archived" };
 const STORY_TYPES = [
   { key: "article", label: "Article" }, { key: "column", label: "Column" },
   { key: "letter", label: "Letter to Editor" }, { key: "obituary", label: "Obituary" },
@@ -295,8 +294,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
   const publishToWeb = async () => {
     setPreflightOpen(false);
+    // Single-source model: Ready + sent_to_web=true is "live on web".
+    // The sync trigger will mirror sent_to_web into the legacy
+    // web_status column for any StellarPress consumer still reading it.
     const u = {
-      web_status: "published", status: "Published",
+      status: "Ready",
+      sent_to_web: true,
       published_at: meta.published_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -377,7 +380,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const wordCount = editor ? (editor.getText().trim() ? editor.getText().trim().split(/\s+/).length : 0) : 0;
   const needsRepublish = meta.published_at && meta.last_significant_edit_at && new Date(meta.last_significant_edit_at) > new Date(meta.published_at);
   const currentStage = getStage(meta.status);
-  const isPublished = meta.status === "Published" || meta.status === "Sent to Web";
+  const isPublished = !!(meta.sent_to_web || meta.sentToWeb || meta.sent_to_print || meta.sentToPrint);
 
   useEffect(() => { return () => { if (saveTimer.current) clearTimeout(saveTimer.current); }; }, []);
 
@@ -474,7 +477,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
                 <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>{"\u2713"} Live on Web</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <Btn sm onClick={republishToWeb} style={{ flex: 1 }}>{"\u21bb"} Update Live</Btn>
-                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Ready", sent_to_web: false })); onUpdate(story.id, { status: "Ready", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
             ) : needsRepublish ? (
@@ -482,7 +485,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
                 <div style={{ fontSize: 10, fontWeight: 700, color: Z.wa, fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <Btn sm onClick={republishToWeb} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{"\u21bb"} Republish</Btn>
-                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Approved", web_status: "unpublished", sent_to_web: false })); onUpdate(story.id, { status: "Approved", web_status: "unpublished", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
+                  <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Ready", sent_to_web: false })); onUpdate(story.id, { status: "Ready", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
             ) : currentStage === "Ready" && !webApproved ? (
@@ -667,8 +670,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             </div>
           </div>
 
-          {/* Social Media Posts */}
-          {["Approved", "On Page", "Published", "Sent to Web"].includes(meta.status) && (() => {
+          {/* Social Media Posts — only show once editorial is Ready */}
+          {meta.status === "Ready" && (() => {
             const PLATFORMS = { facebook: { label: "Facebook", limit: 500, color: "#1877F2" }, instagram: { label: "Instagram", limit: 2200, color: "#E4405F" }, x: { label: "X", limit: 280, color: Z.tx } };
             if (socialLoading) return <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10, fontSize: FS.sm, color: Z.td }}>Loading social posts...</div>;
             return <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>

@@ -33,7 +33,10 @@ export const FREQ_MAP = { Weekly:7, "Bi-Weekly":14, "Semi-Monthly":15.2, Monthly
 export const COMPANY = { name: "13 Stars Media", tagline: "Making Communities Better Through Print.™", phone: "(805) 466-2585", sales: { name: "Dana McGraw", email: "dana@13stars.media", phone: "(805) 423-6740" } };
 
 export const MILESTONES = ["Scheduled", "In Progress", "Editing", "Proofing", "Packaged for Publishing"];
-export const STORY_STATUSES = ["Assigned", "Draft", "Needs Editing", "Edited", "Approved", "On Page", "Sent to Web"];
+// Single-source-of-truth story lifecycle. Publishing destinations
+// (web / print) are tracked via sent_to_web and sent_to_print booleans,
+// not via additional status values.
+export const STORY_STATUSES = ["Draft", "Edit", "Ready", "Archived"];
 export const CONTACT_ROLES = ["Business Owner", "Marketing Manager", "Art Director", "Accounts Payable", "Customer Service", "Other"];
 export const COMM_TYPES = ["Email", "Phone", "Text", "Comment"];
 export const COMM_AUTHORS = ["Account Manager", "Graphic Designer", "Publisher", "Editor"];

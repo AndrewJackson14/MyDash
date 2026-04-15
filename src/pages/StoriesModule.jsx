@@ -67,14 +67,14 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
       if (!await dialog.confirm(`Delete ${ids.length} stories permanently?`)) return;
       setStories(st => st.filter(s => !selectedIds.has(s.id)));
     } else if (action === "publish") {
-      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Published", sentToWeb: true, published_at: s.published_at || new Date().toISOString() } : s));
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Ready", sent_to_web: true, sentToWeb: true, published_at: s.published_at || new Date().toISOString() } : s));
     } else if (action === "unpublish") {
-      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Draft", sentToWeb: false } : s));
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Ready", sent_to_web: false, sentToWeb: false } : s));
     } else if (action === "review") {
-      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Needs Editing" } : s));
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Edit" } : s));
     } else if (action === "kill") {
       if (!await dialog.confirm(`Kill ${ids.length} stories?`)) return;
-      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Killed" } : s));
+      setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, status: "Archived" } : s));
     } else if (action === "featured_on") {
       setStories(st => st.map(s => selectedIds.has(s.id) ? { ...s, is_featured: true } : s));
     } else if (action === "featured_off") {

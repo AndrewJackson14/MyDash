@@ -9,20 +9,17 @@
 // elapsed". Positive = ahead of pace, negative = behind.
 // ============================================================
 
-// Editorial stage weights — Assigned → Draft → Edit → Ready own the
-// pre-production flow; On Page is a handoff marker once Production
-// takes over.
+// Editorial stage weights — the single-source-of-truth model uses a
+// 4-value status column: Draft → Edit → Ready → Archived. Publication
+// to web/print forks from Ready via the sent_to_web / sent_to_print
+// boolean flags, not via additional statuses. Ready = 100% complete
+// on the editorial side; the destination flags represent channel
+// hand-offs and are handled separately by the caller.
 export const EDITORIAL_STAGE_WEIGHTS = {
-  Assigned: 0,
-  Draft: 25,
-  "Needs Editing": 25,
+  Draft: 0,
   Edit: 50,
-  Editing: 50,
-  Edited: 60,
-  Ready: 75,
-  Approved: 80,
-  "On Page": 100,
-  "Sent to Web": 100,
+  Ready: 100,
+  Archived: 0,
 };
 
 // Ad lifecycle stage weights (from AdProjects.jsx)

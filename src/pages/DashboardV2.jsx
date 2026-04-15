@@ -284,7 +284,9 @@ const DashboardV2 = (props) => {
       body: `${p.clientName || "Client"} · ${p.title || ""}`,
     })));
     unsubs.push(bus.on("story.status", (p) => {
-      if (p.newStatus === "Sent to Web") fireWin(`story-${p.storyId}`, {
+      // Single-source model: "story is now live on web" fires whenever
+      // sent_to_web flips true OR the legacy event payload reports it.
+      if (p.sent_to_web === true || p.sentToWeb === true) fireWin(`story-${p.storyId}`, {
         kind: "story", emoji: "📰", title: "Story published",
         body: `"${p.title}" is live`,
       });
@@ -335,7 +337,10 @@ const DashboardV2 = (props) => {
     });
     channel.on("postgres_changes", { event: "UPDATE", schema: "public", table: "stories" }, (payload) => {
       const row = payload.new;
-      if (!row || row.status !== "Sent to Web") return;
+      const oldRow = payload.old;
+      // Fire only when sent_to_web flips from false to true — this
+      // is the single-source-of-truth signal that a story went live.
+      if (!row || !row.sent_to_web || (oldRow && oldRow.sent_to_web === true)) return;
       fireWin(`story-${row.id}`, {
         kind: "story", emoji: "📰", title: "Story published",
         body: `"${row.title}" is live`,
@@ -1412,8 +1417,10 @@ const DrillStat = ({ label, value, onClick }) => {
 // text. Still has a "Copy as text" escape hatch so the snapshot
 // can be pasted into Slack / email / a meeting.
 // ============================================================
-const STAGE_COLORS = { Draft: "#9CA3AF", "Needs Editing": "#EF4444", Edited: "#3B82F6", Approved: "#10B981", "On Page": "#6366F1" };
-const STAGE_ORDER = ["Draft", "Needs Editing", "Edited", "Approved", "On Page"];
+// Single-source editorial stages: Draft -> Edit -> Ready. Published-to-web
+// or sent-to-print is a flag, not a stage, so it doesn't appear here.
+const STAGE_COLORS = { Draft: "#9CA3AF", Edit: "#F59E0B", Ready: "#10B981" };
+const STAGE_ORDER = ["Draft", "Edit", "Ready"];
 
 const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose }) => {
   const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;

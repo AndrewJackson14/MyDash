@@ -414,6 +414,17 @@ export function DataProvider({ children, localData }) {
       dueDate: s.due_date,
       images: s.images, wordCount: s.word_count, category: s.category,
       issueId: s.issue_id || '',
+      // Destination flags — single source of truth for "is this live"
+      sent_to_web: s.sent_to_web === true,
+      sent_to_print: s.sent_to_print === true,
+      sentToWeb: s.sent_to_web === true,
+      sentToPrint: s.sent_to_print === true,
+      printPublishedAt: s.print_published_at || null,
+      publishedAt: s.published_at || null,
+      firstPublishedAt: s.first_published_at || null,
+      // Correction-after-publish alert
+      correctedAfterPublish: s.corrected_after_publish === true,
+      lastCorrectionAt: s.last_correction_at || null,
       createdAt: s.created_at, updatedAt: s.updated_at,
     })));
     setStoriesLoaded(true);
@@ -1080,32 +1091,36 @@ export function DataProvider({ children, localData }) {
     const categorySlug = category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const autoExcerpt = excerpt || (body ? body.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim().slice(0, 200) + '…' : '');
     const isScheduled = scheduledAt && new Date(scheduledAt) > new Date();
-    const status = isScheduled ? 'Scheduled' : 'Published';
-    // Only set published_at on first publish — preserve original date on re-publish
+    // Single-source status model: once editorial is done the story is
+    // "Ready". Scheduled vs Live is expressed through sent_to_web +
+    // scheduled_at, not through a separate status value.
     const existing = stories.find(s => s.id === id);
     const alreadyPublished = existing?.publishedAt || existing?.published_at;
     const publishedAt = isScheduled ? null : (alreadyPublished || new Date().toISOString());
 
     const changes = {
-      status, slug, body, excerpt: autoExcerpt,
+      status: 'Ready',
+      sent_to_web: !isScheduled,
+      slug, body, excerpt: autoExcerpt,
       category, category_slug: categorySlug,
       site_id: siteId, featured_image_url: featuredImageUrl || null,
       seo_title: seoTitle || title, seo_description: seoDescription || autoExcerpt,
       published_at: publishedAt, scheduled_at: scheduledAt || null,
-      sent_to_web: true,
     };
 
-    setStories(st => st.map(s => s.id === id ? { ...s, ...changes, sentToWeb: true } : s));
+    setStories(st => st.map(s => s.id === id ? { ...s, ...changes, sentToWeb: !isScheduled, sent_to_web: !isScheduled } : s));
     if (isOnline()) {
       await supabase.from('stories').update(changes).eq('id', id);
     }
-    return { slug, status };
+    return { slug, status: 'Ready', sent_to_web: !isScheduled };
   }, [stories]);
 
   const unpublishStory = useCallback(async (id) => {
-    setStories(st => st.map(s => s.id === id ? { ...s, status: 'Approved', sentToWeb: false } : s));
+    // Flip sent_to_web off but leave status at Ready — editorial is still
+    // done, just not currently on the web.
+    setStories(st => st.map(s => s.id === id ? { ...s, status: 'Ready', sentToWeb: false, sent_to_web: false } : s));
     if (isOnline()) {
-      await supabase.from('stories').update({ status: 'Approved', sent_to_web: false }).eq('id', id);
+      await supabase.from('stories').update({ status: 'Ready', sent_to_web: false }).eq('id', id);
     }
   }, []);
 

@@ -8,13 +8,25 @@ import StoryEditor from "./StoryEditor";
 import EditionManager from "../pages/EditionManager";
 
 // ── Editorial Workflow Constants ──────────────────────────────────
+// Single-source status model: Draft → Edit → Ready → (published via
+// sent_to_web / sent_to_print). The Published column reads from the
+// flags, not from a status value. See filterForStage() below.
 const KANBAN_COLS = [
-  { key: "idea", label: "Ideas", color: ACCENT.grey, statuses: ["Draft"] },
-  { key: "assigned", label: "Assigned", color: ACCENT.indigo, statuses: ["Needs Editing"] },
-  { key: "editing", label: "Editing", color: ACCENT.amber, statuses: ["Edited"] },
-  { key: "ready", label: "Ready", color: ACCENT.blue, statuses: ["Approved"] },
-  { key: "published", label: "Published", color: Z.su || "#22c55e", statuses: ["Published", "Sent to Web"] },
+  { key: "draft", label: "Draft", color: ACCENT.grey, statuses: ["Draft"] },
+  { key: "edit", label: "Edit", color: ACCENT.amber, statuses: ["Edit"] },
+  { key: "ready", label: "Ready", color: ACCENT.blue, statuses: ["Ready"], needsFlags: "unpublished" },
+  { key: "published", label: "Published", color: Z.su || "#22c55e", statuses: ["Ready"], needsFlags: "published" },
 ];
+
+// Filter a story list into a single kanban column. Handles the new
+// Ready-but-(un)published split via the needsFlags hint.
+const isPublished = (s) => !!(s.sent_to_web || s.sentToWeb || s.sent_to_print || s.sentToPrint);
+const filterForStage = (story, col) => {
+  if (!col.statuses.includes(story.status)) return false;
+  if (col.needsFlags === "published") return isPublished(story);
+  if (col.needsFlags === "unpublished") return !isPublished(story);
+  return true;
+};
 
 const PRINT_STAGES = [
   { key: "none", label: "Not Assigned" },
@@ -52,7 +64,7 @@ const needsRepublish = (story) => {
 
 // ── Story Card (used in kanban and lists) ────────────────────────
 const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
-  const webPublished = story.web_status === "published" || story.status === "Published" || story.status === "Sent to Web";
+  const webPublished = !!(story.sent_to_web || story.sentToWeb);
   const repubNeeded = needsRepublish(story);
   const pri = story.priority || "normal";
 
@@ -212,19 +224,23 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   }, [stories, fPub, fAssignee, sr]);
 
   // ── Group stories by kanban column ──────────────────────────
+  // Single-source rules: a story at Ready + no publish flags lives in
+  // the 'ready' column; Ready + sent_to_web/print lives in 'published'.
+  // Draft / Edit map directly by status. Published stories aged out of
+  // the 7-day window drop off the board entirely.
   const kanbanData = useMemo(() => {
     const cols = {};
     KANBAN_COLS.forEach(c => { cols[c.key] = []; });
     const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     filtered.forEach(s => {
       const status = s.status || "Draft";
-      // FIX #6: Auto-hide published stories older than 7 days from kanban
-      if ((status === "Published" || status === "Sent to Web") && s.published_at) {
-        if (new Date(s.published_at) < sevenDaysAgo) return; // skip — aged out
-      }
-      const col = KANBAN_COLS.find(c => c.statuses.includes(status));
+      const published = isPublished(s);
+      const pubAt = s.published_at || s.publishedAt || s.print_published_at || s.printPublishedAt;
+      if (published && pubAt && new Date(pubAt) < sevenDaysAgo) return; // aged out
+
+      const col = KANBAN_COLS.find(c => filterForStage(s, c));
       if (col) cols[col.key].push(s);
-      else cols["idea"].push(s);
+      else if (cols.draft) cols.draft.push(s);
     });
     return cols;
   }, [filtered]);
@@ -233,14 +249,21 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const handleDrop = useCallback((storyId, colKey) => {
     const col = KANBAN_COLS.find(c => c.key === colKey);
     if (!col) return;
-    const newStatus = col.statuses[0]; // Take first status in column
+    // The 'published' column sits on status=Ready + sent_to_web flag,
+    // not a separate status value. Every other column maps to its
+    // single status string directly.
+    const newStatus = col.statuses[0];
     setStories(prev => prev.map(s => {
       if (s.id !== storyId) return s;
       const updates = { ...s, status: newStatus };
-      // Auto-set web_status when moving to Published
-      if (colKey === "published" && s.web_status !== "published") {
-        updates.web_status = "published";
+      if (colKey === "published") {
+        updates.sent_to_web = true;
+        updates.sentToWeb = true;
         if (!updates.published_at) updates.published_at = new Date().toISOString();
+      } else if (colKey === "ready") {
+        // Moving back to Ready means unflipping any publish flags.
+        updates.sent_to_web = false;
+        updates.sentToWeb = false;
       }
       return updates;
     }));
@@ -302,8 +325,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
   const publishToWeb = (story) => {
     updateStory(story.id, {
-      web_status: "published",
-      status: "Published",
+      status: "Ready",
+      sent_to_web: true,
       published_at: story.published_at || new Date().toISOString(),
     });
     if (bus) bus.emit("story.published", { storyId: story.id, title: story.title });
@@ -326,7 +349,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const issueStories = useMemo(() => {
     if (!selIssue) return [];
     return stories
-      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || (s.status !== "Published" && s.status !== "Sent to Web")))
+      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || !isPublished(s)))
       .sort((a, b) => {
         const av = a[sortCol] || "", bv = b[sortCol] || "";
         const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
@@ -334,13 +357,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       });
   }, [stories, selIssue, showPublished, sortCol, sortDir]);
 
-  // ── Web queue: stories that need web action ─────────────────
+  // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
     return filtered
       .filter(s => {
-        const isReady = s.status === "Approved" || s.status === "Edited" || s.web_status === "ready";
+        const readyForWeb = s.status === "Ready" && !(s.sent_to_web || s.sentToWeb);
         const isRepub = needsRepublish(s);
-        return isReady || isRepub;
+        return readyForWeb || isRepub;
       })
       .sort((a, b) => {
         // Urgent/high priority first
@@ -366,16 +389,16 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     const todayStr = now.toISOString().slice(0, 10);
 
-    const needsEditCount = filtered.filter(s => s.status === "Needs Editing").length;
+    const needsEditCount = filtered.filter(s => s.status === "Edit").length;
     const dueThisWeek = filtered.filter(s => {
-      if (!s.due_date || s.status === "Published" || s.status === "Sent to Web") return false;
+      if (!s.due_date || isPublished(s)) return false;
       const d = new Date(s.due_date);
       return d <= weekFromNow;
     });
     const dueThisWeekCount = dueThisWeek.length;
     const hasOverdue = dueThisWeek.some(s => new Date(s.due_date) < now);
-    const readyForWebCount = filtered.filter(s => s.status === "Approved" && s.web_status !== "published").length;
-    const publishedThisWeekCount = filtered.filter(s => (s.status === "Published" || s.status === "Sent to Web") && s.published_at && new Date(s.published_at) >= weekAgo).length;
+    const readyForWebCount = filtered.filter(s => s.status === "Ready" && !(s.sent_to_web || s.sentToWeb)).length;
+    const publishedThisWeekCount = filtered.filter(s => (s.sent_to_web || s.sentToWeb) && s.published_at && new Date(s.published_at) >= weekAgo).length;
 
     return {
       needsEditCount,
