@@ -7,6 +7,7 @@ import AssetPanel from "../components/AssetPanel";
 import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
+import { useAppData } from "../hooks/useAppData";
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -21,14 +22,29 @@ const STATUSES = {
 
 const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"];
 
+// Columns for the Active-tab issue × status grid. needs_brief is a
+// synthetic column for closed sales that don't yet have an ad_project.
+const STATUS_COLS = ["needs_brief", "brief", "designing", "proof_sent", "revising", "approved"];
+
+// Non-display product types that Flatplan already excludes — these
+// don't need design work in the same sense.
+const EXCLUDED_SIZES = new Set([
+  "Calendar Listing", "Church Listing", "Legal Notice", "Classified", "Obituary",
+]);
+
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const dialog = useDialog();
+  // useAppData is now the source of truth for ad_projects. Local aliases
+  // keep the rest of this file readable — `projects` and `setProjects`
+  // still work as before but mutate shared state.
+  const { adProjects, setAdProjects, loadAdProjects, adProjectBySaleId } = useAppData();
+  const projects = adProjects;
+  const setProjects = setAdProjects;
   const [tab, setTab] = useState("Active");
-  const [projects, setProjects] = useState([]);
   const [proofs, setProofs] = useState([]);
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,11 +57,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const [heatmapFilter, setHeatmapFilter] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Create form
+  // Create form — _saleId is seeded when the user clicks a Needs Brief card
   const [form, setForm] = useState({
     clientId: "", publicationId: "", issueId: "", adSize: "",
     designNotes: "", designerId: "", clientContactName: "", clientContactEmail: "",
-    referenceAds: [],
+    referenceAds: [], _saleId: null,
   });
 
   // Proof upload form
@@ -57,25 +73,23 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   const designers = (team || []).filter(t => ["Graphic Designer", "Production Manager"].includes(t.role) && t.isActive !== false);
 
   // ── Load data ──────────────────────────────────────────
+  // ad_projects is loaded via useAppData (shared cache). Proofs + threads
+  // still live locally in this page for now — they're not yet shared state.
   useEffect(() => {
     if (!isOnline()) { setLoading(false); return; }
-    // Expire stale proofs first — any proof older than 7 days that hasn't
-    // been explicitly saved (saved_at IS NULL) gets dropped. Then we load
-    // the surviving list.
     const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
     supabase.from("ad_proofs").delete().is("saved_at", null).lt("created_at", cutoff).then(() => {
       Promise.all([
-        supabase.from("ad_projects").select("*").order("created_at", { ascending: false }),
+        loadAdProjects(),
         supabase.from("ad_proofs").select("*").order("version", { ascending: false }),
         supabase.from("message_threads").select("*").eq("type", "ad_project"),
-      ]).then(([projRes, proofRes, threadRes]) => {
-        if (projRes.data) setProjects(projRes.data);
+      ]).then(([_proj, proofRes, threadRes]) => {
         if (proofRes.data) setProofs(proofRes.data);
         if (threadRes.data) setThreads(threadRes.data);
         setLoading(false);
       });
     });
-  }, []);
+  }, [loadAdProjects]);
 
   // Save a proof (stamps saved_at so it's retained past the 7-day expiration).
   const saveProof = async (proofId) => {
@@ -111,8 +125,98 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     return list;
   }, [projects, tab, fPub, sr, clients, issues, today, cutoff30d]);
 
+  // ── Issue × Status grid (Active tab, board view) ───────
+  // Source of truth is SALES, not ad_projects. Every closed/follow-up sale
+  // for an upcoming issue becomes a card; its design state is an overlay
+  // pulled from adProjectBySaleId (or a synthetic 'needs_brief' state if
+  // no ad_project exists yet). Rows are issues, columns are statuses.
+  const gridData = useMemo(() => {
+    if (tab !== "Active") return [];
+    const pastCutoff = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    const futureCutoff = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+
+    const upcomingIssues = (issues || [])
+      .filter(i => i.date && i.date >= pastCutoff && i.date <= futureCutoff)
+      .filter(i => fPub === "all" || i.pubId === fPub)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const issueIndex = new Map(upcomingIssues.map(i => [i.id, i]));
+
+    const rows = upcomingIssues.map(iss => ({
+      issue: iss,
+      cells: Object.fromEntries(STATUS_COLS.map(c => [c, []])),
+    }));
+    const rowByIssueId = new Map(rows.map(r => [r.issue.id, r]));
+
+    const q = sr.trim().toLowerCase();
+    for (const s of (sales || [])) {
+      if (!s.issueId || !issueIndex.has(s.issueId)) continue;
+      if (!["Closed", "Follow-up"].includes(s.status)) continue;
+      if (EXCLUDED_SIZES.has(s.size)) continue;
+      if (q && !cn(s.clientId).toLowerCase().includes(q)) continue;
+
+      const project = adProjectBySaleId.get(s.id) || null;
+      let col;
+      if (!project) col = "needs_brief";
+      else if (project.status === "awaiting_art") col = "brief";
+      else if (STATUS_COLS.includes(project.status)) col = project.status;
+      else continue; // signed_off / placed fall out of Active view
+
+      const row = rowByIssueId.get(s.issueId);
+      if (row) row.cells[col].push({ sale: s, project });
+    }
+
+    // Drop empty rows so the grid only shows issues with real work.
+    return rows.filter(r => STATUS_COLS.some(c => r.cells[c].length > 0));
+  }, [tab, sales, issues, adProjectBySaleId, fPub, sr, clients]);
+
+  // Aggregates derived from the grid: stats bar counts + per-issue counts
+  // for the deadline heatmap. Kept close to gridData so they stay in sync.
+  const gridStats = useMemo(() => {
+    let inQueue = 0, inProgress = 0, proofsOut = 0, approved = 0, atRisk = 0;
+    const countByIssueId = new Map();
+    for (const row of gridData) {
+      const adDl = row.issue.adDeadline
+        ? Math.ceil((new Date(row.issue.adDeadline + "T12:00:00") - new Date()) / 86400000)
+        : 99;
+      const isUrgent = adDl <= 3;
+      let issueCount = 0;
+      for (const col of STATUS_COLS) {
+        const n = row.cells[col].length;
+        if (col === "needs_brief" || col === "brief") inQueue += n;
+        else if (col === "designing") inProgress += n;
+        else if (col === "proof_sent" || col === "revising") proofsOut += n;
+        else if (col === "approved") approved += n;
+        if (isUrgent && col !== "approved") atRisk += n;
+        if (col !== "approved") issueCount += n;
+      }
+      countByIssueId.set(row.issue.id, issueCount);
+    }
+    return { inQueue, inProgress, proofsOut, approved, atRisk, countByIssueId };
+  }, [gridData]);
+
+  // Flat list of { sale, project, issue, status } for the Active-tab list
+  // view. Same source data as gridData, just ungrouped.
+  const gridRows = useMemo(() => {
+    const rows = [];
+    for (const row of gridData) {
+      for (const col of STATUS_COLS) {
+        for (const entry of row.cells[col]) {
+          rows.push({ sale: entry.sale, project: entry.project, issue: row.issue, status: col });
+        }
+      }
+    }
+    return rows;
+  }, [gridData]);
+
   // ── Create project ─────────────────────────────────────
+  // Every ad_project must belong to a sale (migration 027 enforces this).
+  // The form carries _saleId, set when the user clicks a "Needs Brief"
+  // card. Block submission if it's missing.
   const createProject = async () => {
+    if (!form._saleId) {
+      await dialog.alert("This form needs a linked sale. Click a 'Needs Brief' card on the grid to start a project.");
+      return;
+    }
     if (!form.clientId || !form.publicationId) return;
     const clientSlug = cn(form.clientId).toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const assetPath = `clients/${clientSlug}/assets`;
@@ -124,6 +228,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     }).select().single();
 
     const { data: proj } = await supabase.from("ad_projects").insert({
+      sale_id: form._saleId,
       client_id: form.clientId, publication_id: form.publicationId,
       issue_id: form.issueId || null, ad_size: form.adSize,
       design_notes: form.designNotes, designer_id: form.designerId || null,
@@ -147,7 +252,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
       setViewId(proj.id);
     }
     setCreateModal(false);
-    setForm({ clientId: "", publicationId: "", issueId: "", adSize: "", designNotes: "", designerId: "", clientContactName: "", clientContactEmail: "", referenceAds: [] });
+    setForm({ clientId: "", publicationId: "", issueId: "", adSize: "", designNotes: "", designerId: "", clientContactName: "", clientContactEmail: "", referenceAds: [], _saleId: null });
   };
 
   // ── Upload proof ───────────────────────────────────────
@@ -497,7 +602,6 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     <PageHeader title="Design Studio">
       <SB value={sr} onChange={setSr} placeholder="Search clients..." />
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
-      <Btn sm onClick={() => setCreateModal(true)}><Ic.plus size={13} /> New Project</Btn>
     </PageHeader>
 
     {/* View toggle + tabs */}
@@ -514,13 +618,19 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
 
     /* ═══ STATS BAR ═══ */
     <><div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
-      {[
+      {(tab === "Active" ? [
+        { label: "In Queue", value: gridStats.inQueue, color: Z.tm },
+        { label: "In Progress", value: gridStats.inProgress, color: ACCENT.blue },
+        { label: "Proofs Out", value: gridStats.proofsOut, color: Z.wa },
+        { label: "Approved", value: gridStats.approved, color: Z.go },
+        { label: "At Risk", value: gridStats.atRisk, color: Z.da },
+      ] : [
         { label: "In Queue", value: filtered.filter(p => p.status === "brief" || p.status === "awaiting_art").length, color: Z.tm },
         { label: "In Progress", value: filtered.filter(p => p.status === "designing").length, color: ACCENT.blue },
         { label: "Proofs Out", value: filtered.filter(p => p.status === "proof_sent" || p.status === "revising").length, color: Z.wa },
         { label: "Approved", value: filtered.filter(p => p.status === "approved").length, color: Z.go },
         { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["approved", "signed_off", "placed"].includes(p.status); }).length, color: Z.da },
-      ].map(s => (
+      ]).map(s => (
         <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
           <span style={{ fontSize: 16, fontWeight: FW.black, color: s.value > 0 && s.label === "At Risk" ? Z.da : s.color }}>{s.value}</span>
@@ -550,7 +660,9 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
               <div style={{ display: "flex", gap: 6 }}>
                 {pubIssues.map(iss => {
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
-                  const count = filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
+                  const count = tab === "Active"
+                    ? (gridStats.countByIssueId.get(iss.id) || 0)
+                    : filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
                   const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#DC2626" : adDl <= 7 ? "#D97706" : "#16A34A";
                   const isActive = heatmapFilter?.pubId === pub.id && heatmapFilter?.issueId === iss.id;
                   return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: 26, height: 26, borderRadius: "50%", background: count > 0 ? dotColor : Z.sa, border: `2px solid ${isActive ? Z.tx : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: count > 0 ? "#fff" : Z.td, transition: "all 0.15s" }}>{count > 0 ? count : "·"}</div>;
@@ -566,8 +678,97 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
       </div>;
     })()}
 
-    {/* ═══ KANBAN BOARD ═══ */}
-    {view === "board" ? <div style={{ display: "grid", gridTemplateColumns: `repeat(${KANBAN_COLS.length}, 1fr)`, gap: 10, minHeight: 400 }}>
+    {/* ═══ ISSUE × STATUS GRID (Active tab, board view) ═══ */}
+    {view === "board" && tab === "Active" ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Column header row */}
+      <div style={{ display: "grid", gridTemplateColumns: `200px repeat(${STATUS_COLS.length}, 1fr)`, gap: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "8px 10px" }}>Issue</div>
+        {STATUS_COLS.map(col => {
+          const st = col === "needs_brief" ? { label: "Needs Brief", color: Z.tm } : STATUSES[col];
+          return (
+            <div key={col} style={{ padding: "6px 10px", background: st.color + "12", borderRadius: Ri, textAlign: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: st.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{st.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Issue rows */}
+      {gridData.length === 0 ? (
+        <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No upcoming issues with eligible ads</div>
+      ) : gridData.map(row => {
+        const iss = row.issue;
+        const pub = (pubs || []).find(p => p.id === iss.pubId);
+        const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
+        const urgColor = adDl <= 3 ? Z.da : adDl <= 7 ? Z.wa : Z.go;
+        return (
+          <div key={iss.id} style={{ display: "grid", gridTemplateColumns: `200px repeat(${STATUS_COLS.length}, 1fr)`, gap: 8, alignItems: "flex-start" }}>
+            {/* Issue label cell */}
+            <div style={{ padding: "8px 10px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, borderLeft: `3px solid ${urgColor}` }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub?.name || "\u2014"}</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.label || fmtDate(iss.date)}</div>
+              {adDl < 99 && <div style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor, marginTop: 3 }}>
+                {adDl < 0 ? `${Math.abs(adDl)}d overdue` : adDl === 0 ? "Due today" : `${adDl}d left`}
+              </div>}
+            </div>
+            {/* Status cells */}
+            {STATUS_COLS.map(col => {
+              const cards = row.cells[col];
+              return (
+                <div key={col} style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                  {cards.length === 0 ? (
+                    <div style={{ padding: "4px 0", textAlign: "center", color: Z.bd, fontSize: 11 }}>·</div>
+                  ) : cards.map(({ sale, project }) => {
+                    const isNeedsBrief = !project;
+                    const isUnassigned = project && !project.designer_id;
+                    return (
+                      <div
+                        key={sale.id}
+                        onClick={() => {
+                          if (isNeedsBrief) {
+                            setForm(f => ({
+                              ...f,
+                              clientId: sale.clientId || "",
+                              publicationId: sale.publicationId || "",
+                              issueId: sale.issueId || "",
+                              adSize: sale.size || "",
+                              _saleId: sale.id,
+                            }));
+                            setCreateModal(true);
+                          } else {
+                            setViewId(project.id);
+                          }
+                        }}
+                        style={{
+                          padding: "8px 10px",
+                          background: isNeedsBrief ? "transparent" : Z.bg,
+                          borderRadius: Ri,
+                          cursor: "pointer",
+                          border: isNeedsBrief
+                            ? `1.5px dashed ${Z.bd}`
+                            : isUnassigned
+                              ? `1.5px dashed #E24B4A80`
+                              : `1px solid ${Z.bd}`,
+                        }}
+                        title={isNeedsBrief ? "Click to start a design brief" : "Open project"}
+                      >
+                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(sale.clientId)}</div>
+                        <div style={{ fontSize: FS.xs, color: Z.tm }}>{sale.size || "Ad"}</div>
+                        {project?.designer_id && <div style={{ fontSize: 10, color: Z.td, marginTop: 2 }}>{tn(project.designer_id)?.split(" ")[0]}</div>}
+                        {isUnassigned && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da, marginTop: 2 }}>Unassigned</div>}
+                        {isNeedsBrief && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm, marginTop: 2 }}>Start brief →</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+
+    : view === "board" ? <div style={{ display: "grid", gridTemplateColumns: `repeat(${KANBAN_COLS.length}, 1fr)`, gap: 10, minHeight: 400 }}>
       {KANBAN_COLS.map(col => {
         const colProjects = filtered
           .filter(p => (p.status === col || (col === "brief" && p.status === "awaiting_art")))
@@ -625,28 +826,73 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
     </div>
 
     : /* ═══ LIST VIEW ═══ */
-    <DataTable>
-      <thead><tr>
-        {["Client", "Publication", "Issue", "Ad Size", "Art Source", "Designer", "Status", "Revisions", "Updated"].map(h => <th key={h}>{h}</th>)}
-      </tr></thead>
-      <tbody>
-        {filtered.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No ad projects</td></tr>
-        : filtered.map(p => {
-          const st = STATUSES[p.status] || STATUSES.brief;
-          return <tr key={p.id} onClick={() => setViewId(p.id)} style={{ cursor: "pointer" }}>
-            <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(p.client_id)}</td>
-            <td style={{ color: Z.tm }}>{pn(p.publication_id)}</td>
-            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.issue_id ? ((issues || []).find(i => i.id === p.issue_id)?.label || "—") : "—"}</td>
-            <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "—"}</td>
-            <td><span style={{ fontSize: 10, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
-            <td style={{ color: Z.tm, fontSize: FS.sm }}>{tn(p.designer_id)}</td>
-            <td><Badge status={st.label} small /></td>
-            <td style={{ color: p.revision_count >= 3 ? Z.wa : Z.tm }}>{p.revision_count || 0}</td>
-            <td style={{ color: Z.td, fontSize: FS.sm }}>{fmtDate(p.updated_at)}</td>
-          </tr>;
-        })}
-      </tbody>
-    </DataTable>}
+    tab === "Active" ? (
+      // Sale-centric list: one row per closed sale in an upcoming issue,
+      // with design state as an overlay. Mirrors the grid data.
+      <DataTable>
+        <thead><tr>
+          {["Client", "Publication", "Issue", "Ad Size", "Art Source", "Designer", "Status", "Revisions", "Updated"].map(h => <th key={h}>{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {gridRows.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No eligible sales in upcoming issues</td></tr>
+          : gridRows.map(({ sale, project, issue, status }) => {
+            const st = status === "needs_brief" ? { label: "Needs Brief" } : (STATUSES[status] || STATUSES.brief);
+            const rowKey = project?.id || `sale-${sale.id}`;
+            const onClick = () => {
+              if (project) setViewId(project.id);
+              else {
+                setForm(f => ({
+                  ...f,
+                  clientId: sale.clientId || "",
+                  publicationId: sale.publicationId || "",
+                  issueId: sale.issueId || "",
+                  adSize: sale.size || "",
+                  _saleId: sale.id,
+                }));
+                setCreateModal(true);
+              }
+            };
+            return <tr key={rowKey} onClick={onClick} style={{ cursor: "pointer" }}>
+              <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(sale.clientId)}</td>
+              <td style={{ color: Z.tm }}>{pn(sale.publicationId)}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{issue.label || "—"}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{sale.size || "—"}</td>
+              <td>{project
+                ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: project.art_source === "camera_ready" ? Z.wa : Z.ac, background: (project.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{project.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span>
+                : <span style={{ color: Z.td, fontSize: FS.sm }}>—</span>}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{project?.designer_id ? tn(project.designer_id) : "—"}</td>
+              <td><Badge status={st.label} small /></td>
+              <td style={{ color: (project?.revision_count || 0) >= 3 ? Z.wa : Z.tm }}>{project?.revision_count || 0}</td>
+              <td style={{ color: Z.td, fontSize: FS.sm }}>{project?.updated_at ? fmtDate(project.updated_at) : "—"}</td>
+            </tr>;
+          })}
+        </tbody>
+      </DataTable>
+    ) : (
+      // Completed / All tabs — keep the legacy project-row list
+      <DataTable>
+        <thead><tr>
+          {["Client", "Publication", "Issue", "Ad Size", "Art Source", "Designer", "Status", "Revisions", "Updated"].map(h => <th key={h}>{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {filtered.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No ad projects</td></tr>
+          : filtered.map(p => {
+            const st = STATUSES[p.status] || STATUSES.brief;
+            return <tr key={p.id} onClick={() => setViewId(p.id)} style={{ cursor: "pointer" }}>
+              <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(p.client_id)}</td>
+              <td style={{ color: Z.tm }}>{pn(p.publication_id)}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.issue_id ? ((issues || []).find(i => i.id === p.issue_id)?.label || "—") : "—"}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "—"}</td>
+              <td><span style={{ fontSize: 10, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>{tn(p.designer_id)}</td>
+              <td><Badge status={st.label} small /></td>
+              <td style={{ color: p.revision_count >= 3 ? Z.wa : Z.tm }}>{p.revision_count || 0}</td>
+              <td style={{ color: Z.td, fontSize: FS.sm }}>{fmtDate(p.updated_at)}</td>
+            </tr>;
+          })}
+        </tbody>
+      </DataTable>
+    )}
     </>}
 
     {/* CREATE PROJECT MODAL */}
