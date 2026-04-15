@@ -203,10 +203,13 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   };
 
   const sendInvoiceEmail = async (inv, issue) => {
-    // Fetch client contact email directly from DB (contacts may not be in local state)
+    // Recipient priority: client.billingEmail > primary client_contacts row.
+    // CCs come from client.billingCcEmails (up to 2).
     const client = clients.find(c => c.id === inv.client_id);
     const { data: contactRows } = await supabase.from("client_contacts").select("email").eq("client_id", inv.client_id).limit(1);
-    const clientEmail = contactRows?.[0]?.email;
+    const fallbackEmail = contactRows?.[0]?.email;
+    const clientEmail = (client?.billingEmail || "").trim() || fallbackEmail;
+    const ccEmails = (client?.billingCcEmails || []).filter(Boolean).slice(0, 2);
     if (!clientEmail) return;
 
     // Map DB fields to template's expected camelCase format
@@ -228,6 +231,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     const result = await sendGmailEmail({
       teamMemberId: null,
       to: [clientEmail],
+      cc: ccEmails,
       subject: `Invoice ${inv.invoice_number} — 13 Stars Media Group`,
       htmlBody,
       mode: "send",

@@ -17,14 +17,21 @@ function encodeSubject(subject) {
 }
 
 // Build RFC 2822 message and base64url encode it
-function buildRawMessage({ to, subject, htmlBody, from }) {
+function buildRawMessage({ to, cc, subject, htmlBody, from }) {
   const boundary = "boundary_" + Date.now();
-  const raw = [
+  const headers = [
     `From: ${from || "me"}`,
     `To: ${Array.isArray(to) ? to.join(", ") : to}`,
+  ];
+  const ccList = Array.isArray(cc) ? cc.filter(Boolean) : (cc ? [cc] : []);
+  if (ccList.length > 0) headers.push(`Cc: ${ccList.join(", ")}`);
+  headers.push(
     `Subject: ${encodeSubject(subject)}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  );
+  const raw = [
+    ...headers,
     "",
     `--${boundary}`,
     `Content-Type: text/html; charset="UTF-8"`,
@@ -35,20 +42,22 @@ function buildRawMessage({ to, subject, htmlBody, from }) {
   return toBase64Url(raw);
 }
 
-export async function sendGmailEmail({ teamMemberId, to, subject, htmlBody, mode = "draft", emailType = "other", clientId = null, refId = null, refType = null }) {
+export async function sendGmailEmail({ teamMemberId, to, cc, subject, htmlBody, mode = "draft", emailType = "other", clientId = null, refId = null, refType = null }) {
   // Get current session token for auth
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) {
     return { success: false, needs_auth: true, error: "Not authenticated" };
   }
 
-  const raw = buildRawMessage({ to, subject, htmlBody });
+  const raw = buildRawMessage({ to, cc, subject, htmlBody });
   const action = mode === "send" ? "send" : "create-draft";
   const body = action === "send"
     ? { raw }
     : { message: { raw } };
 
-  const recipients = Array.isArray(to) ? to : [to];
+  const toList = Array.isArray(to) ? to : [to];
+  const ccList = Array.isArray(cc) ? cc.filter(Boolean) : (cc ? [cc] : []);
+  const recipients = [...toList, ...ccList];
 
   try {
     const res = await fetch(`${EDGE_FN_URL}/gmail-api`, {

@@ -141,7 +141,7 @@ export function DataProvider({ children, localData }) {
       try {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason';
+        const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason,billing_email,billing_cc_emails';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         // Helper: fetch all rows from a table with automatic pagination.
@@ -207,6 +207,8 @@ export function DataProvider({ children, localData }) {
           repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null, creditBalance: Number(c.credit_balance) || 0, cardLast4: c.card_last4 || null, cardBrand: c.card_brand || null, cardExp: c.card_exp || null,
           invoicePrefix: c.invoice_prefix || null,
           lapsedReason: c.lapsed_reason || null,
+          billingEmail: c.billing_email || null,
+          billingCcEmails: Array.isArray(c.billing_cc_emails) ? c.billing_cc_emails : [],
           contacts: [], comms: [], yearlySummary: [],
         })));
 
@@ -874,6 +876,8 @@ export function DataProvider({ children, localData }) {
       if (changes.category !== undefined) db.category = changes.category;
       if (changes.lapsedReason !== undefined) db.lapsed_reason = changes.lapsedReason;
       if (changes.repId !== undefined) db.rep_id = changes.repId;
+      if (changes.billingEmail !== undefined) db.billing_email = changes.billingEmail || null;
+      if (changes.billingCcEmails !== undefined) db.billing_cc_emails = Array.isArray(changes.billingCcEmails) ? changes.billingCcEmails.filter(Boolean).slice(0, 2) : [];
       if (Object.keys(db).length) await supabase.from('clients').update(db).eq('id', id);
     }
   }, []);
@@ -885,6 +889,8 @@ export function DataProvider({ children, localData }) {
         category: client.category || '', notes: client.notes || '',
         lead_source: client.leadSource || '', industries: client.industries || [],
         interested_pubs: client.interestedPubs || [],
+        billing_email: client.billingEmail || null,
+        billing_cc_emails: Array.isArray(client.billingCcEmails) ? client.billingCcEmails.filter(Boolean).slice(0, 2) : [],
       }).select().single();
       if (data) {
         const nc = { ...client, id: data.id, status: data.status, comms: [], yearlySummary: [] };

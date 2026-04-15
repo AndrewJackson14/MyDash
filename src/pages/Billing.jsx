@@ -470,9 +470,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     if (bus) bus.emit("invoice.sent", { invoiceId: invId, clientId: inv.clientId });
 
     // Generate and send invoice email
+    // Recipient priority: client.billingEmail > primary client_contacts row >
+    // first local-state contact. CCs come from client.billingCcEmails (up to 2).
     const client = (clients || []).find(c => c.id === inv.clientId);
     const { data: contactRows } = await supabase.from("client_contacts").select("email").eq("client_id", inv.clientId).limit(1);
-    const clientEmail = contactRows?.[0]?.email || client?.contacts?.[0]?.email;
+    const fallbackEmail = contactRows?.[0]?.email || client?.contacts?.[0]?.email;
+    const clientEmail = (client?.billingEmail || "").trim() || fallbackEmail;
+    const ccEmails = (client?.billingCcEmails || []).filter(Boolean).slice(0, 2);
     if (clientEmail) {
       const htmlBody = generateInvoiceHtml({
         invoice: inv,
@@ -483,6 +487,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         await sendGmailEmail({
           teamMemberId: null,
           to: [clientEmail],
+          cc: ccEmails,
           subject: `Invoice ${inv.invoiceNumber} — 13 Stars Media Group`,
           htmlBody,
           mode: "send",
