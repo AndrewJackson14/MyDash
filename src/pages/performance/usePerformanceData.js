@@ -46,7 +46,7 @@ function priorRange(range) {
 }
 
 // ─── SALES ──────────────────────────────────────────────────
-function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
+function buildSalesMetrics({ sales, clients, team, range, teamFilter, adInquiries = [] }) {
   const priorPeriod = priorRange(range);
 
   // Scope to team member if filter is set (defaults to "all")
@@ -113,11 +113,32 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
     };
   }).sort((a, b) => b.revenue - a.revenue);
 
-  // Action items — reps that trip one of the three thresholds, ordered by
-  // severity. The dashboard cycles through these one at a time, so every
-  // struggling rep gets surface time instead of the worst one permanently
-  // owning the card.
+  // Action items — fresh website inquiries come FIRST (highest-value
+  // action: a warm lead nobody's touched yet), then reps that trip one
+  // of the three thresholds, ordered by severity. The dashboard cycles
+  // through these one at a time, so every struggling rep and every
+  // unhandled lead gets surface time.
   const actionItems = [];
+
+  // 1. Unhandled website inquiries — status === "new"
+  const newInquiries = (adInquiries || [])
+    .filter(i => i.status === "new")
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  for (const inq of newInquiries) {
+    const name = inq.business_name || inq.name || "Website inquiry";
+    const ageHours = inq.created_at ? Math.floor((Date.now() - new Date(inq.created_at).getTime()) / 3600000) : 0;
+    const ageLabel = ageHours < 1 ? "just now" : ageHours < 24 ? `${ageHours}h ago` : `${Math.floor(ageHours / 24)}d ago`;
+    actionItems.push({
+      id: `inq-${inq.id}`,
+      kind: "new_inquiry",
+      headline: `New website lead — ${name} · ${ageLabel}`,
+      // Fresh leads age fast: +10,000 base priority, +1 per hour unhandled
+      // so older untouched leads bubble up even higher.
+      severity: 10000 + ageHours,
+      cta: "Assign to rep",
+      navTo: { page: "sales", params: { tab: "Inquiries", inquiryId: inq.id } },
+    });
+  }
   for (const rep of perRep) {
     const reasons = [];
     if (rep.leads >= 3 && rep.leadToClose < 20) {
@@ -151,8 +172,9 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
   }
   actionItems.sort((a, b) => b.severity - a.severity);
 
-  // Wins — closed deals in the period, top 5 by amount. Used by the Wins
-  // panel on Performance > Sales and the Monday briefing callout.
+  // Wins — closed deals + website inquiries converted during the period.
+  // Used by the Wins panel on Performance > Sales and the Monday briefing
+  // callout.
   const wins = closedInRange
     .map(s => ({
       id: s.id,
@@ -164,6 +186,14 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
     }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
+
+  const convertedInquiries = (adInquiries || [])
+    .filter(i => i.status === "converted" && inRange(i.updated_at || i.created_at, range));
+  const inquiriesNew = (adInquiries || []).filter(i => i.status === "new").length;
+  const inquiriesConverted = convertedInquiries.length;
+  const inquiryConversionWins = convertedInquiries.length > 0
+    ? [{ id: "inq-converted", label: `${convertedInquiries.length} website lead${convertedInquiries.length === 1 ? "" : "s"} signed`, sub: "This period" }]
+    : [];
 
   // Top performer — non-action callout for when no rep is flagged
   const topRep = perRep[0] || null;
@@ -184,6 +214,9 @@ function buildSalesMetrics({ sales, clients, team, range, teamFilter }) {
     perRep,
     actionItems,
     wins,
+    inquiryConversionWins,
+    inquiriesNew,
+    inquiriesConverted,
     topRep,
   };
 }
@@ -595,13 +628,14 @@ export function usePerformanceData({
   issues = [],
   adProjects = [],
   team = [],
+  adInquiries = [],
   publisherId = null,
 }) {
   const range = useMemo(() => rangeForPreset(preset, customStart, customEnd), [preset, customStart, customEnd]);
 
   const salesMetrics = useMemo(
-    () => buildSalesMetrics({ sales, clients, team, range, teamFilter }),
-    [sales, clients, team, range, teamFilter]
+    () => buildSalesMetrics({ sales, clients, team, range, teamFilter, adInquiries }),
+    [sales, clients, team, range, teamFilter, adInquiries]
   );
 
   const editorialMetrics = useMemo(

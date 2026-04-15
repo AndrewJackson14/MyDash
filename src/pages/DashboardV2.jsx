@@ -146,6 +146,7 @@ const DashboardV2 = (props) => {
     issues: _issues,
     adProjects: props.adProjects || [],
     team,
+    adInquiries: props.adInquiries || [],
     publisherId: currentUser?.id || null,
   });
   const { heatScores, globalPressure: perfGlobalPressure } = perfData;
@@ -158,11 +159,16 @@ const DashboardV2 = (props) => {
       heat: heatScores.sales,
       count: perfData.sales.actionItems?.length || 0,
       items: perfData.sales.actionItems || [],
-      wins: perfData.sales.wins || [],
+      wins: [
+        ...(perfData.sales.inquiryConversionWins || []),
+        ...((perfData.sales.wins || []).map(w => ({ id: w.id, label: w.label, sub: w.closedAt ? new Date(w.closedAt).toLocaleDateString() : null, amount: w.amount }))),
+      ],
       topRep: perfData.sales.topRep,
       pctToGoal: Math.round(perfData.sales.leadToClosePct || 0),
       pipelineValue: perfData.sales.totalRev || 0,
       revenueDelta: perfData.sales.revenueDelta || 0,
+      inquiriesNew: perfData.sales.inquiriesNew || 0,
+      inquiriesConverted: perfData.sales.inquiriesConverted || 0,
     },
     editorial: {
       heat: heatScores.editorial,
@@ -210,6 +216,12 @@ const DashboardV2 = (props) => {
   useEffect(() => {
     if (props.loadAdProjects) props.loadAdProjects();
   }, [props.loadAdProjects]);
+
+  // Website inquiries are lazy-loaded too; fetch them on mount so fresh
+  // leads can show up in the Sales tile's cycling action items.
+  useEffect(() => {
+    if (props.loadInquiries) props.loadInquiries();
+  }, [props.loadInquiries]);
 
   const [openMember, setOpenMember] = useState(null);
   const [openSignal, setOpenSignal] = useState(null);
@@ -1455,6 +1467,9 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
         const total = perfData.sales.wins.reduce((s, w) => s + (w.amount || 0), 0);
         winLines.push(`Sales · ${perfData.sales.wins.length} deals closed · ${fmtCurrency(total)}`);
       }
+      if (perfData.sales?.inquiriesConverted > 0) {
+        winLines.push(`Website · ${perfData.sales.inquiriesConverted} lead${perfData.sales.inquiriesConverted === 1 ? "" : "s"} signed`);
+      }
       if (perfData.editorial?.wins?.length) winLines.push(`Editorial · ${perfData.editorial.wins.length} stories shipped`);
       if (perfData.production?.wins?.length) winLines.push(`Production · ${perfData.production.wins.length} items placed / on page`);
       if (perfData.admin?.wins?.length) perfData.admin.wins.forEach(w => winLines.push(`Admin · ${w.label}`));
@@ -1463,6 +1478,15 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
         winLines.forEach(line => l.push(line));
         l.push("");
       }
+    }
+
+    // Fresh website leads — shown in the briefing every day so the
+    // publisher never misses an unhandled inquiry at the top of the
+    // feed. Zero-count days are suppressed.
+    if (perfData?.sales?.inquiriesNew > 0) {
+      l.push("═══ NEW WEBSITE LEADS ═══");
+      l.push(`${perfData.sales.inquiriesNew} unhandled inquir${perfData.sales.inquiriesNew === 1 ? "y" : "ies"} waiting for assignment`);
+      l.push("");
     }
 
     l.push("═══ REVENUE ═══");
@@ -1510,6 +1534,34 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
         <Btn sm onClick={() => { copy(); onClose(); }}>Copy & Close</Btn>
       </div>
     </div>
+
+    {/* Fresh website leads — shown every day if there are unhandled
+        inquiries. Highest priority for the publisher because every hour
+        a new lead sits unassigned is a warm lead cooling off. */}
+    {perfData?.sales?.inquiriesNew > 0 && (
+      <div
+        onClick={() => { onClose(); feed?.onNavigate?.("sales"); }}
+        style={{
+          padding: "14px 18px",
+          borderRadius: R,
+          background: ACCENT.blue + "15",
+          borderLeft: `3px solid ${ACCENT.blue}`,
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: ACCENT.blue, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: COND, marginBottom: 4 }}>New Website Leads</div>
+          <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>
+            {perfData.sales.inquiriesNew} unhandled inquir{perfData.sales.inquiriesNew === 1 ? "y" : "ies"} waiting for assignment
+          </div>
+        </div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: ACCENT.blue, fontFamily: COND, textTransform: "uppercase" }}>Open →</div>
+      </div>
+    )}
 
     {/* Monday Wins — weekly victory recap, only rendered on Mondays so
         it doesn't become every-day background noise. */}
