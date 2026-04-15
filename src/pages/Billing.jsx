@@ -1225,7 +1225,14 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
         {/* ── AR Aging Report — flat one-row-per-client table ── */}
         {reportView === "aging" && (() => {
-          const openInv = processedInvoices.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status) && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub)));
+          // Only include invoices with a real open balance. A zero-balance
+          // overdue/sent row would show a client with a $0 total, which is
+          // never what the report is meant to surface.
+          const openInv = processedInvoices.filter(i =>
+            ["sent", "partially_paid", "overdue"].includes(i.status)
+            && (i.balanceDue || 0) > 0
+            && (reportPub === "all" || i.lines?.some(l => l.publication === reportPub))
+          );
 
           // One row per client with 4-bucket + total
           const byClient = {};
@@ -1247,7 +1254,10 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             row.total += bal;
           });
 
-          const rows = Object.values(byClient);
+          // Belt and suspenders: drop any synthesized row whose open balances
+          // cancel to zero (shouldn't happen, but the report is defined as
+          // clients with open balances only).
+          const rows = Object.values(byClient).filter(r => r.total > 0);
           const sortDir = agingReportSort.dir === "asc" ? 1 : -1;
           rows.sort((a, b) => {
             const k = agingReportSort.key;

@@ -1269,7 +1269,7 @@ const BriefingContent = ({ firstName, feed, stories, subscribers, onClose }) => 
   const stats = [
     { label: "Revenue MTD", value: fmtCurrency(revenueCommand.adRevMTD), color: "#10B981" },
     { label: "This Month's Issues", value: fmtCurrency(revenueCommand.issueRevThisMonth), color: "#3B82F6" },
-    { label: "Outstanding AR", value: fmtCurrency(revenueCommand.outstandingAR), color: revenueCommand.overdueInvCount > 0 ? "#F59E0B" : "#9CA3AF", sub: revenueCommand.overdueInvCount > 0 ? `${revenueCommand.overdueInvCount} overdue` : "All current" },
+    { label: "AR 60+ Days", value: fmtCurrency(revenueCommand.overdueBalance), color: revenueCommand.overdueInvCount > 0 ? "#EF4444" : "#22C55E", sub: revenueCommand.overdueInvCount > 0 ? `${revenueCommand.overdueInvCount} past 60 days` : "All current" },
     { label: "Pipeline", value: fmtCurrency(revenueCommand.pipelineValue), color: "#6366F1", sub: `${revenueCommand.pipelineCount} deals` },
   ];
 
