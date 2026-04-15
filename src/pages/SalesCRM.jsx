@@ -917,7 +917,10 @@ const SalesCRM = (props) => {
         title={viewContract ? `${cn(viewContract.clientId)} — ${viewContract.name || "Contract"}` : ""}
         width={1100}
         actions={viewContract ? <>
-          <Btn sm v="secondary" onClick={() => generatePdf("contract", viewContract.id)}><Ic.download size={12} /> Download PDF</Btn>
+          <Btn sm v="secondary" onClick={async () => {
+            try { await generatePdf("contract", viewContract.id); }
+            catch (err) { console.error("Contract PDF failed:", err); await dialog.alert(`PDF download failed: ${err.message || "Unknown error"}`); }
+          }}><Ic.download size={12} /> Download PDF</Btn>
           {viewContract.status === "active" && <Btn sm v="ghost" onClick={async () => {
             const reason = await dialog.prompt("Cancellation reason:");
             if (!reason) return;

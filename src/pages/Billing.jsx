@@ -21,10 +21,12 @@ const INV_COLORS = {
 };
 
 // Overdue is the default because that's the view that drives AR collections.
-// Draft + partially_paid are intentionally absent from the filter strip — they
-// live inline on the Overview tab ("Drafts" stat) and are rarely worth an
-// isolated list at the tab level.
-const INV_STATUSES = ["overdue", "paid", "sent", "void", "All"];
+// "open" is a synthetic filter covering every unpaid invoice (sent,
+// partially_paid, overdue) — handy for 'what still owes us money' without
+// dropping to a single status. Draft + partially_paid aren't listed as their
+// own tabs: drafts live on the Overview 'Drafts' stat and partials roll up
+// inside Open.
+const INV_STATUSES = ["overdue", "open", "paid", "sent", "void", "All"];
 const BILLING_SCHEDULES = [
   { value: "lump_sum", label: "Lump Sum" },
   { value: "per_issue", label: "Per Issue" },
@@ -553,7 +555,11 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   // ─── Filtering & Sorting ────────────────────────────────
   let filtered = processedInvoices;
-  if (statusFilter !== "All") filtered = filtered.filter(i => i.status === statusFilter);
+  if (statusFilter === "open") {
+    filtered = filtered.filter(i => ["sent", "partially_paid", "overdue"].includes(i.status));
+  } else if (statusFilter !== "All") {
+    filtered = filtered.filter(i => i.status === statusFilter);
+  }
   if (sr) {
     const q = sr.toLowerCase();
     filtered = filtered.filter(i => cn(i.clientId).toLowerCase().includes(q) || i.invoiceNumber?.toLowerCase().includes(q));
@@ -668,7 +674,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
     </PageHeader>
 
-    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Overdue: "overdue", Paid: "paid", Sent: "sent", Void: "void" }; setStatusFilter(map[v] || "overdue"); }} /></>}</TabRow>
+    <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => s === "All" ? "All" : s.charAt(0).toUpperCase() + s.slice(1))} active={statusFilter === "All" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} onChange={v => { const map = { All: "All", Overdue: "overdue", Open: "open", Paid: "paid", Sent: "sent", Void: "void" }; setStatusFilter(map[v] || "overdue"); }} /></>}</TabRow>
 
     {/* ════════ OVERVIEW TAB ════════ */}
     {tab === "Overview" && <>

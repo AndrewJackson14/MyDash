@@ -4,7 +4,7 @@ import { Ic, Btn, Inp, Sel, Badge, GlassCard, PageHeader, TabRow, TB, TabPipe, D
 
 const STATUS_COLORS = { active: Z.su || "#22C55E", completed: Z.tm, cancelled: Z.da };
 
-const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract }) => {
+const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract, bus }) => {
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [viewId, setViewId] = useState(null);
@@ -80,6 +80,13 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PageHeader title={viewContract.name}>
         <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back to Contracts</Btn>
+        {bus && onNavigate && <Btn sm onClick={() => {
+          // Drop to Billing with a fresh New Invoice modal pre-filled for this
+          // contract's client. Billing listens on 'invoice.create' and wires
+          // the rest of the invoice form flow.
+          bus.emit("invoice.create", { clientId: viewContract.clientId, contractId: viewContract.id });
+          onNavigate("billing");
+        }}><Ic.plus size={12} /> Create Invoice</Btn>}
         {deleteContract && !jurisdiction?.isSalesperson && <Btn sm v="danger" onClick={async () => {
           const salesCount = (salesByContract[viewContract.id] || []).length;
           const msg = salesCount > 0
