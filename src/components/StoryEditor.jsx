@@ -526,15 +526,27 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             </div>
           )}
 
-          {/* View on site */}
+          {/* View on site — only render when the publication has a real
+              website configured. Previously this fell back to turning
+              the publication name into a fake slug-as-domain (e.g.
+              'calabasas-style-magazine' with no TLD) which generated
+              broken links. Now: no website_url, no link. */}
           {isPublished && meta.slug && selectedPubs[0] && (() => {
             const site = (pubs || []).find(p => p.id === selectedPubs[0]);
-            const domain = site?.domain || site?.name?.toLowerCase().replace(/\s+/g, "-");
-            return domain ? (
-              <a href={"https://" + domain + "/" + meta.slug} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
-                View on {domain} {"\u2197"}
+            if (!site?.hasWebsite) return null;
+            const raw = (site.websiteUrl || "").trim();
+            if (!raw) return null;
+            // Normalize: strip protocol + trailing slash so we can
+            // safely prepend https:// regardless of what the publisher
+            // entered.
+            const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+            if (!host.includes(".")) return null; // still looks like a slug, refuse
+            const href = `https://${host}/${meta.slug}`;
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
+                View on {host} {"\u2197"}
               </a>
-            ) : null;
+            );
           })()}
 
           {/* View count */}
