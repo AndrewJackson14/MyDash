@@ -188,20 +188,25 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     if (data) setFreelancers(prev => [...prev, data]);
   };
 
-  // ── Smart issue filter: +/-30 days, grouped by pub ──────────
+  // ── Smart issue filter: +/-30 days, scoped to THIS story's pub ──
+  // Previously only date-filtered, which leaked other publications'
+  // issues into the dropdown for every story (e.g. a Calabasas Style
+  // story would see upcoming Malibu Magazine issues). An issue only
+  // belongs in the selector if it's for the story's publication.
   const filteredIssues = useMemo(() => {
     const now = new Date(), min = new Date(now), max = new Date(now);
     min.setDate(min.getDate() - 30); max.setDate(max.getDate() + 30);
+    const storyPub = meta.publication_id || meta.publication;
     return (issues || []).filter(i => {
       if (i.sentToPress) return false;
+      const issuePub = i.pub_id || i.publicationId || i.pubId;
+      if (storyPub && issuePub !== storyPub) return false;
       const d = new Date(i.date || i.deadline);
       return d >= min && d <= max;
     }).sort((a, b) => {
-      const pa = pn(a.pub_id || a.publicationId, pubs), pb = pn(b.pub_id || b.publicationId, pubs);
-      if (pa !== pb) return pa.localeCompare(pb);
       return new Date(a.date || a.deadline) - new Date(b.date || b.deadline);
     });
-  }, [issues, pubs]);
+  }, [issues, meta.publication_id, meta.publication]);
 
   // ── TipTap Editor ───────────────────────────────────────────
   const editorContent = useMemo(() => {
