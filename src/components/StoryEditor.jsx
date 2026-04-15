@@ -310,11 +310,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     // Single-source model: Ready + sent_to_web=true is "live on web".
     // The sync trigger will mirror sent_to_web into the legacy
     // web_status column for any StellarPress consumer still reading it.
+    const now = new Date().toISOString();
     const u = {
       status: "Ready",
       sent_to_web: true,
-      published_at: meta.published_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      published_at: now,
+      updated_at: now,
     };
     if (!meta.slug) u.slug = (meta.title || "untitled").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").slice(0, 120);
     if (!meta.excerpt && editor) u.excerpt = editor.getText().slice(0, 300);
