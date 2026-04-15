@@ -130,8 +130,7 @@ const DashboardV2 = (props) => {
   });
   const {
     focusItems, deadlineAlerts, doseWins,
-    departmentPressure: _legacyDeptPressure, globalPressure: _legacyGlobalPressure,
-    teamStatus, needsDir,
+    teamStatus,
     _sales, _clients, _issues, _pubs, _stories, _inv, _tickets, _legal, _jobs,
   } = feed;
 
@@ -201,9 +200,13 @@ const DashboardV2 = (props) => {
     },
   }), [heatScores, perfData, deadlineAlerts]);
 
-  // Global pressure from Performance heat takes precedence; fall back to
-  // the legacy calc while admin metrics are still loading.
-  const globalPressure = perfData.admin ? perfGlobalPressure : _legacyGlobalPressure;
+  // Global pressure = pure average of the four Performance dept heats.
+  // Used to be a max which pinned the room red whenever any single dept
+  // was on fire; user wanted a more honest blend so two reds + two blues
+  // reads as warming amber rather than catastrophic red. Admin missing
+  // (async) defaults to heat 0, which is correct — no admin data = no
+  // admin pressure to add to the average.
+  const globalPressure = perfGlobalPressure;
 
   // Push newsroom heat up to the app shell so the ambient background layer
   // can tint/animate across every page, not just the dashboard.
@@ -1346,27 +1349,6 @@ const DeptAvatarStack = ({ members, onOpenMember }) => {
       >{ini(m.name)}</div>;
     })}
   </div>;
-};
-
-// SubLink — a tiny clickable chunk inside a dept tile's sub text.
-// Underlines on hover to hint at interactivity without cluttering
-// the at-rest visual. Stops propagation so the card's main onClick
-// (drill-in) doesn't also fire.
-const SubLink = ({ onClick, children }) => {
-  const [hover, setHover] = useState(false);
-  return <span
-    onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-    onMouseEnter={() => setHover(true)}
-    onMouseLeave={() => setHover(false)}
-    style={{
-      cursor: "pointer",
-      color: hover ? Z.tx : Z.tm,
-      textDecoration: hover ? "underline" : "none",
-      textDecorationColor: Z.bd,
-      textUnderlineOffset: 3,
-      transition: "color 0.15s ease",
-    }}
-  >{children}</span>;
 };
 
 // DrillMember — small clickable avatar in the drill-in modal's

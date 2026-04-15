@@ -682,11 +682,15 @@ export function usePerformanceData({
     return { sales: salesHeat, editorial: edHeat, production: prodHeat, admin: adminHeat };
   }, [salesMetrics, editorialMetrics, productionMetrics, adminMetrics]);
 
-  // Global pressure = weighted-max so one hot dept tints the whole room.
+  // Global pressure = pure average of the four dept heat scores. Amber
+  // is treated as already heavy enough to warrant publisher attention, so
+  // mixing two hot depts with two calm ones lands at ~50 (amber/warming)
+  // rather than pinning to the max. A single dept on fire with the rest
+  // calm still lifts the room to ~25 (early-warning blue-green).
   const globalPressure = useMemo(() => {
     const vals = Object.values(heatScores);
     if (vals.length === 0) return 0;
-    return Math.max(...vals);
+    return vals.reduce((s, v) => s + v, 0) / vals.length;
   }, [heatScores]);
 
   return {
