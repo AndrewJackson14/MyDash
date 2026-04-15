@@ -8,6 +8,12 @@
 import { useEffect } from "react";
 import { useEventBus } from "./useEventBus";
 
+// Product types that don't need a design workflow — match the grid's
+// EXCLUDED_SIZES in Design Studio so auto-created projects stay aligned.
+const DESIGN_EXCLUDED_SIZES = new Set([
+  "Calendar Listing", "Church Listing", "Legal Notice", "Classified", "Obituary",
+]);
+
 export function useCrossModuleWiring({
   // State setters for cross-module actions
   setNotifications,
@@ -17,6 +23,7 @@ export function useCrossModuleWiring({
   pubs,
   issues,
   sales,
+  upsertAdProject,
 }) {
   const bus = useEventBus();
 
@@ -33,6 +40,18 @@ export function useCrossModuleWiring({
         read: false,
         route: "billing",
       }]);
+
+      // Auto-create a Design Studio project for the sale so the
+      // designer's grid picks it up immediately. Skipped for non-display
+      // product types (legal notices, calendar listings, etc.) that
+      // don't need a design workflow.
+      if (upsertAdProject && saleId) {
+        const sale = (sales || []).find(s => s.id === saleId);
+        if (sale && !DESIGN_EXCLUDED_SIZES.has(sale.size)) {
+          upsertAdProject({ saleId, patch: { status: "brief" } })
+            .catch(err => console.error("auto-create ad_project failed:", err));
+        }
+      }
     }));
 
     // ─── PROPOSAL SIGNED → Notification ───────────────────

@@ -149,7 +149,7 @@ export default function App() {
   }, [proposals, jClients, jurisdiction.isAdmin, jurisdiction.isSalesperson]);
 
   // ─── Cross-Module Event Bus ─────────────────────────────
-  const bus = useCrossModuleWiring({ setNotifications, setInvoices, invoices, clients, pubs, issues, sales });
+  const bus = useCrossModuleWiring({ setNotifications, setInvoices, invoices, clients, pubs, issues, sales, upsertAdProject: appData.upsertAdProject });
 
   // ─── Navigation State ───────────────────────────────────
   // Persist current page across hard refresh — read from localStorage on
