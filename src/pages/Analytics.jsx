@@ -324,9 +324,9 @@ const Analytics = ({
   const selPL = plPub === "all" ? null : pubPL.find(p => p.pub.id === plPub);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Analytics" />
+    <PageHeader title="Reports" />
 
-    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Web"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Audience"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -928,7 +928,7 @@ const Analytics = ({
     })()}
 
     {/* ════════ WEB ANALYTICS ════════ */}
-    {tab === "Web" && <WebAnalyticsTab pubs={pubs} />}
+    {tab === "Audience" && <WebAnalyticsTab pubs={pubs} />}
   </div>;
 };
 

@@ -912,9 +912,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
           <Inp label="Client Contact Name" value={form.clientContactName} onChange={e => setForm(f => ({ ...f, clientContactName: e.target.value }))} placeholder="Optional" />
           <Inp label="Client Contact Email" value={form.clientContactEmail} onChange={e => setForm(f => ({ ...f, clientContactEmail: e.target.value }))} placeholder="Optional" />
         </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" sm onClick={() => setCreateModal(false)}>Cancel</Btn>
-          <Btn sm onClick={createProject} disabled={!form.clientId || !form.publicationId}>Create Project</Btn>
+        <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+          {form.clientId ? (() => {
+            const prevAd = projects.filter(p => p.client_id === form.clientId && ["approved", "signed_off", "placed"].includes(p.status)).sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))[0];
+            return prevAd ? <Btn sm v="ghost" onClick={() => setForm(f => ({ ...f, publicationId: prevAd.publication_id || f.publicationId, adSize: prevAd.ad_size || f.adSize, designNotes: `Repeat of previous ad (${prevAd.ad_size || "ad"}). ${prevAd.design_notes || ""}`.trim(), designerId: prevAd.designer_id || f.designerId, clientContactName: prevAd.client_contact_name || f.clientContactName, clientContactEmail: prevAd.client_contact_email || f.clientContactEmail }))}>Clone from last ad</Btn> : <span />;
+          })() : <span />}
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn v="secondary" sm onClick={() => setCreateModal(false)}>Cancel</Btn>
+            <Btn sm onClick={createProject} disabled={!form.clientId || !form.publicationId}>Create Project</Btn>
+          </div>
         </div>
       </div>
     </Modal>

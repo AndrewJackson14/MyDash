@@ -29,6 +29,24 @@ const IntegrationsPage = ({ pubs }) => {
   const [qbStatus, setQbStatus] = useState("disconnected");
   const [qbCompany, setQbCompany] = useState("");
 
+  // ─── Integration Health ───────────────────────────────
+  const [health, setHealth] = useState(null);
+  const loadHealth = async () => {
+    const [qbRes, gmailRes, gcalRes, stripeRes] = await Promise.all([
+      supabase.from("quickbooks_tokens").select("company_name, token_expiry, updated_at").limit(1).maybeSingle(),
+      supabase.from("gmail_tokens").select("email, token_expiry").order("token_expiry", { ascending: true }),
+      supabase.from("google_tokens").select("email, token_expiry").order("token_expiry", { ascending: true }),
+      supabase.from("clients").select("id", { count: "exact", head: true }).not("stripe_customer_id", "is", null),
+    ]);
+    setHealth({
+      qb: qbRes.data ? { name: qbRes.data.company_name, expiry: qbRes.data.token_expiry, updated: qbRes.data.updated_at } : null,
+      gmail: { count: gmailRes.data?.length || 0, expiry: gmailRes.data?.[0]?.token_expiry },
+      gcal: { count: gcalRes.data?.length || 0, expiry: gcalRes.data?.[0]?.token_expiry },
+      stripe: { count: stripeRes.count || 0 },
+    });
+  };
+  useEffect(() => { loadHealth(); }, []);
+
   // ─── Google Status ─────────────────────────────────────
   const [googleStatus, setGoogleStatus] = useState("disconnected");
   const [googleEmail, setGoogleEmail] = useState("");
@@ -135,6 +153,44 @@ const IntegrationsPage = ({ pubs }) => {
         <Stat label="Google" value={googleStatus === "connected" ? "\u2713" : "\u2014"} sub={googleStatus === "connected" ? googleEmail : "Not connected"} color={googleStatus === "connected" ? Z.su : Z.da} />
         <Stat label="Database" value={sbConnected ? "Online" : "Offline"} sub={sbConnected ? "Supabase connected" : "Running locally"} color={sbConnected ? Z.su : Z.wa} />
       </div>
+
+      {/* ── Integration Health Panel ─── */}
+      {health && (
+        <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Token Health</span>
+            <Btn sm v="ghost" onClick={loadHealth}>Refresh</Btn>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+            {[
+              { name: "QuickBooks", ok: !!health.qb, detail: health.qb?.name || "Not connected", expiry: health.qb?.expiry },
+              { name: "Gmail", ok: health.gmail.count > 0, detail: `${health.gmail.count} account${health.gmail.count !== 1 ? "s" : ""}`, expiry: health.gmail.expiry },
+              { name: "Google Cal", ok: health.gcal.count > 0, detail: `${health.gcal.count} account${health.gcal.count !== 1 ? "s" : ""}`, expiry: health.gcal.expiry },
+              { name: "Stripe", ok: health.stripe.count > 0, detail: `${health.stripe.count} client${health.stripe.count !== 1 ? "s" : ""} with cards`, expiry: null },
+              { name: "StellarPress", ok: true, detail: "Shared database", expiry: null },
+            ].map(int => {
+              const expiryDate = int.expiry ? new Date(int.expiry) : null;
+              const hoursLeft = expiryDate ? (expiryDate.getTime() - Date.now()) / 3600000 : null;
+              const expiring = hoursLeft != null && hoursLeft > 0 && hoursLeft < 24;
+              const expired = hoursLeft != null && hoursLeft <= 0;
+              const statusColor = !int.ok ? Z.da : expired ? Z.da : expiring ? Z.wa : Z.su;
+              const statusLabel = !int.ok ? "Disconnected" : expired ? "Expired" : expiring ? "Expiring" : "Connected";
+              return (
+                <div key={int.name} style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderTop: `3px solid ${statusColor}` }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, marginBottom: 4 }}>{int.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor }} />
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: statusColor }}>{statusLabel}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{int.detail}</div>
+                  {expiryDate && !expired && <div style={{ fontSize: 9, color: expiring ? Z.wa : Z.td, fontFamily: COND, marginTop: 2 }}>Token: {hoursLeft < 1 ? `${Math.round(hoursLeft * 60)}m left` : `${Math.round(hoursLeft)}h left`}</div>}
+                  {expired && <div style={{ fontSize: 9, color: Z.da, fontWeight: FW.bold, fontFamily: COND, marginTop: 2 }}>Token expired — reconnect</div>}
+                </div>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         {/* QuickBooks */}
