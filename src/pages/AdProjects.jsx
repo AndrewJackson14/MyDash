@@ -502,6 +502,18 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
                 </> : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 24 }}>
                   <div style={{ fontSize: FS.sm, color: Z.td }}>No proof yet</div>
                   <Btn sm onClick={() => setProofModal(true)} disabled={uploading}><Ic.up size={12} /> Upload Proof</Btn>
+                  <Btn sm v="secondary" onClick={() => {
+                    const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true;
+                    inp.accept = "image/*,application/pdf,.ai,.eps,.psd,.indd";
+                    inp.onchange = async (e) => {
+                      const files = Array.from(e.target.files); if (!files.length) return;
+                      setUploading(true);
+                      for (const f of files) {
+                        try { await uploadMedia(f, { category: "ad_creative", adProjectId: viewProject.id, clientId: viewProject.client_id, publicationId: viewProject.publication_id }); } catch (err) { console.error("Asset upload error:", err); }
+                      }
+                      setUploading(false);
+                    }; inp.click();
+                  }} disabled={uploading}><Ic.up size={12} /> Upload Assets</Btn>
                 </div>}
               </div>
             </div>

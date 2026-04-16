@@ -525,7 +525,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
     return [];
   };
 
-  const visibleTeam = (team || []).filter(t => !t.isHidden && !t.is_hidden);
+  const visibleTeam = (team || []).filter(t => !t.isHidden && !t.is_hidden && t.isActive !== false);
 
   // ── Permissions tab helpers ─────────────────────────────
   const togglePerm = async (member, moduleKey) => {

@@ -607,8 +607,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           { key: "title", label: "Title" },
                           { key: "author", label: "Author" },
                           { key: "category", label: "Section" },
+                          { key: "priority", label: "Priority" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
+                          { key: "word_count", label: "Words" },
+                          { key: "_img", label: "Img" },
                           { key: "_delete", label: "" },
                         ].map(col => (
                           <th key={col.key} onClick={col.key !== "_delete" ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: col.key !== "_delete" ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: col.key === "_delete" ? 32 : undefined }}>
@@ -619,7 +622,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     </thead>
                     <tbody>
                       {issueStories.length === 0 && (
-                        <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                        <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
                       {issueStories.map(s => {
                         const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
@@ -644,6 +647,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                               {["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
+                          <td style={{ padding: "5px 8px", width: 55 }}>
+                            <select value={s.priority || "normal"} onChange={e => updateStory(s.id, { priority: e.target.value })} style={{ ...selS, width: 50 }}>
+                              {[["urgent", "1"], ["high", "2"], ["normal", "3"], ["low", "4"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            </select>
+                          </td>
                           <td style={{ padding: "5px 8px" }}>
                             <select value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} style={selS}>
                               {STORY_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
@@ -652,6 +660,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />
                           </td>
+                          <td style={{ padding: "5px 8px", width: 55, textAlign: "right", fontSize: 11, color: Z.tm, fontFamily: COND }}>{s.word_count || s.wordCount || "—"}</td>
+                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center", fontSize: 12 }}>{(s.featured_image_url || s.featuredImageUrl || s.images > 0) ? <span title="Has image" style={{ color: Z.su }}>*</span> : <span style={{ color: Z.td }}>—</span>}</td>
                           <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
                             <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
                           </td>

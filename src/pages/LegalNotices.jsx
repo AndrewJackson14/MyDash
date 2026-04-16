@@ -207,11 +207,9 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         setPendingScans([]);
       }
 
-      // Auto-invoice: create a draft invoice with one line for the legal notice.
-      // The user said "auto-send" — we mark it sent so it shows up on the client
-      // AR immediately. Actual email delivery happens when the user confirms
-      // in the Billing module (or via an eventual background job).
-      if (insertInvoice && clientId && total > 0) {
+      // Auto-invoice: skipped if "Save as Draft" was used (skipInvoice flag).
+      // When invoicing, mark sent so it appears on client AR immediately.
+      if (insertInvoice && clientId && total > 0 && !form.skipInvoice) {
         const due = new Date(); due.setDate(due.getDate() + 30);
         await insertInvoice({
           clientId,
@@ -488,7 +486,8 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       onSubmit={saveNotice}
       actions={<>
         <Btn v="secondary" onClick={() => setNoticeModal(false)}>Cancel</Btn>
-        <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Create Notice"}</Btn>
+        {!editId && <Btn v="secondary" onClick={() => { updateForm({ skipInvoice: true }); saveNotice(); }} disabled={!form.contactName || !form.content}>Save as Draft</Btn>}
+        <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Save & Invoice"}</Btn>
       </>}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -544,7 +543,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
               ${Number(form.ratePerChar || 0).toFixed(2)}/char × {chars.toLocaleString()} char{chars === 1 ? "" : "s"} × {runs} run{runs > 1 ? "s" : ""}
             </div>
             <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6, fontStyle: "italic" }}>
-              Invoice will be auto-generated on save and added to the client's AR.
+              "Save & Invoice" creates the invoice immediately. "Save as Draft" saves the order for layout first.
             </div>
           </div>;
         })()}
