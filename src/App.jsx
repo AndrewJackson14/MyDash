@@ -45,6 +45,8 @@ const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
 const Performance = lazyLoad(() => import("./pages/Performance"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
+const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
+const WebAds = lazyLoad(() => import("./pages/WebAds"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
@@ -658,6 +660,8 @@ export default function App() {
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} /></div>}
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
+        {show("classifieds") && <div style={vis("classifieds")}><ClassifiedAds pubs={pubs} clients={jClients} issues={jIssues} /></div>}
+        {show("web_ads") && <div style={vis("web_ads")}><WebAds pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} /></div>}
         </Suspense>
         </ErrorBoundary>
       </main>
