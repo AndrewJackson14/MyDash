@@ -48,7 +48,12 @@ export function useCrossModuleWiring({
       if (upsertAdProject && saleId) {
         const sale = (sales || []).find(s => s.id === saleId);
         if (sale && !DESIGN_EXCLUDED_SIZES.has(sale.size)) {
-          upsertAdProject({ saleId, patch: { status: "brief" } })
+          // Camera-ready ads skip the design pipeline — go straight to
+          // proof_sent so the rep can send the client's file for approval.
+          // Check the client's lastArtSource (set on prior sales/proposals).
+          const client = (clients || []).find(c => c.id === sale.clientId);
+          const isCameraReady = client?.lastArtSource === "camera_ready";
+          upsertAdProject({ saleId, patch: { status: isCameraReady ? "proof_sent" : "brief", art_source: isCameraReady ? "camera_ready" : "we_design" } })
             .catch(err => console.error("auto-create ad_project failed:", err));
         }
       }

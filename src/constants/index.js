@@ -36,7 +36,7 @@ export const MILESTONES = ["Scheduled", "In Progress", "Editing", "Proofing", "P
 // Single-source-of-truth story lifecycle. Publishing destinations
 // (web / print) are tracked via sent_to_web and sent_to_print booleans,
 // not via additional status values.
-export const STORY_STATUSES = ["Draft", "Edit", "Ready", "Archived"];
+export const STORY_STATUSES = ["Pitched", "Draft", "Edit", "Ready", "Archived"];
 export const CONTACT_ROLES = ["Business Owner", "Marketing Manager", "Art Director", "Accounts Payable", "Customer Service", "Other"];
 export const COMM_TYPES = ["Email", "Phone", "Text", "Comment"];
 export const COMM_AUTHORS = ["Account Manager", "Graphic Designer", "Publisher", "Editor"];

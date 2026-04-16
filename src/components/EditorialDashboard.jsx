@@ -12,6 +12,7 @@ import EditionManager from "../pages/EditionManager";
 // sent_to_web / sent_to_print). The Published column reads from the
 // flags, not from a status value. See filterForStage() below.
 const KANBAN_COLS = [
+  { key: "pitched", label: "Pitched", color: Z.pu || "#7C3AED", statuses: ["Pitched"] },
   { key: "draft", label: "Draft", color: ACCENT.grey, statuses: ["Draft"] },
   { key: "edit", label: "Edit", color: ACCENT.amber, statuses: ["Edit"] },
   { key: "ready", label: "Ready", color: ACCENT.blue, statuses: ["Ready"], needsFlags: "unpublished" },

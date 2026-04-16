@@ -1661,6 +1661,16 @@ export function DataProvider({ children, localData }) {
       await supabase.from('commission_ledger').update({
         status: 'paid', payout_id: payout.id, paid_at: new Date().toISOString(),
       }).in('id', ledgerIds);
+      // Auto-create a bill so the payout flows to AP and QuickBooks
+      const spName = team.find(t => t.id === salespersonId)?.name || 'Salesperson';
+      await supabase.from('bills').insert({
+        publication_id: null, vendor_name: spName, category: 'commission',
+        description: `Commission payout — ${period} (${ledgerIds.length} entries)`,
+        amount: totalAmount, bill_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date().toISOString().slice(0, 10), status: 'paid',
+        paid_at: new Date().toISOString(), paid_method: 'check',
+        source_type: 'commission_payout', source_id: payout.id,
+      });
       // Update local state
       setCommissionLedger(prev => prev.map(l => ledgerIds.includes(l.id) ? { ...l, status: 'paid', payoutId: payout.id, paidAt: new Date().toISOString() } : l));
       setCommissionPayouts(prev => [{ id: payout.id, salespersonId, period, totalAmount: Number(payout.total_amount), commissionCount: payout.commission_count, status: 'paid', paidAt: payout.paid_at, createdAt: payout.created_at }, ...prev]);

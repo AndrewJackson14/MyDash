@@ -16,6 +16,7 @@
 // on the editorial side; the destination flags represent channel
 // hand-offs and are handled separately by the caller.
 export const EDITORIAL_STAGE_WEIGHTS = {
+  Pitched: 0,
   Draft: 0,
   Edit: 50,
   Ready: 100,
