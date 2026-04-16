@@ -74,6 +74,7 @@ const SalesCRM = (props) => {
   const [propPayTiming, setPropPayTiming] = useState("per_issue");
   const [propChargeDay, setPropChargeDay] = useState(1);
   const [propArtSource, setPropArtSource] = useState("we_design"); // we_design | camera_ready
+  const [propBrief, setPropBrief] = useState({ headline: "", style: "", colors: "", instructions: "" });
   const [propStep, setPropStep] = useState("build");
   const [propName, setPropName] = useState("");
   const [editPropId, setEditPropId] = useState(null);
@@ -453,7 +454,7 @@ const SalesCRM = (props) => {
     const propData = {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
       lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay,
+      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
     if (editPropId) {
@@ -482,7 +483,7 @@ const SalesCRM = (props) => {
       const propData = {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
         lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay,
+        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
       let proposalId = editPropId;
@@ -525,7 +526,7 @@ const SalesCRM = (props) => {
 
       const htmlBody = generateProposalHtml({
         config: templateConfig,
-        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay, termMonths: monthSpan },
+        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, termMonths: monthSpan },
         client: cl,
         salesperson: teamMember,
         pubs: pubs || [],
@@ -1377,6 +1378,18 @@ const SalesCRM = (props) => {
             ))}
           </div>
         </div>
+        {/* Campaign Brief — flows to ad_projects.brief_* on conversion */}
+        {propArtSource === "we_design" && <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Creative Brief (optional — saves designer time)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Inp label="Headline / CTA" value={propBrief.headline} onChange={e => setPropBrief(b => ({ ...b, headline: e.target.value }))} placeholder="e.g. Grand Opening Sale — 20% Off" />
+            <Inp label="Style Direction" value={propBrief.style} onChange={e => setPropBrief(b => ({ ...b, style: e.target.value }))} placeholder="e.g. Modern, clean, wine-country feel" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Inp label="Brand Colors" value={propBrief.colors} onChange={e => setPropBrief(b => ({ ...b, colors: e.target.value }))} placeholder="e.g. Navy + gold, or use logo colors" />
+            <Inp label="Special Instructions" value={propBrief.instructions} onChange={e => setPropBrief(b => ({ ...b, instructions: e.target.value }))} placeholder="e.g. Include QR code to website" />
+          </div>
+        </div>}
         <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}><div style={{ flex: 1 }}><Sel label="Add Publication" data-prop-pub value={propAddPubId} onChange={e => setPropAddPubId(e.target.value)} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} /></div><Btn onClick={addPropPub} disabled={propPubs.some(pp => pp.pubId === propAddPubId)}><Ic.plus size={12} /> Add</Btn></div>
         <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 320, overflowY: "auto" }}>{propPubs.map((pp, pi) => { const pub = pubs.find(p => p.id === pp.pubId); const isExp = propExpandedPub === pp.pubId; if (!isExp) return <button key={pp.pubId} onClick={() => setPropExpandedPub(pp.pubId)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", ...glass(), borderRadius: Ri, cursor: "pointer", width: "100%" }}><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{pub?.name} ▸</span><span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>{pubSummary(pp)}</span></button>; const pI = issues.filter(i => i.pubId === pp.pubId && i.date >= today).slice(0, 24); return <div key={pp.pubId} style={{ background: Z.bg, border: `1px solid ${Z.ac}40`, borderRadius: R, padding: CARD.pad }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span onClick={() => setPropExpandedPub(null)} style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, cursor: "pointer" }}>{pub?.name} ▾</span>
@@ -1399,7 +1412,7 @@ const SalesCRM = (props) => {
           </div>}
           {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 

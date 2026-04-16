@@ -374,6 +374,7 @@ export function DataProvider({ children, localData }) {
         total: Number(p.total), payPlan: p.pay_plan, monthly: Number(p.monthly),
         status: p.status, date: p.date, renewalDate: p.renewal_date, closedAt: p.closed_at, sentTo: p.sent_to || [],
         assignedTo: p.assigned_to, artSource: p.art_source, contractId: p.contract_id,
+        briefHeadline: p.brief_headline || null, briefStyle: p.brief_style || null, briefColors: p.brief_colors || null, briefInstructions: p.brief_instructions || null,
         signedAt: p.signed_at, convertedAt: p.converted_at, sentAt: p.sent_at,
         history: p.history || [],
         lines: propLinesRes.data.filter(l => l.proposal_id === p.id).map(l => ({
@@ -924,14 +925,22 @@ export function DataProvider({ children, localData }) {
     // in-memory so the caller only has to supply saleId + patch.
     const sale = (sales || []).find(s => s.id === saleId);
     if (!sale) { console.error('upsertAdProject: sale not found', saleId); return null; }
+    // Pull brief fields from the proposal if available
+    const proposal = sale.proposalId ? proposals.find(p => p.id === sale.proposalId) : null;
     const row = {
       sale_id: saleId,
-      // useAppData maps sales with { clientId, publication, issueId, size }
       client_id: sale.clientId || sale.client_id,
       publication_id: sale.publication || sale.publicationId || sale.publication_id,
       issue_id: sale.issueId || sale.issue_id,
       ad_size: sale.size || sale.ad_size || null,
       status: 'brief',
+      // Campaign brief flows from proposal → ad_project
+      brief_headline: proposal?.briefHeadline || proposal?.brief_headline || null,
+      brief_style: proposal?.briefStyle || proposal?.brief_style || null,
+      brief_colors: proposal?.briefColors || proposal?.brief_colors || null,
+      brief_instructions: proposal?.briefInstructions || proposal?.brief_instructions || null,
+      source_proposal_id: sale.proposalId || null,
+      source_contract_id: sale.contractId || null,
       ...patch,
     };
     const { data, error } = await supabase
@@ -942,7 +951,7 @@ export function DataProvider({ children, localData }) {
     if (error) { console.error('upsertAdProject insert failed:', error); return null; }
     setAdProjects(prev => [data, ...prev]);
     return data;
-  }, [adProjectBySaleId, sales]);
+  }, [adProjectBySaleId, sales, proposals]);
 
   // Commissions — loaded when Commissions tab is opened
   const [commissionsLoaded, setCommissionsLoaded] = useState(false);
@@ -1204,6 +1213,7 @@ export function DataProvider({ children, localData }) {
         renewal_date: proposal.renewalDate || null, sent_to: proposal.sentTo || [],
         assigned_to: proposal.assignedTo || null, discount_pct: proposal.discountPct || 0,
         sent_at: proposal.sentAt || null, art_source: proposal.artSource || null, charge_day: proposal.chargeDay || 1,
+        brief_headline: proposal.briefHeadline || null, brief_style: proposal.briefStyle || null, brief_colors: proposal.briefColors || null, brief_instructions: proposal.briefInstructions || null,
       }).select().single();
       if (error) { console.error("insertProposal error:", error); throw new Error(error.message); }
       if (data && proposal.lines?.length) {
