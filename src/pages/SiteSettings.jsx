@@ -641,6 +641,8 @@ export default function SiteSettings({ pubs, setPubs }) {
   const [siteErrors, setSiteErrors] = useState([]);
   const [errorsLoading, setErrorsLoading] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+  const [redirectFormId, setRedirectFormId] = useState(null);
+  const [redirectNewPath, setRedirectNewPath] = useState('');
 
   useEffect(() => {
     if (!selectedId || !isOnline()) return;
@@ -652,6 +654,17 @@ export default function SiteSettings({ pubs, setPubs }) {
   const resolveError = async (errorId) => {
     await supabase.from("site_errors").update({ resolved: true, resolved_at: new Date().toISOString() }).eq("id", errorId);
     setSiteErrors(prev => prev.filter(e => e.id !== errorId));
+  };
+
+  const is404 = (e) => (e.error_type || '').includes('404') || e.status_code === 404;
+  const extractPath = (url) => { try { return new URL(url).pathname; } catch { return url || '/'; } };
+  const submitRedirect = async (err) => {
+    const oldPath = extractPath(err.url);
+    if (!redirectNewPath.trim()) return;
+    await supabase.from("redirects").insert({ publication_id: err.publication_id || selectedId, old_path: oldPath, new_path: redirectNewPath.trim(), status_code: 301 });
+    await resolveError(err.id);
+    setRedirectFormId(null);
+    setRedirectNewPath('');
   };
 
   const websitePubs = (pubs || []).filter(p => p.hasWebsite);
@@ -701,17 +714,31 @@ export default function SiteSettings({ pubs, setPubs }) {
               {siteErrors.map(e => {
                 const typeColors = { runtime: "#DC2626", "404": "#D97706", api: "#7C3AED", render: "#2563EB", network: "#6B7280" };
                 const tc = typeColors[e.error_type] || Z.tm;
-                return <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: 4, borderLeft: "3px solid " + tc }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: tc, textTransform: "uppercase", fontFamily: COND }}>{e.error_type}</span>
-                      {e.status_code && <span style={{ fontSize: 10, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{e.status_code}</span>}
-                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>{new Date(e.created_at || e.first_detected_at).toLocaleString()}</span>
+                return <div key={e.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: 4, borderLeft: "3px solid " + tc }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: tc, textTransform: "uppercase", fontFamily: COND }}>{e.error_type}</span>
+                        {e.status_code && <span style={{ fontSize: 10, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{e.status_code}</span>}
+                        <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>{new Date(e.created_at || e.first_detected_at).toLocaleString()}</span>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.message || "No message"}</div>
+                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.url}</div>
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.message || "No message"}</div>
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.url}</div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {!e.resolved && is404(e) && <Btn sm v="ghost" onClick={() => { setRedirectFormId(redirectFormId === e.id ? null : e.id); setRedirectNewPath(''); }} style={{ fontSize: 10, padding: "2px 6px", color: Z.ac }}>{"\u2192"} Redirect</Btn>}
+                      {!e.resolved && <Btn sm v="ghost" onClick={() => resolveError(e.id)} style={{ flexShrink: 0 }}>Resolve</Btn>}
+                    </div>
                   </div>
-                  {!e.resolved && <Btn sm v="ghost" onClick={() => resolveError(e.id)} style={{ flexShrink: 0 }}>Resolve</Btn>}
+                  {redirectFormId === e.id && (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 12px 6px 18px", background: Z.bg, borderRadius: 4 }}>
+                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0 }}>{extractPath(e.url)}</span>
+                      <span style={{ fontSize: 10, color: Z.td }}>{"\u2192"}</span>
+                      <input value={redirectNewPath} onChange={ev => setRedirectNewPath(ev.target.value)} onKeyDown={ev => { if (ev.key === "Enter") submitRedirect(e); }} placeholder="/new-path" autoFocus style={{ flex: 1, padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, outline: "none" }} />
+                      <Btn sm onClick={() => submitRedirect(e)} style={{ fontSize: 10, padding: "2px 8px" }}>Save</Btn>
+                      <button onClick={() => setRedirectFormId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 12 }}>{"\u2715"}</button>
+                    </div>
+                  )}
                 </div>;
               })}
             </div>}

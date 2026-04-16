@@ -390,7 +390,43 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
       {/* Persistent Save footer */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
         {deleteTeamMember ? <Btn v="danger" onClick={async () => {
-          if (!window.confirm(`Remove ${member.name} from the team? They'll be hidden from all team listings, dropdowns, and dashboards. Their commission history, sales attribution, and story bylines stay intact.`)) return;
+          // Count open items assigned to this member
+          const openStories = (stories || []).filter(s => s.assigned_to === member.id && s.status !== "Archived" && s.status !== "Ready");
+          const openSales = (sales || []).filter(s => s.assignedTo === member.id && !["Closed", "Cancelled", "Lost"].includes(s.status));
+          const assignedClients = (clients || []).filter(c => c.repId === member.id);
+          const totalOpen = openStories.length + openSales.length + assignedClients.length;
+
+          let reassignTo = null;
+          if (totalOpen > 0) {
+            const activeTeam = (team || []).filter(t => t.id !== member.id && t.isActive !== false && !t.isHidden);
+            const names = activeTeam.map(t => t.name);
+            const msg = `${member.name} has ${totalOpen} open items:\n` +
+              (openStories.length ? `  ${openStories.length} stories\n` : "") +
+              (openSales.length ? `  ${openSales.length} pipeline deals\n` : "") +
+              (assignedClients.length ? `  ${assignedClients.length} clients\n` : "") +
+              `\nReassign to: (type a name, or Cancel to abort)`;
+            const picked = window.prompt(msg, names[0] || "");
+            if (!picked) return;
+            reassignTo = activeTeam.find(t => t.name.toLowerCase().includes(picked.toLowerCase()));
+            if (!reassignTo) { window.alert("Team member not found. Aborting."); return; }
+          } else {
+            if (!window.confirm(`Remove ${member.name} from the team? They'll be hidden from all team listings, dropdowns, and dashboards. Their commission history, sales attribution, and story bylines stay intact.`)) return;
+          }
+
+          // Reassign open items if needed
+          if (reassignTo && reassignTo.id) {
+            const rid = reassignTo.id;
+            for (const s of openStories) {
+              await supabase.from("stories").update({ assigned_to: rid }).eq("id", s.id);
+            }
+            for (const s of openSales) {
+              await supabase.from("sales").update({ assigned_to: rid }).eq("id", s.id);
+            }
+            for (const c of assignedClients) {
+              await supabase.from("clients").update({ rep_id: rid }).eq("id", c.id);
+            }
+          }
+
           await deleteTeamMember(member.id);
           onClose();
         }}><Ic.trash size={12} /> Remove from Team</Btn> : <span />}
