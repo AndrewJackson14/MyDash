@@ -203,7 +203,7 @@ tbody tr td:last-child {
   border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
 }
 tbody tr td {
-  background: var(--md-sf);
+  background: transparent;
   border-top: none !important;
   border-bottom: none !important;
 }
