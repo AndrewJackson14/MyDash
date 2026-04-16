@@ -61,6 +61,34 @@ export function useCrossModuleWiring({
             // Camera-ready ads skip the design pipeline
             const isCameraReady = client?.lastArtSource === "camera_ready";
             upsertAdProject({ saleId, patch: { status: isCameraReady ? "proof_sent" : "brief", art_source: isCameraReady ? "camera_ready" : "we_design" } })
+              .then(() => {
+                // Auto-suggest: if a sibling pub has a matching closed sale
+                // (same client, same size, similar date), notify the user so
+                // they can link the two ad projects.
+                const pub = (pubs || []).find(p => p.id === sale.publication);
+                const siblings = pub?.settings?.shared_content_with || [];
+                if (siblings.length > 0) {
+                  const siblingMatch = (sales || []).find(s =>
+                    s.id !== saleId &&
+                    s.clientId === sale.clientId &&
+                    s.size === sale.size &&
+                    s.status === "Closed" &&
+                    siblings.includes(s.publication) &&
+                    s.issueId && sale.issueId &&
+                    Math.abs(new Date((issues || []).find(i => i.id === s.issueId)?.date || 0) - new Date((issues || []).find(i => i.id === sale.issueId)?.date || 0)) <= 7 * 86400000
+                  );
+                  if (siblingMatch) {
+                    const sibPubName = (pubs || []).find(p => p.id === siblingMatch.publication)?.name || "another publication";
+                    setNotifications(prev => [...(prev || []), {
+                      id: "n-link-" + Date.now(),
+                      text: `Shared content match: ${clientName} has the same ${sale.size} ad in ${sibPubName}. Open Design Studio to link the projects.`,
+                      time: new Date().toLocaleTimeString(),
+                      read: false,
+                      route: "adprojects",
+                    }]);
+                  }
+                }
+              })
               .catch(err => console.error("auto-create ad_project failed:", err));
           }
         }

@@ -953,6 +953,78 @@ export function DataProvider({ children, localData }) {
     return data;
   }, [adProjectBySaleId, sales, proposals]);
 
+  // Link a secondary ad project to a primary — the secondary's status
+  // flips to 'linked' and its design workflow is deferred to the primary.
+  // Used for shared-content publications where the same physical ad runs
+  // in two issues and only needs one design cycle.
+  const linkAdProject = useCallback(async (secondaryId, primaryId) => {
+    if (!secondaryId || !primaryId || !isOnline()) return null;
+    const { data, error } = await supabase
+      .from('ad_projects')
+      .update({
+        linked_to_project_id: primaryId,
+        status: 'linked',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', secondaryId)
+      .select()
+      .single();
+    if (error) { console.error('linkAdProject failed:', error); return null; }
+    setAdProjects(prev => prev.map(p => p.id === data.id ? data : p));
+    return data;
+  }, []);
+
+  // Unlink a secondary ad project — restores it to 'brief' so it gets
+  // its own independent design cycle.
+  const unlinkAdProject = useCallback(async (secondaryId) => {
+    if (!secondaryId || !isOnline()) return null;
+    const { data, error } = await supabase
+      .from('ad_projects')
+      .update({
+        linked_to_project_id: null,
+        status: 'brief',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', secondaryId)
+      .select()
+      .single();
+    if (error) { console.error('unlinkAdProject failed:', error); return null; }
+    setAdProjects(prev => prev.map(p => p.id === data.id ? data : p));
+    return data;
+  }, []);
+
+  // Find candidate ad projects that could be linked to a given project.
+  // Criteria: same client, same ad_size, issue date within ±7 days, in a
+  // sibling publication (shared_content_with), not already linked, not self.
+  const findLinkCandidates = useCallback((projectId) => {
+    const project = adProjects.find(p => p.id === projectId);
+    if (!project) return [];
+    const pub = (pubs || []).find(p => p.id === project.publication_id);
+    const siblings = pub?.settings?.shared_content_with || [];
+    if (siblings.length === 0) return [];
+
+    const projectIssue = (issues || []).find(i => i.id === project.issue_id);
+    const projectDate = projectIssue?.date;
+
+    return adProjects.filter(p => {
+      if (p.id === projectId) return false;
+      if (p.status === 'linked') return false;
+      if (p.linked_to_project_id) return false;
+      if (p.client_id !== project.client_id) return false;
+      if (p.ad_size !== project.ad_size) return false;
+      if (!siblings.includes(p.publication_id)) return false;
+      // Date proximity check (±7 days)
+      if (projectDate) {
+        const pIssue = (issues || []).find(i => i.id === p.issue_id);
+        if (pIssue?.date) {
+          const diff = Math.abs(new Date(pIssue.date) - new Date(projectDate));
+          if (diff > 7 * 86400000) return false;
+        }
+      }
+      return true;
+    });
+  }, [adProjects, pubs, issues]);
+
   // Commissions — loaded when Commissions tab is opened
   const [commissionsLoaded, setCommissionsLoaded] = useState(false);
   const loadCommissions = useCallback(async () => {
@@ -2170,6 +2242,7 @@ export function DataProvider({ children, localData }) {
     // Ad Projects (design-state overlay, keyed by sale_id)
     adProjects, setAdProjects, adProjectsLoaded, loadAdProjects,
     adProjectBySaleId, getDesignStateForSale, upsertAdProject,
+    linkAdProject, unlinkAdProject, findLinkCandidates,
   }), [
     // Data arrays (re-render consumers only when actual data changes)
     pubs, activePubs, issues, stories, clients, sales, proposals, team, notifications,
@@ -2190,6 +2263,7 @@ export function DataProvider({ children, localData }) {
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
     loadAdProjects, getDesignStateForSale, upsertAdProject,
+    linkAdProject, unlinkAdProject, findLinkCandidates,
   ]);
 
   return <DataContext.Provider value={value}>{loaded ? children : null}</DataContext.Provider>;

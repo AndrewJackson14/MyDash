@@ -41,7 +41,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
   // useAppData is now the source of truth for ad_projects. Local aliases
   // keep the rest of this file readable — `projects` and `setProjects`
   // still work as before but mutate shared state.
-  const { adProjects, setAdProjects, loadAdProjects, adProjectBySaleId } = useAppData();
+  const { adProjects, setAdProjects, loadAdProjects, adProjectBySaleId, linkAdProject, unlinkAdProject, findLinkCandidates } = useAppData();
   const projects = adProjects;
   const setProjects = setAdProjects;
   const [tab, setTab] = useState("Active");
@@ -390,6 +390,62 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
           return <div key={s} style={{ flex: 1, padding: "6px 0", textAlign: "center", fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5, color: isCurrent ? "#fff" : isPast ? Z.go : Z.td, background: isCurrent ? st.color : isPast ? Z.go + "20" : Z.sa, borderRadius: Ri }}>{STATUSES[s]?.label || s}</div>;
         })}
       </div>
+
+      {/* Linked project banner — shown if this project is linked (secondary) */}
+      {viewProject.status === "linked" && viewProject.linked_to_project_id && (() => {
+        const primary = projects.find(p => p.id === viewProject.linked_to_project_id);
+        return (
+          <div style={{ padding: "10px 14px", background: Z.ac + "10", border: `1px solid ${Z.ac}30`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>Linked to </span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+                onClick={() => primary && setViewId(primary.id)}
+              >{primary ? `${cn(primary.client_id)} — ${pn(primary.publication_id)}` : "another project"}</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>Design work happens on the primary project.</span>
+            </div>
+            <Btn sm v="secondary" onClick={async () => { await unlinkAdProject(viewProject.id); }}>Unlink</Btn>
+          </div>
+        );
+      })()}
+
+      {/* Linked projects badge — shown if other projects are linked TO this one (primary) */}
+      {(() => {
+        const linkedTo = projects.filter(p => p.linked_to_project_id === viewProject.id);
+        if (linkedTo.length === 0) return null;
+        return (
+          <div style={{ padding: "10px 14px", background: Z.go + "10", border: `1px solid ${Z.go}30`, borderRadius: Ri }}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go }}>Also running in: </span>
+            {linkedTo.map((lp, i) => (
+              <span key={lp.id}>
+                {i > 0 && ", "}
+                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(lp.publication_id)}</span>
+              </span>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Link to another project button — shown when not already linked and candidates exist */}
+      {viewProject.status !== "linked" && !viewProject.linked_to_project_id && (() => {
+        const candidates = findLinkCandidates(viewProject.id);
+        if (candidates.length === 0) return null;
+        return (
+          <div style={{ padding: "10px 14px", background: Z.wa + "10", border: `1px solid ${Z.wa}30`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.wa }}>Shared content match found — </span>
+              <span style={{ fontSize: FS.sm, color: Z.tx }}>
+                {candidates.map((c, i) => (
+                  <span key={c.id}>{i > 0 && ", "}{cn(c.client_id)} in {pn(c.publication_id)}</span>
+                ))}
+              </span>
+            </div>
+            <Btn sm onClick={async () => {
+              // Link the candidate as secondary (this project becomes primary)
+              await linkAdProject(candidates[0].id, viewProject.id);
+            }}>Link Ad Project</Btn>
+          </div>
+        );
+      })()}
 
       {/* Deadline context */}
       {(() => {
