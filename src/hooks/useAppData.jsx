@@ -489,6 +489,7 @@ export function DataProvider({ children, localData }) {
           notes: i.notes || '', createdAt: i.created_at,
           lockedAt: i.locked_at || null,
           chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+          quickbooksId: i.quickbooks_id || null, quickbooksSyncedAt: i.quickbooks_synced_at || null, quickbooksSyncError: i.quickbooks_sync_error || null,
           // Skinny lines — only the fields needed by the Billing module's
           // filters (saleId for uninvoiced-sales detection, publicationId
           // for the aging report pub filter). Full line details
@@ -506,7 +507,7 @@ export function DataProvider({ children, localData }) {
     if (payRes.data) setPayments(payRes.data.map(p => ({
       id: p.id, invoiceId: p.invoice_id, amount: Number(p.amount), method: p.method,
       transactionId: p.transaction_id, lastFour: p.last_four,
-      qbPaymentId: p.qb_payment_id, notes: p.notes || '', receivedAt: p.received_at,
+      quickbooksId: p.quickbooks_id || null, quickbooksSyncedAt: p.quickbooks_synced_at || null, quickbooksSyncError: p.quickbooks_sync_error || null, notes: p.notes || '', receivedAt: p.received_at,
     })));
     setBillingLoaded(true);
   }, [billingLoaded]);

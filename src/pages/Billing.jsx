@@ -230,6 +230,56 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     invoiceId: "", amount: 0, method: "card", lastFour: "", notes: "",
   });
 
+  // ─── Sync invoice to QuickBooks ─────────────────────────────
+  const [qbSyncing, setQbSyncing] = useState(null);
+  const syncInvoiceToQB = async (inv) => {
+    setQbSyncing(inv.id);
+    try {
+      const client = (clients || []).find(c => c.id === inv.clientId);
+      if (!client) throw new Error("Client not found");
+
+      // 1. Find or create QB customer
+      const findRes = await supabase.functions.invoke("qb-api", { headers: { "x-action": "find-customer" }, body: { name: client.name } });
+      let qbCustomerId = findRes.data?.customers?.[0]?.Id;
+      if (!qbCustomerId) {
+        const createRes = await supabase.functions.invoke("qb-api", {
+          headers: { "x-action": "create-customer" },
+          body: { DisplayName: client.name, PrimaryEmailAddr: client.billingEmail ? { Address: client.billingEmail } : undefined },
+        });
+        qbCustomerId = createRes.data?.Customer?.Id;
+      }
+      if (!qbCustomerId) throw new Error("Could not find or create QB customer");
+
+      // 2. Build invoice lines
+      const invLines = (inv.lines || []).filter(l => l.description || l.total);
+      const qbLines = invLines.length > 0
+        ? invLines.map((l, i) => ({
+            Amount: Number(l.total || 0), DetailType: "SalesItemLineDetail",
+            Description: l.description || `Line ${i + 1}`,
+            SalesItemLineDetail: { Qty: l.quantity || 1, UnitPrice: Number(l.unitPrice || l.total || 0) },
+          }))
+        : [{ Amount: Number(inv.total || 0), DetailType: "SalesItemLineDetail", Description: `Invoice ${inv.invoiceNumber}`, SalesItemLineDetail: { Qty: 1, UnitPrice: Number(inv.total || 0) } }];
+
+      // 3. Create invoice in QB
+      const invRes = await supabase.functions.invoke("qb-api", {
+        headers: { "x-action": "create-invoice" },
+        body: { CustomerRef: { value: qbCustomerId }, Line: qbLines, DueDate: inv.dueDate, DocNumber: inv.invoiceNumber },
+      });
+      const qbId = invRes.data?.Invoice?.Id;
+      if (!qbId) throw new Error(invRes.data?.error || "QB invoice creation failed");
+
+      // 4. Save sync status
+      await supabase.from("invoices").update({ quickbooks_id: qbId, quickbooks_synced_at: new Date().toISOString(), quickbooks_sync_error: null }).eq("id", inv.id);
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, quickbooksId: qbId, quickbooksSyncedAt: new Date().toISOString(), quickbooksSyncError: null } : i));
+    } catch (err) {
+      const msg = err.message || "Unknown error";
+      await supabase.from("invoices").update({ quickbooks_sync_error: msg }).eq("id", inv.id);
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, quickbooksSyncError: msg } : i));
+      await dialog.alert("QB sync failed: " + msg);
+    }
+    setQbSyncing(null);
+  };
+
   // ─── Listen for invoice.create events from other modules ──
   const openNewInvoiceRef = useRef(null);
   useEffect(() => {
@@ -866,8 +916,16 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                     </div>
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    {inv.status === "draft" && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); sendInvoice(inv.id); }}>Send</Btn>}
-                    {["sent", "partially_paid", "overdue"].includes(inv.status) && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); openPayment(inv.id); }}>Pay</Btn>}
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      {inv.status === "draft" && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); sendInvoice(inv.id); }}>Send</Btn>}
+                      {["sent", "partially_paid", "overdue"].includes(inv.status) && <Btn sm v="secondary" onClick={e => { e.stopPropagation(); openPayment(inv.id); }}>Pay</Btn>}
+                      {inv.quickbooksId
+                        ? <span title={"QB ID: " + inv.quickbooksId} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.go }}>QB ✓</span>
+                        : inv.quickbooksSyncError
+                          ? <span title={inv.quickbooksSyncError} style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.da, cursor: "pointer" }} onClick={e => { e.stopPropagation(); syncInvoiceToQB(inv); }}>QB ✕</span>
+                          : inv.status !== "draft" && inv.status !== "void" && <Btn sm v="ghost" disabled={qbSyncing === inv.id} onClick={e => { e.stopPropagation(); syncInvoiceToQB(inv); }} style={{ fontSize: FS.micro, padding: "2px 6px" }}>{qbSyncing === inv.id ? "…" : "QB"}</Btn>
+                      }
+                    </div>
                   </td>
                 </tr>;
               })}
