@@ -239,7 +239,50 @@ serve(async (req: Request) => {
     }
   }
 
-  // ═══ TASK 4: AUTO-CHARGE PAYMENT PLANS ═══
+  // ═══ TASK 4: SCHEDULED STORY PUBLISH ═══
+  // Stories with scheduled_at <= now that haven't been published yet
+  if (task === "all" || task === "scheduled_publish") {
+    try {
+      const now = new Date().toISOString();
+      const { data: scheduled } = await admin.from("stories")
+        .select("id, title, publication_id, scheduled_at")
+        .eq("sent_to_web", false)
+        .eq("web_approved", true)
+        .not("scheduled_at", "is", null)
+        .lte("scheduled_at", now);
+
+      let published = 0;
+      for (const story of (scheduled || [])) {
+        const updates: any = {
+          sent_to_web: true,
+          status: "Ready",
+          published_at: now,
+          updated_at: now,
+        };
+        // Set first_published_at only if not already set
+        const { data: existing } = await admin.from("stories")
+          .select("first_published_at").eq("id", story.id).single();
+        if (!existing?.first_published_at) {
+          updates.first_published_at = now;
+        }
+
+        const { error } = await admin.from("stories").update(updates).eq("id", story.id);
+        if (!error) {
+          await admin.from("notifications").insert({
+            title: `Scheduled publish: "${story.title}" is now live`,
+            type: "system",
+            link: "/editorial",
+          });
+          published++;
+        }
+      }
+      results.scheduled_publish = { published };
+    } catch (err) {
+      results.scheduled_publish = { error: (err as Error).message };
+    }
+  }
+
+  // ═══ TASK 5: AUTO-CHARGE PAYMENT PLANS ═══
   // Charges monthly payment plan clients on their charge_day (1st or 15th)
   // Payment applies to oldest open invoices via apply_payment_to_invoices()
   if (task === "all" || task === "auto_charge") {
