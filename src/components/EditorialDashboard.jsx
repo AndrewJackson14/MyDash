@@ -440,12 +440,15 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SB value={sr} onChange={setSr} placeholder="Search stories…" />
           <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
-          <Btn sm onClick={() => {
-            const id = "story-" + Date.now();
+          <Btn sm onClick={async () => {
             const issueId = selIssue || "";
             const pubId = issueId ? (issues.find(i => i.id === issueId)?.publicationId || issues.find(i => i.id === issueId)?.pubId || "") : (fPub !== "all" ? fPub : pubs[0]?.id || "");
-            const newStory = { id, title: "", status: "Draft", author: "", publication_id: pubId, publication: pubId, issueId, issue_id: issueId, print_issue_id: issueId, category: "News", priority: "normal", web_status: "none", print_status: "none", created_at: new Date().toISOString() };
-            setStories(prev => [newStory, ...prev]);
+            const row = { title: "", status: "Draft", author: "", publication_id: pubId, issue_id: issueId, print_issue_id: issueId, category: "News", priority: "normal", web_status: "none", print_status: "none", site_id: pubId };
+            const { data } = await supabase.from("stories").insert(row).select().single();
+            if (data) {
+              const mapped = { id: data.id, title: "", status: "Draft", author: "", publication_id: pubId, publication: pubId, issueId, issue_id: issueId, print_issue_id: issueId, category: "News", priority: "normal", web_status: "none", print_status: "none", created_at: data.created_at };
+              setStories(prev => [mapped, ...prev]);
+            }
           }}><Ic.plus size={12} /> New Story</Btn>
         </div>
       </div>

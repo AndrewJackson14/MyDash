@@ -3,6 +3,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { STORY_STATUSES, STORY_AUTHORS } from "../constants";
 import { useDialog } from "../hooks/useDialog";
+import { supabase } from "../lib/supabase";
 
 const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, setGlobalPageStories }) => {
   const dialog = useDialog();
@@ -44,11 +45,15 @@ const StoriesModule = ({ stories, setStories, pubs, issues, globalPageStories, s
   const selectAllFiltered = () => { if (selectedIds.size === fl.length) setSelectedIds(new Set()); else setSelectedIds(new Set(fl.map(s => s.id))); };
 
   const upd = (id, field, val) => setStories(st => st.map(s => s.id === id ? { ...s, [field]: val } : s));
-  const addNew = () => {
-    const id = "s" + Date.now();
+  const addNew = async () => {
     const pub = fPub !== "all" ? fPub : pubs[0]?.id || "";
-    setStories(st => [...st, { id, title: "", author: STORY_AUTHORS[0] || "", status: "Draft", publication: pub, assignedTo: "", dueDate: "", images: 0, wordCount: 0, category: "News", issueId: "" }]);
-    setEditingId(id);
+    const row = { title: "", status: "Draft", author: STORY_AUTHORS[0] || "", publication_id: pub, category: "News", site_id: pub };
+    const { data } = await supabase.from("stories").insert(row).select().single();
+    if (data) {
+      const mapped = { id: data.id, title: "", author: data.author || "", status: "Draft", publication: pub, assignedTo: "", dueDate: "", images: 0, wordCount: 0, category: "News", issueId: "", created_at: data.created_at };
+      setStories(st => [...st, mapped]);
+      setEditingId(data.id);
+    }
   };
   const remove = (id) => setStories(st => st.filter(s => s.id !== id));
   const clearFilters = () => { setFPub("all"); setFStatus("all"); setFAuthor("all"); setFIssue("all"); setSr(""); };
