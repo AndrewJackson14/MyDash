@@ -20,7 +20,7 @@ export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => <tr style={
 // DataTable — universal frosted glass table with standardized styles
 export const DataTable = ({ children, style, emptyMessage }) => {
   const isDark = Z.bg === "#08090D";
-  const glassBg = isDark ? "rgba(180,185,195,0.08)" : "rgba(255,255,255,0.75)";
+  const glassBg = isDark ? "rgba(180,185,195,0.03)" : "rgba(0,0,0,0.02)";
   const glassBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
   const headerBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
   const hoverBg = isDark ? "rgba(255,255,255," + TBL.hoverAlpha + ")" : "rgba(0,0,0," + TBL.hoverAlpha + ")";
