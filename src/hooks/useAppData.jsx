@@ -54,7 +54,7 @@ export function DataProvider({ children, localData }) {
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionPayments, setSubscriptionPayments] = useState([]);
   const [mailingLists, setMailingLists] = useState([]);
-  // Editions (issuu_editions)
+  // Editions (editions)
   const [editions, setEditions] = useState([]);
   // Ad inquiries (inbound from StellarPress)
   const [adInquiries, setAdInquiries] = useState([]);
@@ -778,11 +778,11 @@ export function DataProvider({ children, localData }) {
     setCirculationLoaded(true);
   }, [circulationLoaded]);
 
-  // Editions (issuu_editions)
+  // Editions (editions)
   const [editionsLoaded, setEditionsLoaded] = useState(false);
   const loadEditions = useCallback(async () => {
     if (editionsLoaded || !isOnline()) return;
-    const { data } = await supabase.from('issuu_editions').select('*').order('publish_date', { ascending: false });
+    const { data } = await supabase.from('editions').select('*').order('publish_date', { ascending: false });
     if (data) setEditions(data.map(e => ({
       id: e.id, publicationId: e.publication_id, title: e.title, slug: e.slug,
       pdfUrl: e.pdf_url, coverImageUrl: e.cover_image_url, publishDate: e.publish_date,

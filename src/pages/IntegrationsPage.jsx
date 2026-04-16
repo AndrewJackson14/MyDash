@@ -333,10 +333,11 @@ const IntegrationsPage = ({ pubs }) => {
             <div style={{ padding: CARD.pad, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 48, height: 48, borderRadius: R, background: Z.go + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{"\u2713"}</div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{googleEmail}</div>
                   <div style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.semi, fontFamily: COND }}>Connected</div>
                 </div>
+                <Btn sm v="ghost" onClick={disconnectGoogle} style={{ color: Z.da, fontSize: FS.xs }}>Disconnect</Btn>
               </div>
             </div>
 
@@ -358,7 +359,7 @@ const IntegrationsPage = ({ pubs }) => {
               </div>
             </div>
 
-            <Btn sm v="danger" onClick={disconnectGoogle}>Disconnect Google Account</Btn>
+            {/* Disconnect moved inline next to Connected status */}
           </div>
         ) : (
           <div style={{ padding: 40, textAlign: "center", background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>

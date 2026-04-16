@@ -13,6 +13,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const [editPub, setEditPub] = useState(null);
   const [showEZSchedule, setShowEZSchedule] = useState(false);
   const [showAddPub, setShowAddPub] = useState(false);
+  const [showDormant, setShowDormant] = useState(false);
   const [goToWizard, setGoToWizard] = useState(false);
   const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue, hasWebsite: false, websiteUrl: "" });
 
@@ -110,15 +111,14 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.bold, marginTop: 4 }}>{p.adSizes?.length || 0} ad sizes</div>
         </div>)}</div>}
         {gpDormant.length > 0 && <>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Dormant</span>
-            <span style={{ fontSize: FS.sm, color: Z.td }}>{gpDormant.length}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, cursor: "pointer" }} onClick={() => setShowDormant(s => !s)}>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{showDormant ? "Hide" : "Show"} Inactive ({gpDormant.length})</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10, marginTop: 8 }}>{gpDormant.map(p => <div key={p.id} onClick={() => openPub(p)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer", opacity: 0.5 }}>
+          {showDormant && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10, marginTop: 8 }}>{gpDormant.map(p => <div key={p.id} onClick={() => openPub(p)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer", opacity: 0.5 }}>
             <h4 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</h4>
             <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>{p.frequency} · {p.circ?.toLocaleString()} circ.</div>
-            <div style={{ fontSize: FS.sm, color: Z.td, fontWeight: FW.bold, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Dormant</div>
-          </div>)}</div>
+            <div style={{ fontSize: FS.sm, color: Z.td, fontWeight: FW.bold, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Inactive</div>
+          </div>)}</div>}
         </>}
       </div>; })}
     <Modal open={rateModal} onClose={() => setRateModal(false)} title={editMode ? `Edit — ${editPub?.name || ""}` : sel ? sel.name : ""} width={800}>{sel && editPub && <div>

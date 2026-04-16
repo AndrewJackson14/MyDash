@@ -563,7 +563,7 @@ export default function App() {
 
       {/* User + Admin Switcher */}
       <div style={{ padding: "8px 4px", borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
-        <div onClick={() => setShowProfile(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", justifyContent: col ? "center" : "flex-start", cursor: "pointer", borderRadius: 3 }}
+        <div onClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", justifyContent: col ? "center" : "flex-start", cursor: "pointer", borderRadius: 3 }}
           onMouseEnter={e => e.currentTarget.style.background = Z.sa}
           onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
           <div style={{ width: 22, height: 22, borderRadius: 3, background: impersonating ? Z.wa + "30" : Z.sa, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: impersonating ? `1px solid ${Z.wa}` : "none" }}><Ic.user size={11} color={impersonating ? Z.wa : Z.tm} /></div>

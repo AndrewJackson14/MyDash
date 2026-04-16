@@ -1,6 +1,6 @@
 // ============================================================
 // EditionManager.jsx — Upload & manage print editions (PDF)
-// Stores in issuu_editions, uploads to BunnyCDN, auto-generates covers
+// Stores in editions, uploads to BunnyCDN, auto-generates covers
 // Client-side PDF compression via pdf.js re-render + jsPDF assembly
 // ============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -257,17 +257,17 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
     if (!supabase) return;
     const newVal = !ed.isFeatured;
     if (newVal) {
-      await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", ed.publicationId);
+      await supabase.from("editions").update({ is_featured: false }).eq("publication_id", ed.publicationId);
       setEditions(prev => prev.map(e => e.publicationId === ed.publicationId ? { ...e, isFeatured: false } : e));
     }
-    await supabase.from("issuu_editions").update({ is_featured: newVal }).eq("id", ed.id);
+    await supabase.from("editions").update({ is_featured: newVal }).eq("id", ed.id);
     setEditions(prev => prev.map(e => e.id === ed.id ? { ...e, isFeatured: newVal } : e));
   };
 
   // ── Delete ───────────────────────────────────────────────
   const handleDelete = async (ed) => {
     if (!supabase) return;
-    await supabase.from("issuu_editions").delete().eq("id", ed.id);
+    await supabase.from("editions").delete().eq("id", ed.id);
     setEditions(prev => prev.filter(e => e.id !== ed.id));
     setDeleteConfirm(null);
   };
@@ -618,7 +618,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
       // Unfeature others if this one is featured
       if (isFeatured) {
-        const { error: featErr } = await supabase.from("issuu_editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
+        const { error: featErr } = await supabase.from("editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
         if (featErr) console.warn("Featured toggle error:", featErr);
       }
 
@@ -636,9 +636,9 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
       let result;
       if (isEdit) {
-        result = await supabase.from("issuu_editions").update(row).eq("id", edition.id).select().single();
+        result = await supabase.from("editions").update(row).eq("id", edition.id).select().single();
       } else {
-        result = await supabase.from("issuu_editions").insert(row).select().single();
+        result = await supabase.from("editions").insert(row).select().single();
       }
 
       if (result.error) throw result.error;

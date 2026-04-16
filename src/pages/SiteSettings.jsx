@@ -494,7 +494,6 @@ export default function SiteSettings({ pubs, setPubs }) {
     weather_lat: site.settings?.weather_lat ?? "",
     weather_lon: site.settings?.weather_lon ?? "",
     comments_enabled: site.settings?.comments_enabled ?? false,
-    issuu_enabled: site.settings?.issuu_enabled ?? false,
     breaking_news: site.settings?.breaking_news || "",
     ga_measurement_id: site.settings?.ga_measurement_id || "",
     native_analytics_enabled: site.settings?.native_analytics_enabled ?? true,
@@ -566,7 +565,6 @@ export default function SiteSettings({ pubs, setPubs }) {
       weather_lat: draft.weather_lat ? Number(draft.weather_lat) : null,
       weather_lon: draft.weather_lon ? Number(draft.weather_lon) : null,
       comments_enabled: draft.comments_enabled,
-      issuu_enabled: draft.issuu_enabled,
       breaking_news: draft.breaking_news,
       ga_measurement_id: draft.ga_measurement_id,
       native_analytics_enabled: draft.native_analytics_enabled,
@@ -939,7 +937,6 @@ export default function SiteSettings({ pubs, setPubs }) {
 
             <Section title="Features">
               <Toggle checked={draft.comments_enabled} onChange={v => update("comments_enabled", v)} label="Comments Enabled" />
-              <Toggle checked={draft.issuu_enabled} onChange={v => update("issuu_enabled", v)} label="Issuu E-Edition Enabled" />
               <Field label="Breaking News Banner">
                 <input value={draft.breaking_news} onChange={e => update("breaking_news", e.target.value)} placeholder="Leave empty to hide. Text or JSON {text, url}" style={getInputStyle()} />
               </Field>
