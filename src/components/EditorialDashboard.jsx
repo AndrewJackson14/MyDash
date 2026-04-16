@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
+import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -141,37 +141,39 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 
   return (
     <div
-      style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 0 }}
+      style={{
+        flex: 1, minWidth: 220, display: "flex", flexDirection: "column",
+        background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)",
+        backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+        borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`,
+        minHeight: 100,
+      }}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); const sid = e.dataTransfer.getData("storyId"); if (sid) onDrop(sid, col.key); }}
     >
-      {/* Column header */}
+      {/* Column header — matches Pipeline style */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "8px 10px", borderBottom: `2px solid ${col.color}`,
+        padding: "3px 4px 6px", borderBottom: `2px solid ${col.color}`,
         marginBottom: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", color: col.color, fontFamily: COND }}>{col.label}</span>
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: Z.tm, background: Z.sa, padding: "1px 8px", borderRadius: 10, fontFamily: COND }}>{stories.length}</span>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.black, textTransform: "uppercase", letterSpacing: "0.04em", color: col.color, fontFamily: COND }}>{col.label}</span>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{stories.length}</span>
       </div>
 
       {/* Drop zone */}
       <div style={{
-        flex: 1, display: "flex", flexDirection: "column", gap: 6,
-        padding: 4, borderRadius: Ri, minHeight: 120,
-        background: dragOver ? col.color + "10" : "transparent",
-        border: dragOver ? `1px dashed ${col.color}` : "1px dashed transparent",
-        transition: "all 0.15s",
-        overflowY: "auto",
+        flex: 1, display: "flex", flexDirection: "column", gap: 8,
+        overflowY: "auto", maxHeight: 420,
+        background: dragOver ? col.color + "08" : "transparent",
+        borderRadius: Ri, transition: "background 0.15s",
       }}>
         {stories.map(s => (
           <StoryCard key={s.id} story={s} pubs={pubs} team={team} onClick={onClick} />
         ))}
         {stories.length === 0 && (
-          <div style={{ padding: 16, textAlign: "center", fontSize: 11, color: Z.td || Z.tm, fontStyle: "italic" }}>
+          <div style={{ padding: 16, textAlign: "center", fontSize: 11, color: Z.td, fontStyle: "italic" }}>
             Drop stories here
           </div>
         )}
@@ -478,23 +480,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       })()}
 
       {/* ── Tab bar + filters ─────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, borderBottom: `1px solid ${Z.bd}`, paddingBottom: 8 }}>
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 0 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: "6px 14px", fontSize: 12, fontWeight: tab === t.id ? 800 : 600,
-              color: tab === t.id ? Z.ac : Z.tm, background: "none", border: "none",
-              borderBottom: `2px solid ${tab === t.id ? Z.ac : "transparent"}`,
-              cursor: "pointer", fontFamily: COND, transition: "all 0.15s",
-              display: "flex", alignItems: "center", gap: 5,
-            }}>
-              {t.label}
-              {t.id === "web" && stats.needsRepublish > 0 && (
-                <span style={{ width: 16, height: 16, borderRadius: "50%", background: Z.wa, color: INV.light, fontSize: FS.micro, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{stats.needsRepublish}</span>
-              )}
-            </button>
-          ))}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, paddingBottom: 8 }}>
+        {/* Tabs — standard pill selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <TB tabs={TABS.map(t => t.label)} active={TABS.find(t => t.id === tab)?.label || "Workflow"} onChange={v => { const match = TABS.find(t => t.label === v); if (match) setTab(match.id); }} />
+          {stats.needsRepublish > 0 && (
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: Z.wa, color: INV.light, fontSize: FS.micro, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{stats.needsRepublish}</span>
+          )}
         </div>
 
         {/* Filters */}

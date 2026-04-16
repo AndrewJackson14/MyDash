@@ -103,7 +103,7 @@ export const TB = ({ tabs, active, onChange }) => {
     padding: 4,
     borderRadius: 999,
     background: Z.sa,
-    border: `1px solid ${Z.bd}`,
+    border: "none",
   }}>
     {/* Sliding active indicator — blue so the selected tab reads
         as an action affordance, not a heavy black block. */}
