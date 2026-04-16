@@ -455,6 +455,27 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         <GlassStat label="Published This Week" value={stats.publishedThisWeekCount} color={Z.su} />
       </div>
 
+      {/* ── Top Performing This Week ────────────────────── */}
+      {(() => {
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+        const topStories = filtered
+          .filter(s => (s.sent_to_web || s.sentToWeb) && s.published_at && new Date(s.published_at) >= weekAgo && (s.view_count || s.viewCount || 0) > 0)
+          .sort((a, b) => (b.view_count || b.viewCount || 0) - (a.view_count || a.viewCount || 0))
+          .slice(0, 5);
+        if (topStories.length === 0) return null;
+        return (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}`, overflowX: "auto" }}>
+            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.su, fontFamily: COND, whiteSpace: "nowrap", flexShrink: 0 }}>Top This Week</span>
+            {topStories.map((s, i) => (
+              <div key={s.id} onClick={() => openDetail(s)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: i === 0 ? (Z.su + "12") : Z.bg, borderRadius: Ri, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, border: `1px solid ${i === 0 ? Z.su + "30" : "transparent"}` }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? Z.su : Z.ac, fontFamily: COND }}>{(s.view_count || s.viewCount || 0).toLocaleString()}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: Z.tx, fontFamily: COND, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* ── Tab bar + filters ─────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, borderBottom: `1px solid ${Z.bd}`, paddingBottom: 8 }}>
         {/* Tabs */}

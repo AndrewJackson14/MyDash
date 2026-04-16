@@ -91,7 +91,7 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   </div>;
 };
 
-const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction }) => {
+const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser }) => {
   const fpPubs = jurisdiction?.myPubs || pubs;
   const [selPub, setSelPub] = useState("");
   const [selIssue, setSelIssue] = useState("");
@@ -124,7 +124,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
 
     // 1. Mark issue as sent to press
-    await supabase.from("issues").update({ sent_to_press_at: now, sent_to_press_by: "publisher" }).eq("id", issue.id);
+    await supabase.from("issues").update({ sent_to_press_at: now, sent_to_press_by: currentUser?.name || currentUser?.id || "publisher" }).eq("id", issue.id);
     setIssues(prev => prev.map(i => i.id === issue.id ? { ...i, sentToPressAt: now } : i));
 
     // 2. Find closed sales for this issue

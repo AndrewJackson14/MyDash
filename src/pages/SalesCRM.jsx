@@ -991,12 +991,24 @@ const SalesCRM = (props) => {
           {viewContract.status === "active" && <Btn sm v="ghost" onClick={async () => {
             const reason = await dialog.prompt("Cancellation reason:");
             if (!reason) return;
+            // Check for invoiced orders that haven't gone to press
+            const contractSales = (sales || []).filter(s => s.contractId === viewContract.id && s.status === "Closed");
+            const invoicedSaleIds = new Set((invoices || []).filter(inv => inv.status !== "void" && inv.status !== "paid").flatMap(inv => inv.saleId ? [inv.saleId] : []));
+            const unpressedInvoiced = contractSales.filter(s => {
+              if (!invoicedSaleIds.has(s.id)) return false;
+              const iss = (issues || []).find(i => i.id === s.issueId);
+              return !iss?.sentToPressAt;
+            });
+            if (unpressedInvoiced.length > 0) {
+              const ok = await dialog.confirm(`${unpressedInvoiced.length} order${unpressedInvoiced.length > 1 ? "s have" : " has"} been invoiced but not sent to press. Cancelling will void ${unpressedInvoiced.length === 1 ? "this invoice" : "these invoices"}. Are you sure you want to delete the invoiced order${unpressedInvoiced.length > 1 ? "s" : ""}?`);
+              if (!ok) return;
+            }
             const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
             if (error) { await dialog.alert("Error: " + error.message); return; }
             if (data?.error) { await dialog.alert(data.error); return; }
             if (setContracts) setContracts(prev => prev.map(c => c.id === viewContract.id ? { ...c, status: "cancelled" } : c));
             setSales(prev => prev.map(s => s.contractId === viewContract.id && s.status === "Closed" ? { ...s, status: "Cancelled" } : s));
-            await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices affected.`);
+            await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices, ${data.commissions_reversed || 0} commissions reversed.`);
             setViewContractId(null);
           }} style={{ color: Z.da }}>Cancel Contract</Btn>}
           {viewContract.status === "cancelled" && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>Cancelled</span>}
