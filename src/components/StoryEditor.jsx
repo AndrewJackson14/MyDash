@@ -7,7 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Modal } from "./ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, TB, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import MediaModal from "./MediaModal";
@@ -142,7 +142,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   useEffect(() => {
     if (!story.id) { setContentLoading(false); return; }
     supabase.from("stories")
-      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id, needs_legal_review, legal_reviewed_by, legal_reviewed_at")
+      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id, needs_legal_review, legal_reviewed_by, legal_reviewed_at, word_limit")
       .eq("id", story.id).single()
       .then(({ data }) => {
         if (data) {
@@ -429,7 +429,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <input value={meta.title || ""} onChange={e => setMeta(m => ({ ...m, title: e.target.value }))} onBlur={e => saveMeta("title", e.target.value)} placeholder="Story title\u2026" style={{ width: "100%", border: "none", outline: "none", background: "transparent", fontSize: 28, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.2, padding: 0, marginBottom: 8 }} />
             <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
               {selectedPubs.map(pid => <span key={pid} style={{ color: pColor(pid, pubs) }}>{pn(pid, pubs)}</span>)}
-              <span>{"\u00b7"}</span><span>{meta.author || "No author"}</span><span>{"\u00b7"}</span><span>{meta.category || "Uncategorized"}</span><span>{"\u00b7"}</span><span>{wordCount.toLocaleString()} words</span>
+              <span>{"\u00b7"}</span><span>{meta.author || "No author"}</span><span>{"\u00b7"}</span><span>{meta.category || "Uncategorized"}</span><span>{"\u00b7"}</span><span style={{ color: meta.word_limit && wordCount > meta.word_limit ? Z.da : undefined, fontWeight: meta.word_limit && wordCount > meta.word_limit ? 700 : undefined }}>{wordCount.toLocaleString()}{meta.word_limit ? ` / ${meta.word_limit.toLocaleString()}` : ""} words</span>
+              {meta.word_limit && wordCount > meta.word_limit && <span style={{ color: Z.da, fontWeight: 700 }}>{"\u26a0"} Over by {(wordCount - meta.word_limit).toLocaleString()}</span>}
             </div>
           </div>
           {/* Toolbar */}
@@ -473,17 +474,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             </div>
           )}
 
-          {/* Unified workflow — Draft → Edit → Ready → On Page → Approved (✓) */}
+          {/* Status — standard pill selector */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Status</div>
-            <div style={{ display: "flex", gap: 0 }}>
-              {WORKFLOW_STAGES.map((stage, i) => {
-                const cur = currentStage === stage, past = WORKFLOW_STAGES.indexOf(currentStage) > i;
-                const isLast = i === WORKFLOW_STAGES.length - 1;
-                const label = isLast ? "\u2713" : stage;
-                return <button key={stage} onClick={() => saveMeta("status", STAGE_TO_STATUS[stage])} title={stage} style={{ flex: isLast ? 0 : 1, minWidth: isLast ? 36 : undefined, padding: "6px 4px", fontSize: 10, fontWeight: cur ? 800 : 600, border: "1px solid " + (cur ? (Z.su || "#22c55e") : Z.bd), borderRight: i < WORKFLOW_STAGES.length - 1 ? "none" : undefined, borderRadius: i === 0 ? "3px 0 0 3px" : isLast ? "0 3px 3px 0" : 0, background: cur ? (isLast ? (Z.su || "#22c55e") + "22" : Z.ac + "18") : past ? (Z.su || "#22c55e") + "10" : "transparent", color: cur ? (isLast ? (Z.su || "#22c55e") : Z.ac) : past ? (Z.su || "#22c55e") : Z.tm, cursor: "pointer", fontFamily: COND }}>{label}</button>;
-              })}
-            </div>
+            <TB tabs={STORY_STATUSES} active={meta.status || "Draft"} onChange={v => saveMeta("status", v)} />
             {isPublished && <div style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
           </div>
 
@@ -643,7 +637,13 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">Unassigned</option>{team.map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
           </div>
 
-          <Inp label="Due Date" type="date" value={meta.due_date || ""} onChange={v => saveMeta("due_date", v)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Inp label="Due Date" type="date" value={meta.due_date || ""} onChange={v => saveMeta("due_date", v)} />
+            <div>
+              <Inp label="Word Limit" type="number" value={meta.word_limit || ""} onChange={v => saveMeta("word_limit", v ? Number(v) : null)} placeholder="No limit" />
+              {meta.word_limit && wordCount > meta.word_limit && <div style={{ fontSize: 10, color: Z.da, fontWeight: 700, fontFamily: COND, marginTop: 2 }}>{"\u26a0"} {wordCount - meta.word_limit} over limit</div>}
+            </div>
+          </div>
 
           {/* Print Issue */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>

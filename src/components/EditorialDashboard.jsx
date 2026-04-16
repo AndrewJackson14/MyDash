@@ -416,7 +416,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   // ── If editor is open, render full-page StoryEditor ─────
   if (editorOpen && selected) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 100, background: Z.bg, display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 999, background: Z.bg, display: "flex", flexDirection: "column" }}>
         <StoryEditor
           story={selected}
           onClose={closeEditor}
@@ -610,7 +610,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           { key: "priority", label: "Priority" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
-                          { key: "word_count", label: "Words" },
+                          { key: "word_limit", label: "Limit" },
                           { key: "_img", label: "Img" },
                           { key: "_delete", label: "" },
                         ].map(col => (
@@ -660,7 +660,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />
                           </td>
-                          <td style={{ padding: "5px 8px", width: 55, textAlign: "right", fontSize: 11, color: Z.tm, fontFamily: COND }}>{s.word_count || s.wordCount || "—"}</td>
+                          <td style={{ padding: "5px 8px", width: 55 }}>
+                            <input value={s.word_limit || ""} onChange={e => updateStory(s.id, { word_limit: e.target.value ? Number(e.target.value) : null })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center", color: s.word_limit && (s.word_count || s.wordCount || 0) > s.word_limit ? Z.da : Z.tm }} />
+                          </td>
                           <td style={{ padding: "5px 4px", width: 32, textAlign: "center", fontSize: 12 }}>{(s.featured_image_url || s.featuredImageUrl || s.images > 0) ? <span title="Has image" style={{ color: Z.su }}>*</span> : <span style={{ color: Z.td }}>—</span>}</td>
                           <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
                             <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
