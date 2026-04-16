@@ -244,24 +244,8 @@ const NewsletterPage = ({ pubs, currentUser }) => {
 
     {/* ════════ TODAY TAB ════════ */}
     {tab === "Today" && <>
-      {/* Publication selector */}
-      <div style={{ display: "flex", gap: 6 }}>
-        {NEWSLETTER_PUBS.map(pid => {
-          const pc = getPubConfig(pid);
-          const st = pubStatus(pid);
-          return <button key={pid} onClick={() => setSelPub(pid)} style={{
-            padding: "8px 16px", borderRadius: R, cursor: "pointer", fontFamily: COND,
-            fontSize: FS.sm, fontWeight: selPub === pid ? FW.bold : FW.semi,
-            border: `1px solid ${selPub === pid ? Z.tm : Z.bd}`,
-            background: selPub === pid ? Z.tm + "12" : "transparent",
-            color: selPub === pid ? Z.tx : Z.td,
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: 4, background: st }} />
-            {pc.name}
-          </button>;
-        })}
-      </div>
+      {/* Publication selector — standard pill */}
+      <TB tabs={NEWSLETTER_PUBS.map(pid => getPubConfig(pid).name)} active={getPubConfig(selPub).name} onChange={v => { const match = NEWSLETTER_PUBS.find(pid => getPubConfig(pid).name === v); if (match) setSelPub(match); }} />
 
       {loading ? <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading...</div>
       : !draft ? <GlassCard style={{ textAlign: "center", padding: 40 }}>

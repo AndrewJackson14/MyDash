@@ -369,12 +369,11 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
     </PageHeader>
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-      <TabRow><TB tabs={["Month", "Week", "Day"]} active={view.charAt(0).toUpperCase() + view.slice(1)} onChange={v => setView(v.toLowerCase())} /></TabRow>
+      <TabRow><TB tabs={["Month", "Week", "Day", "Today"]} active={view.charAt(0).toUpperCase() + view.slice(1)} onChange={v => { if (v === "Today") { goToday(); } else { setView(v.toLowerCase()); } }} /></TabRow>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Btn sm v="secondary" onClick={goToday}>Today</Btn>
-        <button onClick={goPrev} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, width: 28, height: 28, cursor: "pointer", color: Z.tx, fontSize: FS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2039"}</button>
+        <button onClick={goPrev} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.lg, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>{"\u2039"}</button>
         <span style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, fontFamily: DISPLAY, minWidth: 200, textAlign: "center" }}>{headerLabel}</span>
-        <button onClick={goNext} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, width: 28, height: 28, cursor: "pointer", color: Z.tx, fontSize: FS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u203A"}</button>
+        <button onClick={goNext} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.lg, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>{"\u203A"}</button>
       </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         {ALL_TYPES.map(t => <Pill key={t} label={EVENT_TYPES[t].label} icon={EVENT_ICONS[t]} active={activeTypes.includes(t)} onClick={() => toggleType(t)} />)}
