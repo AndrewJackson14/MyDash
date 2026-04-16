@@ -230,6 +230,40 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     invoiceId: "", amount: 0, method: "card", lastFour: "", notes: "",
   });
 
+  // ─── Credit Memos ──────────────────────────────────────────
+  const [creditMemoModal, setCreditMemoModal] = useState(false);
+  const [creditMemos, setCreditMemos] = useState([]);
+  const [cmForm, setCmForm] = useState({ clientId: "", saleId: "", invoiceId: "", amount: 0, reasonCode: "make_good", reason: "", notes: "" });
+  const REASON_CODES = [{ value: "make_good", label: "Make-good (ad ran wrong)" }, { value: "credit", label: "Credit" }, { value: "refund", label: "Refund" }, { value: "writeoff", label: "Write-off" }, { value: "other", label: "Other" }];
+
+  useEffect(() => {
+    if (!billingLoaded) return;
+    supabase.from("credit_memos").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data) setCreditMemos(data); });
+  }, [billingLoaded]);
+
+  const createCreditMemo = async () => {
+    if (!cmForm.clientId || !cmForm.amount || !cmForm.reason) return;
+    const { data, error } = await supabase.from("credit_memos").insert({
+      client_id: cmForm.clientId, sale_id: cmForm.saleId || null,
+      invoice_id: cmForm.invoiceId || null, amount: cmForm.amount,
+      reason: cmForm.reason, reason_code: cmForm.reasonCode,
+      notes: cmForm.notes || null, status: "pending",
+    }).select().single();
+    if (error) { await dialog.alert("Error: " + error.message); return; }
+    if (data) {
+      setCreditMemos(prev => [data, ...prev]);
+      // Add to client credit balance
+      const client = (clients || []).find(c => c.id === cmForm.clientId);
+      if (client) {
+        const newBal = (client.creditBalance || 0) + cmForm.amount;
+        await supabase.from("clients").update({ credit_balance: newBal }).eq("id", cmForm.clientId);
+      }
+      setCreditMemoModal(false);
+      setCmForm({ clientId: "", saleId: "", invoiceId: "", amount: 0, reasonCode: "make_good", reason: "", notes: "" });
+    }
+  };
+
   // ─── Sync invoice to QuickBooks ─────────────────────────────
   const [qbSyncing, setQbSyncing] = useState(null);
   const syncInvoiceToQB = async (inv) => {
@@ -861,6 +895,12 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
     {/* ════════ INVOICES TAB ════════ */}
     {tab === "Invoices" && <>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <Btn sm v="secondary" onClick={() => setCreditMemoModal(true)}>+ Credit Memo</Btn>
+        {creditMemos.filter(cm => cm.status === "pending").length > 0 && (
+          <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, alignSelf: "center" }}>{creditMemos.filter(cm => cm.status === "pending").length} pending credit{creditMemos.filter(cm => cm.status === "pending").length !== 1 ? "s" : ""}</span>
+        )}
+      </div>
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <DataTable>
           <thead>
@@ -1845,6 +1885,21 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <Btn v="secondary" onClick={() => setPayModal(false)}>Cancel</Btn>
           <Btn onClick={savePayment} disabled={!payForm.amount}>Record Payment</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    {/* ════════ CREDIT MEMO MODAL ════════ */}
+    <Modal open={creditMemoModal} onClose={() => setCreditMemoModal(false)} title="New Credit Memo" width={520}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Sel label="Client" value={cmForm.clientId} onChange={e => setCmForm(f => ({ ...f, clientId: e.target.value }))} options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
+        <Sel label="Reason" value={cmForm.reasonCode} onChange={e => setCmForm(f => ({ ...f, reasonCode: e.target.value }))} options={REASON_CODES} />
+        <Inp label="Amount ($)" type="number" min={0} value={cmForm.amount} onChange={e => setCmForm(f => ({ ...f, amount: Number(e.target.value) }))} />
+        <Inp label="Reason Detail" value={cmForm.reason} onChange={e => setCmForm(f => ({ ...f, reason: e.target.value }))} placeholder="What happened and why the credit is issued..." />
+        <TA label="Notes" value={cmForm.notes} onChange={e => setCmForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="secondary" onClick={() => setCreditMemoModal(false)}>Cancel</Btn>
+          <Btn onClick={createCreditMemo} disabled={!cmForm.clientId || !cmForm.amount || !cmForm.reason}>Create Credit Memo</Btn>
         </div>
       </div>
     </Modal>
