@@ -142,7 +142,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   useEffect(() => {
     if (!story.id) { setContentLoading(false); return; }
     supabase.from("stories")
-      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id")
+      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id, needs_legal_review, legal_reviewed_by, legal_reviewed_at")
       .eq("id", story.id).single()
       .then(({ data }) => {
         if (data) {
@@ -295,12 +295,15 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     const hasBody = !!(editor && editor.getText().trim().length > 20);
     const hasCategory = !!(meta.category || meta.category_id);
     const hasFeaturedImage = !!meta.featured_image_url;
-    return [
+    const legalOk = !meta.needs_legal_review || !!meta.legal_reviewed_at;
+    const checks = [
       { label: "Title is set", pass: hasTitle },
       { label: "Body has content (20+ characters)", pass: hasBody },
       { label: "Category is selected", pass: hasCategory },
       { label: "Featured image is set", pass: hasFeaturedImage },
     ];
+    if (meta.needs_legal_review) checks.push({ label: "Legal review signed off", pass: legalOk, blocking: true });
+    return checks;
   }, [meta, editor]);
 
   const handlePublishClick = () => setPreflightOpen(true);
@@ -668,6 +671,25 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
               <div style={{ fontSize: 11, color: "#006621", fontFamily: "arial, sans-serif", marginTop: 2 }}>{selectedPubs[0] && pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "") + ".com"}/{meta.slug || "article-slug"}</div>
               <div style={{ fontSize: 11, color: "#545454", fontFamily: "arial, sans-serif", marginTop: 2, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.seo_description || meta.excerpt || "No description set"}</div>
             </div>
+          </div>
+
+          {/* Legal Review */}
+          <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: meta.needs_legal_review ? Z.wa : Z.tm, fontFamily: COND, cursor: "pointer" }}>
+                <input type="checkbox" checked={!!meta.needs_legal_review} onChange={e => { saveMeta("needs_legal_review", e.target.checked); if (!e.target.checked) { saveMeta("legal_reviewed_by", null); saveMeta("legal_reviewed_at", null); } }} style={{ accentColor: Z.wa }} />
+                Needs Legal Review
+              </label>
+              {meta.needs_legal_review && !meta.legal_reviewed_at && (
+                <Btn sm v="secondary" onClick={() => { const now = new Date().toISOString(); saveMeta("legal_reviewed_by", story.editor_id || null); saveMeta("legal_reviewed_at", now); setMeta(m => ({ ...m, legal_reviewed_by: story.editor_id || null, legal_reviewed_at: now })); }} style={{ fontSize: 10, padding: "2px 8px" }}>Sign Off</Btn>
+              )}
+            </div>
+            {meta.needs_legal_review && meta.legal_reviewed_at && (
+              <div style={{ fontSize: 10, color: Z.su, fontFamily: COND, marginTop: 4 }}>Legal reviewed {new Date(meta.legal_reviewed_at).toLocaleDateString()}</div>
+            )}
+            {meta.needs_legal_review && !meta.legal_reviewed_at && (
+              <div style={{ fontSize: 10, color: Z.wa, fontFamily: COND, marginTop: 4 }}>Awaiting legal sign-off</div>
+            )}
           </div>
 
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}><TA label="Correction Note (visible to readers)" value={meta.correction_note || ""} onChange={v => setMeta(m => ({ ...m, correction_note: v }))} onBlur={() => saveMeta("correction_note", meta.correction_note)} rows={2} /></div>

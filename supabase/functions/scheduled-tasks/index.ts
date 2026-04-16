@@ -282,7 +282,59 @@ serve(async (req: Request) => {
     }
   }
 
-  // ═══ TASK 5: AUTO-CHARGE PAYMENT PLANS ═══
+  // ═══ TASK 5: ISSUE STATUS REFRESH ═══
+  // Persist computed issue health (On Track / At Risk / Behind Goal / Overdue)
+  // so other modules can query it without recomputing every render.
+  if (task === "all" || task === "issue_status") {
+    try {
+      const { data: openIssues } = await admin.from("issues")
+        .select("id, pub_id, date, ad_deadline, ed_deadline, revenue_goal, sent_to_press_at, status")
+        .is("sent_to_press_at", null)
+        .gte("date", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+
+      let updated = 0;
+      for (const iss of (openIssues || [])) {
+        // Compute ad revenue vs goal
+        const { data: issSales } = await admin.from("sales")
+          .select("amount").eq("issue_id", iss.id).eq("status", "Closed");
+        const soldRev = (issSales || []).reduce((s: number, x: any) => s + Number(x.amount || 0), 0);
+        const revPct = iss.revenue_goal > 0 ? (soldRev / iss.revenue_goal) * 100 : 100;
+
+        // Compute editorial fill
+        const { count: storyCount } = await admin.from("stories")
+          .select("id", { count: "exact", head: true })
+          .eq("print_issue_id", iss.id);
+
+        const adOverdue = iss.ad_deadline && iss.ad_deadline < today;
+        const edOverdue = iss.ed_deadline && iss.ed_deadline < today;
+        const pubOverdue = iss.date && iss.date < today;
+        const daysToAd = iss.ad_deadline ? Math.ceil((new Date(iss.ad_deadline + "T12:00:00").getTime() - Date.now()) / 86400000) : 99;
+
+        let newStatus = "On Track";
+        if (pubOverdue) newStatus = "Overdue";
+        else if (adOverdue && revPct < 100) newStatus = "At Risk";
+        else if (edOverdue && (storyCount || 0) < 3) newStatus = "At Risk";
+        else if (daysToAd >= 0 && daysToAd <= 3 && revPct < 75) newStatus = "Behind Goal";
+
+        if (iss.status !== newStatus) {
+          await admin.from("issues").update({ status: newStatus }).eq("id", iss.id);
+          // Alert on transition to At Risk or Overdue
+          if ((newStatus === "At Risk" || newStatus === "Overdue") && iss.status !== "At Risk" && iss.status !== "Overdue") {
+            await admin.from("notifications").insert({
+              title: `Issue alert: ${iss.pub_id} ${iss.date} is now ${newStatus}`,
+              type: "system", link: "/publications",
+            });
+          }
+          updated++;
+        }
+      }
+      results.issue_status = { updated };
+    } catch (err) {
+      results.issue_status = { error: (err as Error).message };
+    }
+  }
+
+  // ═══ TASK 6: AUTO-CHARGE PAYMENT PLANS ═══
   // Charges monthly payment plan clients on their charge_day (1st or 15th)
   // Payment applies to oldest open invoices via apply_payment_to_invoices()
   if (task === "all" || task === "auto_charge") {
