@@ -278,6 +278,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const closeEditor = () => { setEditorOpen(false); setSelected(null); };
 
   const updateStory = (id, updates) => {
+    if (updates._deleted) {
+      setStories(prev => prev.filter(s => s.id !== id));
+      return;
+    }
     setStories(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     if (selected?.id === id) setSelected(s => ({ ...s, ...updates }));
     // Auto-save to DB (fire-and-forget)
