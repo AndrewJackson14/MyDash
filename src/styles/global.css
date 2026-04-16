@@ -223,11 +223,11 @@ tbody tr td {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--md-bd);
+  background: rgba(59, 130, 246, 0.3);
   border-radius: var(--md-radius-pill);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--md-tm);
+  background: rgba(59, 130, 246, 0.5);
 }
 
 
