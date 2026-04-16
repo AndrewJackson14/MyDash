@@ -9,9 +9,16 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Source Sans 3', 'DM Sans', 'Segoe UI', system-ui, sans-serif; background: #08090D; color: #E4E8F0; }
   select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
-  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  input[type=number] { -moz-appearance: textfield; }
 </style>
+<script>
+  // #14: Select-all on focus for text and number inputs
+  document.addEventListener('focusin', function(e) {
+    var t = e.target;
+    if (t.tagName === 'INPUT' && (t.type === 'text' || t.type === 'number' || t.type === 'url' || t.type === 'email' || !t.type)) {
+      setTimeout(function() { t.select(); }, 0);
+    }
+  });
+</script>
   <script type="module" src="/src/main.jsx"></script>
 </head>
 <body><div id="root"></div></body>

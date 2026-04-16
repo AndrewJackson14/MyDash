@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from "react";
+import "./styles/global.css";
 import ReactDOM from "react-dom/client";
 import { AuthProvider } from "./hooks/useAuth";
 import AppRouter from "./AppRouter";

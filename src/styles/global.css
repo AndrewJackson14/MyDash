@@ -1,0 +1,254 @@
+/* ============================================================
+   MyDash Global Styles
+
+   Philosophy: CSS handles presentation, React handles state.
+   Every interactive element gets a hover. Every surface gets
+   consistent rounding. Color is reserved for alerts.
+   ============================================================ */
+
+/* ── CSS Custom Properties (dark default, light override) ── */
+:root {
+  --md-bg: #08090D;
+  --md-sf: #0E1018;
+  --md-sa: #161A24;
+  --md-bd: #1C2130;
+  --md-tx: #E8ECF2;
+  --md-tm: #8A95A8;
+  --md-td: #525E72;
+  --md-ac: #E8ECF2;
+  --md-go: #00a300;
+  --md-da: #E05050;
+  --md-wa: #D4890E;
+  --md-radius: 18px;
+  --md-radius-sm: 10px;
+  --md-radius-pill: 999px;
+  --md-font-body: 'Source Sans 3', 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --md-font-cond: 'IBM Plex Sans Condensed', 'DM Sans', sans-serif;
+  --md-font-display: 'Playfair Display', Georgia, serif;
+  --md-transition: 0.18s ease;
+  --md-card-alpha: 0.14;  /* 39% more than the ~0.10 baseline */
+}
+
+[data-theme="light"] {
+  --md-bg: #F4F5F7;
+  --md-sf: #FFFFFF;
+  --md-sa: #EBEDF0;
+  --md-bd: #D8DBE2;
+  --md-tx: #111318;
+  --md-tm: #6B7280;
+  --md-td: #9CA3AF;
+  --md-ac: #111318;
+  --md-go: #00a300;
+  --md-da: #C53030;
+  --md-wa: #D4890E;
+}
+
+
+/* ── #4: Soothing hover on ALL interactive elements ──────── */
+button, [role="button"], a, select, [onclick] {
+  transition: all var(--md-transition);
+}
+
+button:hover, [role="button"]:hover {
+  filter: brightness(1.08);
+  transform: translateY(-0.5px);
+}
+
+button:active, [role="button"]:active {
+  transform: translateY(0);
+  filter: brightness(0.95);
+}
+
+/* Table rows */
+tbody tr {
+  transition: background var(--md-transition);
+}
+tbody tr:hover {
+  background: rgba(138, 149, 168, 0.06) !important;
+}
+
+/* Cards — subtle lift on hover */
+[style*="backdrop-filter"], [style*="borderRadius: 18"] {
+  transition: box-shadow var(--md-transition), transform var(--md-transition);
+}
+
+
+/* ── #6: Pill-shaped buttons ─────────────────────────────── */
+button, [role="button"] {
+  border-radius: var(--md-radius-pill) !important;
+}
+
+/* Exempt: grid cells, kanban drop zones, color swatches, toggle circles */
+button[style*="borderRadius: 50%"],
+button[style*="border-radius: 50%"],
+[style*="position: absolute"] > button,
+svg circle {
+  border-radius: revert !important;
+}
+
+
+/* ── #1 + #11: Inputs & selects match card surface ───────── */
+input, select, textarea {
+  background: var(--md-sa) !important;
+  border-color: var(--md-bd) !important;
+  color: var(--md-tx) !important;
+  border-radius: var(--md-radius-sm) !important;
+  transition: border-color var(--md-transition), box-shadow var(--md-transition);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--md-tm) !important;
+  box-shadow: 0 0 0 2px rgba(138, 149, 168, 0.15);
+  outline: none;
+}
+
+/* ── #14: Select-all on click for text/number inputs ─────── */
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="url"]:focus,
+input[type="email"]:focus,
+input:not([type]):focus {
+  user-select: all;
+}
+
+
+/* ── #12: Color picker corners ───────────────────────────── */
+input[type="color"] {
+  border-radius: var(--md-radius-sm) !important;
+  cursor: pointer;
+  padding: 2px !important;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+
+/* ── #13: Remove number spinners (reinforce index.html) ──── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0;
+  display: none !important;
+}
+input[type="number"] {
+  -moz-appearance: textfield !important;
+}
+
+
+/* ── #25: Checkboxes → pill toggle style ─────────────────── */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  background: var(--md-bd);
+  border-radius: var(--md-radius-pill) !important;
+  border: none !important;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--md-transition);
+  flex-shrink: 0;
+}
+input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--md-sf);
+  transition: transform var(--md-transition);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+input[type="checkbox"]:checked {
+  background: #3b82f6;
+}
+input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+}
+
+
+/* ── #5: Rounded list rows (invoice-style) ───────────────── */
+table {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
+}
+thead th {
+  font-family: var(--md-font-cond);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-td) !important;
+  font-weight: 700;
+}
+tbody tr {
+  border-radius: var(--md-radius-sm);
+}
+tbody tr td:first-child {
+  border-radius: var(--md-radius-sm) 0 0 var(--md-radius-sm);
+}
+tbody tr td:last-child {
+  border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+}
+tbody tr td {
+  background: var(--md-sf);
+  border-top: none !important;
+  border-bottom: none !important;
+}
+
+
+/* ── #7: Card opacity boost (39% more) ───────────────────── */
+/* Target glassmorphism cards — boost their backdrop alpha */
+[style*="backdrop-filter"] {
+  background-color: rgba(14, 16, 24, var(--md-card-alpha)) !important;
+}
+[data-theme="light"] [style*="backdrop-filter"] {
+  background-color: rgba(255, 255, 255, var(--md-card-alpha)) !important;
+}
+
+
+/* ── #3: Remove left/top color borders from cards ────────── */
+/* Override borderLeft color accents on cards */
+[style*="borderLeft: 3px solid"],
+[style*="border-left: 3px solid"] {
+  border-left-color: transparent !important;
+}
+
+
+/* ── Scrollbar styling ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--md-bd);
+  border-radius: var(--md-radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-tm);
+}
+
+
+/* ── Selection highlight ─────────────────────────────────── */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: inherit;
+}
+
+
+/* ── Smooth transitions on page/tab switches ─────────────── */
+[style*="display: flex"][style*="flexDirection: column"] > div {
+  animation: fadeSlideIn 0.15s ease-out;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0.7; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
