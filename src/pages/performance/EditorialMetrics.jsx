@@ -11,7 +11,7 @@ const colorFor = (key) => key === "green" ? Z.go : key === "amber" ? Z.wa : Z.da
 
 const ROLE_WEIGHT = { "Content Editor": 0.7, "Copy Editor": 0.3 };
 
-export default function EditorialMetrics({ data }) {
+export default function EditorialMetrics({ data, onNavigate }) {
   if (!data) return <GlassCard><div style={{ padding: 24, color: Z.td, textAlign: "center" }}>Loading editorial metrics…</div></GlassCard>;
 
   const onTrackColor = colorFor(proximityColorKey(data.onTrackPct));
@@ -62,8 +62,8 @@ export default function EditorialMetrics({ data }) {
           {(data.perEditor || []).map(ed => {
             const edColor = colorFor(proximityColorKey(ed.onTrackPct));
             const weight = ROLE_WEIGHT[ed.role] || 0;
-            return <tr key={ed.id}>
-              <td style={{ fontWeight: FW.bold, color: Z.tx }}>{ed.name}</td>
+            return <tr key={ed.id} onClick={() => onNavigate?.("editorial", { assignee: ed.id })} style={{ cursor: onNavigate ? "pointer" : "default" }}>
+              <td style={{ fontWeight: FW.bold, color: Z.ac }}>{ed.name}</td>
               <td style={{ color: Z.tm }}>{ed.role}</td>
               <td style={{ textAlign: "right", color: Z.tm }}>{ed.count}</td>
               <td style={{ textAlign: "right", color: edColor, fontWeight: FW.bold }}>{Math.round(ed.onTrackPct)}%</td>

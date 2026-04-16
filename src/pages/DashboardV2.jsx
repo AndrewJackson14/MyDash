@@ -432,6 +432,7 @@ const DashboardV2 = (props) => {
   }, [globalPressure]);
 
   const totalSignals = focusItems.length + deadlineAlerts.length;
+  const [pressureDrillOpen, setPressureDrillOpen] = useState(false);
 
   const switchToV1 = () => {
     try { localStorage.setItem("mydash-dashboard-v2", "false"); } catch (e) {}
@@ -493,9 +494,10 @@ const DashboardV2 = (props) => {
         <div>
           <h1 style={{ margin: 0, fontSize: FS.title || 32, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, letterSpacing: -0.5 }}>{greeting}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: heatColor(globalPressure) + "18", border: `1px solid ${heatColor(globalPressure)}40` }}>
+            <div onClick={() => setPressureDrillOpen(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: heatColor(globalPressure) + "18", border: `1px solid ${heatColor(globalPressure)}40`, cursor: "pointer" }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: heatColor(globalPressure), boxShadow: globalPressure >= 75 ? `0 0 8px ${heatColor(globalPressure)}` : "none" }} />
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: heatColor(globalPressure), textTransform: "uppercase", letterSpacing: 0.6 }}>{ambientTint.label}</span>
+              <span style={{ fontSize: 9, color: Z.td }}>{pressureDrillOpen ? "▲" : "▼"}</span>
             </div>
             <span style={{ fontSize: FS.sm, color: Z.tm }}>
               {totalSignals === 0 ? "All clear ✓" : `${totalSignals} signal${totalSignals === 1 ? "" : "s"} need you`}
@@ -507,6 +509,26 @@ const DashboardV2 = (props) => {
           <Btn sm v="ghost" onClick={switchToV1}>← Classic Dashboard</Btn>
         </div>
       </div>
+
+      {/* ── Pressure drill-down ─────────────────────────── */}
+      {pressureDrillOpen && deadlineAlerts.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "12px 16px", background: Z.sf, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Pressure Sources</div>
+          {deadlineAlerts.slice(0, 8).map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderTop: i > 0 ? `1px solid ${Z.bd}20` : "none" }}>
+              <span style={{ fontSize: 10, fontWeight: FW.bold, color: a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da, background: (a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da) + "15", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", fontFamily: COND }}>{a.type === "ad" ? "Ad" : a.type === "ed" ? "Ed" : "Pub"}</span>
+              <span style={{ fontSize: 12, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.pubName || a.pub} — {a.issueLabel || a.label}</span>
+              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.da, fontFamily: COND }}>{a.daysLeft != null ? (a.daysLeft < 0 ? `${Math.abs(a.daysLeft)}d overdue` : a.daysLeft === 0 ? "Today" : `${a.daysLeft}d left`) : ""}</span>
+            </div>
+          ))}
+          {deadlineAlerts.length > 8 && <div style={{ fontSize: 10, color: Z.td, textAlign: "center", marginTop: 4 }}>+{deadlineAlerts.length - 8} more</div>}
+        </div>
+      )}
+      {pressureDrillOpen && deadlineAlerts.length === 0 && (
+        <div style={{ padding: "12px 16px", background: Z.sf, borderRadius: R, border: `1px solid ${Z.bd}`, textAlign: "center", color: Z.su, fontSize: FS.sm, fontWeight: FW.bold }}>
+          No pressure sources — all deadlines on track
+        </div>
+      )}
 
       {/* ── Activity banner (streak + live event feed) ───── */}
       <ActivityBanner activity={activity} streak={streak} allClear={doseWins?.allDeadlinesMet} />

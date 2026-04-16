@@ -41,7 +41,7 @@ function LaneStats({ title, agg }) {
   </div>;
 }
 
-export default function ProductionMetrics({ data }) {
+export default function ProductionMetrics({ data, onNavigate }) {
   if (!data) return <GlassCard><div style={{ padding: 24, color: Z.td, textAlign: "center" }}>Loading production metrics…</div></GlassCard>;
 
   const ads = data.ads || { count: 0, onTrackPct: 0, avgScore: 0, avgRevisions: 0 };
@@ -83,8 +83,8 @@ export default function ProductionMetrics({ data }) {
           {(!data.perDesigner || data.perDesigner.length === 0) && <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: Z.td }}>No production activity in this window</td></tr>}
           {(data.perDesigner || []).map(dz => {
             const dzColor = colorFor(proximityColorKey(dz.onTrackPct));
-            return <tr key={dz.id}>
-              <td style={{ fontWeight: FW.bold, color: Z.tx }}>{dz.name}</td>
+            return <tr key={dz.id} onClick={() => onNavigate?.("adprojects", { designer: dz.id })} style={{ cursor: onNavigate ? "pointer" : "default" }}>
+              <td style={{ fontWeight: FW.bold, color: Z.ac }}>{dz.name}</td>
               <td style={{ color: Z.tm }}>{dz.role}</td>
               <td style={{ textAlign: "right", color: Z.tm }}>{dz.count}</td>
               <td style={{ textAlign: "right", color: dzColor, fontWeight: FW.bold }}>{Math.round(dz.onTrackPct)}%</td>

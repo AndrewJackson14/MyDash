@@ -86,8 +86,8 @@ export default function Performance({ sales, clients, stories, issues, adProject
     </div>}
 
     {dept === "Sales" && <SalesMetrics data={data.sales} onNavigate={onNavigate} />}
-    {dept === "Editorial" && <EditorialMetrics data={data.editorial} />}
-    {dept === "Production" && <ProductionMetrics data={data.production} />}
-    {dept === "Admin" && <AdminMetrics data={data.admin} loading={data.adminLoading} />}
+    {dept === "Editorial" && <EditorialMetrics data={data.editorial} onNavigate={onNavigate} />}
+    {dept === "Production" && <ProductionMetrics data={data.production} onNavigate={onNavigate} />}
+    {dept === "Admin" && <AdminMetrics data={data.admin} loading={data.adminLoading} onNavigate={onNavigate} />}
   </div>;
 }
