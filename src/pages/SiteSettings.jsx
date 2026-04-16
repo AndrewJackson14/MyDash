@@ -672,14 +672,11 @@ export default function SiteSettings({ pubs, setPubs }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* ─── Org-wide Appearance ─────────────────────────── */}
-      <OrgAppearancePanel />
-
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>MyWebsites</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={sites.map(s => ({ value: s.id, label: s.name }))} />
+          <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={[{ value: "__mydash", label: "MyDash Appearance" }, ...sites.map(s => ({ value: s.id, label: s.name }))]} />
           {site?.domain && (
             <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
               Preview {site.domain} {"\u2197"}
@@ -691,7 +688,10 @@ export default function SiteSettings({ pubs, setPubs }) {
         </div>
       </div>
 
-      {draft && selectedId && <SiteAnalytics siteId={selectedId} />}
+      {/* ─── Org Appearance (when MyDash selected) ────── */}
+      {selectedId === "__mydash" && <OrgAppearancePanel />}
+
+      {draft && selectedId && selectedId !== "__mydash" && <SiteAnalytics siteId={selectedId} />}
 
       {/* ─── Site Errors Panel ─── */}
       {selectedId && (
