@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, DataTable, GlassCard, GlassStat, Pill } from "../../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, SB, TB, Stat, Modal, DataTable, GlassCard, GlassStat, Pill } from "../../components/ui";
 
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 
@@ -111,7 +111,7 @@ const Commissions = ({
           const spData = ledgerBySp[sp.id] || { earned: 0, pending: 0, paid: 0, entries: [] };
           const trigger = sp.commissionTrigger || "both";
           const earnedCount = spData.entries.filter(l => l.status === "earned").length;
-          return <Card key={sp.id} style={{ borderLeft: `3px solid ${spData.earned > 0 ? Z.go : Z.bd}` }}>
+          return <GlassCard key={sp.id}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{sp.name}</div>
@@ -125,19 +125,19 @@ const Commissions = ({
               </div>
             </div>
             {spData.entries.length > 0 && <div style={{ maxHeight: 160, overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
-                <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>{["Client", "Pub", "Sale", "Rate", "Commission", "Status"].map(h => <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
-                <tbody>{spData.entries.slice(0, 20).map(l => <tr key={l.id} style={{ borderBottom: `1px solid ${Z.bd}20` }}>
-                  <td style={{ padding: "4px 8px", color: Z.tx }}>{cn(l.clientId)}</td>
-                  <td style={{ padding: "4px 8px", color: Z.tm }}>{pn(l.publicationId)}</td>
-                  <td style={{ padding: "4px 8px", color: Z.tx }}>{fmtCurrency(l.saleAmount)}</td>
-                  <td style={{ padding: "4px 8px", color: Z.tm }}>{l.commissionRate}%</td>
-                  <td style={{ padding: "4px 8px", fontWeight: FW.bold, color: l.status === "paid" ? Z.tm : Z.tx }}>{fmtCurrency(l.totalAmount)}</td>
-                  <td style={{ padding: "4px 8px" }}><span style={{ fontSize: FS.micro, fontWeight: FW.bold, padding: "2px 6px", borderRadius: Ri, background: l.status === "earned" ? "rgba(0,163,0,0.15)" : l.status === "paid" ? Z.sa : "rgba(212,137,14,0.15)", color: l.status === "earned" ? Z.go : l.status === "paid" ? Z.tm : Z.wa }}>{l.status}</span></td>
+              <DataTable>
+                <thead><tr>{["Client", "Pub", "Sale", "Rate", "Commission", "Status"].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                <tbody>{spData.entries.slice(0, 20).map(l => <tr key={l.id}>
+                  <td style={{ color: Z.tx }}>{cn(l.clientId)}</td>
+                  <td style={{ color: Z.tm }}>{pn(l.publicationId)}</td>
+                  <td style={{ color: Z.tx }}>{fmtCurrency(l.saleAmount)}</td>
+                  <td style={{ color: Z.tm }}>{l.commissionRate}%</td>
+                  <td style={{ fontWeight: FW.bold, color: l.status === "paid" ? Z.tm : Z.tx }}>{fmtCurrency(l.totalAmount)}</td>
+                  <td><span style={{ fontSize: FS.micro, fontWeight: FW.bold, padding: "2px 6px", borderRadius: Ri, background: l.status === "earned" ? "rgba(0,163,0,0.15)" : l.status === "paid" ? Z.sa : "rgba(212,137,14,0.15)", color: l.status === "earned" ? Z.go : l.status === "paid" ? Z.tm : Z.wa }}>{l.status}</span></td>
                 </tr>)}</tbody>
-              </table>
+              </DataTable>
             </div>}
-          </Card>;
+          </GlassCard>;
         })}
         {salespeople.length === 0 && <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No salespeople found.</GlassCard>}
       </div>
@@ -153,7 +153,7 @@ const Commissions = ({
         <tbody>{_rates.length === 0 && <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No overrides. All earn {DEFAULT_RATE}%.</td></tr>}
           {_rates.map(r => <tr key={r.id}><td style={{ fontWeight: FW.semi, color: Z.tx }}>{tn(r.salespersonId)}</td><td style={{ color: Z.tm }}>{r.publicationId ? pn(r.publicationId) : "All"}</td><td style={{ color: Z.tm }}>{r.productType || "All"}</td><td style={{ fontWeight: FW.heavy, color: Z.ac }}>{r.rate}%</td><td><button onClick={() => deleteRate(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md }}>×</button></td></tr>)}
         </tbody></DataTable>
-      <Card>
+      <GlassCard>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Earning Trigger (per salesperson)</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {salespeople.map(sp => {
@@ -164,8 +164,8 @@ const Commissions = ({
             </div>;
           })}
         </div>
-      </Card>
-      <Card>
+      </GlassCard>
+      <GlassCard>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Bonus Tiers</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
           {BONUS_TIERS.map(t => <div key={t.threshold} style={{ textAlign: "center", padding: 10, background: Z.bg, borderRadius: Ri }}>
@@ -173,7 +173,7 @@ const Commissions = ({
             <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tm }}>{t.label}</div>
           </div>)}
         </div>
-      </Card>
+      </GlassCard>
     </>}
 
     {/* GOALS */}
@@ -185,7 +185,7 @@ const Commissions = ({
       {pubs.map(pub => {
         const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
         if (pubIssues.length === 0) return null;
-        return <Card key={pub.id} style={{ borderLeft: `3px solid ${Z.bd}` }}>
+        return <GlassCard key={pub.id}>
           <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, marginBottom: 8 }}>{pub.name}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 6 }}>
             {pubIssues.map(iss => {
@@ -198,7 +198,7 @@ const Commissions = ({
               </div>;
             })}
           </div>
-        </Card>;
+        </GlassCard>;
       })}
     </>}
 
@@ -207,7 +207,7 @@ const Commissions = ({
       <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>Assign each salesperson a percentage share of each publication.</div>
       {pubs.map(pub => {
         const totalPct = salespeople.reduce((s, sp) => s + getShare(sp.id, pub.id), 0);
-        return <Card key={pub.id} style={{ borderLeft: `3px solid ${Z.bd}` }}>
+        return <GlassCard key={pub.id}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub.name}</div>
             <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: totalPct === 100 ? Z.go : totalPct > 100 ? Z.da : Z.wa }}>{totalPct}% assigned</div>
@@ -222,7 +222,7 @@ const Commissions = ({
               </div>;
             })}
           </div>
-        </Card>;
+        </GlassCard>;
       })}
     </>}
 

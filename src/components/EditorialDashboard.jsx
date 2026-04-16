@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat } from "./ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -599,10 +599,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                   </div>;
                 })()}
                 {/* Data table with inline editing */}
-                <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, overflow: "hidden" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: COND }}>
+                <div style={{ overflow: "hidden" }}>
+                  <DataTable>
                     <thead>
-                      <tr style={{ background: Z.sa, borderBottom: `1px solid ${Z.bd}` }}>
+                      <tr>
                         {[
                           { key: "title", label: "Title" },
                           { key: "author", label: "Author" },
@@ -668,7 +668,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                         </tr>;
                       })}
                     </tbody>
-                  </table>
+                  </DataTable>
                 </div>
               </div>
             )}
