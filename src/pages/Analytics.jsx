@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
-import { Ic, Btn, Card, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 import { fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
@@ -1020,10 +1020,7 @@ const WebAnalyticsTab = ({ pubs }) => {
   return <>
     {/* Filters */}
     <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-      <select value={webPub} onChange={e => setWebPub(e.target.value)} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
-        <option value="all">All Sites</option>
-        {pubOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-      </select>
+      <Sel value={webPub} onChange={e => setWebPub(e.target.value)} options={[{ value: "all", label: "All Sites" }, ...pubOptions.map(p => ({ value: p.id, label: p.name }))]} />
       {["7d", "30d", "90d"].map(r => (
         <button key={r} onClick={() => setRange(r)} style={{
           padding: "4px 12px", borderRadius: 3, fontSize: FS.sm, fontWeight: range === r ? FW.heavy : FW.normal,

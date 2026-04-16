@@ -537,22 +537,8 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
     </PageHeader>
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>Publication</span>
-        <select value={selPub} onChange={e => handlePubChange(e.target.value)} style={{ background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "6px 10px", color: selPub ? Z.tx : Z.td, fontSize: FS.base, fontWeight: FW.semi, fontFamily: COND, cursor: "pointer", outline: "none", minWidth: 180 }}>
-          <option value="" disabled>Choose publication</option>
-          {fpPubs.filter(p => issues.some(i => i.pubId === p.id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>Issue</span>
-        <select value={selIssue} disabled={!selPub} onChange={e => { setSelIssue(e.target.value); setSelPage(null); if (onSelectionChange) onSelectionChange(selPub, e.target.value); }} style={{ background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "6px 10px", color: selIssue ? Z.tx : Z.td, fontSize: FS.base, fontWeight: FW.semi, fontFamily: COND, cursor: selPub ? "pointer" : "not-allowed", outline: "none", minWidth: 200, opacity: selPub ? 1 : 0.5 }}>
-          {!selPub && <option value="">Select a publication first</option>}
-          {selPub && visibleIssues.length === 0 && <option value="">No issues</option>}
-          {selPub && <option value="" disabled>Choose issue</option>}
-          {visibleIssues.map(i => <option key={i.id} value={i.id}>{i.label} — {i.date}{i.date >= today ? " ★" : ""}</option>)}
-        </select>
-      </div>
+      <Sel value={selPub} onChange={e => handlePubChange(e.target.value)} options={[{ value: "", label: "Choose publication" }, ...fpPubs.filter(p => issues.some(i => i.pubId === p.id)).map(p => ({ value: p.id, label: p.name }))]} style={{ minWidth: 180 }} />
+      <Sel value={selIssue} disabled={!selPub} onChange={e => { setSelIssue(e.target.value); setSelPage(null); if (onSelectionChange) onSelectionChange(selPub, e.target.value); }} options={[{ value: "", label: selPub ? "Choose issue" : "Select a publication first" }, ...visibleIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}${i.date >= today ? " ★" : ""}` }))]} style={{ minWidth: 200, opacity: selPub ? 1 : 0.5 }} />
       {issue && <div style={{ display: "flex", gap: 6, fontSize: FS.sm, color: Z.tm }}>
         <span>{issSales.length} ads</span>
         <span>·</span>

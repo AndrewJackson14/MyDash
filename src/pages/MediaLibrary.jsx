@@ -735,11 +735,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
       {/* Toolbar — flat view, no folder hierarchy */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {loadProgress && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "5px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}>
-          <option value="date">Newest</option>
-          <option value="name">Name A-Z</option>
-          <option value="size">Largest</option>
-        </select>
+        <Sel value={sortBy} onChange={e => setSortBy(e.target.value)} options={[{ value: "date", label: "Newest" }, { value: "name", label: "Name A-Z" }, { value: "size", label: "Largest" }]} />
         <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: Ri }}>
           <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u25a6"}</button>
           <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u2630"}</button>

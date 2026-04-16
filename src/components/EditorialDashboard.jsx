@@ -500,10 +500,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {/* Assignee filter */}
           {assignees.length > 0 && (
-            <select value={fAssignee} onChange={e => setFAssignee(e.target.value)} style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>
-              <option value="all">All Writers</option>
-              {assignees.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <Sel value={fAssignee} onChange={e => setFAssignee(e.target.value)} options={[{ value: "all", label: "All Writers" }, ...assignees.map(a => ({ value: a.id, label: a.name }))]} />
           )}
         </div>
       </div>
@@ -641,26 +638,16 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                             }
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <select value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} style={selS}>
-                              <option value="">—</option>
-                              {[...new Set(stories.map(x => x.author).filter(Boolean))].sort().map(a => <option key={a} value={a}>{a}</option>)}
-                            </select>
+                            <Sel value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} options={[{ value: "", label: "—" }, ...[...new Set(stories.map(x => x.author).filter(Boolean))].sort().map(a => ({ value: a, label: a }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <select value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} style={selS}>
-                              <option value="">—</option>
-                              {["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px", width: 55 }}>
-                            <select value={s.priority || "normal"} onChange={e => updateStory(s.id, { priority: e.target.value })} style={{ ...selS, width: 50 }}>
-                              {[["urgent", "1"], ["high", "2"], ["normal", "3"], ["low", "4"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                            </select>
+                            <Sel value={s.priority || "normal"} onChange={e => updateStory(s.id, { priority: e.target.value })} options={[["urgent", "1"], ["high", "2"], ["normal", "3"], ["low", "4"]].map(([v, l]) => ({ value: v, label: l }))} style={{ padding: "3px 24px 3px 6px", width: 50 }} />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <select value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} style={selS}>
-                              {STORY_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
-                            </select>
+                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />

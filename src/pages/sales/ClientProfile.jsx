@@ -583,7 +583,7 @@ const ClientProfile = ({
           </div>
           {(vc.contacts || []).map((ct, idx) => <div key={idx} style={{ background: Z.bg, borderRadius: R, padding: 16, marginBottom: 4 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
-              <select value={ct.role} onChange={e => updCt(idx, "role", e.target.value)} style={{ background: "none", border: "none", color: Z.ac, fontSize: FS.xs, fontWeight: FW.heavy, cursor: "pointer", textTransform: "uppercase" }}>{CONTACT_ROLES.map(r => <option key={r}>{r}</option>)}</select>
+              <Sel value={ct.role} onChange={e => updCt(idx, "role", e.target.value)} options={CONTACT_ROLES.map(r => ({ value: r, label: r }))} style={{ padding: "2px 24px 2px 6px", textTransform: "uppercase" }} />
               {idx === 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, padding: "1px 5px", borderRadius: Ri }}>PRIMARY</span>}
             </div>
             <input value={ct.name} onChange={e => updCt(idx, "name", e.target.value)} placeholder="Name" style={{ display: "block", width: "100%", background: "none", border: "none", color: Z.tx, fontSize: FS.md, fontWeight: FW.semi, fontFamily: COND, outline: "none", boxSizing: "border-box" }} />
@@ -613,8 +613,8 @@ const ClientProfile = ({
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Relationship Timeline ({comms.length})</div>
           <div style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, marginBottom: 6, border: `1px solid ${Z.bd}` }}>
             <div style={{ display: "flex", gap: 3, marginBottom: 3 }}>
-              <select value={commForm.type} onChange={e => setCommForm(x => ({ ...x, type: e.target.value }))} style={{ background: Z.sa, border: "none", borderRadius: Ri, padding: "3px", color: Z.tx, fontSize: FS.sm, flex: 1 }}>{[...COMM_TYPES, "Result", "Survey"].map(t => <option key={t}>{t}</option>)}</select>
-              <select value={commForm.author} onChange={e => setCommForm(x => ({ ...x, author: e.target.value }))} style={{ background: Z.sa, border: "none", borderRadius: Ri, padding: "3px", color: Z.tx, fontSize: FS.sm, flex: 1 }}>{COMM_AUTHORS.map(a => <option key={a}>{a}</option>)}</select>
+              <Sel value={commForm.type} onChange={e => setCommForm(x => ({ ...x, type: e.target.value }))} options={[...COMM_TYPES, "Result", "Survey"].map(t => ({ value: t, label: t }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
+              <Sel value={commForm.author} onChange={e => setCommForm(x => ({ ...x, author: e.target.value }))} options={COMM_AUTHORS.map(a => ({ value: a, label: a }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
             </div>
             <div style={{ display: "flex", gap: 3 }}>
               <input value={commForm.note} onChange={e => setCommForm(x => ({ ...x, note: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addComm(); }} placeholder="What happened..." style={{ flex: 1, background: Z.sa, border: "none", borderRadius: Ri, padding: "5px 8px", color: Z.tx, fontSize: FS.base, outline: "none" }} />

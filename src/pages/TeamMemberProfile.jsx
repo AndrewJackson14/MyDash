@@ -103,12 +103,7 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
             <input type="number" disabled={!isAssigned} value={assignment?.percentage ?? ""} placeholder="100" onChange={e => upsertPubAssignment?.({ salespersonId: member.id, publicationId: p.id, percentage: Number(e.target.value) || 0, isActive: true, commissionTrigger: assignment?.commissionTrigger })} style={{ width: 48, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tx, fontSize: FS.sm, outline: "none", textAlign: "right" }} title="Territory share %" />
             <span style={{ fontSize: FS.xs, color: Z.tm }} title="Territory share">sh</span>
           </div>
-          <select disabled={!isAssigned} value={assignment?.commissionTrigger || ""} onChange={e => updateTrigger(p.id, e.target.value || null)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tx, fontSize: FS.xs, outline: "none", cursor: isAssigned ? "pointer" : "not-allowed" }}>
-            <option value="">Default</option>
-            <option value="both">Issue + Invoice</option>
-            <option value="issue_published">Issue</option>
-            <option value="invoice_paid">Invoice Paid</option>
-          </select>
+          <Sel disabled={!isAssigned} value={assignment?.commissionTrigger || ""} onChange={e => updateTrigger(p.id, e.target.value || null)} options={[{ value: "", label: "Default" }, { value: "both", label: "Issue + Invoice" }, { value: "issue_published", label: "Issue" }, { value: "invoice_paid", label: "Invoice Paid" }]} style={{ padding: "4px 24px 4px 6px" }} />
         </div>;
       })}
       <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Rate = commission %, sh = territory share %, Trigger controls when commission is earned.</div>
