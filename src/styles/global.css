@@ -145,38 +145,12 @@ input[type="number"] {
 }
 
 
-/* ── #25: Checkboxes → pill toggle style ─────────────────── */
+/* ── #25: Checkboxes — subtle styling, not forced toggle ──── */
+/* Only style visible standalone checkboxes. Don't force dimensions
+   or pseudo-elements that leak into hidden/custom toggle contexts. */
 input[type="checkbox"] {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  width: 36px;
-  height: 20px;
-  background: var(--md-bd);
-  border-radius: var(--md-radius-pill) !important;
-  border: none !important;
-  position: relative;
+  accent-color: #3b82f6;
   cursor: pointer;
-  transition: background var(--md-transition);
-  flex-shrink: 0;
-}
-input[type="checkbox"]::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--md-sf);
-  transition: transform var(--md-transition);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-input[type="checkbox"]:checked {
-  background: #3b82f6;
-}
-input[type="checkbox"]:checked::after {
-  transform: translateX(16px);
 }
 
 
