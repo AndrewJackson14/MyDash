@@ -210,6 +210,7 @@ export function DataProvider({ children, localData }) {
           repId: c.rep_id || null, clientCode: c.client_code || null, lastArtSource: c.last_art_source || 'we_design', contractEndDate: c.contract_end_date || null, lastAdDate: c.last_ad_date || null, creditBalance: Number(c.credit_balance) || 0, cardLast4: c.card_last4 || null, cardBrand: c.card_brand || null, cardExp: c.card_exp || null,
           invoicePrefix: c.invoice_prefix || null,
           lapsedReason: c.lapsed_reason || null,
+          creditHold: !!c.credit_hold, creditHoldReason: c.credit_hold_reason || null,
           billingEmail: c.billing_email || null,
           billingCcEmails: Array.isArray(c.billing_cc_emails) ? c.billing_cc_emails : [],
           billingAddress: c.billing_address || '',
@@ -1020,6 +1021,11 @@ export function DataProvider({ children, localData }) {
       if (changes.billingCity !== undefined) db.billing_city = changes.billingCity || null;
       if (changes.billingState !== undefined) db.billing_state = changes.billingState || null;
       if (changes.billingZip !== undefined) db.billing_zip = changes.billingZip || null;
+      if (changes.creditHold !== undefined) {
+        db.credit_hold = changes.creditHold;
+        db.credit_hold_reason = changes.creditHoldReason || null;
+        db.credit_hold_set_at = changes.creditHold ? new Date().toISOString() : null;
+      }
       if (Object.keys(db).length) await supabase.from('clients').update(db).eq('id', id);
     }
   }, []);

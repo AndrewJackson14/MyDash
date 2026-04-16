@@ -48,13 +48,21 @@ export function useCrossModuleWiring({
       if (upsertAdProject && saleId) {
         const sale = (sales || []).find(s => s.id === saleId);
         if (sale && !DESIGN_EXCLUDED_SIZES.has(sale.size)) {
-          // Camera-ready ads skip the design pipeline — go straight to
-          // proof_sent so the rep can send the client's file for approval.
-          // Check the client's lastArtSource (set on prior sales/proposals).
           const client = (clients || []).find(c => c.id === sale.clientId);
-          const isCameraReady = client?.lastArtSource === "camera_ready";
-          upsertAdProject({ saleId, patch: { status: isCameraReady ? "proof_sent" : "brief", art_source: isCameraReady ? "camera_ready" : "we_design" } })
-            .catch(err => console.error("auto-create ad_project failed:", err));
+
+          // Block production if client is on credit hold
+          if (client?.creditHold) {
+            setNotifications(prev => [...(prev || []), {
+              id: "n-hold-" + Date.now(),
+              text: `CREDIT HOLD: ${clientName || client?.name} — ad project NOT created. Clear hold before production.`,
+              time: new Date().toLocaleTimeString(), read: false, route: "sales",
+            }]);
+          } else {
+            // Camera-ready ads skip the design pipeline
+            const isCameraReady = client?.lastArtSource === "camera_ready";
+            upsertAdProject({ saleId, patch: { status: isCameraReady ? "proof_sent" : "brief", art_source: isCameraReady ? "camera_ready" : "we_design" } })
+              .catch(err => console.error("auto-create ad_project failed:", err));
+          }
         }
       }
     }));

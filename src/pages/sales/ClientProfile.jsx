@@ -243,8 +243,44 @@ const ClientProfile = ({
             <span style={{ fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, color: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.td }}>Legal Notices Client</span>
           </label>
         </div>
+
+        {/* Credit hold toggle */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "4px 10px", background: vc.creditHold ? Z.da + "15" : Z.bg, border: `1px solid ${vc.creditHold ? Z.da : Z.bd}`, borderRadius: Ri }}>
+            <input
+              type="checkbox"
+              checked={!!vc.creditHold}
+              onChange={async e => {
+                const hold = e.target.checked;
+                let reason = null;
+                if (hold) {
+                  reason = window.prompt("Credit hold reason (e.g. 60+ days past due, bounced payment):");
+                  if (reason === null) return; // cancelled
+                }
+                setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: hold, creditHoldReason: reason } : c));
+                if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: hold, creditHoldReason: reason });
+              }}
+              style={{ cursor: "pointer", margin: 0, accentColor: Z.da }}
+            />
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, fontFamily: COND, color: vc.creditHold ? Z.da : Z.td }}>Credit Hold</span>
+          </label>
+          {vc.creditHold && vc.creditHoldReason && (
+            <span style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{vc.creditHoldReason}</span>
+          )}
+        </div>
       </div>
     </div>
+
+    {/* ── CREDIT HOLD ALERT ── */}
+    {vc.creditHold && <div style={{ padding: "12px 16px", background: `${Z.da}12`, border: `1px solid ${Z.da}40`, borderRadius: R, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div>
+        <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.da }}>Credit Hold Active</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm }}>
+          {vc.creditHoldReason || "Production is blocked for this client."} Ad projects will not auto-create on sale close. Flatplan placement will warn.
+        </div>
+      </div>
+      <Btn sm v="secondary" onClick={() => { setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: false, creditHoldReason: null } : c)); if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: false, creditHoldReason: null }); }}>Clear Hold</Btn>
+    </div>}
 
     {/* ── RENEWAL ALERT ── */}
     {clientStatus === "Renewal" && <div style={{ padding: "12px 16px", background: `${Z.wa}15`, border: `1px solid ${Z.wa}40`, borderRadius: R, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>

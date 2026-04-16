@@ -396,6 +396,16 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   };
 
   const handleDrop = (itemId, pageNum) => {
+    // Credit hold check — warn (don't block) if the client is on hold
+    const droppingSale = issSales.find(s => s.id === itemId);
+    if (droppingSale) {
+      const heldClient = (clients || []).find(c => c.id === droppingSale.clientId && c.creditHold);
+      if (heldClient) {
+        if (!window.confirm(`WARNING: ${heldClient.name} is on CREDIT HOLD${heldClient.creditHoldReason ? " (" + heldClient.creditHoldReason + ")" : ""}. Place ad anyway?`)) {
+          setDi(null); setDiType(null); return;
+        }
+      }
+    }
     if (placeholders.some(p => p.id === itemId)) {
       setPlaceholders(pl => pl.map(p => p.id === itemId ? { ...p, page: pageNum, gridRow: null, gridCol: null } : p));
       setDi(null); setDiType(null);
