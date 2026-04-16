@@ -318,7 +318,18 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
     const paid = monthBills.filter(b => b.status === "paid").reduce((s, b) => s + (b.amount || 0), 0);
     const overdue = localBills.filter(b => b.dueDate && b.dueDate < today() && b.status !== "paid" && b.status !== "void");
     const overdueTotal = overdue.reduce((s, b) => s + (b.amount || 0), 0);
-    return { totalMonth, pending, paid, overdueCount: overdue.length, overdueTotal };
+    // AP aging buckets
+    const apAging = { current: 0, d30: 0, d60: 0, d90: 0 };
+    localBills.filter(b => b.status !== "paid" && b.status !== "void" && b.dueDate).forEach(b => {
+      const daysLate = Math.round((Date.now() - new Date(b.dueDate + "T12:00:00").getTime()) / 86400000);
+      if (daysLate <= 0) apAging.current += b.amount || 0;
+      else if (daysLate <= 30) apAging.d30 += b.amount || 0;
+      else if (daysLate <= 60) apAging.d60 += b.amount || 0;
+      else apAging.d90 += b.amount || 0;
+    });
+    const apTotal = apAging.current + apAging.d30 + apAging.d60 + apAging.d90;
+
+    return { totalMonth, pending, paid, overdueCount: overdue.length, overdueTotal, apAging, apTotal };
   }, [localBills]);
 
   const openNew = () => { setEditBill(null); setModalOpen(true); };
@@ -493,6 +504,22 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           {metrics.overdueCount > 0 && <div style={{ fontSize: 10, color: Z.da, fontFamily: COND, marginTop: 2 }}>{metrics.overdueCount} bill{metrics.overdueCount !== 1 ? "s" : ""}</div>}
         </GlassCard>
       </div>
+
+      {/* AP Aging */}
+      {metrics.apTotal > 0 && (
+        <div style={{ display: "flex", gap: 2, alignItems: "center", height: 24, borderRadius: Ri, overflow: "hidden", background: Z.sa }}>
+          {[
+            { label: "Current", value: metrics.apAging.current, color: Z.go || "#22c55e" },
+            { label: "30 days", value: metrics.apAging.d30, color: Z.wa || "#d97706" },
+            { label: "60 days", value: metrics.apAging.d60, color: "#ea580c" },
+            { label: "90+ days", value: metrics.apAging.d90, color: Z.da || "#dc2626" },
+          ].filter(b => b.value > 0).map(b => (
+            <div key={b.label} title={`${b.label}: ${fmtCurrency(b.value)}`} style={{ height: "100%", width: `${(b.value / metrics.apTotal) * 100}%`, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 40, transition: "width 0.3s" }}>
+              <span style={{ fontSize: 9, fontWeight: FW.black, color: "#fff", fontFamily: COND, whiteSpace: "nowrap" }}>{b.label} {fmtCurrency(b.value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filters + Add */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

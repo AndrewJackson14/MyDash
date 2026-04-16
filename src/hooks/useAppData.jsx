@@ -1947,9 +1947,22 @@ export function DataProvider({ children, localData }) {
       if (changes.rateType !== undefined) db.rate_type = changes.rateType;
       if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
       if (changes.availability !== undefined) db.availability = changes.availability;
-      if (Object.keys(db).length) await supabase.from('team_members').update(db).eq('id', id);
+      if (Object.keys(db).length) {
+        await supabase.from('team_members').update(db).eq('id', id);
+        // Audit log for role/permission changes
+        const auditFields = ['role', 'module_permissions', 'assigned_pubs', 'is_active', 'commission_trigger'];
+        const changed = Object.keys(db).filter(k => auditFields.includes(k));
+        if (changed.length > 0) {
+          const member = team.find(m => m.id === id);
+          await supabase.from('activity_log').insert({
+            type: 'permission_change',
+            detail: `${member?.name || 'Team member'}: ${changed.map(k => `${k} updated`).join(', ')}`,
+            actor_name: 'System',
+          }).then(() => {});
+        }
+      }
     }
-  }, []);
+  }, [team]);
 
   // Soft-delete: hide the member and mark inactive. We never hard-delete because
   // 48 foreign keys reference team_members (commissions, sales attribution, story
