@@ -92,20 +92,19 @@ svg circle {
 }
 
 
-/* ── #1 + #11: Inputs & selects — muted, subtle tint ─────── */
-/* Use semi-transparent overlay so it works in both themes without
-   needing data-theme. Subtle grey tint, not navy. */
+/* ── #1 + #11: Inputs & selects — muted, visible in both themes */
 input, select, textarea {
-  background: rgba(128, 128, 128, 0.08) !important;
-  border: 1px solid rgba(128, 128, 128, 0.15) !important;
+  background: rgba(128, 128, 128, 0.10) !important;
+  border: 1px solid rgba(128, 128, 128, 0.20) !important;
   color: inherit !important;
   border-radius: var(--md-radius-sm) !important;
   transition: border-color var(--md-transition), box-shadow var(--md-transition);
+  font-family: var(--md-font-cond);
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: rgba(128, 128, 128, 0.3) !important;
-  box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.1);
+  border-color: rgba(128, 128, 128, 0.35) !important;
+  box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.12);
   outline: none;
 }
 

@@ -66,7 +66,7 @@ export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) =
 const labelStyle = { fontSize: LABEL.fontSize, fontWeight: LABEL.fontWeight, color: Z.td, letterSpacing: LABEL.letterSpacing, textTransform: LABEL.textTransform, fontFamily: COND };
 
 // Shared input surface — matches global.css rgba(128,128,128,0.08)
-const inputSurface = { background: "rgba(128,128,128,0.08)", border: "1px solid rgba(128,128,128,0.15)", borderRadius: INPUT.radius, color: Z.tx, fontSize: INPUT.fontSize, outline: "none", fontFamily: COND };
+const inputSurface = { background: "rgba(128,128,128,0.10)", border: "1px solid rgba(128,128,128,0.20)", borderRadius: INPUT.radius, color: Z.tx, fontSize: INPUT.fontSize, outline: "none", fontFamily: COND };
 
 export const Inp = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<input style={{ ...inputSurface, padding: INPUT.pad }} {...p} /></div>;
 
