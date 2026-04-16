@@ -119,8 +119,7 @@ const WebAds = ({ pubs, clients, sales }) => {
         <Btn sm onClick={() => setTab("Create Placement")}><Ic.plus size={12} /> New Placement</Btn>
       </div>
 
-      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-        <DataTable>
+      <DataTable>
           <thead><tr>
             {["Client", "Zone", "Dates", "Impressions", "Clicks", "CTR", "Active", ""].map(h =>
               <th key={h} style={{ textAlign: ["Impressions", "Clicks", "CTR"].includes(h) ? "right" : "left" }}>{h}</th>
@@ -146,7 +145,6 @@ const WebAds = ({ pubs, clients, sales }) => {
             })}
           </tbody>
         </DataTable>
-      </GlassCard>
     </>}
 
     {tab === "Create Placement" && <>

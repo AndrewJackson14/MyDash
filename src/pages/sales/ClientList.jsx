@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, TBL, INV } from "../../lib/theme";
-import { Ic, Badge, Btn, Sel, SB, SolidTabs, GlassCard, glass } from "../../components/ui";
+import { Ic, Badge, Btn, Sel, SB, SolidTabs, GlassCard, DataTable, glass } from "../../components/ui";
 import { computeClientStatus, CLIENT_STATUS_COLORS } from "./constants";
 
 const fmtK = (n) => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0).toLocaleString();
@@ -193,9 +193,8 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
     {filtered.length === 0 ? (
       <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No clients match your filters.</GlassCard>
     ) : (
-      <div style={{ ...glass(), borderRadius: R, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: TBL.bodySize, fontFamily: COND }}>
+      <div>
+        <DataTable>
             <thead>
               <tr>
                 <ThCol col="name">Client</ThCol>
@@ -211,8 +210,7 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
                 <ClientRow key={c.id} client={c} data={clientData[c.id]} nextAction={nextActions[c.id]} onSelect={onSelectClient} />
               ))}
             </tbody>
-          </table>
-        </div>
+        </DataTable>
         {filtered.length > visibleCount && <div style={{ padding: 10, textAlign: "center" }}><button onClick={() => setVisibleCount(v => v + PAGE_SIZE)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, padding: "6px 16px", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, cursor: "pointer" }}>Show more ({filtered.length - visibleCount} remaining)</button></div>}
       </div>
     )}

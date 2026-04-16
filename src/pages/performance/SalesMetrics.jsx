@@ -99,9 +99,8 @@ export default function SalesMetrics({ data, onNavigate }) {
     </div>
 
     {/* Per-rep table */}
-    <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, padding: "14px 16px 8px" }}>By Salesperson</div>
-      <DataTable>
+    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>By Salesperson</div>
+    <DataTable>
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>Rep</th>
@@ -125,6 +124,5 @@ export default function SalesMetrics({ data, onNavigate }) {
           })}
         </tbody>
       </DataTable>
-    </GlassCard>
   </div>;
 }

@@ -67,9 +67,8 @@ export default function ProductionMetrics({ data, onNavigate }) {
     </GlassCard>
 
     {/* Per-designer table — ad lane only */}
-    <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, padding: "14px 16px 8px" }}>By Designer</div>
-      <DataTable>
+    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>By Designer</div>
+    <DataTable>
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>Designer</th>
@@ -93,6 +92,5 @@ export default function ProductionMetrics({ data, onNavigate }) {
           })}
         </tbody>
       </DataTable>
-    </GlassCard>
   </div>;
 }

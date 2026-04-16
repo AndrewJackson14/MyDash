@@ -210,7 +210,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           const upcomingIssues = (issues || []).filter(i => i.pubId === sel.id && i.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12);
           if (upcomingIssues.length === 0) return <div style={{ fontSize: FS.sm, color: Z.td }}>No upcoming issues scheduled</div>;
           return <div style={{ maxHeight: 200, overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+            <DataTable>
               <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
                 <th style={{ padding: "4px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Issue</th>
                 <th style={{ padding: "4px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Date</th>
@@ -233,7 +233,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
                   </td>
                 </tr>;
               })}</tbody>
-            </table>
+            </DataTable>
           </div>;
         })()}
       </div>

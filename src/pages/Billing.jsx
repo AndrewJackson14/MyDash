@@ -722,9 +722,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       </div>
 
       {/* Line Items */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Line Items</div>
-        <DataTable>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Line Items</div>
+      <DataTable>
           <thead>
             <tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
               <th style={{ textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Description</th>
@@ -749,7 +748,6 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             </tr>
           </tfoot>
         </DataTable>
-      </GlassCard>
 
       {/* Payment History */}
       <GlassCard>
@@ -818,7 +816,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           Rolling window: 30 days back &middot; 30 days forward. Client Profile shows the full uninvoiced list.
         </div>
         <div style={{ maxHeight: 280, overflowY: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+          <DataTable>
             <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
               <th style={{ padding: "6px 10px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Client</th>
               <th style={{ padding: "6px 10px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Amount</th>
@@ -843,7 +841,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
           {uninvoicedByClient.length > 50 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.sm, color: Z.td }}>Showing top 50 of {uninvoicedByClient.length} clients</div>}
         </div>
       </GlassCard>}
@@ -901,8 +899,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, alignSelf: "center" }}>{creditMemos.filter(cm => cm.status === "pending").length} pending credit{creditMemos.filter(cm => cm.status === "pending").length !== 1 ? "s" : ""}</span>
         )}
       </div>
-      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-        <DataTable>
+      <DataTable>
           <thead>
             <tr>
               {[
@@ -971,7 +968,6 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
               })}
           </tbody>
         </DataTable>
-      </GlassCard>
     </>}
 
     {/* ════════ BILLS TAB ════════ */}
@@ -1104,7 +1100,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
         {/* Table */}
         <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+          <DataTable>
             <thead style={{ background: Z.sa }}>
               <tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
                 <SortTh label="Client" col="client" />
@@ -1152,7 +1148,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                 </tr>}
               </React.Fragment>)}
             </tbody>
-          </table>
+          </DataTable>
           {rows.length > 500 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing top 500 of {rows.length}</div>}
         </GlassCard>
       </div>;
@@ -1430,7 +1426,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
               <Btn sm v="secondary" onClick={exportCsv}><Ic.download size={12} /> Export CSV</Btn>
             </div>
             <div style={{ maxHeight: "70vh", overflow: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
+              <DataTable>
                 <thead>
                   <tr>
                     <Th col="client">Client</Th>
@@ -1464,7 +1460,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                     <td style={{ padding: "12px 14px", textAlign: "right", fontSize: FS.md, fontWeight: FW.black, color: Z.tx, borderTop: `2px solid ${Z.bd}`, borderLeft: `2px solid ${Z.bd}30`, fontFamily: DISPLAY }}>{fmtCurrency(totals.total)}</td>
                   </tr>
                 </tfoot>}
-              </table>
+              </DataTable>
             </div>
           </GlassCard>;
         })()}
@@ -1601,7 +1597,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           return <>
             <GlassCard>
               <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Rep Performance — Closed vs. Collected</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+              <DataTable>
                 <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
                   <th style={{ padding: "6px 8px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Rep</th>
                   <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Deals</th>
@@ -1624,7 +1620,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                     <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{r.dso != null ? `${r.dso}d` : "—"}</td>
                   </tr>)}
                 </tbody>
-              </table>
+              </DataTable>
               {rows.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.td }}>No rep data for this period</div>}
             </GlassCard>
           </>;
@@ -1826,7 +1822,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                         <span style={{ fontSize: FS.sm, color: Z.tm }}>{groupSelected}/{g.lines.length} · {fmtCurrency(groupTotal)}</span>
                       </div>
                       {/* Lines */}
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
+                      <DataTable>
                         <tbody>
                           {g.lines.map(l => (
                             <tr key={l._idx} onClick={() => toggleLine(l._idx)} style={{ borderBottom: `1px solid ${Z.bd}10`, opacity: l.selected ? 1 : 0.35, cursor: "pointer" }}
@@ -1839,7 +1835,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </DataTable>
                     </div>;
                   });
                 })()}

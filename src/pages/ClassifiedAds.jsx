@@ -151,8 +151,7 @@ const ClassifiedAds = ({ pubs, clients, issues }) => {
         <Btn sm onClick={() => setModal(true)}><Ic.plus size={12} /> New Classified</Btn>
       </div>
 
-      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-        <DataTable>
+      <DataTable>
           <thead><tr>
             {["Client", "Publication", "Category", "Words", "Runs", "Price", "Status", ""].map(h =>
               <th key={h} style={{ textAlign: h === "Price" ? "right" : "left" }}>{h}</th>
@@ -174,7 +173,6 @@ const ClassifiedAds = ({ pubs, clients, issues }) => {
             ))}
           </tbody>
         </DataTable>
-      </GlassCard>
     </>}
 
     {tab === "Rate Cards" && <>

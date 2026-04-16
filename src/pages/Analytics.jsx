@@ -664,8 +664,7 @@ const Analytics = ({
 
       {/* P&L Table */}
       {plPub === "all" ? (
-        <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-          <DataTable>
+        <DataTable>
             <thead>
               <tr>
                 {["Publication", "Ad Revenue", "Legal", "Subscriptions", "Total Rev", "Freelance", "Printing", "Distribution", "Total Cost", "Profit", "Margin"].map(h =>
@@ -708,7 +707,6 @@ const Analytics = ({
               </tr>
             </tbody>
           </DataTable>
-        </GlassCard>
       ) : selPL && (
         /* Single publication detail P&L */
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
