@@ -52,7 +52,7 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   const occupied = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(false));
   placements.forEach(p => { for (let r = 0; r < p.spanRows; r++) for (let c = 0; c < p.spanCols; c++) { if (occupied[p.gridRow + r]?.[p.gridCol + c] !== undefined) occupied[p.gridRow + r][p.gridCol + c] = true; } });
 
-  return <div onClick={onClick} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (dragId) onDrop(dragId, pageNum); }} style={{ position: "relative", width: pageW, height: pH, background: Z.bg, border: `2px solid ${sectionSelected ? Z.wa : isSelected ? Z.ac : Z.bd}`, borderRadius: R, overflow: "hidden", flexShrink: 0, cursor: "pointer" }}>
+  return <div onClick={onClick} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (dragId) onDrop(dragId, pageNum); }} style={{ position: "relative", width: pageW, height: pH, background: Z.bg, border: "none", outline: sectionSelected ? `2px solid ${Z.wa}` : "none", background: isSelected ? Z.ac + "12" : Z.bg, borderRadius: R, overflow: "hidden", flexShrink: 0, cursor: "pointer" }}>
     {/* Page number watermark */}
     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 0, pointerEvents: "none" }}><span style={{ fontSize: Math.max(18, pageW * 0.18), fontWeight: FW.black, color: "rgba(138,149,168,0.08)" }}>{pageNum}</span></div>
     {/* Empty grid cells — always show light grid lines */}

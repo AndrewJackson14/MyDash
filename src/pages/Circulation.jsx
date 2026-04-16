@@ -552,7 +552,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
                   else s.push(loc.id);
                   return { ...f, stops: s };
                 });
-              }} style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: R, cursor: "pointer", background: selected ? Z.as : Z.bg, border: `1px solid ${selected ? Z.ac : Z.bd}` }}>
+              }} style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: R, cursor: "pointer", background: selected ? Z.ac + "18" : "transparent" }}>
                 {selected && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac, background: Z.ss, borderRadius: Ri, minWidth: 18, textAlign: "center" }}>{idx + 1}</span>}
                 <span style={{ fontSize: FS.base, fontWeight: selected ? 700 : 400, color: Z.tx }}>{loc.name}</span>
                 <span style={{ fontSize: FS.xs, color: Z.td }}>{loc.city}</span>

@@ -64,7 +64,7 @@ const ChipPicker = ({ label, options, selected, onChange }) => (
     <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
       {options.map(o => {
         const on = selected.includes(o.id);
-        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: 10, fontWeight: on ? 700 : 500, border: "1px solid " + (on ? (o.color || Z.ac) : Z.bd), background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
+        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: 10, fontWeight: on ? 700 : 500, border: "none", background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
       })}
     </div>
   </div>

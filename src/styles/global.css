@@ -258,6 +258,11 @@ tbody tr td {
 }
 
 
+/* ── Selected state: background only, no border change ───── */
+/* Active/selected items communicate via background tint,
+   never via border color shifts. */
+
+
 /* ── Selection highlight ─────────────────────────────────── */
 ::selection {
   background: rgba(59, 130, 246, 0.3);

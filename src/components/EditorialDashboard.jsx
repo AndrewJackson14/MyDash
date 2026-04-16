@@ -536,9 +536,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
               return (
                 <div key={iss.id} onClick={() => setSelIssue(iss.id)} style={{
                   padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
-                  background: isSelected ? Z.ac + "12" : Z.sf,
-                  border: `1px solid ${isSelected ? Z.ac : Z.bd}`,
-                  borderLeft: `3px solid ${pColor(iss.publicationId || iss.pubId, pubs)}`,
+                  background: isSelected ? Z.ac + "18" : "transparent",
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pn(iss.publicationId || iss.pubId, pubs)}</div>
                   <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
