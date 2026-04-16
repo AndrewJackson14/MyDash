@@ -700,7 +700,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <Btn sm v="danger" style={{ width: "100%" }} onClick={async () => {
               if (!await dialog.confirm("Are you sure you want to delete this story? This cannot be undone.")) return;
               const { error } = await supabase.from("stories").delete().eq("id", story.id);
-              if (!error) { onUpdate(story.id, { _deleted: true }); onClose(); }
+              if (error) { await dialog.alert("Delete failed: " + error.message); return; }
+              onUpdate(story.id, { _deleted: true }); onClose();
             }}>Delete Story</Btn>
           </div>
 
