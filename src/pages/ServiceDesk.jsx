@@ -1,4 +1,5 @@
-import { useState, memo } from "react";
+import { useState, useEffect, memo } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { fmtDate, fmtTime } from "../lib/formatters";
@@ -60,7 +61,15 @@ const PriorityDot = ({ priority }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus }) => {
+const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Service Desk" }], title: "Service Desk" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Board");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
@@ -275,10 +284,11 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Service Desk">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {tab === "List" && <><SB value={sr} onChange={setSr} placeholder="Search tickets..." /><Sel value={catFilter} onChange={e => setCatFilter(e.target.value)} options={[{ value: "all", label: "All Categories" }, ...CATEGORIES]} /></>}
       <Btn sm onClick={openNewTicket}><Ic.plus size={13} /> New Ticket</Btn>
-    </PageHeader>
+    </div>
 
     <TabRow><TB tabs={["Board", "List", "Analytics"]} active={tab} onChange={setTab} />{tab === "List" && <><TabPipe /><TB tabs={["Active", "All", ...STATUSES.map(s => STATUS_LABELS[s])]} active={statusFilter === "active" ? "Active" : statusFilter === "all" ? "All" : STATUS_LABELS[statusFilter] || statusFilter} onChange={v => { if (v === "Active") setStatusFilter("active"); else if (v === "All") setStatusFilter("all"); else { const match = Object.entries(STATUS_LABELS).find(([k, l]) => l === v); setStatusFilter(match ? match[0] : v); } }} /></>}</TabRow>
 

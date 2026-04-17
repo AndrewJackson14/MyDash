@@ -1,4 +1,5 @@
-import { useState, useMemo, memo } from "react";
+import { useState, useMemo, useEffect, memo } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { generateRenewalHtml, getRenewalSubject } from "../lib/renewalTemplate";
@@ -21,7 +22,15 @@ const StatusBadge = ({ status, map }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions, setSubscriptions, subscriptionPayments, mailingLists, setMailingLists, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs, drivers, setDrivers, driverRoutes, setDriverRoutes, routeStops, setRouteStops, bus, team, currentUser }) => {
+const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions, setSubscriptions, subscriptionPayments, mailingLists, setMailingLists, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs, drivers, setDrivers, driverRoutes, setDriverRoutes, routeStops, setRouteStops, bus, team, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Circulation" }], title: "Circulation" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [sr, setSr] = useState("");
@@ -200,13 +209,14 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Circulation">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {(tab === "Subscribers" || tab === "Drop Locations") && <SB value={sr} onChange={setSr} placeholder={tab === "Subscribers" ? "Search subscribers..." : "Search locations..."} />}
       {tab === "Subscribers" && <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: pn(p.id) }))]} />}
       {tab === "Subscribers" && <><Btn sm v="secondary" onClick={() => setExportModal(true)}>Export List</Btn><Btn sm v="secondary" onClick={() => setRenewalModal(true)}>Send Renewals</Btn><Btn sm onClick={() => openSubModal(null)}><Ic.plus size={13} /> New Subscriber</Btn></>}
       {tab === "Drop Locations" && <Btn sm onClick={() => openLocModal(null)}><Ic.plus size={13} /> New Location</Btn>}
       {tab === "Routes" && <><Btn sm v="secondary" onClick={() => setDriverModal(true)}><Ic.plus size={13} /> New Driver</Btn><Btn sm onClick={() => setRouteModal(true)}><Ic.plus size={13} /> New Route</Btn></>}
-    </PageHeader>
+    </div>
 
     <TabRow>
       <TB tabs={["Overview", "Subscribers", "Drop Locations", "Routes"]} active={tab} onChange={setTab} />

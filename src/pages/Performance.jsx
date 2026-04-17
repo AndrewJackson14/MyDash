@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Btn, PageHeader, TabRow, TB, Sel } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { usePerformanceData } from "./performance/usePerformanceData";
 import SalesMetrics from "./performance/SalesMetrics";
 import EditorialMetrics from "./performance/EditorialMetrics";
@@ -18,7 +19,15 @@ const PERIOD_TABS = ["This Week", "This Month", "Custom"];
 
 const PERIOD_TO_PRESET = { "This Week": "week", "This Month": "month", "Custom": "custom" };
 
-export default function Performance({ sales, clients, stories, issues, adProjects, loadAdProjects, team, onNavigate }) {
+export default function Performance({ sales, clients, stories, issues, adProjects, loadAdProjects, team, onNavigate, isActive }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Performance" }], title: "Performance" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [dept, setDept] = useState("Sales");
   const [period, setPeriod] = useState("This Month");
   const [customStart, setCustomStart] = useState("");
@@ -62,10 +71,11 @@ export default function Performance({ sales, clients, stories, issues, adProject
   }, [data.range]);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Performance">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
       <Sel value={teamFilter} onChange={e => setTeamFilter(e.target.value)} options={teamOptions} />
       <span style={{ fontSize: FS.sm, color: Z.td, fontFamily: COND }}>{rangeLabel}</span>
-    </PageHeader>
+    </div>
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
       <TabRow>

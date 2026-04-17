@@ -1,10 +1,19 @@
 import { useState, useMemo, useEffect } from "react";
 import { Z, COND, DISPLAY, R, Ri, FS, FW, CARD } from "../../lib/theme";
 import { Ic, Btn, Inp, Sel, Badge, GlassCard, PageHeader, TabRow, TB, TabPipe, DataTable, Modal, SB } from "../../components/ui";
+import { usePageHeader } from "../../contexts/PageHeaderContext";
 
 const STATUS_COLORS = { active: Z.su || "#22C55E", completed: Z.tm, cancelled: Z.da };
 
-const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract, bus }) => {
+const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract, bus, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Contracts" }], title: "Contracts" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [viewId, setViewId] = useState(null);
@@ -160,7 +169,6 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
 
   // List view
   if (!contractsLoaded) return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Contracts" />
     <GlassCard style={{ textAlign: "center", padding: 40 }}>
       <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tm }}>Loading contracts...</div>
       <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 8 }}>This may take a moment for large datasets</div>
@@ -172,10 +180,11 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
   const activeValue = (contracts || []).filter(c => c.status === "active").reduce((s, c) => s + c.totalValue, 0);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Contracts">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <SB value={sr} onChange={setSr} placeholder="Search contracts..." />
       {!jurisdiction?.isSalesperson && <Sel value={repFilter} onChange={e => setRepFilter(e.target.value)} options={[{ value: "all", label: "All Reps" }, ...((team || []).filter(t => !t.isHidden && t.isActive !== false && ["Sales Manager", "Salesperson"].includes(t.role)).map(t => ({ value: t.id, label: t.name })))]} />}
-    </PageHeader>
+    </div>
 
     <TabRow>
       <TB tabs={["Active", "Completed", "All"]} active={tab} onChange={setTab} />
