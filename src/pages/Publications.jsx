@@ -160,6 +160,40 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Dormant</span>
           <span style={{ fontSize: FS.sm, color: Z.td }}>Hides from all metrics and dropdowns site-wide</span>
         </label>
+        {/* Shared Content — select sibling publications that share physical pages */}
+        <div style={{ marginTop: 12, padding: 12, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, fontFamily: COND }}>Shared Content With</div>
+          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 8 }}>Publications that share physical pages with this one. Matching ad projects can be linked so designers only produce the ad once.</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {pubs.filter(p => p.id !== editPub.id && !p.dormant).map(p => {
+              const isSelected = (editPub.sharedContentWith || editPub.settings?.shared_content_with || []).includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    const current = editPub.sharedContentWith || editPub.settings?.shared_content_with || [];
+                    const next = isSelected ? current.filter(id => id !== p.id) : [...current, p.id];
+                    setEditPub(ep => ({ ...ep, sharedContentWith: next }));
+                  }}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: Ri,
+                    border: `1px solid ${isSelected ? Z.ac : Z.bd}`,
+                    background: isSelected ? Z.ac + "15" : "transparent",
+                    color: isSelected ? Z.ac : Z.tm,
+                    fontSize: FS.sm,
+                    fontWeight: isSelected ? FW.bold : FW.medium,
+                    fontFamily: COND,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
       : <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: FS.base, color: Z.tm, alignItems: "center" }}>
         <div style={{ width: 12, height: 12, borderRadius: Ri, background: sel.color, flexShrink: 0 }} />

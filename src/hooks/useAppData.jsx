@@ -1966,6 +1966,16 @@ export function DataProvider({ children, localData }) {
       if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
       if (changes.dormant !== undefined) db.dormant = changes.dormant;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
+      // Shared content siblings — stored in site_settings JSONB, merged not overwritten
+      if (changes.sharedContentWith !== undefined) {
+        await supabase.rpc('jsonb_merge_site_settings', { pub_id: id, patch: { shared_content_with: changes.sharedContentWith } })
+          .then(null, async () => {
+            // Fallback if the RPC doesn't exist: read-modify-write
+            const { data: pub } = await supabase.from('publications').select('site_settings').eq('id', id).single();
+            const merged = { ...(pub?.site_settings || {}), shared_content_with: changes.sharedContentWith };
+            await supabase.from('publications').update({ site_settings: merged }).eq('id', id);
+          });
+      }
     }
   }, []);
 
