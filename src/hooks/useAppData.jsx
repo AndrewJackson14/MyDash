@@ -416,6 +416,8 @@ export function DataProvider({ children, localData }) {
       dueDate: s.due_date,
       images: s.images, wordCount: s.word_count, category: s.category,
       issueId: s.issue_id || '',
+      issue_id: s.issue_id || '',
+      print_issue_id: s.print_issue_id || '',
       // Destination flags — single source of truth for "is this live"
       sent_to_web: s.sent_to_web === true,
       sent_to_print: s.sent_to_print === true,
