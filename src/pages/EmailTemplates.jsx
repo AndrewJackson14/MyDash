@@ -625,7 +625,7 @@ const EmailTemplates = ({ pubs, currentUser }) => {
         {form.category === "marketing" && <Inp label="Hero Image URL" value={composeHeroUrl} onChange={e => setComposeHeroUrl(e.target.value)} placeholder="https://cdn.13stars.media/..." />}
         {composeResult && <div style={{ padding: "8px 12px", borderRadius: Ri, fontSize: FS.sm, background: composeResult.success ? Z.go + "10" : Z.da + "10", color: composeResult.success ? Z.go : Z.da }}>{composeResult.message || composeResult.error}</div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setComposeModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setComposeModal(false)}>Cancel</Btn>
           <Btn disabled={!composeRecipients.trim() || !composeSubject.trim() || composeSending} onClick={async () => {
             setComposeSending(true); setComposeResult(null);
             const recipients = composeRecipients.split(",").map(e => e.trim()).filter(e => e.includes("@"));

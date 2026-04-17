@@ -444,7 +444,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         {editId && <TA label="Resolution Notes" value={form.resolutionNotes} onChange={e => setForm(f => ({ ...f, resolutionNotes: e.target.value }))} rows={2} />}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setTicketModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setTicketModal(false)}>Cancel</Btn>
           <Btn onClick={saveTicket} disabled={!form.subject}>{editId ? "Save Changes" : "Create Ticket"}</Btn>
         </div>
       </div>

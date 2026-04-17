@@ -282,7 +282,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-        {editMode ? <><Btn v="secondary" onClick={() => { setEditPub(JSON.parse(JSON.stringify(sel))); setEditMode(false); }}>Cancel</Btn><Btn onClick={savePub}>Save Changes</Btn></> : <Btn v="secondary" onClick={() => setEditMode(true)}><Ic.edit size={12} /> Edit Publication</Btn>}
+        {editMode ? <><Btn v="cancel" onClick={() => { setEditPub(JSON.parse(JSON.stringify(sel))); setEditMode(false); }}>Cancel</Btn><Btn onClick={savePub}>Save Changes</Btn></> : <Btn v="cancel" onClick={() => setEditMode(true)}><Ic.edit size={12} /> Edit Publication</Btn>}
       </div>
     </div>}</Modal>
   </div>;

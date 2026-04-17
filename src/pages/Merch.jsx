@@ -330,7 +330,7 @@ const Merch = ({ clients }) => {
         <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
           {editProduct && <Btn v="ghost" onClick={() => { deleteProduct(editProduct.id); setProductModal(false); setEditProduct(null); }} style={{ color: Z.da }}>Delete</Btn>}
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            <Btn v="secondary" onClick={() => { setProductModal(false); setEditProduct(null); }}>Cancel</Btn>
+            <Btn v="cancel" onClick={() => { setProductModal(false); setEditProduct(null); }}>Cancel</Btn>
             <Btn onClick={saveProduct} disabled={!pForm.name}>{editProduct ? "Save Changes" : "Create Product"}</Btn>
           </div>
         </div>
@@ -362,7 +362,7 @@ const Merch = ({ clients }) => {
         <Inp label="Footer Text (optional)" value={sForm.footerText} onChange={e => setSForm(f => ({ ...f, footerText: e.target.value }))} placeholder="e.g. Orders ship within 14 business days" />
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setShopModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setShopModal(false)}>Cancel</Btn>
           <Btn onClick={saveShop} disabled={!sForm.name || sForm.productIds.length === 0}>Create Shop Link</Btn>
         </div>
       </div>

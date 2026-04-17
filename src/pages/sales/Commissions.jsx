@@ -233,7 +233,7 @@ const Commissions = ({
         <Sel label="Publication" value={rateForm.publicationId} onChange={e => setRateForm(f => ({ ...f, publicationId: e.target.value }))} options={[{ value: "", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
         <Sel label="Product Type" value={rateForm.productType} onChange={e => setRateForm(f => ({ ...f, productType: e.target.value }))} options={[{ value: "", label: "All Products" }, { value: "display_print", label: "Print Display" }, { value: "web", label: "Digital/Web" }, { value: "sponsored_content", label: "Sponsored Content" }]} />
         <Inp label="Commission Rate (%)" type="number" min={0} max={100} value={rateForm.rate} onChange={e => setRateForm(f => ({ ...f, rate: Number(e.target.value) }))} />
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="secondary" onClick={() => setRateModal(false)}>Cancel</Btn><Btn onClick={saveRate}>Save</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="cancel" onClick={() => setRateModal(false)}>Cancel</Btn><Btn onClick={saveRate}>Save</Btn></div>
       </div>
     </Modal>
 
@@ -241,7 +241,7 @@ const Commissions = ({
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Sel label="Issue" value={goalForm.issueId} onChange={e => { const iss = (issues || []).find(i => i.id === e.target.value); setGoalForm(f => ({ ...f, issueId: e.target.value, publicationId: iss?.pubId || "" })); }} options={[{ value: "", label: "Select issue..." }, ...(issues || []).filter(i => i.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 30).map(i => ({ value: i.id, label: `${pn(i.pubId)} — ${i.label}` }))]} />
         <Inp label="Revenue Goal ($)" type="number" min={0} value={goalForm.goal} onChange={e => setGoalForm(f => ({ ...f, goal: Number(e.target.value) }))} />
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="secondary" onClick={() => setGoalModal(false)}>Cancel</Btn><Btn onClick={saveGoal} disabled={!goalForm.issueId || !goalForm.goal}>Save Goal</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="cancel" onClick={() => setGoalModal(false)}>Cancel</Btn><Btn onClick={saveGoal} disabled={!goalForm.issueId || !goalForm.goal}>Save Goal</Btn></div>
       </div>
     </Modal>
 
@@ -254,7 +254,7 @@ const Commissions = ({
           <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{sp?.name}</div>
           <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(spData.earned)}</div>
           <div style={{ fontSize: FS.sm, color: Z.tm }}>{earnedCount} commission entries for {new Date().toISOString().slice(0, 7)}</div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}><Btn v="secondary" onClick={() => setPayoutModal(null)}>Cancel</Btn><Btn v="success" onClick={() => handleMarkPaid(payoutModal)}>Confirm Payout</Btn></div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}><Btn v="cancel" onClick={() => setPayoutModal(null)}>Cancel</Btn><Btn v="success" onClick={() => handleMarkPaid(payoutModal)}>Confirm Payout</Btn></div>
         </div>;
       })()}
     </Modal>

@@ -256,7 +256,7 @@ const ClassifiedAds = ({ pubs, clients, issues }) => {
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setModal(false)}>Cancel</Btn>
           <Btn onClick={saveAd} disabled={!form.clientId || !form.publicationId || !form.body.trim()}>Create Classified</Btn>
         </div>
       </div>
@@ -278,7 +278,7 @@ const ClassifiedAds = ({ pubs, clients, issues }) => {
           <Inp label="Photo ($)" type="number" value={rateForm.photoSurcharge} onChange={e => setRateForm(f => ({ ...f, photoSurcharge: Number(e.target.value) }))} />
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setRateModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setRateModal(false)}>Cancel</Btn>
           <Btn onClick={saveRate} disabled={!rateForm.pubId}>Save Rate Card</Btn>
         </div>
       </div>

@@ -187,7 +187,7 @@ const WebAds = ({ pubs, clients, sales }) => {
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn v="secondary" onClick={() => setTab("Active Ads")}>Cancel</Btn>
+            <Btn v="cancel" onClick={() => setTab("Active Ads")}>Cancel</Btn>
             <Btn onClick={createPlacement} disabled={!form.zoneId || !form.clientId || !form.startDate || !form.endDate || (!form.creativeUrl && !form.creativeHtml)}>Create & Activate</Btn>
           </div>
         </div>

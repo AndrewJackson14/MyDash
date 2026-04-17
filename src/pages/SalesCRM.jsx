@@ -1242,7 +1242,7 @@ const SalesCRM = (props) => {
               />
             )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Btn v="secondary" sm onClick={() => setCloseIssueModal(null)}>Cancel</Btn>
+              <Btn v="cancel" sm onClick={() => setCloseIssueModal(null)}>Cancel</Btn>
               <Btn
                 sm
                 disabled={!closeIssueChoice}
@@ -1336,7 +1336,7 @@ const SalesCRM = (props) => {
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setCmo(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setCmo(false)}>Cancel</Btn>
           <Btn onClick={saveC} disabled={!cf.name}>{ec ? "Save Changes" : "Create Client"}</Btn>
         </div>
       </div>
@@ -1351,7 +1351,7 @@ const SalesCRM = (props) => {
         </div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><Inp label="Email" value={opp.email} onChange={e => setOpp(x => ({ ...x, email: e.target.value }))} />
         <Inp label="Phone" value={opp.phone} onChange={e => setOpp(x => ({ ...x, phone: e.target.value }))} />
         </div>{editOppId && (() => { const s = sales.find(x => x.id === editOppId); const n = s?.oppNotes || []; return n.length > 0 && <div style={{ background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, padding: 16, maxHeight: 90, overflowY: "auto" }}><div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Activity Log</div>{n.slice().reverse().map(x => <div key={x.id} style={{ padding: "3px 0", fontSize: FS.sm, color: Z.tx, borderBottom: `1px solid ${Z.bd}` }}>{x.text} <span style={{ color: Z.td }}>{x.date}</span></div>)}</div>; })()}<TA label="Add Note" value={opp.notes} onChange={e => setOpp(x => ({ ...x, notes: e.target.value }))} placeholder="Notes..." />
-        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}><Btn v="secondary" onClick={() => setOppMo(false)}>Cancel</Btn><Btn v="secondary" onClick={() => { if (!opp.company) return; setOppSendKit(true); setOppKitMsg(`Hi ${opp.contact},\n\nRate cards attached.\n\nBest,\n${COMPANY.sales.name}`); }}><Ic.mail size={12} /> Rate Cards</Btn><Btn v="secondary" onClick={oppToProposal}><Ic.send size={12} /> Create Proposal</Btn><Btn onClick={() => saveOpp()}>{editOppId ? "Save" : "Create"}</Btn></div></div>}
+        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}><Btn v="cancel" onClick={() => setOppMo(false)}>Cancel</Btn><Btn v="cancel" onClick={() => { if (!opp.company) return; setOppSendKit(true); setOppKitMsg(`Hi ${opp.contact},\n\nRate cards attached.\n\nBest,\n${COMPANY.sales.name}`); }}><Ic.mail size={12} /> Rate Cards</Btn><Btn v="cancel" onClick={oppToProposal}><Ic.send size={12} /> Create Proposal</Btn><Btn onClick={() => saveOpp()}>{editOppId ? "Save" : "Create"}</Btn></div></div>}
     </Modal>
 
     {/* PROPOSAL BUILDER */}
@@ -1412,7 +1412,7 @@ const SalesCRM = (props) => {
           </div>}
           {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
         </div>}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="secondary" onClick={closePropMo}>Cancel</Btn><Btn v="secondary" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn v="cancel" onClick={closePropMo}>Cancel</Btn><Btn v="cancel" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn><Btn disabled={propLineItems.length === 0 || propSending} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn></div>
       </div>}
     </Modal>
 
@@ -1423,7 +1423,7 @@ const SalesCRM = (props) => {
         <Inp label="Subject" value={emailSubj} onChange={e => setEmailSubj(e.target.value)} />
         <TA label="Body" value={emailBody} onChange={e => setEmailBody(e.target.value)} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setEmailMo(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setEmailMo(false)}>Cancel</Btn>
           <Btn onClick={sendEmail}><Ic.send size={12} /> Send Email</Btn>
         </div>
       </div>
@@ -1440,7 +1440,7 @@ const SalesCRM = (props) => {
         </div>
         <TA label="Notes" value={schEvent.notes} onChange={e => setSchEvent(x => ({ ...x, notes: e.target.value }))} placeholder="Agenda..." />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setCalMo(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setCalMo(false)}>Cancel</Btn>
           <Btn onClick={() => { if (calSaleId) { const s = sales.find(x => x.id === calSaleId); if (s) { setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `Scheduled: ${schEvent.title} on ${schEvent.date} at ${schEvent.time}` }] } : c)); completeAction(calSaleId, `Scheduled: ${schEvent.title} ${schEvent.date}`); } } setCalMo(false); }}>Schedule</Btn>
         </div>
       </div>

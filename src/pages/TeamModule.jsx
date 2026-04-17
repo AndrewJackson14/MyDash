@@ -675,7 +675,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
           <Inp label="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setModal(false)}>Cancel</Btn>
           <Btn onClick={save} disabled={!form.name || !form.email}>Add</Btn>
         </div>
       </div>

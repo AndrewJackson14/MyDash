@@ -1918,7 +1918,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setInvModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setInvModal(false)}>Cancel</Btn>
           <Btn onClick={saveInvoice} disabled={!invForm.clientId || selectedLines.length === 0}>Create Invoice — {fmtCurrency(invTotal)}</Btn>
         </div>
       </div>
@@ -1945,7 +1945,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         <TA label="Notes" value={payForm.notes} onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setPayModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setPayModal(false)}>Cancel</Btn>
           <Btn onClick={savePayment} disabled={!payForm.amount}>Record Payment</Btn>
         </div>
       </div>
@@ -1984,7 +1984,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
         <TA label="Notes" value={cmForm.notes} onChange={e => setCmForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setCreditMemoModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setCreditMemoModal(false)}>Cancel</Btn>
           <Btn onClick={createCreditMemo} disabled={!cmForm.clientId || !cmForm.amount || !cmForm.reason}>{cmForm.applyToInvoiceId ? "Create & Apply" : "Create Credit"}</Btn>
         </div>
       </div>

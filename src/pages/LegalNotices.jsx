@@ -485,7 +485,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       width={640}
       onSubmit={saveNotice}
       actions={<>
-        <Btn v="secondary" onClick={() => setNoticeModal(false)}>Cancel</Btn>
+        <Btn v="cancel" onClick={() => setNoticeModal(false)}>Cancel</Btn>
         {!editId && <Btn v="secondary" onClick={() => { updateForm({ skipInvoice: true }); saveNotice(); }} disabled={!form.contactName || !form.content}>Save as Draft</Btn>}
         <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Save & Invoice"}</Btn>
       </>}

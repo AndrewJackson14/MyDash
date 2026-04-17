@@ -467,7 +467,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
         </div>
         <TA label="Notes" value={subForm.notes} onChange={e => setSubForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setSubModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setSubModal(false)}>Cancel</Btn>
           <Btn onClick={saveSub} disabled={!subForm.firstName || !subForm.lastName}>{editSub ? "Save Changes" : "Add Subscriber"}</Btn>
         </div>
       </div>
@@ -505,7 +505,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
         <TA label="Notes" value={locForm.notes} onChange={e => setLocForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setLocModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setLocModal(false)}>Cancel</Btn>
           <Btn onClick={saveLoc} disabled={!locForm.name || !locForm.address}>{editLoc ? "Save Changes" : "Add Location"}</Btn>
         </div>
       </div>
@@ -522,7 +522,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
         <Inp label="Email" type="email" value={driverForm.email} onChange={e => setDriverForm(f => ({ ...f, email: e.target.value }))} />
         <TA label="Notes" value={driverForm.notes} onChange={e => setDriverForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setDriverModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setDriverModal(false)}>Cancel</Btn>
           <Btn onClick={saveDriver} disabled={!driverForm.name}>Add Driver</Btn>
         </div>
       </div>
@@ -563,7 +563,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
 
         <TA label="Notes" value={routeForm.notes} onChange={e => setRouteForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setRouteModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setRouteModal(false)}>Cancel</Btn>
           <Btn onClick={saveRoute} disabled={!routeForm.name}>Create Route</Btn>
         </div>
       </div>
@@ -669,7 +669,7 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
             </div>
           ))}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn v="secondary" onClick={() => setRenewalModal(false)}>Cancel</Btn>
+            <Btn v="cancel" onClick={() => setRenewalModal(false)}>Cancel</Btn>
             <Btn onClick={async () => {
               let sent = 0;
               for (const sub of expiring) {

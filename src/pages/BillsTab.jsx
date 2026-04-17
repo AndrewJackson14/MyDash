@@ -141,7 +141,7 @@ const BillModal = ({ open, onClose, bill, pubs, onSave, onDelete }) => {
             {isEdit && <Btn sm v="ghost" onClick={del} disabled={saving}>Delete</Btn>}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn sm v="secondary" onClick={onClose} disabled={saving}>Cancel</Btn>
+            <Btn sm v="cancel" onClick={onClose} disabled={saving}>Cancel</Btn>
             <Btn sm onClick={save} disabled={saving}>{saving ? "Saving..." : isEdit ? "Save Changes" : "Add Bill"}</Btn>
           </div>
         </div>
@@ -267,7 +267,7 @@ const MarkPaidModal = ({ open, onClose, bill, onConfirm }) => {
         )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-          <Btn sm v="secondary" onClick={onClose} disabled={saving}>Cancel</Btn>
+          <Btn sm v="cancel" onClick={onClose} disabled={saving}>Cancel</Btn>
           <Btn sm onClick={confirm} disabled={saving || uploading || (paidMethod === "check" && !checkNumber) || (paidMethod === "credit_card" && !ccLastFour)}>
             {saving ? "Saving..." : "Mark Paid"}
           </Btn>

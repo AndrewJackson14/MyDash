@@ -428,7 +428,7 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
         <TA label="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setJobModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setJobModal(false)}>Cancel</Btn>
           <Btn onClick={saveJob} disabled={!form.title || !form.clientId}>{editId ? "Save Changes" : "Create Job"}</Btn>
         </div>
       </div>

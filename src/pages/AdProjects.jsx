@@ -986,7 +986,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
             return prevAd ? <Btn sm v="ghost" onClick={() => setForm(f => ({ ...f, publicationId: prevAd.publication_id || f.publicationId, adSize: prevAd.ad_size || f.adSize, designNotes: `Repeat of previous ad (${prevAd.ad_size || "ad"}). ${prevAd.design_notes || ""}`.trim(), designerId: prevAd.designer_id || f.designerId, clientContactName: prevAd.client_contact_name || f.clientContactName, clientContactEmail: prevAd.client_contact_email || f.clientContactEmail }))}>Clone from last ad</Btn> : <span />;
           })() : <span />}
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn v="secondary" sm onClick={() => setCreateModal(false)}>Cancel</Btn>
+            <Btn v="cancel" sm onClick={() => setCreateModal(false)}>Cancel</Btn>
             <Btn sm onClick={createProject} disabled={!form.clientId || !form.publicationId}>Create Project</Btn>
           </div>
         </div>

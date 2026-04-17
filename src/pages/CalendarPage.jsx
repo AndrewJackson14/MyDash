@@ -468,7 +468,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
         <TA label="Notes" value={eventForm.notes} onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         {googleConnected && <div style={{ fontSize: FS.xs, color: Z.go, fontFamily: COND }}>Will sync to Google Calendar</div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" sm onClick={() => setEventModal(false)}>Cancel</Btn>
+          <Btn v="cancel" sm onClick={() => setEventModal(false)}>Cancel</Btn>
           <Btn sm onClick={saveEvent} disabled={!eventForm.title}>Create Event</Btn>
         </div>
       </div>

@@ -370,7 +370,7 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
           Are you sure you want to delete <b style={{ color: Z.tx }}>{deleteConfirm?.title}</b>? This will remove the edition record but the PDF and cover image will remain on the CDN.
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" sm onClick={() => setDeleteConfirm(null)}>Cancel</Btn>
+          <Btn v="cancel" sm onClick={() => setDeleteConfirm(null)}>Cancel</Btn>
           <Btn v="danger" sm onClick={() => handleDelete(deleteConfirm)}>Delete Edition</Btn>
         </div>
       </div>
@@ -793,7 +793,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <Btn v="secondary" sm onClick={onClose} disabled={saving}>Cancel</Btn>
+        <Btn v="cancel" sm onClick={onClose} disabled={saving}>Cancel</Btn>
         <Btn sm onClick={handleSave} disabled={saving || !pubId || !publishDate || (!pdfFile && !isEdit)}>
           {saving ? "Publishing..." : "Publish Edition"}
         </Btn>

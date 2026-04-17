@@ -917,7 +917,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
             options={CATEGORY_OPTIONS}
           />
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
-            <Btn v="secondary" onClick={() => setUploadModal(null)}>Cancel</Btn>
+            <Btn v="cancel" onClick={() => setUploadModal(null)}>Cancel</Btn>
             <Btn onClick={confirmUpload}><Ic.upload size={13} /> Upload {uploadModal?.files?.length || ""}</Btn>
           </div>
         </div>

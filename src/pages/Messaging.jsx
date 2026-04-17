@@ -353,7 +353,7 @@ const Messaging = memo(({ team, currentUser }) => {
         onClose={() => setShowPicker(false)}
         title="New Direct Message"
         width={420}
-        actions={<Btn v="secondary" onClick={() => setShowPicker(false)}>Cancel</Btn>}
+        actions={<Btn v="cancel" onClick={() => setShowPicker(false)}>Cancel</Btn>}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 420, overflowY: "auto" }}>
           {pickerTeam.length === 0 && <div style={{ padding: 16, color: Z.td, fontSize: 13, textAlign: "center" }}>No other team members to message.</div>}

@@ -53,11 +53,12 @@ export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa
 export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
   const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 };
   const variants = {
-    primary:   { background: Z.go, color: INV.light },
+    primary:   { background: "#3b82f6", color: INV.light },
     success:   { background: Z.go, color: INV.light },
-    secondary: { background: Z.tx, color: Z.bg },
-    ghost:     { background: "transparent", color: Z.tx, border: "none", textDecoration: "underline", textUnderlineOffset: 3 },
+    secondary: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" },
+    ghost:     { background: "transparent", color: Z.tm, border: "none" },
     danger:    { background: Z.da, color: INV.light },
+    cancel:    { background: "rgba(224,80,80,0.12)", color: Z.da, border: "1px solid rgba(224,80,80,0.3)" },
     warning:   { background: Z.wa, color: INV.light },
   };
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[v], ...style }}>{children}</button>;

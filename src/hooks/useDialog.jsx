@@ -64,12 +64,12 @@ function DialogHost({ dialog, close }) {
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 24px 20px" }}>
         {dialog.type === "confirm" && (
-          <button onClick={() => close(false)} style={{ padding: "8px 20px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
+          <button onClick={() => close(false)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
         )}
         {dialog.type === "prompt" && (
-          <button onClick={() => close(null)} style={{ padding: "8px 20px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
+          <button onClick={() => close(null)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
         )}
-        <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: Z.tx, color: Z.sf, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
+        <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: "#3b82f6", color: "#fff", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
       </div>
     </div>
   </>;

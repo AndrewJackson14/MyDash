@@ -310,7 +310,7 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
           {(entryForm.status === "won_back") && <Inp label="Deal Value ($)" type="number" value={entryForm.wonBackAmount || ""} onChange={e => setEntryForm(f => ({ ...f, wonBackAmount: Number(e.target.value) || 0 }))} />}
           <Inp label="Notes" value={entryForm.notes || ""} onChange={e => setEntryForm(f => ({ ...f, notes: e.target.value }))} />
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn v="secondary" onClick={() => setEntryModal(null)}>Cancel</Btn>
+            <Btn v="cancel" onClick={() => setEntryModal(null)}>Cancel</Btn>
             <Btn onClick={async () => { await handleUpdateEntry(entryModal, entryForm); setEntryModal(null); }}>Save</Btn>
           </div>
         </div>;
