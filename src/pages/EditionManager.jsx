@@ -563,6 +563,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
       let finalPdfUrl = pdfUrl;
       let finalCoverUrl = coverImageUrl;
       let finalPageCount = pageCount;
+      let finalPageImagesBaseUrl = null;
 
       // If we have a new PDF file, compress + upload it (and generate cover)
       if (pdfFile) {
@@ -612,6 +613,47 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
           path, coverFilename, () => {}
         );
         finalCoverUrl = `${CDN_BASE}/${path}/${coverFilename}`;
+
+        // Extract individual page images for the magazine flipper reader.
+        // Renders each page via pdf.js → canvas → WebP, uploads to BunnyCDN
+        // at {path}/pages/page-001.webp and {path}/thumbs/thumb-001.webp.
+        setCompressionStatus("Extracting page images...");
+        const pageImagesBasePath = `${path}`;
+        const ab2 = await pdfFile.arrayBuffer();
+        const pdf2 = await openPdf(new Uint8Array(ab2));
+        for (let p = 1; p <= pdf2.numPages; p++) {
+          setCompressionStatus(`Extracting page ${p} of ${pdf2.numPages}...`);
+          const pg = await pdf2.getPage(p);
+
+          // Full-size page image
+          const fullScale = 2;
+          const fullVp = pg.getViewport({ scale: fullScale });
+          const fullCanvas = document.createElement("canvas");
+          fullCanvas.width = fullVp.width;
+          fullCanvas.height = fullVp.height;
+          await pg.render({ canvasContext: fullCanvas.getContext("2d"), viewport: fullVp }).promise;
+          const fullBlob = await new Promise(r => fullCanvas.toBlob(r, "image/webp", 0.82));
+          const pageName = `pages/page-${String(p).padStart(3, "0")}.webp`;
+          await bunnyUploadWithProgress(
+            new File([fullBlob], pageName.split("/").pop(), { type: "image/webp" }),
+            pageImagesBasePath, pageName, () => {}
+          );
+
+          // Thumbnail
+          const thumbScale = 0.4;
+          const thumbVp = pg.getViewport({ scale: thumbScale });
+          const thumbCanvas = document.createElement("canvas");
+          thumbCanvas.width = thumbVp.width;
+          thumbCanvas.height = thumbVp.height;
+          await pg.render({ canvasContext: thumbCanvas.getContext("2d"), viewport: thumbVp }).promise;
+          const thumbBlob = await new Promise(r => thumbCanvas.toBlob(r, "image/webp", 0.7));
+          const thumbName = `thumbs/thumb-${String(p).padStart(3, "0")}.webp`;
+          await bunnyUploadWithProgress(
+            new File([thumbBlob], thumbName.split("/").pop(), { type: "image/webp" }),
+            pageImagesBasePath, thumbName, () => {}
+          );
+        }
+        finalPageImagesBaseUrl = `${CDN_BASE}/${pageImagesBasePath}`;
       }
 
       setCompressionStatus("Saving to database...");
@@ -632,6 +674,10 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         page_count: finalPageCount || 0,
         embed_url: embedUrl || null,
         is_featured: isFeatured,
+        page_images_base_url: finalPageImagesBaseUrl,
+        page_image_format: finalPageImagesBaseUrl ? "webp" : null,
+        is_published: true,
+        status: finalPageImagesBaseUrl ? "ready" : "processing",
       };
 
       let result;
