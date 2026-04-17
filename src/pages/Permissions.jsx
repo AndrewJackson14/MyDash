@@ -18,6 +18,7 @@ const MODULES = [
   { key: "creative_jobs", label: "Creative Jobs", icon: "🎨" },
   { key: "classifieds", label: "Classified Ads", icon: "📰" },
   { key: "web_ads", label: "Web Ads", icon: "🌐" },
+  { key: "merch", label: "Merch", icon: "🏷" },
   { key: "calendar", label: "Calendar", icon: "📅" },
   { key: "analytics", label: "Analytics", icon: "📈" },
   { key: "team", label: "Team Management", icon: "👥" },

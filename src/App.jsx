@@ -47,6 +47,7 @@ const Performance = lazyLoad(() => import("./pages/Performance"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
 const WebAds = lazyLoad(() => import("./pages/WebAds"));
+const Merch = lazyLoad(() => import("./pages/Merch"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
@@ -395,6 +396,7 @@ export default function App() {
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "classifieds", label: "Classifieds", icon: Ic.list },
     { id: "web_ads", label: "Web Ads", icon: Ic.globe },
+    { id: "merch", label: "Merch", icon: Ic.star },
     { id: "_operations", section: true, label: "Operations" },
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.bell, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
@@ -666,6 +668,7 @@ export default function App() {
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
         {show("classifieds") && <div style={vis("classifieds")}><ClassifiedAds pubs={pubs} clients={jClients} issues={jIssues} /></div>}
         {show("web_ads") && <div style={vis("web_ads")}><WebAds pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} /></div>}
+        {show("merch") && <div style={vis("merch")}><Merch clients={jClients} /></div>}
         </Suspense>
         </ErrorBoundary>
       </main>
