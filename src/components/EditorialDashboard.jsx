@@ -700,11 +700,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           <td style={{ padding: "5px 8px" }}>
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
-                          <td style={{ padding: "5px 8px" }}>
-                            {(() => { const sc = statusColorsOn ? (statusColors[s.status] || statusColors.Draft) : null; return (
-                              <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", ...(sc ? { background: sc.bg, color: sc.fg, fontWeight: 700, borderColor: sc.fg + "30" } : {}) }} />
-                            ); })()}
+                          {(() => { const sc = statusColorsOn ? (statusColors[s.status] || statusColors.Draft) : null; return (
+                          <td style={{ padding: "5px 8px", background: sc?.bg || "transparent", borderLeft: sc ? `3px solid ${sc.fg}` : "none" }}>
+                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", color: sc?.fg || Z.tx, fontWeight: sc ? 700 : 500, background: "transparent", border: "none" }} />
                           </td>
+                          ); })()}
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <Sel value={String(s.page_number || s.page || "")} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]} style={{ padding: "3px 24px 3px 6px", width: 55 }} />
                           </td>
