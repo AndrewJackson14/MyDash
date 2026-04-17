@@ -559,10 +559,18 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", padding: "4px 0 8px" }}>{dept.label} ({byDept[dept.label].length})</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
           {byDept[dept.label].map(t => (
-            <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
+            <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s", position: "relative" }}
               onClick={() => onOpenMemberProfile ? onOpenMemberProfile(t.id) : (setMemberModal(t), setEditId(t.id), setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }))}
               onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
               onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
+              {t.isFreelance && <span title="Independent Contractor (1099)" style={{
+                position: "absolute", top: 10, right: 10,
+                fontSize: 9, fontWeight: FW.black,
+                color: Z.wa, background: Z.wa + "22",
+                border: `1px solid ${Z.wa}55`,
+                padding: "2px 7px", borderRadius: 10,
+                letterSpacing: 0.6, fontFamily: COND,
+              }}>IC</span>}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(t.name)}</div>
                 <div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn, TabRow, TB } from "../components/ui";
+import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn, TabRow, TB, Toggle } from "../components/ui";
 import { initials as ini } from "../lib/formatters";
 import { supabase } from "../lib/supabase";
 import RoleDashboard from "../components/RoleDashboard";
@@ -57,7 +57,8 @@ function WorkloadPanel({ member, clients, sales, stories, tickets }) {
 // options (no hard-coding). Each row has: Assigned toggle, rate %, trigger.
 // Rate goes to commission_rates (salesperson_id+publication_id+product_type=null).
 // Trigger goes to salesperson_pub_assignments.commission_trigger.
-function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate }) {
+function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate, currentUser }) {
+  const viewerIsAdmin = !!currentUser?.permissions?.includes?.("admin");
   const isSales = ["Sales Manager", "Salesperson"].includes(member.role);
   const assignments = (salespersonPubAssignments || []).filter(a => a.salespersonId === member.id);
   const rates = (commissionRates || []).filter(r => r.salespersonId === member.id && (r.productType == null || r.productType === ""));
@@ -113,6 +114,18 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
       {(member.pubs || []).includes("all")
         ? "All publications"
         : (pubs || []).filter(p => (member.pubs || []).includes(p.id)).map(p => p.name).join(", ") || "—"}
+    </div>}
+
+    {/* Employment Type — admins only. Toggling ON marks the member as an
+        Independent Contractor (1099); surfaces the rate fields below once
+        those columns ship in a migration. Employees (W-2) leave it off. */}
+    {viewerIsAdmin && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Employment Type</div>
+      <Toggle
+        checked={!!member.isFreelance}
+        onChange={(next) => updateTeamMember?.(member.id, { isFreelance: next })}
+        label={member.isFreelance ? "Independent Contractor (1099)" : "Employee (W-2)"}
+      />
     </div>}
 
     {member.isFreelance && <div style={{ marginTop: 12 }}>
@@ -434,7 +447,7 @@ const TeamMemberProfile = ({
         {/* Two-column: Settings (Publication Assignment) + Permissions. Auto-fit
             keeps it 2-col on desktop and stacks to 1-col below ~640px viewport. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
-          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} salespersonPubAssignments={salespersonPubAssignments} upsertPubAssignment={upsertPubAssignment} deletePubAssignment={deletePubAssignment} commissionRates={commissionRates} upsertCommissionRate={upsertCommissionRate} />
+          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} salespersonPubAssignments={salespersonPubAssignments} upsertPubAssignment={upsertPubAssignment} deletePubAssignment={deletePubAssignment} commissionRates={commissionRates} upsertCommissionRate={upsertCommissionRate} currentUser={currentUser} />
           <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
         </div>
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />

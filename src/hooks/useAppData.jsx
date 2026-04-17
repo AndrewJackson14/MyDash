@@ -2092,6 +2092,8 @@ export function DataProvider({ children, localData }) {
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
       if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
+      if (changes.isFreelance !== undefined) db.is_freelance = changes.isFreelance;
+      if (changes.specialty !== undefined) db.specialty = changes.specialty;
       // rate_type / rate_amount / availability columns don't exist yet — see
       // teamSelect note above. Add a migration before wiring these writes back.
       if (Object.keys(db).length) {
