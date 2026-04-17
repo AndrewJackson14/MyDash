@@ -324,6 +324,7 @@ function OrgAppearancePanel() {
           background_image_url: data.background_image_url || "",
           background_image_opacity: Number(data.background_image_opacity ?? 0.30),
           status_colors: { ...DEFAULT_STATUS_COLORS, ...(data.status_colors || {}) },
+          status_colors_enabled: data.status_colors_enabled !== false,
         });
         setLoading(false);
       });
@@ -338,6 +339,7 @@ function OrgAppearancePanel() {
       background_image_url: payload.background_image_url || null,
       background_image_opacity: payload.background_image_opacity,
       status_colors: payload.status_colors || {},
+      status_colors_enabled: payload.status_colors_enabled !== false,
       updated_at: new Date().toISOString(),
     }).eq("singleton", true);
     setSaving(false);
@@ -445,8 +447,13 @@ function OrgAppearancePanel() {
 
         {/* Story Status Colors */}
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd, gridColumn: "1 / -1" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 4 }}>Story Status Colors</div>
-          <div style={{ fontSize: 11, color: Z.tm, marginBottom: 12 }}>Colors used for status indicators in the Issue Planner and Story Editor.</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx }}>Story Status Colors</div>
+              <div style={{ fontSize: 11, color: Z.tm, marginTop: 2 }}>Colors used for status indicators in the Issue Planner and Story Editor.</div>
+            </div>
+            <Toggle checked={s.status_colors_enabled !== false} onChange={(v) => setS(p => ({ ...p, status_colors_enabled: v }))} label="" />
+          </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {Object.entries(s.status_colors || {}).map(([status, colors]) => (
               <div key={status} style={{

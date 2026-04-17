@@ -199,12 +199,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const stories = storiesRaw || [];
   const dialog = useDialog();
 
-  // Load status colors from org_settings (publisher-configurable)
+  // Load status colors + enabled flag from org_settings (publisher-configurable)
   const [statusColors, setStatusColors] = useState(DEFAULT_statusColors);
+  const [statusColorsOn, setStatusColorsOn] = useState(true);
   useEffect(() => {
-    supabase.from("org_settings").select("status_colors").limit(1).maybeSingle()
+    supabase.from("org_settings").select("status_colors, status_colors_enabled").limit(1).maybeSingle()
       .then(({ data }) => {
         if (data?.status_colors) setStatusColors(sc => ({ ...sc, ...data.status_colors }));
+        if (data?.status_colors_enabled === false) setStatusColorsOn(false);
       });
   }, []);
 
@@ -699,8 +701,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            {(() => { const sc = statusColors[s.status] || statusColors.Draft; return (
-                              <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", background: sc.bg, color: sc.fg, fontWeight: 700, borderColor: sc.fg + "30" }} />
+                            {(() => { const sc = statusColorsOn ? (statusColors[s.status] || statusColors.Draft) : null; return (
+                              <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", ...(sc ? { background: sc.bg, color: sc.fg, fontWeight: 700, borderColor: sc.fg + "30" } : {}) }} />
                             ); })()}
                           </td>
                           <td style={{ padding: "5px 8px", width: 60 }}>
