@@ -306,6 +306,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     if (updates.page_number !== undefined) dbFields.page = updates.page_number;
     if (updates.web_status !== undefined) dbFields.web_status = updates.web_status;
     if (updates.published_at !== undefined) dbFields.published_at = updates.published_at;
+    if (updates.word_limit !== undefined) dbFields.word_limit = updates.word_limit;
+    if (updates.priority !== undefined) dbFields.priority = updates.priority;
     if (Object.keys(dbFields).length === 0) return;
 
     // Map page to integer for DB
