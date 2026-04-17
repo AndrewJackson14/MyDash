@@ -69,8 +69,9 @@ Run this audit when asked to "run an audit" or "code and site audit." Execute ea
 ## 8. CI/CD & Deployment
 - [ ] GitHub Actions workflow has all required VITE_ env vars
 - [ ] Build succeeds in CI (npm ci + npm run build)
-- [ ] Deploy via rsync to server works
-- [ ] Production site loads after deploy
+- [ ] Deploy via rsync to server works (push to `main` triggers
+      [.github/workflows/deploy.yml](.github/workflows/deploy.yml))
+- [ ] [mydash.media](https://mydash.media) loads after deploy
 
 ## 9. Security
 - [ ] No secrets in frontend code (check src/, hardcoded keys)

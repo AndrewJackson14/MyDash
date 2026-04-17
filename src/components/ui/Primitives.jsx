@@ -3,7 +3,7 @@
 // R = 5px card radius, Ri = 3px internal radius, SP = spacing
 // ============================================================
 import { Component, useState, useRef, useLayoutEffect } from "react";
-import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, isDark as _isDark } from "../../lib/theme";
+import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, RADII, EASE, DUR, FONT, SIGNAL, NEUTRAL, isDark as _isDark } from "../../lib/theme";
 import Ic from "./Icons";
 
 export const ThemeToggle = ({ onToggle }) => {
@@ -171,13 +171,19 @@ export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, b
 // without a footer prop still work exactly as before.
 export const Modal = ({ open, onClose, title, children, actions, width = MODAL.defaultWidth, onSubmit }) => {
   if (!open) return null;
+  const dark = _isDark();
   return <div tabIndex={-1} style={{
     position: "fixed", inset: 0,
-    background: MODAL.backdropBg,
+    // Shell v2 glass overlay — tinted steel-navy in light mode,
+    // pure black in dark — plus a real 12px blur so the page
+    // below reads as pressed-behind-glass instead of just dimmed.
+    background: dark ? "rgba(0,0,0,0.55)" : "rgba(15,29,44,0.35)",
+    backdropFilter: "blur(12px) saturate(180%)",
+    WebkitBackdropFilter: "blur(12px) saturate(180%)",
     display: "flex", alignItems: "center", justifyContent: "center",
     zIndex: ZI.max,
-    backdropFilter: MODAL.backdropBlur,
     outline: "none",
+    animation: `v2FadeIn ${DUR.med}ms ${EASE}`,
   }}
     onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     onKeyDown={e => {
@@ -188,19 +194,25 @@ export const Modal = ({ open, onClose, title, children, actions, width = MODAL.d
       }
     }}>
     <div onClick={e => e.stopPropagation()} style={{
-      background: Z.sf,
-      border: `1px solid ${Z.bd}`,
-      borderRadius: MODAL.radius + 2,
+      // Shell v2 glass panel — translucent surface, heavy blur,
+      // subtle inset edge, and a layered shadow for real depth.
+      background: Z.glassBg,
+      backdropFilter: "blur(40px) saturate(180%)",
+      WebkitBackdropFilter: "blur(40px) saturate(180%)",
+      border: `1px solid ${Z.glassBorder}`,
+      borderRadius: RADII.xl,
+      boxShadow: Z.glassShadow,
       width,
       maxWidth: "92vw",
       maxHeight: "85vh",
       display: "flex",
       flexDirection: "column",
+      animation: `v2ScaleIn ${DUR.slow}ms ${EASE}`,
     }}>
       {/* Header — fixed top */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.bd}`, flexShrink: 0 }}>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{title}</h3>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm }}><Ic.close size={18} /></button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.glassBorder}`, flexShrink: 0 }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: Z.fgPrimary, fontFamily: FONT.display, letterSpacing: "-0.02em" }}>{title}</h3>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.fgMuted }}><Ic.close size={18} /></button>
       </div>
       {/* Body — scrollable */}
       <div style={{ flex: 1, overflow: "auto", padding: 24, minHeight: 0 }}>{children}</div>
@@ -208,11 +220,10 @@ export const Modal = ({ open, onClose, title, children, actions, width = MODAL.d
       {actions && <div style={{
         display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8,
         padding: "14px 24px",
-        borderTop: `1px solid ${Z.bd}`,
-        background: Z.sf,
+        borderTop: `1px solid ${Z.glassBorder}`,
         flexShrink: 0,
-        borderBottomLeftRadius: MODAL.radius + 2,
-        borderBottomRightRadius: MODAL.radius + 2,
+        borderBottomLeftRadius: RADII.xl,
+        borderBottomRightRadius: RADII.xl,
       }}>{actions}</div>}
     </div>
   </div>;
@@ -419,3 +430,198 @@ export class ErrorBoundary extends Component {
     );
   }
 }
+
+// ============================================================
+// Shell v2 primitives — used by the refreshed Sidebar/TopBar.
+// All read from the semantic surface tokens on Z (bgHover,
+// bgActive, fgPrimary, fgSecondary, fgMuted, fgAccent,
+// borderSubtle, borderStrong) and the RADII / EASE / DUR / FONT
+// exports. They stay out of the legacy !important selectors by
+// wrapping under data-shell="v2" in the parent.
+// ============================================================
+
+// NavItem — sidebar entry. 36px high, 10px radius, 3px left accent
+// bar when active. When `collapsed` the label fades but stays in
+// the DOM so width animations look natural.
+export const NavItem = ({ icon: Icon, label, active, collapsed, badge, badgeVariant = "neutral", onClick, title }) => {
+  const base = {
+    display: "flex", alignItems: "center",
+    height: 36, margin: "2px 8px", padding: "0 12px",
+    borderRadius: 10, cursor: "pointer",
+    color: active ? Z.fgAccent : Z.fgSecondary,
+    background: active ? Z.bgActive : "transparent",
+    fontSize: 13.5, fontWeight: active ? 600 : 500,
+    fontFamily: FONT.sans,
+    position: "relative",
+    transition: `background-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
+    whiteSpace: "nowrap",
+    border: "none",
+    width: "auto",
+    textAlign: "left",
+  };
+  return (
+    <div
+      onClick={onClick}
+      title={title || label}
+      style={base}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = Z.bgHover; e.currentTarget.style.color = Z.fgPrimary; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.fgSecondary; } }}
+    >
+      {active && (
+        <span style={{
+          position: "absolute", left: -8, top: 8, bottom: 8,
+          width: 3, borderRadius: "0 3px 3px 0",
+          background: "#486b95",
+        }} />
+      )}
+      <span style={{ width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {Icon && <Icon size={18} />}
+      </span>
+      <span style={{
+        marginLeft: 12,
+        opacity: collapsed ? 0 : 1,
+        transition: `opacity ${DUR.med}ms ${EASE}`,
+        flex: 1,
+        overflow: "hidden",
+      }}>{label}</span>
+      {badge != null && (collapsed
+        ? <NavBadge value={badge} variant={badgeVariant} collapsed />
+        : <NavBadge value={badge} variant={badgeVariant} />
+      )}
+    </div>
+  );
+};
+
+// NavBadge — pill when expanded, 6px colored dot (absolutely
+// positioned at top-right of the parent NavItem) when collapsed.
+export const NavBadge = ({ value, variant = "neutral", collapsed }) => {
+  if (collapsed) {
+    const dotColor =
+      variant === "warning" ? SIGNAL.warning :
+      variant === "danger"  ? SIGNAL.danger  :
+      Z.fgPrimary;
+    return (
+      <span style={{
+        position: "absolute", top: 8, right: 10,
+        width: 6, height: 6, borderRadius: "50%",
+        background: dotColor,
+        transition: `opacity ${DUR.fast}ms ${EASE}`,
+      }} />
+    );
+  }
+  const isDark = _isDark();
+  const bg =
+    variant === "warning" ? (isDark ? "rgba(217,154,40,0.2)" : "rgba(217,154,40,0.15)") :
+    variant === "danger"  ? (isDark ? "rgba(214,69,69,0.18)" : "rgba(214,69,69,0.12)") :
+    (isDark ? NEUTRAL[200] : NEUTRAL[800]);
+  const color =
+    variant === "warning" ? (isDark ? SIGNAL.warning : SIGNAL.warningHover) :
+    variant === "danger"  ? (isDark ? "#e88" : SIGNAL.dangerHover) :
+    (isDark ? NEUTRAL[900] : NEUTRAL[0]);
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      minWidth: 20, height: 18, padding: "0 6px",
+      borderRadius: 9, fontSize: 10.5, fontWeight: 600,
+      fontVariantNumeric: "tabular-nums",
+      background: bg, color,
+      fontFamily: FONT.sans,
+    }}>{value}</span>
+  );
+};
+
+// NavSection — label above a group of NavItems. When `collapsed`
+// (sidebar narrow), swap label for a 1px hairline divider so the
+// rail stays visually grouped.
+export const NavSection = ({ label, collapsed, isCollapsed, onToggle, badgeTotal, children }) => {
+  return (
+    <div>
+      {label && !collapsed && (
+        <div
+          onClick={onToggle}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            height: 24, padding: "0 20px", margin: "14px 0 4px",
+            fontSize: 10, fontWeight: 600, letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: Z.fgMuted,
+            cursor: onToggle ? "pointer" : "default",
+            userSelect: "none",
+            fontFamily: FONT.sans,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span>{label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {isCollapsed && badgeTotal > 0 && (
+              <span style={{
+                fontSize: 9, fontWeight: 700,
+                background: Z.fgPrimary, color: Z.bgChrome,
+                borderRadius: 4, padding: "0 4px",
+                minWidth: 14, textAlign: "center", lineHeight: "16px",
+              }}>{badgeTotal}</span>
+            )}
+            <span style={{
+              fontSize: 9,
+              transition: `transform ${DUR.fast}ms ${EASE}`,
+              transform: isCollapsed ? "rotate(-90deg)" : "rotate(0)",
+            }}>▼</span>
+          </div>
+        </div>
+      )}
+      {label && collapsed && (
+        <div style={{
+          height: 1, margin: "8px 12px 4px",
+          background: Z.borderSubtle,
+        }} />
+      )}
+      {(!isCollapsed || collapsed) && children}
+    </div>
+  );
+};
+
+// Breadcrumb — horizontal row with `›` separators. Last item is
+// rendered as current (fg-primary); earlier items are muted and
+// clickable if they carry an onClick.
+export const Breadcrumb = ({ items }) => {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      {items.map((c, i) => {
+        const last = i === items.length - 1;
+        return (
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {i > 0 && <span style={{ color: Z.borderStrong, fontSize: 12 }}>›</span>}
+            <span
+              onClick={c.onClick}
+              style={{
+                fontSize: 13, fontWeight: 500,
+                color: last ? Z.fgPrimary : Z.fgMuted,
+                cursor: c.onClick ? "pointer" : "default",
+                fontFamily: FONT.sans,
+              }}
+            >{c.label}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+// AppShell — 2-column grid wrapper: sidebar placeholder on the
+// left, topBar + main on the right. Sidebar itself handles its
+// own hover/pin overlay; this component just reserves the column.
+export const AppShell = ({ sidebar, topBar, children }) => (
+  <div data-shell="v2" style={{
+    display: "grid",
+    gridTemplateColumns: "64px 1fr",
+    minHeight: "100vh",
+    fontFamily: FONT.sans,
+  }}>
+    {sidebar}
+    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      {topBar}
+      <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
+    </div>
+  </div>
+);

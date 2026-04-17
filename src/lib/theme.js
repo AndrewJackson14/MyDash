@@ -27,6 +27,21 @@ export const DARK = {
   pu:  "#8A95A8",
   ps:  "rgba(138,149,168,0.08)",
   or:  "#D4890E",
+  // Shell v2 semantic surface tokens — keep DARK and LIGHT in lockstep
+  // so Object.assign(Z, ...) on theme toggle propagates every key.
+  bgCanvas:     "#0a0c10",
+  bgChrome:     "#0f1317",
+  bgHover:      "#171c22",
+  bgActive:     "#1a2533",
+  fgPrimary:    "#e8ebef",
+  fgSecondary:  "#9aa3af",
+  fgMuted:      "#6b7280",
+  fgAccent:     "#7fa3c8",
+  borderSubtle: "#1c2128",
+  borderStrong: "#262d36",
+  glassBg:      "rgba(18,22,27,0.72)",
+  glassBorder:  "rgba(255,255,255,0.06)",
+  glassShadow:  "0 20px 60px -20px rgba(0,0,0,0.6), 0 8px 24px -8px rgba(0,0,0,0.4)",
 };
 
 export const LIGHT = {
@@ -50,6 +65,63 @@ export const LIGHT = {
   pu:  "#6B7280",
   ps:  "rgba(107,114,128,0.06)",
   or:  "#D4890E",
+  // Shell v2 semantic surface tokens — keep DARK and LIGHT in lockstep
+  // so Object.assign(Z, ...) on theme toggle propagates every key.
+  bgCanvas:     "#f6f7f8",
+  bgChrome:     "#ffffff",
+  bgHover:      "#eceef1",
+  bgActive:     "#f0f4f9",
+  fgPrimary:    "#111418",
+  fgSecondary:  "#4b5563",
+  fgMuted:      "#6b7280",
+  fgAccent:     "#385879",
+  borderSubtle: "#dfe2e7",
+  borderStrong: "#c7ccd3",
+  glassBg:      "rgba(255,255,255,0.72)",
+  glassBorder:  "rgba(255,255,255,0.5)",
+  glassShadow:  "0 20px 60px -20px rgba(15,29,44,0.25), 0 8px 24px -8px rgba(15,29,44,0.12)",
+};
+
+// ============================================================
+// Shell v2 palettes — theme-independent constants.
+// ============================================================
+export const STEEL = {
+  50:  "#f0f4f9",
+  100: "#dbe4ef",
+  200: "#b8c9de",
+  300: "#8ea8c6",
+  400: "#6787ae",
+  500: "#486b95",
+  600: "#385879",
+  700: "#2c465e",
+  800: "#1f3448",
+  900: "#14243380",
+  navy: "#0f1d2c",
+};
+
+export const NEUTRAL = {
+  0:   "#ffffff",
+  25:  "#fbfbfc",
+  50:  "#f6f7f8",
+  100: "#eceef1",
+  200: "#dfe2e7",
+  300: "#c7ccd3",
+  400: "#9ca3af",
+  500: "#6b7280",
+  600: "#4b5563",
+  700: "#374151",
+  800: "#1f2937",
+  900: "#111418",
+  950: "#0a0c10",
+};
+
+export const SIGNAL = {
+  success:      "#2f9e6b",
+  successHover: "#248656",
+  warning:      "#d99a28",
+  warningHover: "#b87f1a",
+  danger:       "#d64545",
+  dangerHover:  "#b63232",
 };
 
 const getInitTheme = () => {
@@ -127,6 +199,28 @@ export const FW = {
 // Layout tokens
 export const R = 18;      // border-radius (px) — card-level rounding
 export const Ri = 10;     // border-radius (px) — internal elements (buttons, badges, inputs)
+
+// Shell v2 radius scale — named tokens, matches the wireframe.
+// R stays a scalar (18) for existing callers; RADII is the new scale.
+export const RADII = {
+  xs: 6,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+};
+
+// Shell v2 motion primitives.
+export const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+export const DUR = { fast: 140, med: 220, slow: 320 };
+
+// Shell v2 font stacks — SF Pro system stack for the Apple-glass aesthetic.
+// Existing COND / DISPLAY / BODY remain untouched for legacy callers.
+export const FONT = {
+  sans:    "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif",
+  display: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif",
+  mono:    "ui-monospace, 'SF Mono', Menlo, monospace",
+};
 export const SP = {        // spacing scale
   xs: 4,
   sm: 8,

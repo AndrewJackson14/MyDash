@@ -1,18 +1,25 @@
 # 13 Stars Media — MyDash
 
-Publishing management system for 13 Stars Media.
+Publishing management system for 13 Stars Media. Live at **[mydash.media](https://mydash.media)**.
 
-## Setup
+## Workflow
+MyDash is developed and verified directly against production. Commit your
+changes, push to `main`, and GitHub Actions deploys to
+[mydash.media](https://mydash.media) — that is the only environment.
+There is no local dev server in the workflow.
+
 ```bash
-npm install
-npm run dev
+npm install  # only needed if you touch dependencies locally
 ```
 
 ## Deploy
-```bash
-npm run build
-# Deploy the `dist/` folder to Vercel, Netlify, or any static host
-```
+Pushes to `main` deploy automatically via GitHub Actions
+([.github/workflows/deploy.yml](.github/workflows/deploy.yml)): `npm run build`
+then rsync `dist/` over SSH to the production server behind
+[mydash.media](https://mydash.media).
+
+Required repo secrets: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+`VITE_STRIPE_PUBLIC_KEY`, `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`.
 
 ## Architecture
 - React 18 + Vite

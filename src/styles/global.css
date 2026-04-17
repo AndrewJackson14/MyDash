@@ -27,6 +27,82 @@
   --md-font-display: 'Playfair Display', Georgia, serif;
   --md-transition: 0.18s ease;
   --md-card-alpha: 0.14;  /* 39% more than the ~0.10 baseline */
+
+  /* ── Shell v2 tokens (additive) ──────────────────────────
+     Palettes, semantic surfaces, radii, motion, and font stacks
+     for the UI refresh. Legacy --md-* vars above stay intact.
+     The semantic surface tokens default to the DARK theme here
+     and are overridden under [data-theme="light"] below, mirroring
+     the Z → DARK/LIGHT pattern in src/lib/theme.js. */
+  --md-steel-50:   #f0f4f9;
+  --md-steel-100:  #dbe4ef;
+  --md-steel-200:  #b8c9de;
+  --md-steel-300:  #8ea8c6;
+  --md-steel-400:  #6787ae;
+  --md-steel-500:  #486b95;
+  --md-steel-600:  #385879;
+  --md-steel-700:  #2c465e;
+  --md-steel-800:  #1f3448;
+  --md-steel-900:  #14243380;
+  --md-steel-navy: #0f1d2c;
+
+  --md-neutral-0:   #ffffff;
+  --md-neutral-25:  #fbfbfc;
+  --md-neutral-50:  #f6f7f8;
+  --md-neutral-100: #eceef1;
+  --md-neutral-200: #dfe2e7;
+  --md-neutral-300: #c7ccd3;
+  --md-neutral-400: #9ca3af;
+  --md-neutral-500: #6b7280;
+  --md-neutral-600: #4b5563;
+  --md-neutral-700: #374151;
+  --md-neutral-800: #1f2937;
+  --md-neutral-900: #111418;
+  --md-neutral-950: #0a0c10;
+
+  --md-signal-success:       #2f9e6b;
+  --md-signal-success-hover: #248656;
+  --md-signal-warning:       #d99a28;
+  --md-signal-warning-hover: #b87f1a;
+  --md-signal-danger:        #d64545;
+  --md-signal-danger-hover:  #b63232;
+
+  /* Semantic surface tokens — dark defaults */
+  --md-bg-canvas:     #0a0c10;
+  --md-bg-chrome:     #0f1317;
+  --md-bg-hover:      #171c22;
+  --md-bg-active:     #1a2533;
+  --md-fg-primary:    #e8ebef;
+  --md-fg-secondary:  #9aa3af;
+  --md-fg-muted:      #6b7280;
+  --md-fg-accent:     #7fa3c8;
+  --md-border-subtle: #1c2128;
+  --md-border-strong: #262d36;
+
+  /* Glass (overlay-only treatment) */
+  --md-glass-bg:     rgba(18, 22, 27, 0.72);
+  --md-glass-border: rgba(255, 255, 255, 0.06);
+  --md-glass-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6), 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+
+  /* Radii scale */
+  --md-r-xs: 6px;
+  --md-r-sm: 8px;
+  --md-r-md: 12px;
+  --md-r-lg: 16px;
+  --md-r-xl: 20px;
+
+  /* Motion */
+  --md-ease:     cubic-bezier(0.2, 0.8, 0.2, 1);
+  --md-dur-fast: 140ms;
+  --md-dur-med:  220ms;
+  --md-dur-slow: 320ms;
+
+  /* Font stacks — SF Pro system stack. Legacy --md-font-display
+     (Playfair) is left untouched; use --md-font-display-sf for the
+     refreshed display face. */
+  --md-font-sans:       -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  --md-font-display-sf: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  --md-font-mono:       ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 [data-theme="light"] {
@@ -41,6 +117,22 @@
   --md-go: #00a300;
   --md-da: #C53030;
   --md-wa: #D4890E;
+
+  /* Shell v2 — light overrides for semantic surface + glass */
+  --md-bg-canvas:     #f6f7f8;
+  --md-bg-chrome:     #ffffff;
+  --md-bg-hover:      #eceef1;
+  --md-bg-active:     #f0f4f9;
+  --md-fg-primary:    #111418;
+  --md-fg-secondary:  #4b5563;
+  --md-fg-muted:      #6b7280;
+  --md-fg-accent:     #385879;
+  --md-border-subtle: #dfe2e7;
+  --md-border-strong: #c7ccd3;
+
+  --md-glass-bg:     rgba(255, 255, 255, 0.72);
+  --md-glass-border: rgba(255, 255, 255, 0.5);
+  --md-glass-shadow: 0 20px 60px -20px rgba(15, 29, 44, 0.25), 0 8px 24px -8px rgba(15, 29, 44, 0.12);
 }
 
 
@@ -245,4 +337,49 @@ tbody tr td {
 @keyframes fadeSlideIn {
   from { opacity: 0.7; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ============================================================
+   Shell v2 — opt out of the legacy !important element selectors
+   so the refreshed Sidebar/TopBar can style themselves inline.
+   Scoping under [data-shell="v2"] leaves every legacy page
+   untouched: bare <button>/<input> inside unmigrated pages still
+   receives the pill radius, frosted input surface, and hover
+   scale from the rules above. Only chrome under the v2 wrapper
+   gets to render free of those defaults.
+   ============================================================ */
+[data-shell="v2"] button,
+[data-shell="v2"] [role="button"] {
+  border-radius: revert !important;
+}
+[data-shell="v2"] button:hover,
+[data-shell="v2"] [role="button"]:hover {
+  transform: none;
+  box-shadow: none;
+}
+[data-shell="v2"] button:active,
+[data-shell="v2"] [role="button"]:active {
+  transform: none;
+  box-shadow: none;
+}
+[data-shell="v2"] input,
+[data-shell="v2"] select,
+[data-shell="v2"] textarea {
+  background: revert !important;
+  border: revert !important;
+  border-radius: revert !important;
+  color: revert !important;
+  padding: revert !important;
+}
+
+/* Shell v2 — modal entry keyframes (consumed by the Modal
+   primitive in Primitives.jsx via inline animation:). */
+@keyframes v2FadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes v2ScaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }

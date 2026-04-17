@@ -21,6 +21,9 @@ import Dashboard from "./pages/Dashboard";
 import { NotificationPopover } from "./components/NotificationPopover";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import IssueDetail from "./pages/IssueDetail";
+import Sidebar from "./components/layout/Sidebar";
+import TopBar from "./components/layout/TopBar";
+import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
 // Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
 const lazyLoad = (fn) => lazy(() => fn().catch(() => { window.location.reload(); return fn(); }));
@@ -162,7 +165,6 @@ export default function App() {
     try { return localStorage.getItem("mydash-pg") || "dashboard"; } catch (e) { return "dashboard"; }
   });
   const [pgHistory, setPgHistory] = useState([]);
-  const [col, setCol] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [lastFlatplanIssue, setLastFlatplanIssue] = useState(null);
   const [globalPageStories, setGlobalPageStories] = useState({});
@@ -456,7 +458,7 @@ export default function App() {
     : "radial-gradient(ellipse at 15% 10%, rgba(180,190,230,0.35), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(255,220,180,0.25), transparent 55%)";
 
   // ─── Render ─────────────────────────────────────────────
-  return <>
+  return <PageHeaderProvider>
     {/* Base wallpaper — the default blurred backdrop. Sits at the very
         bottom of the stack, below any publisher-set background image. */}
     <div aria-hidden style={{
@@ -496,105 +498,34 @@ export default function App() {
     <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 
-    {/* ── Sidebar Nav ──────────────────────────────────── */}
-    <nav style={{ width: col ? 54 : 200, flexShrink: 0, background: isDark ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, display: "flex", flexDirection: "column", transition: "width 0.25s", overflow: "hidden" }}>
-
-      {/* Logo */}
-      <div style={{ padding: col ? "10px 8px" : "10px 14px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setCol(c => !c)}>
-        <div style={{ width: 26, height: 26, borderRadius: 3, background: Z.tx, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, color: Z.bg, flexShrink: 0 }}>13</div>
-        {!col && <div><div style={{ fontSize: 12, fontWeight: 900, letterSpacing: -0.3, whiteSpace: "nowrap" }}>13 Stars Media</div><div style={{ fontSize: 13, color: Z.td }}>MyDash</div></div>}
-      </div>
-
-      {/* Nav Items */}
-      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "4px 0" }}>
-        {navSections.map(sec => {
-          const isCollapsed = collapsedSections[sec.key];
-          const sectionHasActive = sec.items.some(n => n.id === pg);
-          const sectionBadgeTotal = sec.items.reduce((s, n) => s + (n.badge || 0), 0);
-
-          return <div key={sec.key}>
-            {sec.label && !col && <div onClick={() => toggleSection(sec.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px 3px", cursor: "pointer", userSelect: "none" }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: sectionHasActive ? Z.tx : Z.td, letterSpacing: 1.2, textTransform: "uppercase" }}>{sec.label}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                {isCollapsed && sectionBadgeTotal > 0 && <span style={{ fontSize: 9, fontWeight: 800, color: INV.light, background: Z.tx, borderRadius: 3, padding: "0 4px", minWidth: 14, textAlign: "center", lineHeight: "16px" }}>{sectionBadgeTotal}</span>}
-                <span style={{ fontSize: 9, color: Z.td, transition: "transform 0.2s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0)" }}>▼</span>
-              </div>
-            </div>}
-            {col && sec.label && <div style={{ height: 1, background: Z.bd, margin: "4px 8px" }} />}
-
-            {(!isCollapsed || col) && sec.items.map(n => {
-              const a = pg === n.id;
-              return <button key={n.id} onClick={() => handleNav(n.id)} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: col ? "6px 0" : "5px 14px", margin: col ? "1px 4px" : "1px 4px",
-                borderRadius: 3, border: "none", cursor: "pointer",
-                fontSize: a ? 13 : 12.5, fontWeight: a ? 700 : 500,
-                fontFamily: a ? COND : "inherit",
-                background: a ? Z.sa : "transparent",
-                color: a ? Z.tx : Z.tm,
-                whiteSpace: "nowrap",
-                justifyContent: col ? "center" : "flex-start",
-                textAlign: "left",
-                borderLeft: a ? `2px solid ${Z.tx}` : "2px solid transparent",
-                width: col ? "auto" : "calc(100% - 8px)",
-                transition: "background 0.1s",
-              }} title={n.label}
-                onMouseOver={e => { if (!a) e.currentTarget.style.background = Z.sa; }}
-                onMouseOut={e => { if (!a) e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ flexShrink: 0, width: 16, display: "flex", alignItems: "center", justifyContent: "center" }}><n.icon size={14} /></span>
-                {!col && <span style={{ flex: 1 }}>{n.label}</span>}
-                {!col && n.badge && <span style={{
-                  fontSize: 9, fontWeight: 800, color: INV.light,
-                  background: n.badgeColor || Z.tx, borderRadius: 3,
-                  padding: "0 5px", minWidth: 16, textAlign: "center", lineHeight: "16px",
-                }}>{n.badge}</span>}
-                {col && n.badge && <div style={{ position: "relative", width: 0, height: 0 }}>
-                  <span style={{ position: "absolute", top: -14, right: -6, fontSize: 8, fontWeight: 900, color: INV.light, background: n.badgeColor || Z.tx, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }}>{n.badge}</span>
-                </div>}
-              </button>;
-            })}
-          </div>;
-        })}
-      </div>
-
-      {/* Theme toggle + Logout */}
-      <div style={{ borderTop: `1px solid ${Z.bd}`, padding: "6px 8px", flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        {!col && <ThemeToggle onToggle={handleThemeToggle} />}
-        {!col && <button onClick={() => {}} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 3, border: "none", cursor: "pointer", background: "transparent", color: Z.td, fontSize: 12, fontWeight: 500, width: "100%", textAlign: "left" }}
-          onMouseOver={e => e.currentTarget.style.color = Z.da}
-          onMouseOut={e => e.currentTarget.style.color = Z.td}
-        ><Ic.logout size={13} /> Logout</button>}
-      </div>
-
-      {/* User + Admin Switcher */}
-      <div style={{ padding: "8px 4px", borderTop: `1px solid ${Z.bd}`, flexShrink: 0 }}>
-        <div onClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", justifyContent: col ? "center" : "flex-start", cursor: "pointer", borderRadius: 3 }}
-          onMouseEnter={e => e.currentTarget.style.background = Z.sa}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-          <div style={{ width: 22, height: 22, borderRadius: 3, background: impersonating ? Z.wa + "30" : Z.sa, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: impersonating ? `1px solid ${Z.wa}` : "none" }}><Ic.user size={11} color={impersonating ? Z.wa : Z.tm} /></div>
-          {!col && <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: impersonating ? Z.wa : Z.tm }}>{currentUser?.name || "User"}</div>
-            <div style={{ fontSize: 11, color: Z.td }}>{currentUser?.role || ""}</div>
-          </div>}
-          {isAdmin && <button onClick={() => setShowSwitcher(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: showSwitcher ? Z.wa : Z.td, fontSize: 14, padding: 2 }} title="Switch role view">⚙</button>}
-        </div>
-        {/* Admin Role Switcher Panel */}
-        {showSwitcher && isAdmin && !col && <div style={{ margin: "6px 4px 2px", padding: 8, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, maxHeight: 240, overflowY: "auto" }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, fontFamily: COND }}>View As</div>
-          {/* Reset to self */}
-          {impersonating && <button onClick={() => { setImpersonating(null); setShowSwitcher(false); }} style={{ display: "block", width: "100%", padding: "5px 8px", marginBottom: 4, borderRadius: 3, border: `1px solid ${Z.go}`, background: Z.go + "15", cursor: "pointer", fontSize: 11, fontWeight: 700, color: Z.go, textAlign: "left", fontFamily: COND }}>↩ Back to Admin</button>}
-          {/* Team members */}
-          {(team || []).filter(t => t.email !== realUser?.email).map(t => <button key={t.id} onClick={() => { setImpersonating(t); setShowSwitcher(false); }} style={{ display: "block", width: "100%", padding: "5px 8px", marginBottom: 2, borderRadius: 3, border: "none", background: impersonating?.id === t.id ? Z.wa + "20" : "transparent", cursor: "pointer", fontSize: 11, fontWeight: 600, color: impersonating?.id === t.id ? Z.wa : Z.tm, textAlign: "left", fontFamily: COND }}
-            onMouseEnter={e => e.currentTarget.style.background = Z.sa}
-            onMouseLeave={e => e.currentTarget.style.background = impersonating?.id === t.id ? Z.wa + "20" : "transparent"}
-          >{t.name} <span style={{ color: Z.td, fontWeight: 400 }}>· {t.role}</span></button>)}
-        </div>}
-      </div>
-    </nav>
+    {/* ── Sidebar ──────────────────────────────────────── */}
+    <Sidebar
+      navSections={navSections}
+      collapsedSections={collapsedSections}
+      toggleSection={toggleSection}
+      pg={pg}
+      handleNav={handleNav}
+      handleThemeToggle={handleThemeToggle}
+      currentUser={currentUser}
+      realUser={realUser}
+      team={team}
+      isAdmin={isAdmin}
+      impersonating={impersonating}
+      setImpersonating={setImpersonating}
+      showSwitcher={showSwitcher}
+      setShowSwitcher={setShowSwitcher}
+    />
 
     {/* ── Main Content ─────────────────────────────────── */}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+      {/* ── Shell v2 TopBar — renders only when the active page
+          publishes a header via usePageHeader(). Legacy pages that
+          don't publish keep their existing inline header below. */}
+      <TopBar
+        user={currentUser ? { name: currentUser.name, initials: (currentUser.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() } : null}
+        onUserClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }}
+      />
 
       {/* ── Top Bar — always visible so the notification bell stays in
           the same place across every page. Back button hides on the
@@ -677,5 +608,5 @@ export default function App() {
     {/* Profile Panel */}
     {showProfile && <Suspense fallback={null}><ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} /></Suspense>}
     </div>
-  </>;
+  </PageHeaderProvider>;
 }
