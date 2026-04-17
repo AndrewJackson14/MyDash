@@ -539,6 +539,7 @@ export default function SiteSettings({ pubs, setPubs }) {
   };
 
   const selectSite = (id) => {
+    if (id === "__mydash") { setSelectedId("__mydash"); setDraft(null); setSaved(true); return; }
     const site = sites.find(s => s.id === id);
     if (site) { setSelectedId(id); setDraft(buildDraft(site)); setSaved(false); loadHouseAds(id); }
   };

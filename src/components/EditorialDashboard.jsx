@@ -38,8 +38,18 @@ const PRINT_STAGES = [
   { key: "sent_to_press", label: "Sent to Press" },
 ];
 
-const PRIORITY_COLORS = { urgent: Z.da, high: ACCENT.amber, normal: Z.tm || ACCENT.grey, low: "#d1d5db" };
-const PRIORITY_LABELS = { urgent: "Urgent", high: "High", normal: "Normal", low: "Low" };
+const PRIORITY_COLORS = { 1: Z.da, 2: ACCENT.amber, 3: Z.wa || "#e8b03a", 4: Z.tm || ACCENT.grey, 5: "#a1a8b8", 6: "#d1d5db" };
+const PRIORITY_LABELS = { 1: "1 — Critical", 2: "2 — Urgent", 3: "3 — High", 4: "4 — Normal", 5: "5 — Low", 6: "6 — Fill" };
+const PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label: String(n) }));
+
+// Default status colors — can be overridden per-site via site_settings.status_colors
+const STATUS_COLORS = {
+  Pitched:  { bg: "rgba(144,102,232,0.12)", fg: "#7c3aed" },
+  Draft:    { bg: "rgba(138,149,168,0.12)", fg: Z.tm },
+  Edit:     { bg: "rgba(59,130,246,0.12)",  fg: "#3B82F6" },
+  Ready:    { bg: "rgba(34,197,94,0.12)",   fg: "#16a34a" },
+  Archived: { bg: "rgba(138,149,168,0.08)", fg: "#9ca3af" },
+};
 
 const STORY_TYPES = ["article", "column", "letter", "obituary", "legal_notice", "calendar_event", "press_release", "opinion"];
 const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community", "ai_assisted"];
@@ -207,6 +217,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
   const [showPublished, setShowPublished] = useState(false);
+  const [showSiblings, setShowSiblings] = useState(false);
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
 
@@ -353,16 +364,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     return Object.values(byPub).flat().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [issues, fPub]);
 
+  // Sibling publication context for the selected issue
+  const siblingCtx = useMemo(() => {
+    if (!selIssue) return null;
+    const iss = issues.find(i => i.id === selIssue);
+    if (!iss) return null;
+    const pub = (pubs || []).find(p => p.id === iss.pubId);
+    const siblings = pub?.settings?.shared_content_with || [];
+    if (siblings.length === 0) return null;
+    // Find sibling issues with the same date
+    const siblingIssues = siblings.map(sibId => {
+      const sibIss = issues.find(i => i.pubId === sibId && i.date === iss.date);
+      const sibPub = (pubs || []).find(p => p.id === sibId);
+      return sibIss && sibPub ? { issue: sibIss, pub: sibPub } : null;
+    }).filter(Boolean);
+    return siblingIssues.length > 0 ? siblingIssues : null;
+  }, [selIssue, issues, pubs]);
+
   const issueStories = useMemo(() => {
     if (!selIssue) return [];
-    return stories
-      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || !isPublished(s)))
-      .sort((a, b) => {
-        const av = a[sortCol] || "", bv = b[sortCol] || "";
-        const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
-        return sortDir === "asc" ? cmp : -cmp;
-      });
-  }, [stories, selIssue, showPublished, sortCol, sortDir]);
+    let list = stories
+      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || !isPublished(s)));
+    // Include sibling pub stories when toggled on
+    if (showSiblings && siblingCtx) {
+      const siblingIds = new Set(siblingCtx.map(sc => sc.issue.id));
+      const sibStories = stories
+        .filter(s => siblingIds.has(s.print_issue_id || s.issue_id) && (showPublished || !isPublished(s)))
+        .map(s => ({ ...s, _fromSibling: true, _siblingPub: siblingCtx.find(sc => sc.issue.id === (s.print_issue_id || s.issue_id))?.pub?.name }));
+      list = [...list, ...sibStories];
+    }
+    return list.sort((a, b) => {
+      const av = a[sortCol] || "", bv = b[sortCol] || "";
+      const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [stories, selIssue, showPublished, showSiblings, siblingCtx, sortCol, sortDir]);
 
   // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
@@ -565,6 +601,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                       <input type="checkbox" checked={showPublished} onChange={e => setShowPublished(e.target.checked)} style={{ accentColor: Z.ac }} />
                       Show Published
                     </label>
+                    {siblingCtx && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: showSiblings ? "#3B82F6" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
+                        <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "#3B82F6" }} />
+                        + {siblingCtx.map(sc => sc.pub.name).join(", ")}
+                      </label>
+                    )}
                     <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
                   </div>
                 </div>
@@ -609,9 +651,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           { key: "title", label: "Title" },
                           { key: "author", label: "Author" },
                           { key: "category", label: "Section" },
-                          { key: "priority", label: "Priority" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
+                          { key: "priority", label: "Pri" },
                           { key: "word_limit", label: "Limit" },
                           { key: "_img", label: "Img" },
                           { key: "_delete", label: "" },
@@ -630,10 +672,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                         const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
                         const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
                         const hasSavedTitle = s.title && s.title !== "";
-                        return <tr key={s.id} style={{ borderBottom: `1px solid ${Z.bd}` }}>
+                        const isSibling = s._fromSibling;
+                        return <tr key={s.id} style={{ borderBottom: `1px solid ${Z.bd}`, opacity: isSibling ? 0.6 : 1 }}>
                           <td style={{ padding: "5px 8px", maxWidth: 260 }}>
+                            {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "#3B82F6", background: "rgba(59,130,246,0.1)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
                             {hasSavedTitle
-                              ? <span onClick={() => openDetail(s)} style={{ fontWeight: 700, color: Z.ac, cursor: "pointer", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+                              ? <span onClick={() => !isSibling && openDetail(s)} style={{ fontWeight: 700, color: isSibling ? Z.tm : Z.ac, cursor: isSibling ? "default" : "pointer", display: "inline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
                               : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => updateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
                             }
                           </td>
@@ -643,14 +687,16 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                           <td style={{ padding: "5px 8px" }}>
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
-                          <td style={{ padding: "5px 8px", width: 55 }}>
-                            <Sel value={s.priority || "normal"} onChange={e => updateStory(s.id, { priority: e.target.value })} options={[["urgent", "1"], ["high", "2"], ["normal", "3"], ["low", "4"]].map(([v, l]) => ({ value: v, label: l }))} style={{ padding: "3px 24px 3px 6px", width: 50 }} />
-                          </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px" }} />
+                            {(() => { const sc = STATUS_COLORS[s.status] || STATUS_COLORS.Draft; return (
+                              <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", background: sc.bg, color: sc.fg, fontWeight: 700, borderColor: sc.fg + "30" }} />
+                            ); })()}
                           </td>
                           <td style={{ padding: "5px 8px", width: 60 }}>
-                            <input value={s.page_number || s.page || ""} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center" }} />
+                            <Sel value={String(s.page_number || s.page || "")} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]} style={{ padding: "3px 24px 3px 6px", width: 55 }} />
+                          </td>
+                          <td style={{ padding: "5px 8px", width: 50 }}>
+                            <Sel value={String(s.priority || "4")} onChange={e => updateStory(s.id, { priority: e.target.value })} options={PRIORITY_OPTIONS} style={{ padding: "3px 24px 3px 6px", width: 45 }} />
                           </td>
                           <td style={{ padding: "5px 8px", width: 55 }}>
                             <input value={s.word_limit || ""} onChange={e => updateStory(s.id, { word_limit: e.target.value ? Number(e.target.value) : null })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center", color: s.word_limit && (s.word_count || s.wordCount || 0) > s.word_limit ? Z.da : Z.tm }} />
