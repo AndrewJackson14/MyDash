@@ -363,15 +363,13 @@ tbody tr td {
   transform: none;
   box-shadow: none;
 }
-[data-shell="v2"] input,
-[data-shell="v2"] select,
-[data-shell="v2"] textarea {
-  background: revert !important;
-  border: revert !important;
-  border-radius: revert !important;
-  color: revert !important;
-  padding: revert !important;
-}
+/* Inputs inside v2 chrome inherit the legacy translucent grey
+   surface defined above (background: rgba(128,128,128,0.10),
+   border: rgba(128,128,128,0.20), border-radius: 10px). That
+   matches every other input across the app, so the search box
+   reads as a peer of the rest of the form controls instead of a
+   one-off rectangle. The previous `revert !important` block here
+   nuked padding too, which collapsed the search-icon spacing. */
 
 /* Shell v2 — WebKit scrollbar nuker. Scroll capability is preserved
    (wheel + touch still work) so narrow viewports can still reach

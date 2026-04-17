@@ -30,6 +30,17 @@ export default function TopBar({
   const header = rawHeader || {};
   const [showNotifs, setShowNotifs] = useState(false);
 
+  // Local search state for when no parent supplies onSearchChange/Value.
+  // Without this the input is controlled to "" and rejects every keystroke.
+  // When a real global-search hook is wired, parent props take over.
+  const [localSearch, setLocalSearch] = useState("");
+  const searchControlled = onSearchChange !== undefined;
+  const searchVal = searchControlled ? (searchValue || "") : localSearch;
+  const handleSearchChange = (e) => {
+    if (searchControlled) onSearchChange(e.target.value);
+    else setLocalSearch(e.target.value);
+  };
+
   const initials = user?.initials || (user?.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const unreadCount = (notifications || []).filter(n => !n.read).length;
@@ -131,31 +142,25 @@ export default function TopBar({
         </div>
         <input
           type="text"
-          value={searchValue || ""}
-          onChange={onSearchChange ? (e) => onSearchChange(e.target.value) : undefined}
+          value={searchVal}
+          onChange={handleSearchChange}
           onKeyDown={onSearchSubmit ? (e) => { if (e.key === "Enter") onSearchSubmit(e.currentTarget.value); } : undefined}
           placeholder="Search stories, clients, invoices…"
           style={{
             width: "100%",
             height: 36,
-            padding: "0 12px 0 36px",
-            background: Z.bgCanvas,
-            border: `1px solid ${Z.borderSubtle}`,
-            borderRadius: RADII.md,
+            // Background/border/border-radius come from the legacy
+            // input rule in global.css so the search box matches every
+            // other input in the app. Padding stays inline so the
+            // search icon (left:11) doesn't overlap text.
+            padding: "0 44px 0 36px",
             fontSize: 13,
-            color: Z.fgPrimary,
             outline: "none",
             fontFamily: FONT.sans,
-            transition: `border-color ${DUR.fast}ms ${EASE}, box-shadow ${DUR.fast}ms ${EASE}`,
+            transition: `box-shadow ${DUR.fast}ms ${EASE}`,
           }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "#6787ae";
-            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(72,107,149,0.12)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = Z.borderSubtle;
-            e.currentTarget.style.boxShadow = "none";
-          }}
+          onFocus={(e) => { e.currentTarget.style.boxShadow = "0 0 0 3px rgba(72,107,149,0.18)"; }}
+          onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}
         />
         <kbd
           style={{
