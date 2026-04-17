@@ -4,6 +4,7 @@ import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, T
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 // Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
 const StoryEditor = lazy(() => import("./StoryEditor"));
@@ -200,7 +201,20 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive }) => {
+  // Publish TopBar header while this module is the active page. Gated on
+  // isActive because App.jsx keeps modules mounted after first visit.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Editorial" }],
+        title: "Editorial",
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const stories = storiesRaw || [];
   const dialog = useDialog();
 
@@ -495,9 +509,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Editorial</h2>
+      {/* ── Action row — title moved to TopBar via usePageHeader. ── */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SB value={sr} onChange={setSr} placeholder="Search stories…" />
           <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
