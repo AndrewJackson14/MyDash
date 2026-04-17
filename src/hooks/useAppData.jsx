@@ -364,12 +364,16 @@ export function DataProvider({ children, localData }) {
     setClientDetailsLoaded(true);
   }, [clientDetailsLoaded]);
 
-  // Proposals — loaded when Sales module needs them
+  // Proposals — loaded when Sales module needs them.
+  // Narrow boot select: history (JSONB, unbounded) is fetched lazily on
+  // detail open via loadProposalHistory — keeps the list load fast even
+  // after years of activity logs accumulate.
   const [proposalsLoaded, setProposalsLoaded] = useState(false);
+  const proposalSelect = 'id,client_id,name,term,term_months,total,pay_plan,monthly,status,date,renewal_date,closed_at,sent_to,assigned_to,art_source,contract_id,brief_headline,brief_style,brief_colors,brief_instructions,signed_at,converted_at,sent_at';
   const loadProposals = useCallback(async () => {
     if (proposalsLoaded || !isOnline()) return;
     const [proposalsRes, propLinesRes] = await Promise.all([
-      supabase.from('proposals').select('*').order('date', { ascending: false }),
+      supabase.from('proposals').select(proposalSelect).order('date', { ascending: false }),
       supabase.from('proposal_lines').select('*'),
     ]);
     if (proposalsRes.data && propLinesRes.data) {
@@ -380,7 +384,8 @@ export function DataProvider({ children, localData }) {
         assignedTo: p.assigned_to, artSource: p.art_source, contractId: p.contract_id,
         briefHeadline: p.brief_headline || null, briefStyle: p.brief_style || null, briefColors: p.brief_colors || null, briefInstructions: p.brief_instructions || null,
         signedAt: p.signed_at, convertedAt: p.converted_at, sentAt: p.sent_at,
-        history: p.history || [],
+        history: [],
+        historyHydrated: false,
         lines: propLinesRes.data.filter(l => l.proposal_id === p.id).map(l => ({
           pubId: l.publication_id, pubName: l.pub_name, adSize: l.ad_size, dims: l.dims,
           adW: Number(l.ad_width), adH: Number(l.ad_height),
@@ -391,6 +396,28 @@ export function DataProvider({ children, localData }) {
     }
     setProposalsLoaded(true);
   }, [proposalsLoaded]);
+
+  // Lazy per-proposal history fetch. Used when the detail view opens so the
+  // activity log appears without shipping every proposal's history on boot.
+  const loadProposalHistory = useCallback(async (proposalId) => {
+    if (!proposalId || !isOnline()) return;
+    let alreadyHydrated = false;
+    setProposals(prev => {
+      const current = (prev || []).find(p => p.id === proposalId);
+      if (current?.historyHydrated) alreadyHydrated = true;
+      return prev;
+    });
+    if (alreadyHydrated) return;
+    const { data, error } = await supabase
+      .from('proposals')
+      .select('history')
+      .eq('id', proposalId)
+      .maybeSingle();
+    if (error) { console.error('loadProposalHistory error:', error); return; }
+    setProposals(prev => (prev || []).map(p => p.id === proposalId ? {
+      ...p, history: Array.isArray(data?.history) ? data.history : [], historyHydrated: true,
+    } : p));
+  }, []);
 
   // Stories — loaded when Editorial or Flatplan needs them
   // Paginates through all stories to bypass the 1,000-row PostgREST limit
@@ -523,11 +550,18 @@ export function DataProvider({ children, localData }) {
   // Lazy per-invoice hydrate for the detail modal. loadBilling only fetches
   // the skinny line columns (sale_id, publication_id) — when the user opens
   // an invoice, this runs and swaps the line array for the full records.
-  // Idempotent: re-opening an already-hydrated invoice is a no-op.
+  // Idempotent: the guard against re-hydrating reads from the functional
+  // setter so this callback stays stable across invoice updates (otherwise
+  // Billing.jsx's effect re-fires and re-checks on every data tick).
   const loadInvoiceLines = useCallback(async (invoiceId) => {
     if (!invoiceId || !isOnline()) return;
-    const current = (invoices || []).find(i => i.id === invoiceId);
-    if (current?.linesHydrated) return;
+    let alreadyHydrated = false;
+    setInvoices(prev => {
+      const current = (prev || []).find(i => i.id === invoiceId);
+      if (current?.linesHydrated) alreadyHydrated = true;
+      return prev;
+    });
+    if (alreadyHydrated) return;
     const { data, error } = await supabase
       .from('invoice_lines')
       .select('id, description, sale_id, publication_id, issue_id, quantity, unit_price, total')
@@ -548,7 +582,7 @@ export function DataProvider({ children, localData }) {
         total: Number(l.total),
       })),
     } : inv));
-  }, [invoices]);
+  }, []);
 
   // ── Media assets — lazy loader ─────────────────────────
   const loadMediaAssets = useCallback(async () => {
@@ -2210,7 +2244,7 @@ export function DataProvider({ children, localData }) {
     loadFullSales, fullSalesLoaded, loadSalesForClient,
     // Lazy loaders for module-specific data
     loadClientDetails, clientDetailsLoaded,
-    loadProposals, proposalsLoaded,
+    loadProposals, proposalsLoaded, loadProposalHistory,
     loadStories, storiesLoaded,
     loadBilling, billingLoaded, loadInvoiceLines,
     bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
@@ -2281,7 +2315,7 @@ export function DataProvider({ children, localData }) {
     commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
     mediaAssetsLoaded, adProjectsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
-    loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadStories, loadBilling,
+    loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadProposalHistory, loadStories, loadBilling,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
     loadAdProjects, getDesignStateForSale, upsertAdProject,

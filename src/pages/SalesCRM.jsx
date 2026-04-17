@@ -22,7 +22,7 @@ import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, I
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
+  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, onNavigate, registerSubBack } = props;
   const dialog = useDialog();
   // Publications for dropdowns: filtered by jurisdiction for salespeople, all for admins
   const dropdownPubs = jurisdiction?.myPubs || pubs;
@@ -181,6 +181,10 @@ const SalesCRM = (props) => {
     });
     return () => registerSubBack(null);
   }, [registerSubBack, viewPropId, viewContractId, viewClientId]);
+  // Proposal history (JSONB activity log) lazy-loads when the detail view opens.
+  useEffect(() => {
+    if (viewPropId && loadProposalHistory) loadProposalHistory(viewPropId);
+  }, [viewPropId, loadProposalHistory]);
   const myClientIds = new Set((clients || []).filter(c => c.repId === currentUser?.id).map(c => c.id));
   const activeSales = sales.filter(s => { if (myPipeline && currentUser?.id && !myClientIds.has(s.clientId)) return false; if (fPub !== "all" && s.publication !== fPub) return false; if (sr && !cn(s.clientId).toLowerCase().includes(sr.toLowerCase())) return false; return true; });
   const actionSales = activeSales.filter(s => s.nextAction && s.status !== "Closed" && s.status !== "Follow-up").sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9"));

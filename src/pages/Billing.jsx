@@ -59,7 +59,11 @@ const InvBadge = ({ status }) => {
 };
 
 // ─── Payment Plan Card (extracted to avoid hooks-in-map) ────
-const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
+// Hoisted style objects — the inline-object-per-row pattern used to create
+// hundreds of new object identities per render across the Payment Plans tab.
+const INV_ROW_BASE = { display: "grid", gridTemplateColumns: "90px 1fr 80px 70px 70px", gap: 6, padding: "5px 8px", borderRadius: Ri, alignItems: "center", fontSize: FS.sm };
+const INV_ROW_OVERDUE_BG = Z.da + "08";
+const PaymentPlanCard = memo(({ plan: p, today, onRetry, onSuspend }) => {
   const [expanded, setExpanded] = useState(false);
   const chargeLabel = p.chargeDay === 15 ? "15th" : "1st";
   const creditBal = p.client.creditBalance || 0;
@@ -97,7 +101,7 @@ const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
         : p.openInvs.map(inv => {
           const isOverdue = inv.dueDate && inv.dueDate < today;
           const isPartial = inv.status === "partially_paid";
-          return <div key={inv.id} style={{ display: "grid", gridTemplateColumns: "90px 1fr 80px 70px 70px", gap: 6, padding: "5px 8px", background: isOverdue ? Z.da + "08" : Z.bg, borderRadius: Ri, alignItems: "center", fontSize: FS.sm }}>
+          return <div key={inv.id} style={{ ...INV_ROW_BASE, background: isOverdue ? INV_ROW_OVERDUE_BG : Z.bg }}>
             <span style={{ color: isOverdue ? Z.da : Z.tm, fontWeight: isOverdue ? FW.bold : FW.semi }}>{fmtDate(inv.dueDate)}</span>
             <span style={{ color: Z.tm }}>{inv.invoiceNumber}</span>
             <span style={{ fontWeight: FW.bold, color: Z.tx, textAlign: "right" }}>{fmtCurrency(inv.total)}</span>
@@ -110,7 +114,7 @@ const PaymentPlanCard = ({ plan: p, today, onRetry, onSuspend }) => {
       {p.paidInvs.length > 0 && <div style={{ fontSize: FS.xs, color: Z.tm }}>{p.paidInvs.length} paid invoices · {fmtCurrency(p.paidInvs.reduce((s, i) => s + (i.total || 0), 0))} collected</div>}
     </div>}
   </GlassCard>;
-};
+});
 
 // ─── Billing Settings Tab ───────────────────────────────────
 // Publisher-level billing automation config (stored in org_settings)
@@ -200,11 +204,29 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
+
+  // Stable at top level so memo(PaymentPlanCard) isn't invalidated each render.
+  const handleRetry = useCallback(async (plan) => {
+    try {
+      const res = await fetch(`${EDGE_FN_URL}/stripe-card`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "charge_invoice", invoice_id: plan.openInvs[0]?.id }),
+      });
+      const data = await res.json();
+      if (data.success) { window.location.reload(); }
+      else { console.error("Charge failed:", data.error); }
+    } catch (err) { console.error("Charge error:", err); }
+  }, []);
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("overdue");
   const [invModal, setInvModal] = useState(false);
   const [payModal, setPayModal] = useState(false);
   const [viewInvId, setViewInvId] = useState(null);
+  // Soft cap — rendering 14k invoice rows at once pegs the main thread.
+  // Users can click Load More; statusFilter/search changes reset the cap.
+  const INVOICE_PAGE = 500;
+  const [invoiceLimit, setInvoiceLimit] = useState(INVOICE_PAGE);
+  useEffect(() => { setInvoiceLimit(INVOICE_PAGE); }, [statusFilter, sr]);
   const [sortCol, setSortCol] = useState("issue_date");
   const [sortDir, setSortDir] = useState("desc");
   const [reportView, setReportView] = useState("revenue");
@@ -985,7 +1007,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
           <tbody>
             {filtered.length === 0
               ? <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No invoices match your filters</td></tr>
-              : filtered.map(inv => {
+              : filtered.slice(0, invoiceLimit).map(inv => {
                 const send = invoiceSendMap[inv.id];
                 const sendOk = send && send.status === "sent";
                 const sendFailed = send && send.status === "failed";
@@ -1032,6 +1054,14 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                   </td>
                 </tr>;
               })}
+            {filtered.length > invoiceLimit && (
+              <tr>
+                <td colSpan={8} style={{ padding: 12, textAlign: "center", background: Z.bg }}>
+                  <span style={{ fontSize: FS.sm, color: Z.tm, marginRight: 12 }}>Showing {invoiceLimit.toLocaleString()} of {filtered.length.toLocaleString()}</span>
+                  <Btn sm v="secondary" onClick={() => setInvoiceLimit(n => n + INVOICE_PAGE)}>Load {Math.min(INVOICE_PAGE, filtered.length - invoiceLimit).toLocaleString()} more</Btn>
+                </td>
+              </tr>
+            )}
           </tbody>
         </DataTable>
     </>}
@@ -1254,18 +1284,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       const clientsWithCards = plans.filter(p => p.hasCard).length;
       const totalCredits = plans.reduce((s, p) => s + (p.client.creditBalance || 0), 0);
 
-      const handleRetry = async (plan) => {
-        // Charge the monthly amount via stripe-card edge function
-        try {
-          const res = await fetch(`${EDGE_FN_URL}/stripe-card`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "charge_invoice", invoice_id: plan.openInvs[0]?.id }),
-          });
-          const data = await res.json();
-          if (data.success) { window.location.reload(); }
-          else { console.error("Charge failed:", data.error); }
-        } catch (err) { console.error("Charge error:", err); }
-      };
+      // handleRetry is hoisted above via useCallback at component top level
+      // so memo(PaymentPlanCard) isn't invalidated by fresh handler identity
+      // on every re-render of this IIFE.
 
       return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* Stats */}
