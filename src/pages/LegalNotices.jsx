@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
@@ -55,7 +56,15 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser }) => {
+const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Legal Notices" }], title: "Legal Notices" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Active");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -380,10 +389,11 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Legal Notices">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {(tab === "Active" || tab === "All") && <SB value={sr} onChange={setSr} placeholder="Search notices..." />}
       <Btn sm onClick={openNew}><Ic.plus size={13} /> New Legal Notice</Btn>
-    </PageHeader>
+    </div>
 
     <TabRow><TB tabs={["Active", "All", "Revenue"]} active={tab} onChange={setTab} />{(tab === "Active" || tab === "All") && <><TabPipe /><TB tabs={["All", ...NOTICE_STATUSES.map(s => STATUS_LABELS[s])]} active={statusFilter === "all" ? "All" : STATUS_LABELS[statusFilter] || "All"} onChange={v => { if (v === "All") setStatusFilter("all"); else { const match = Object.entries(STATUS_LABELS).find(([k, l]) => l === v); setStatusFilter(match ? match[0] : "all"); } }} /></>}</TabRow>
 

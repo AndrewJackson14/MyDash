@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, memo } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { supabase } from "../lib/supabase";
@@ -24,8 +25,16 @@ const Analytics = ({
   pubs, sales, clients, issues, stories,
   invoices, payments, subscribers, legalNotices, creativeJobs,
   freelancerPayments, dropLocations, dropLocationPubs, drivers,
-  bills, commissionPayouts,
+  bills, commissionPayouts, isActive,
 }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Reports" }], title: "Reports" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Overview");
   const [plPub, setPlPub] = useState("all");
   const [overviewType, setOverviewType] = useState("all"); // "all" | "Magazine" | "Newspaper"
@@ -324,8 +333,7 @@ const Analytics = ({
   const selPL = plPub === "all" ? null : pubPL.find(p => p.pub.id === plPub);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Reports" />
-
+    {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
     <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Audience"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}

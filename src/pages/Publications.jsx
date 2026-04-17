@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import EZSchedule from "./EZSchedule";
@@ -6,7 +7,15 @@ import EZSchedule from "./EZSchedule";
 const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
 const TYPE_OPTIONS = ["Magazine", "Newspaper", "Special Publication"];
 
-const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales }) => {
+const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Publications" }], title: "Publications" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [sel, setSel] = useState(null);
   const [rateModal, setRateModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -47,10 +56,11 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   if (showEZSchedule) return <EZSchedule pubs={pubs} issues={issues} setIssues={setIssues} insertIssuesBatch={insertIssuesBatch} onClose={() => setShowEZSchedule(false)} />;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Publications">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Btn sm v="secondary" onClick={() => setShowEZSchedule(true)}>MyWizard</Btn>
       <Btn sm onClick={() => setShowAddPub(true)}><Ic.plus size={13} /> Publication</Btn>
-    </PageHeader>
+    </div>
 
     {/* ADD PUBLICATION MODAL */}
     <Modal open={showAddPub} onClose={() => setShowAddPub(false)} title="Add Publication" onSubmit={newPub.name ? handleAddPub : undefined}>

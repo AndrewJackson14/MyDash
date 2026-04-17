@@ -2,7 +2,8 @@
 // IssueSchedule.jsx — Informational issue health at-a-glance
 // Publisher-focused, drill-in only (no executive actions)
 // ============================================================
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
@@ -241,7 +242,15 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
 // ══════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════
-const IssueSchedule = ({ pubs, issues, sales, stories, onNavigate, onOpenIssue }) => {
+const IssueSchedule = ({ pubs, issues, sales, stories, onNavigate, onOpenIssue, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Schedule" }], title: "Issue Schedule" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [selPub, setSelPub] = useState("all");
   const [tab, setTab] = useState("thisweek"); // thisweek | upcoming | past
 
@@ -308,9 +317,10 @@ const IssueSchedule = ({ pubs, issues, sales, stories, onNavigate, onOpenIssue }
   ];
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Issue Schedule">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Sel value={selPub} onChange={e => setSelPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
-    </PageHeader>
+    </div>
 
     {/* Alert bar */}
     {alerts.length > 0 && (
