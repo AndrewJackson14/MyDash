@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Toggle, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import { Ic, Btn, FileBtn, Inp, Sel, TA, Toggle, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -168,8 +168,10 @@ const WebAds = ({ pubs, clients, sales }) => {
             </div>
             {creativeMode === "image" ? (
               <div>
-                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
-                {uploading && <span style={{ fontSize: FS.sm, color: Z.wa, marginLeft: 8 }}>Uploading...</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <FileBtn sm accept="image/*" onChange={handleImageUpload} disabled={uploading}>Choose Image</FileBtn>
+                  {uploading && <span style={{ fontSize: FS.sm, color: Z.wa }}>Uploading...</span>}
+                </div>
                 {form.creativeUrl && <div style={{ marginTop: 8 }}><img src={form.creativeUrl} alt="Preview" style={{ maxWidth: 300, maxHeight: 150, border: `1px solid ${Z.bd}`, borderRadius: Ri }} /></div>}
               </div>
             ) : (

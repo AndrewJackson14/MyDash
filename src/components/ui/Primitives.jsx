@@ -50,18 +50,28 @@ export const DataTable = ({ children, style, emptyMessage }) => {
 
 export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa, text: Z.tm }; return <span style={{ display: "inline-flex", alignItems: "center", padding: small ? "2px 8px" : "4px 12px", borderRadius: Ri, fontSize: small ? 10 : 11, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap", fontFamily: COND, letterSpacing: 0.3 }}>{status}</span>; };
 
+const btnBase = (sm, disabled) => ({ display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 });
+const btnVariants = {
+  primary:   { background: "#3b82f6", color: INV.light },
+  success:   { background: Z.go, color: INV.light },
+  secondary: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" },
+  ghost:     { background: "transparent", color: Z.tm, border: "none" },
+  danger:    { background: Z.da, color: INV.light },
+  cancel:    { background: "rgba(224,80,80,0.12)", color: Z.da, border: "1px solid rgba(224,80,80,0.3)" },
+  warning:   { background: Z.wa, color: INV.light },
+};
+
 export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
-  const base = { display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 };
-  const variants = {
-    primary:   { background: "#3b82f6", color: INV.light },
-    success:   { background: Z.go, color: INV.light },
-    secondary: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" },
-    ghost:     { background: "transparent", color: Z.tm, border: "none" },
-    danger:    { background: Z.da, color: INV.light },
-    cancel:    { background: "rgba(224,80,80,0.12)", color: Z.da, border: "1px solid rgba(224,80,80,0.3)" },
-    warning:   { background: Z.wa, color: INV.light },
-  };
-  return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[v], ...style }}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>{children}</button>;
+};
+
+// Styled file-upload button — hides the native "Choose Files" control and
+// renders a label that matches Btn. Callers receive the FileList via onChange.
+export const FileBtn = ({ children = "Choose Files", v = "primary", sm, accept, multiple, onChange, disabled, style, inputRef }) => {
+  return <label style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>
+    {children}
+    <input ref={inputRef} type="file" accept={accept} multiple={multiple} disabled={disabled} onChange={onChange} style={{ display: "none" }} />
+  </label>;
 };
 
 const labelStyle = { fontSize: LABEL.fontSize, fontWeight: LABEL.fontWeight, color: Z.td, letterSpacing: LABEL.letterSpacing, textTransform: LABEL.textTransform, fontFamily: COND };

@@ -3,7 +3,7 @@
 // ============================================================
 export { Ic, Iv } from "./Icons";
 export {
-  ThemeToggle, BackBtn, FilterBar, SortHeader, Badge, Btn,
+  ThemeToggle, BackBtn, FilterBar, SortHeader, Badge, Btn, FileBtn,
   Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar,
   Toggle, Check, Avi, Pill,
   GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, GlassDivider,

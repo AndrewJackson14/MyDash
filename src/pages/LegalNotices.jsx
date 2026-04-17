@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
 
@@ -553,8 +553,10 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         {/* Scan attachments — uploaded + tagged to this notice on save */}
         {!editId && <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Attach Scans (Optional)</div>
-          <input type="file" multiple accept="image/*,application/pdf" onChange={e => setPendingScans(Array.from(e.target.files || []))} style={{ fontSize: FS.xs, color: Z.tm }} />
-          {pendingScans.length > 0 && <div style={{ fontSize: FS.xs, color: Z.ac, marginTop: 4 }}>{pendingScans.length} file{pendingScans.length > 1 ? "s" : ""} ready to upload on save</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <FileBtn sm multiple accept="image/*,application/pdf" onChange={e => setPendingScans(Array.from(e.target.files || []))}>Choose Files</FileBtn>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{pendingScans.length > 0 ? `${pendingScans.length} file${pendingScans.length > 1 ? "s" : ""} ready to upload on save` : "No file chosen"}</span>
+          </div>
         </div>}
       </div>
     </Modal>

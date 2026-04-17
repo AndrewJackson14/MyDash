@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Z, COND, DISPLAY, R, Ri, FS, FW } from "../lib/theme";
-import { Btn, GlassCard, PageHeader } from "../components/ui";
+import { Btn, FileBtn, GlassCard, PageHeader } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 
 const ImportCard = ({ title, description, buttonLabel, onRun, status, progress, onReset }) => (
@@ -331,7 +331,7 @@ const SimpleCircImport = () => {
 
       {status === "idle" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input type="file" accept=".csv" onChange={handleFile} style={{ fontSize: FS.base, color: Z.tx }} />
+          <FileBtn sm accept=".csv" onChange={handleFile}>Choose CSV</FileBtn>
           {preview && (
             <div style={{ padding: 12, background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
               <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, marginBottom: 8 }}>
