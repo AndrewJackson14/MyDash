@@ -71,16 +71,23 @@ export function DataProvider({ children, localData }) {
     return () => clearTimeout(timer);
   }, [loaded]);
 
-  // Realtime: listen for new ad inquiries
+  // Realtime: listen for new ad inquiries — ref-counted so the channel
+  // only opens while SalesCRM or DashboardV2 is mounted. Users on other
+  // modules (Circulation, Analytics, Mail) don't pay for this WebSocket.
+  const [inquiriesWatchers, setInquiriesWatchers] = useState(0);
+  const retainInquiriesRealtime = useCallback(() => {
+    setInquiriesWatchers(n => n + 1);
+    return () => setInquiriesWatchers(n => Math.max(0, n - 1));
+  }, []);
   useEffect(() => {
-    if (!isOnline()) return;
+    if (!isOnline() || inquiriesWatchers === 0) return;
     const channel = supabase.channel('ad_inquiries_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ad_inquiries' }, (payload) => {
         setAdInquiries(prev => [payload.new, ...prev]);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [inquiriesWatchers]);
 
   // Realtime: proposals status changes + new notifications
   useEffect(() => {
@@ -2250,6 +2257,7 @@ export function DataProvider({ children, localData }) {
     // Lazy loaders for module-specific data
     loadClientDetails, clientDetailsLoaded,
     loadProposals, proposalsLoaded, loadProposalHistory,
+    retainInquiriesRealtime,
     loadStories, storiesLoaded,
     loadBilling, billingLoaded, loadInvoiceLines,
     bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
@@ -2321,6 +2329,7 @@ export function DataProvider({ children, localData }) {
     mediaAssetsLoaded, adProjectsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
     loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadProposalHistory, loadStories, loadBilling,
+    retainInquiriesRealtime,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
     loadAdProjects, getDesignStateForSale, upsertAdProject,

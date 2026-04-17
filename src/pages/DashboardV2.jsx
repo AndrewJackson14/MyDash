@@ -120,7 +120,12 @@ const DashboardV2 = (props) => {
     invoices, payments, subscribers, tickets, legalNotices, creativeJobs,
     salespersonPubAssignments, commissionGoals,
     jurisdiction, currentUser, userName, onNavigate, setIssueDetailId,
+    retainInquiriesRealtime,
   } = props;
+
+  // Keep ad_inquiries realtime channel open while the dashboard is mounted
+  // (ref-counted with SalesCRM in useAppData so duplicate mounts are fine).
+  useEffect(() => retainInquiriesRealtime?.(), [retainInquiriesRealtime]);
 
   const feed = useSignalFeed({
     pubs, stories, clients, sales, issues, team,
@@ -434,13 +439,6 @@ const DashboardV2 = (props) => {
   const totalSignals = focusItems.length + deadlineAlerts.length;
   const [pressureDrillOpen, setPressureDrillOpen] = useState(false);
 
-  const switchToV1 = () => {
-    try { localStorage.setItem("mydash-dashboard-v2", "false"); } catch (e) {}
-    const url = new URL(window.location.href);
-    url.searchParams.delete("v");
-    window.location.href = url.toString();
-  };
-
   return <div style={{ position: "relative", padding: "48px 48px 80px", minHeight: "100%", maxWidth: 1400, margin: "0 auto" }}>
     {/* Inline keyframes — hot pulse on hot tiles, calm drift on win
         pills, and winPop on pills whose count just changed. */}
@@ -506,7 +504,6 @@ const DashboardV2 = (props) => {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Btn sm v="secondary" onClick={() => setBriefingOpen(true)}>Morning Briefing</Btn>
-          <Btn sm v="ghost" onClick={switchToV1}>← Classic Dashboard</Btn>
         </div>
       </div>
 
