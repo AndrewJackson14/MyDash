@@ -21,10 +21,14 @@ export default function TopBar({
   notifications,
   setNotifications,
   onNavigate,
+  // Back nav: when provided, render a back button on the far left.
+  // App.jsx passes this for every non-dashboard page so users who
+  // haven't migrated to a breadcrumb still have a way home.
+  onBack,
 }) {
-  const { header } = usePageHeader();
+  const { header: rawHeader } = usePageHeader();
+  const header = rawHeader || {};
   const [showNotifs, setShowNotifs] = useState(false);
-  if (!header) return null;
 
   const initials = user?.initials || (user?.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
@@ -48,6 +52,32 @@ export default function TopBar({
         fontFamily: FONT.sans,
       }}
     >
+      {/* Back button — pre-breadcrumb, for pages that haven't published
+          a breadcrumb yet. When a page does publish, the breadcrumb
+          handles hierarchy; this remains the "previous module" affordance. */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          title="Back"
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            background: "transparent", border: "none",
+            cursor: "pointer",
+            color: Z.fgSecondary,
+            fontSize: 13, fontWeight: 500,
+            padding: "6px 10px",
+            borderRadius: RADII.sm,
+            fontFamily: FONT.sans,
+            flexShrink: 0,
+            transition: `background-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = Z.bgHover; e.currentTarget.style.color = Z.fgPrimary; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.fgSecondary; }}
+        >
+          <Ic.back size={14} /> Back
+        </button>
+      )}
+
       {/* Breadcrumb */}
       {header.breadcrumb && header.breadcrumb.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>

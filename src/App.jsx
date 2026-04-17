@@ -164,7 +164,6 @@ export default function App() {
     try { return localStorage.getItem("mydash-pg") || "dashboard"; } catch (e) { return "dashboard"; }
   });
   const [pgHistory, setPgHistory] = useState([]);
-  const [showNotifs, setShowNotifs] = useState(false);
   const [lastFlatplanIssue, setLastFlatplanIssue] = useState(null);
   const [globalPageStories, setGlobalPageStories] = useState({});
   const [issueDetailId, setIssueDetailId] = useState(null);
@@ -318,9 +317,6 @@ export default function App() {
     const unsub = bus.on("invoice.create", () => { handleNav("billing"); });
     return unsub;
   }, [bus, pg]);
-
-  const unreadCount = (notifications || []).filter(n => !n.read).length;
-  const markAllRead = () => setNotifications(n => n.map(x => ({ ...x, read: true })));
 
   // ─── Badge Counts ───────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
@@ -518,35 +514,8 @@ export default function App() {
         notifications={notifications}
         setNotifications={setNotifications}
         onNavigate={handleNav}
+        onBack={pg !== "dashboard" ? goBack : null}
       />
-
-      {/* ── Legacy Top Bar — back button + notification bell.
-          Hidden on the dashboard, which has migrated to the new
-          TopBar via PageHeaderContext. Once every page has migrated,
-          this whole header and its supporting state (showNotifs,
-          unreadCount, markAllRead) can move into TopBar. */}
-      {pg !== "dashboard" && <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: `1px solid ${Z.bd}`, background: isDark ? "rgba(140,150,165,0.05)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
-        <div>
-          {pg !== "dashboard" && <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
-            onMouseOver={e => e.currentTarget.style.color = Z.tx}
-            onMouseOut={e => e.currentTarget.style.color = Z.tm}
-          ><Ic.back size={14} /> Back</button>}
-        </div>
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setShowNotifs(s => !s)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, padding: 4 }}>
-            <Ic.clock size={18} />
-            {unreadCount > 0 && <span style={{ position: "absolute", top: -2, right: -4, background: Z.da, color: INV.light, fontSize: 9, fontWeight: 900, borderRadius: 3, padding: "1px 4px" }}>{unreadCount}</span>}
-          </button>
-          {showNotifs && <div onClick={() => setShowNotifs(false)} style={{ position: "fixed", inset: 0, zIndex: 9998 }} />}
-          {showNotifs && <div style={{ position: "fixed", right: 20, top: 44, width: 320, maxHeight: 400, overflowY: "auto", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 6, zIndex: 9999, boxShadow: "0 12px 40px rgba(0,0,0,0.35)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${Z.bd}` }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: Z.tx }}>My Alerts</span>
-              {unreadCount > 0 && <button onClick={markAllRead} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, color: Z.tx, textDecoration: "underline", textUnderlineOffset: 3 }}>Mark all read</button>}
-            </div>
-            {[...(notifications || [])].sort((a, b) => a.read === b.read ? 0 : a.read ? 1 : -1).slice(0, 12).map(n => <div key={n.id} onClick={() => { setNotifications(ns => ns.map(x => x.id === n.id ? { ...x, read: !x.read } : x)); if (n.route && !n.read) { handleNav(n.route); setShowNotifs(false); } }} style={{ padding: "10px 16px", borderBottom: `1px solid ${Z.bd}`, cursor: n.route ? "pointer" : "default", background: n.read ? "transparent" : Z.as }}><div style={{ fontSize: 13, color: n.read ? Z.td : Z.tx, fontWeight: n.read ? 400 : 700 }}>{n.text}</div><div style={{ fontSize: 11, color: Z.td, marginTop: 3 }}>{n.time}</div></div>)}
-          </div>}
-        </div>
-      </header>}
 
       {/* ── Page Content ──────────────────────────────────── */}
       <main data-main style={{ flex: 1, overflow: "auto", padding: pg === "dashboard" ? 0 : 28, background: "transparent" }}>
@@ -566,7 +535,7 @@ export default function App() {
         <Suspense fallback={<LazyFallback />}>
         {show("publications") && <div style={vis("publications")}><Publications pubs={appData.allPubs || pubs} setPubs={setPubs} issues={jIssues} setIssues={setIssues} sales={jSales} insertIssuesBatch={appData.insertIssuesBatch} insertPublication={appData.insertPublication} updatePublication={appData.updatePublication} insertAdSizes={appData.insertAdSizes} updatePubGoal={appData.updatePubGoal} updateIssueGoal={appData.updateIssueGoal} /></div>}
         {show("schedule") && <div style={vis("schedule")}><IssueSchedule pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} onNavigate={handleNav} onOpenIssue={setIssueDetailId} /></div>}
-        {show("sales") && <div style={vis("sales")}><SalesCRM jurisdiction={jurisdiction} clients={jClients} setClients={setClients} sales={jSales} setSales={setSales} updateSale={appData.updateSale} pubs={pubs} issues={jIssues} proposals={jProposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} setContracts={appData.setContracts} loadContracts={appData.loadContracts} contractsLoaded={appData.contractsLoaded} invoices={invoices} payments={payments} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} loadProposalHistory={appData.loadProposalHistory} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} retainInquiriesRealtime={appData.retainInquiriesRealtime} deepLink={deepLink} onNavigate={handleNav} registerSubBack={registerSubBack} /></div>}
+        {show("sales") && <div style={vis("sales")}><SalesCRM isActive={pg === "sales"} jurisdiction={jurisdiction} clients={jClients} setClients={setClients} sales={jSales} setSales={setSales} updateSale={appData.updateSale} pubs={pubs} issues={jIssues} proposals={jProposals} setProposals={setProposals} notifications={notifications} setNotifications={setNotifications} bus={bus} team={team} currentUser={currentUser} contracts={appData.contracts || []} setContracts={appData.setContracts} loadContracts={appData.loadContracts} contractsLoaded={appData.contractsLoaded} invoices={invoices} payments={payments} insertClient={appData.insertClient} updateClient={appData.updateClient} insertProposal={appData.insertProposal} updateProposal={appData.updateProposal} convertProposal={appData.convertProposal} loadProposalHistory={appData.loadProposalHistory} commissionLedger={appData.commissionLedger} commissionPayouts={appData.commissionPayouts} commissionGoals={appData.commissionGoals} commissionRates={appData.commissionRates} salespersonPubAssignments={appData.salespersonPubAssignments} commissionHelpers={{ upsertPubAssignment: appData.upsertPubAssignment, deletePubAssignment: appData.deletePubAssignment, upsertCommissionRate: appData.upsertCommissionRate, deleteCommissionRate: appData.deleteCommissionRate, upsertIssueGoal: appData.upsertIssueGoal, calculateSaleCommission: appData.calculateSaleCommission, recalculateAllCommissions: appData.recalculateAllCommissions, markCommissionsPaid: appData.markCommissionsPaid, updateTeamMember: appData.updateTeamMember }} outreachCampaigns={appData.outreachCampaigns} outreachEntries={appData.outreachEntries} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority }} outreachHelpers={{ insertCampaign: appData.insertCampaign, updateCampaign: appData.updateCampaign, insertOutreachEntries: appData.insertOutreachEntries, updateOutreachEntry: appData.updateOutreachEntry }} adInquiries={appData.adInquiries} loadInquiries={appData.loadInquiries} inquiriesLoaded={appData.inquiriesLoaded} updateInquiry={appData.updateInquiry} retainInquiriesRealtime={appData.retainInquiriesRealtime} deepLink={deepLink} onNavigate={handleNav} registerSubBack={registerSubBack} /></div>}
         {show("contracts") && <div style={vis("contracts")}><Contracts contracts={appData.contracts || []} clients={jClients} pubs={pubs} sales={jSales} team={team} jurisdiction={jurisdiction} currentUser={currentUser} onNavigate={handleNav} loadContracts={appData.loadAllContracts} contractsLoaded={appData.allContractsLoaded} deleteContract={appData.deleteContract} bus={bus} /></div>}
         {show("billing") && <div style={vis("billing")}><Billing jurisdiction={jurisdiction} clients={jClients} sales={jSales} pubs={pubs} issues={jIssues} proposals={jProposals} invoices={jInvoices} setInvoices={setInvoices} payments={payments} setPayments={setPayments} bus={bus} team={team} subscribers={subscribers} subscriptionPayments={appData.subscriptionPayments || []} contracts={appData.contracts || []} loadContracts={appData.loadContracts} billingLoaded={appData.billingLoaded} loadInvoiceLines={appData.loadInvoiceLines} bills={bills} insertBill={appData.insertBill} updateBill={appData.updateBill} deleteBill={appData.deleteBill} onNavigate={handleNav} /></div>}
         {show("calendar") && <div style={vis("calendar")}><CalendarPage clients={jClients} sales={jSales} issues={jIssues} pubs={pubs} team={team} currentUser={currentUser} stories={jStories} bus={bus} onNavigate={handleNav} /></div>}

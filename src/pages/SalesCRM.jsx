@@ -18,11 +18,26 @@ const Commissions = lazy(() => import("./sales/Commissions"));
 const Outreach = lazy(() => import("./sales/Outreach"));
 const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading…</div>;
 import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS, getAutoTier, getAutoTermLabel } from "./sales/constants";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, onNavigate, registerSubBack } = props;
+  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, onNavigate, registerSubBack, isActive } = props;
+
+  // Publish TopBar header while this module is the active page. Gated on
+  // isActive because App.jsx keeps modules mounted after first visit.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Sales" }],
+        title: "Sales",
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
 
   // Keep ad_inquiries realtime channel open while this module is mounted.
   useEffect(() => retainInquiriesRealtime?.(), [retainInquiriesRealtime]);
@@ -680,13 +695,15 @@ const SalesCRM = (props) => {
   const actColors = { pipeline: Z.ac, proposal: Z.pu, opp: Z.su, comm: Z.wa };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Sales">
+    {/* Action row — title moved to TopBar via usePageHeader above. Keep
+        only the tab-aware controls (search, filters, + buttons) here. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
       {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
       {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
-    </PageHeader>
+    </div>
 
     <TabRow><TB tabs={["Pipeline", "Inquiries", "Clients", "Proposals", "Closed", "Outreach"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
 
