@@ -611,7 +611,7 @@ const ClientProfile = ({
         {/* Communication Timeline */}
         <Card style={{ borderLeft: `3px solid ${Z.pu}`, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Relationship Timeline ({comms.length})</div>
-          <div style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, marginBottom: 6, border: `1px solid ${Z.bd}` }}>
+          <div style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, marginBottom: 6, border: `1px solid ${Z.bd}` }}>
             <div style={{ display: "flex", gap: 3, marginBottom: 3 }}>
               <Sel value={commForm.type} onChange={e => setCommForm(x => ({ ...x, type: e.target.value }))} options={[...COMM_TYPES, "Result", "Survey"].map(t => ({ value: t, label: t }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
               <Sel value={commForm.author} onChange={e => setCommForm(x => ({ ...x, author: e.target.value }))} options={COMM_AUTHORS.map(a => ({ value: a, label: a }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />

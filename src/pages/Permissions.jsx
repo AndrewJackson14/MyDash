@@ -70,7 +70,7 @@ const Permissions = ({ team, updateTeamMember }) => {
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
         <thead>
           <tr>
-            <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>
+            <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>
               Team Member
             </th>
             {MODULES.map(m => (
@@ -88,7 +88,7 @@ const Permissions = ({ team, updateTeamMember }) => {
           {visibleTeam.map(member => {
             const perms = member.modulePermissions || [];
             return <tr key={member.id}>
-              <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+              <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                 <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
                 <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
               </td>

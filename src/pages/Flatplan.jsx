@@ -571,7 +571,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         </div>)}
 
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginTop: 8 }}>Unplaced ({unplaced.length})</div>
-        {unplaced.map(s => { const isPending = s.status === "Proposal" || s.status === "Negotiation"; return <div key={s.id} draggable onDragStart={e => handleDragStart(e, s)} style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}>
+        {unplaced.map(s => { const isPending = s.status === "Proposal" || s.status === "Negotiation"; return <div key={s.id} draggable onDragStart={e => handleDragStart(e, s)} style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}>
           <div style={{ fontWeight: FW.bold, color: Z.tx, fontSize: FS.base }}>{cn(s.clientId)}</div>
           <div style={{ color: Z.tm, fontSize: FS.sm }}>{s.size || s.type} · ${s.amount.toLocaleString()}{isPending ? " · PENDING" : ""}</div>
           {s.adW > 0 && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.adW}" × {s.adH}"</div>}

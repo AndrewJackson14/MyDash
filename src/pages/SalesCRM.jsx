@@ -703,7 +703,7 @@ const SalesCRM = (props) => {
         }).filter(Boolean);
         if (!goalRows.length) return null;
         return <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-          {goalRows.map(g => <div key={g.pub.id} style={{ flex: "1 1 120px", padding: "8px 12px", background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          {goalRows.map(g => <div key={g.pub.id} style={{ flex: "1 1 120px", padding: "8px 12px", background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", borderRadius: R, border: `1px solid ${Z.bd}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, marginBottom: 4 }}><span>{g.pub.name.replace(/^The /, "").split(" ").slice(0, 2).join(" ")}</span><span style={{ color: g.pct > 100 ? ACCENT.blue : g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da }}>{g.pct}%</span></div>
             <div style={{ height: 4, background: Z.sa, borderRadius: Ri, marginBottom: 3 }}><div style={{ height: "100%", borderRadius: Ri, width: `${Math.min(g.pct, 100)}%`, background: g.pct > 100 ? ACCENT.blue : g.pct >= 80 ? Z.go : g.pct >= 50 ? Z.wa : Z.da, transition: "width 0.3s" }} /></div>
             <div style={{ fontSize: FS.micro, color: Z.td }}>${Math.round(g.myRev / 1000)}K / ${Math.round(g.myGoal / 1000)}K goal</div>
@@ -755,7 +755,7 @@ const SalesCRM = (props) => {
               }))
               .sort((a, b) => (b.contract.startDate || "").localeCompare(a.contract.startDate || ""));
             const stRev = closedContracts.reduce((sm, x) => sm + (x.totalValue || 0), 0);
-            return <div key={stage} style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
+            return <div key={stage} style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px 6px", borderBottom: `2px solid ${PIPELINE_COLORS[stage]}` }}>
                 <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: PIPELINE_COLORS[stage] }}>{stage}</span>
                 <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{closedContracts.length}{stRev > 0 ? ` · $${(stRev / 1000).toFixed(0)}K` : ""}</span>
@@ -778,7 +778,7 @@ const SalesCRM = (props) => {
             return s.status === stage;
           });
           const stRev = ss.reduce((s, x) => s + (x.amount || 0), 0);
-          return <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragSaleId) { moveToStage(dragSaleId, stage); setDragSaleId(null); } }} style={{ background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
+          return <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragSaleId) { moveToStage(dragSaleId, stage); setDragSaleId(null); } }} style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px 6px", borderBottom: `2px solid ${PIPELINE_COLORS[stage]}` }}><span style={{ fontSize: FS.sm, fontWeight: FW.black, color: PIPELINE_COLORS[stage] }}>{stage}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{ss.length}{stRev > 0 ? ` · $${(stRev / 1000).toFixed(0)}K` : ""}</span></div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, marginTop: 8, overflowY: "auto", maxHeight: 420 }}>
               {ss.slice(0, 8).map(s => <div key={s.id} draggable onDragStart={() => setDragSaleId(s.id)} onClick={() => handleCardClick(s)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "grab" }}>

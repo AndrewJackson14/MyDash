@@ -495,7 +495,7 @@ export default function App() {
     <link href={FONT_URL} rel="stylesheet" />
 
     {/* ── Sidebar Nav ──────────────────────────────────── */}
-    <nav style={{ width: col ? 54 : 200, flexShrink: 0, background: isDark ? "rgba(14,16,24,0.6)" : "rgba(255,255,255,0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, display: "flex", flexDirection: "column", transition: "width 0.25s", overflow: "hidden" }}>
+    <nav style={{ width: col ? 54 : 200, flexShrink: 0, background: isDark ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, display: "flex", flexDirection: "column", transition: "width 0.25s", overflow: "hidden" }}>
 
       {/* Logo */}
       <div style={{ padding: col ? "10px 8px" : "10px 14px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setCol(c => !c)}>
@@ -597,7 +597,7 @@ export default function App() {
       {/* ── Top Bar — always visible so the notification bell stays in
           the same place across every page. Back button hides on the
           dashboard since there's nowhere to go back to. */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: pg === "dashboard" ? "none" : `1px solid ${Z.bd}`, background: isDark ? "rgba(14,16,24,0.7)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: pg === "dashboard" ? "none" : `1px solid ${Z.bd}`, background: isDark ? "rgba(140,150,165,0.05)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
         <div>
           {pg !== "dashboard" && <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
             onMouseOver={e => e.currentTarget.style.color = Z.tx}

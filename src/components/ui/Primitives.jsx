@@ -20,9 +20,9 @@ export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => <tr style={
 // DataTable — universal frosted glass table with standardized styles
 export const DataTable = ({ children, style, emptyMessage }) => {
   const isDark = Z.bg === "#08090D";
-  const glassBg = isDark ? "rgba(180,185,195,0.03)" : "rgba(0,0,0,0.02)";
-  const glassBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
-  const headerBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)";
+  const glassBg = isDark ? "rgba(140,150,165,0.05)" : "rgba(0,0,0,0.02)";
+  const glassBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
+  const headerBg = isDark ? "rgba(140,150,165,0.06)" : "rgba(0,0,0,0.03)";
   const hoverBg = isDark ? "rgba(255,255,255," + TBL.hoverAlpha + ")" : "rgba(0,0,0," + TBL.hoverAlpha + ")";
   const activeBg = isDark ? "rgba(255,255,255," + TBL.activeAlpha + ")" : "rgba(0,0,0," + TBL.activeAlpha + ")";
   const rowBorder = isDark ? "rgba(255,255,255," + TBL.borderAlpha + ")" : "rgba(0,0,0," + TBL.borderAlpha + ")";
@@ -105,7 +105,7 @@ export const TB = ({ tabs, active, onChange }) => {
     gap: 2,
     padding: 4,
     borderRadius: 999,
-    background: Z.sa,
+    background: "rgba(140,150,165,0.08)",
     border: "none",
   }}>
     {/* Sliding active indicator — blue so the selected tab reads
@@ -277,13 +277,13 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) =>
 export const glass = () => {
   const dark = _isDark();
   return {
-    background: dark ? "rgba(14,16,24,0.38)" : "rgba(255,255,255,0.55)",
+    background: dark ? "rgba(140,150,165,0.08)" : "rgba(255,255,255,0.65)",
     backdropFilter: "blur(24px) saturate(140%)",
     WebkitBackdropFilter: "blur(24px) saturate(140%)",
-    border: `1px solid ${dark ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.7)"}`,
+    border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.8)"}`,
     boxShadow: dark
-      ? "inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.35)"
-      : "inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 24px rgba(15,23,42,0.08)",
+      ? "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.2)"
+      : "inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 24px rgba(15,23,42,0.06)",
   };
 };
 
@@ -292,14 +292,14 @@ export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMous
   const handleEnter = (e) => {
     if (interactive) {
       e.currentTarget.style.transform = "translateY(-1px)";
-      e.currentTarget.style.background = _isDark() ? "rgba(20,24,36,0.48)" : "rgba(255,255,255,0.72)";
+      e.currentTarget.style.background = _isDark() ? "rgba(140,150,165,0.12)" : "rgba(255,255,255,0.80)";
     }
     if (onMouseOver) onMouseOver(e);
   };
   const handleLeave = (e) => {
     if (interactive) {
       e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.background = _isDark() ? "rgba(14,16,24,0.38)" : "rgba(255,255,255,0.55)";
+      e.currentTarget.style.background = _isDark() ? "rgba(140,150,165,0.08)" : "rgba(255,255,255,0.65)";
     }
     if (onMouseOut) onMouseOut(e);
   };
@@ -321,7 +321,7 @@ export const ListCard = ({ children, style, onClick, active }) => <div onClick={
   ...(active ? { background: _isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" } : {}),
   ...style,
 }} onMouseEnter={e => { if (onClick) e.currentTarget.style.background = _isDark() ? "rgba(255,255,255," + CARD.hoverAlpha + ")" : "rgba(0,0,0," + CARD.hoverAlpha + ")"; }}
-   onMouseLeave={e => { e.currentTarget.style.background = active ? (_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)") : (_isDark() ? "rgba(14,16,24,0.45)" : "rgba(255,255,255,0.35)"); }}
+   onMouseLeave={e => { e.currentTarget.style.background = active ? (_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)") : (_isDark() ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.45)"); }}
 >{children}</div>;
 
 // ListDivider — translucent divider for items inside a grouped card

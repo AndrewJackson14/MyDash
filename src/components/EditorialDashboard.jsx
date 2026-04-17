@@ -143,7 +143,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
     <div
       style={{
         flex: 1, minWidth: 220, display: "flex", flexDirection: "column",
-        background: Z.bg === "#08090D" ? "rgba(14,16,24,0.3)" : "rgba(255,255,255,0.25)",
+        background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)",
         backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
         borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`,
         minHeight: 100,

@@ -182,14 +182,9 @@ tbody tr td {
 }
 
 
-/* ── #7: Card opacity boost (39% more) ───────────────────── */
-/* Target glassmorphism cards — boost their backdrop alpha */
-[style*="backdrop-filter"] {
-  background-color: rgba(14, 16, 24, var(--md-card-alpha)) !important;
-}
-[data-theme="light"] [style*="backdrop-filter"] {
-  background-color: rgba(255, 255, 255, var(--md-card-alpha)) !important;
-}
+/* ── #7: Card surface — silver glass ─────────────────────── */
+/* No longer overriding — glass() mixin and components now use
+   rgba(140,150,165,0.08) natively. Kept as documentation. */
 
 
 /* ── #3: Remove left/top color borders from cards ────────── */

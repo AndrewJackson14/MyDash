@@ -591,7 +591,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
           <thead>
             <tr>
-              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
               {MODULES.map(m => <th key={m.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 50 }}>{m.label.split(" ")[0]}</th>)}
               <th style={{ padding: "10px 14px", textAlign: "center", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", borderBottom: `1px solid ${Z.bd}` }}>Actions</th>
             </tr>
@@ -600,7 +600,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
             {visibleTeam.map(member => {
               const perms = member.modulePermissions || [];
               return <tr key={member.id}>
-                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                   <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
                   <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
                 </td>
@@ -627,7 +627,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: COND }}>
           <thead>
             <tr>
-              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
+              <th style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", textAlign: "left", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, minWidth: 160 }}>Team Member</th>
               {ALERT_EVENTS.map(ev => <th key={ev.key} style={{ padding: "10px 6px", textAlign: "center", fontSize: 8, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.3, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", minWidth: 65 }}>{ev.label}</th>)}
             </tr>
           </thead>
@@ -635,7 +635,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
             {visibleTeam.map(member => {
               const prefs = member.alertPreferences || getAlertDefaults(member.role);
               return <tr key={member.id}>
-                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(14,16,24,0.95)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                <td style={{ position: "sticky", left: 0, zIndex: ZI.raised, background: isDk ? "rgba(18,20,28,0.92)" : "rgba(240,241,244,0.95)", padding: "10px 14px", borderBottom: `1px solid ${isDk ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                   <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.tx }}>{member.name}</div>
                   <div style={{ fontSize: FS.sm, color: Z.tm }}>{member.role}</div>
                 </td>
