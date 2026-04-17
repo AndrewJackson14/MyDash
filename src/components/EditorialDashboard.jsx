@@ -42,8 +42,8 @@ const PRIORITY_COLORS = { 1: Z.da, 2: ACCENT.amber, 3: Z.wa || "#e8b03a", 4: Z.t
 const PRIORITY_LABELS = { 1: "1 — Critical", 2: "2 — Urgent", 3: "3 — High", 4: "4 — Normal", 5: "5 — Low", 6: "6 — Fill" };
 const PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label: String(n) }));
 
-// Default status colors — can be overridden per-site via site_settings.status_colors
-const STATUS_COLORS = {
+// Default status colors — overridden by org_settings.status_colors if configured
+const DEFAULT_statusColors = {
   Pitched:  { bg: "rgba(144,102,232,0.12)", fg: "#7c3aed" },
   Draft:    { bg: "rgba(138,149,168,0.12)", fg: Z.tm },
   Edit:     { bg: "rgba(59,130,246,0.12)",  fg: "#3B82F6" },
@@ -198,6 +198,15 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions }) => {
   const stories = storiesRaw || [];
   const dialog = useDialog();
+
+  // Load status colors from org_settings (publisher-configurable)
+  const [statusColors, setStatusColors] = useState(DEFAULT_statusColors);
+  useEffect(() => {
+    supabase.from("org_settings").select("status_colors").limit(1).maybeSingle()
+      .then(({ data }) => {
+        if (data?.status_colors) setStatusColors(sc => ({ ...sc, ...data.status_colors }));
+      });
+  }, []);
 
   const deleteStory = async (id) => {
     if (!await dialog.confirm("Delete this story? This cannot be undone.")) return;
@@ -690,7 +699,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            {(() => { const sc = STATUS_COLORS[s.status] || STATUS_COLORS.Draft; return (
+                            {(() => { const sc = statusColors[s.status] || statusColors.Draft; return (
                               <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", background: sc.bg, color: sc.fg, fontWeight: 700, borderColor: sc.fg + "30" }} />
                             ); })()}
                           </td>

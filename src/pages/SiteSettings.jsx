@@ -295,11 +295,19 @@ const SiteAnalytics = ({ siteId }) => {
 // Publisher-wide controls for ambient pressure + background image.
 // ══════════════════════════════════════════════════════════════════
 function OrgAppearancePanel() {
+  const DEFAULT_STATUS_COLORS = {
+    Pitched:  { bg: "rgba(144,102,232,0.12)", fg: "#7c3aed" },
+    Draft:    { bg: "rgba(138,149,168,0.12)", fg: "#8a95a8" },
+    Edit:     { bg: "rgba(59,130,246,0.12)",  fg: "#3B82F6" },
+    Ready:    { bg: "rgba(34,197,94,0.12)",   fg: "#16a34a" },
+    Archived: { bg: "rgba(138,149,168,0.08)", fg: "#9ca3af" },
+  };
   const [s, setS] = useState({
     global_pressure_enabled: true,
     serenity_color: "blue",
     background_image_url: "",
     background_image_opacity: 0.30,
+    status_colors: DEFAULT_STATUS_COLORS,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -315,6 +323,7 @@ function OrgAppearancePanel() {
           serenity_color: data.serenity_color || "blue",
           background_image_url: data.background_image_url || "",
           background_image_opacity: Number(data.background_image_opacity ?? 0.30),
+          status_colors: { ...DEFAULT_STATUS_COLORS, ...(data.status_colors || {}) },
         });
         setLoading(false);
       });
@@ -328,6 +337,7 @@ function OrgAppearancePanel() {
       serenity_color: payload.serenity_color,
       background_image_url: payload.background_image_url || null,
       background_image_opacity: payload.background_image_opacity,
+      status_colors: payload.status_colors || {},
       updated_at: new Date().toISOString(),
     }).eq("singleton", true);
     setSaving(false);
@@ -430,6 +440,36 @@ function OrgAppearancePanel() {
               style={{ flex: 1, accentColor: Z.ac }}
             />
             <span style={{ fontSize: 11, color: Z.tx, fontWeight: 700, width: 40, textAlign: "right" }}>{Math.round(s.background_image_opacity * 100)}%</span>
+          </div>
+        </div>
+
+        {/* Story Status Colors */}
+        <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd, gridColumn: "1 / -1" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 4 }}>Story Status Colors</div>
+          <div style={{ fontSize: 11, color: Z.tm, marginBottom: 12 }}>Colors used for status indicators in the Issue Planner and Story Editor.</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {Object.entries(s.status_colors || {}).map(([status, colors]) => (
+              <div key={status} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 12px", borderRadius: 6,
+                background: colors.bg, border: `1px solid ${colors.fg}30`,
+                minWidth: 140,
+              }}>
+                <div style={{ position: "relative", width: 24, height: 24, borderRadius: 4, background: colors.fg, border: `1px solid ${Z.bd}`, cursor: "pointer", flexShrink: 0 }}>
+                  <input
+                    type="color"
+                    value={colors.fg}
+                    onChange={e => {
+                      const fg = e.target.value;
+                      const bg = fg + "1f";
+                      setS(p => ({ ...p, status_colors: { ...p.status_colors, [status]: { fg, bg } } }));
+                    }}
+                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+                  />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: colors.fg, fontFamily: COND }}>{status}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
