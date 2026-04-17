@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ZI } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, SB, Modal, GlassCard, PageHeader, TB, TabRow, Pill } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline } from "../lib/supabase";
 import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 
@@ -439,7 +440,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
 // ══════════════════════════════════════════════════════════════
 // TEAM PAGE
 // ══════════════════════════════════════════════════════════════
-const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember, deleteTeamMember, onOpenMemberProfile }) => {
+const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legalNotices, creativeJobs, pubs, clients, updateTeamMember, deleteTeamMember, onOpenMemberProfile, isActive }) => {
   const [sr, setSr] = useState("");
   const [tab, setTab] = useState("Team");
   const [modal, setModal] = useState(false);
@@ -484,6 +485,21 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
 
   const byDept = {};
   filtered.forEach(t => { const dept = getDept(t.role); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
+
+  // Publish TopBar header while Team is the active module. Title carries
+  // the filtered count (e.g. "Team (13)") to preserve the affordance the
+  // legacy PageHeader had below.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Team" }],
+        title: `Team (${filtered.length})`,
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, filtered.length, setHeader, clearHeader]);
 
   const getMetrics = (t) => {
     const role = t.role;
@@ -543,12 +559,10 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
   };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <PageHeader title="Team" count={filtered.length} />
-      <div style={{ display: "flex", gap: 8 }}>
-        <SB value={sr} onChange={setSr} placeholder="Search team..." />
-        <Btn sm onClick={openNew}><Ic.plus size={13} /> Add Member</Btn>
-      </div>
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+      <SB value={sr} onChange={setSr} placeholder="Search team..." />
+      <Btn sm onClick={openNew}><Ic.plus size={13} /> Add Member</Btn>
     </div>
 
     <TabRow><TB tabs={["Team", "Permissions", "Alerts"]} active={tab} onChange={setTab} /></TabRow>
