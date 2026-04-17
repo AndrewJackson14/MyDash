@@ -244,23 +244,72 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   const createCreditMemo = async () => {
     if (!cmForm.clientId || !cmForm.amount || !cmForm.reason) return;
+    const applyToInvoiceId = cmForm.applyToInvoiceId || null;
     const { data, error } = await supabase.from("credit_memos").insert({
       client_id: cmForm.clientId, sale_id: cmForm.saleId || null,
       invoice_id: cmForm.invoiceId || null, amount: cmForm.amount,
       reason: cmForm.reason, reason_code: cmForm.reasonCode,
-      notes: cmForm.notes || null, status: "pending",
+      notes: cmForm.notes || null,
+      status: applyToInvoiceId ? "applied" : "pending",
+      applied_to_invoice_id: applyToInvoiceId,
+      applied_at: applyToInvoiceId ? new Date().toISOString() : null,
     }).select().single();
     if (error) { await dialog.alert("Error: " + error.message); return; }
     if (data) {
       setCreditMemos(prev => [data, ...prev]);
-      // Add to client credit balance
-      const client = (clients || []).find(c => c.id === cmForm.clientId);
-      if (client) {
-        const newBal = (client.creditBalance || 0) + cmForm.amount;
-        await supabase.from("clients").update({ credit_balance: newBal }).eq("id", cmForm.clientId);
+      if (applyToInvoiceId) {
+        // Reduce the invoice's balance_due
+        const inv = (invoices || []).find(i => i.id === applyToInvoiceId);
+        if (inv) {
+          const newBal = Math.max(0, (inv.balanceDue || inv.total || 0) - cmForm.amount);
+          const newStatus = newBal <= 0 ? "paid" : inv.status;
+          await supabase.from("invoices").update({ balance_due: newBal, status: newStatus }).eq("id", applyToInvoiceId);
+          setInvoices(prev => prev.map(i => i.id === applyToInvoiceId ? { ...i, balanceDue: newBal, status: newStatus } : i));
+        }
+        // Remainder goes to credit balance if credit > invoice balance
+        const remainder = inv ? Math.max(0, cmForm.amount - (inv.balanceDue || inv.total || 0)) : cmForm.amount;
+        if (remainder > 0) {
+          const client = (clients || []).find(c => c.id === cmForm.clientId);
+          const newCreditBal = (client?.creditBalance || 0) + remainder;
+          await supabase.from("clients").update({ credit_balance: newCreditBal }).eq("id", cmForm.clientId);
+        }
+      } else {
+        // No invoice selected — full amount goes to credit balance
+        const client = (clients || []).find(c => c.id === cmForm.clientId);
+        if (client) {
+          const newBal = (client.creditBalance || 0) + cmForm.amount;
+          await supabase.from("clients").update({ credit_balance: newBal }).eq("id", cmForm.clientId);
+        }
       }
       setCreditMemoModal(false);
-      setCmForm({ clientId: "", saleId: "", invoiceId: "", amount: 0, reasonCode: "make_good", reason: "", notes: "" });
+      setCmForm({ clientId: "", saleId: "", invoiceId: "", amount: 0, reasonCode: "make_good", reason: "", notes: "", applyToInvoiceId: "" });
+    }
+  };
+
+  // Apply a pending credit memo to an open invoice
+  const applyCreditToInvoice = async (memoId, invoiceId) => {
+    const memo = creditMemos.find(m => m.id === memoId);
+    const inv = (invoices || []).find(i => i.id === invoiceId);
+    if (!memo || !inv) return;
+    const creditAmt = Number(memo.amount);
+    const newBal = Math.max(0, (inv.balanceDue || 0) - creditAmt);
+    const newStatus = newBal <= 0 ? "paid" : inv.status;
+    // Update invoice
+    await supabase.from("invoices").update({ balance_due: newBal, status: newStatus }).eq("id", invoiceId);
+    setInvoices(prev => prev.map(i => i.id === invoiceId ? { ...i, balanceDue: newBal, status: newStatus } : i));
+    // Update credit memo
+    await supabase.from("credit_memos").update({ status: "applied", applied_to_invoice_id: invoiceId, applied_at: new Date().toISOString() }).eq("id", memoId);
+    setCreditMemos(prev => prev.map(m => m.id === memoId ? { ...m, status: "applied", applied_to_invoice_id: invoiceId } : m));
+    // Reduce client credit balance
+    const client = (clients || []).find(c => c.id === (memo.client_id || inv.clientId));
+    if (client) {
+      const newCreditBal = Math.max(0, (client.creditBalance || 0) - creditAmt);
+      await supabase.from("clients").update({ credit_balance: newCreditBal }).eq("id", client.id);
+    }
+    // Remainder credit if credit > invoice balance
+    const remainder = creditAmt - (inv.balanceDue || 0);
+    if (remainder > 0 && client) {
+      // Remainder stays as credit — already on the balance since we only subtracted the applied amount
     }
   };
 
@@ -893,12 +942,29 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
     {/* ════════ INVOICES TAB ════════ */}
     {tab === "Invoices" && <>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
         <Btn sm v="secondary" onClick={() => setCreditMemoModal(true)}>+ Credit Memo</Btn>
-        {creditMemos.filter(cm => cm.status === "pending").length > 0 && (
-          <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.wa, alignSelf: "center" }}>{creditMemos.filter(cm => cm.status === "pending").length} pending credit{creditMemos.filter(cm => cm.status === "pending").length !== 1 ? "s" : ""}</span>
-        )}
       </div>
+      {/* Pending credits — apply to invoices */}
+      {creditMemos.filter(cm => cm.status === "pending").length > 0 && (
+        <div style={{ padding: "10px 14px", background: Z.wa + "08", borderRadius: Ri }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.wa, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, fontFamily: COND }}>Pending Credits ({creditMemos.filter(cm => cm.status === "pending").length})</div>
+          {creditMemos.filter(cm => cm.status === "pending").map(cm => {
+            const cmClient = (clients || []).find(c => c.id === cm.client_id);
+            const openInvs = (invoices || []).filter(i => i.clientId === cm.client_id && i.balanceDue > 0 && i.status !== "void" && i.status !== "paid");
+            return <div key={cm.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: `1px solid ${Z.bd}20` }}>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, flex: 1 }}>{cmClient?.name || "Client"}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.su }}>${Number(cm.amount).toLocaleString()}</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{cm.reason_code || cm.reason}</span>
+              {openInvs.length > 0 ? (
+                <Sel value="" onChange={async e => { if (e.target.value) await applyCreditToInvoice(cm.id, e.target.value); }} options={[{ value: "", label: "Apply to..." }, ...openInvs.map(i => ({ value: i.id, label: `${i.invoiceNumber} ($${(i.balanceDue || 0).toLocaleString()})` }))]} style={{ padding: "3px 24px 3px 6px", width: 180 }} />
+              ) : (
+                <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>No open invoices</span>
+              )}
+            </div>;
+          })}
+        </div>
+      )}
       <DataTable>
           <thead>
             <tr>
@@ -1886,16 +1952,40 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     </Modal>
 
     {/* ════════ CREDIT MEMO MODAL ════════ */}
-    <Modal open={creditMemoModal} onClose={() => setCreditMemoModal(false)} title="New Credit Memo" width={520}>
+    <Modal open={creditMemoModal} onClose={() => setCreditMemoModal(false)} title="New Credit Memo" width={560}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Sel label="Client" value={cmForm.clientId} onChange={e => setCmForm(f => ({ ...f, clientId: e.target.value }))} options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
-        <Sel label="Reason" value={cmForm.reasonCode} onChange={e => setCmForm(f => ({ ...f, reasonCode: e.target.value }))} options={REASON_CODES} />
-        <Inp label="Amount ($)" type="number" min={0} value={cmForm.amount} onChange={e => setCmForm(f => ({ ...f, amount: Number(e.target.value) }))} />
+        <Sel label="Client" value={cmForm.clientId} onChange={e => setCmForm(f => ({ ...f, clientId: e.target.value, applyToInvoiceId: "" }))} options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: `${c.name}${c.creditBalance > 0 ? ` ($${c.creditBalance} credit)` : ""}` }))]} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Sel label="Reason" value={cmForm.reasonCode} onChange={e => setCmForm(f => ({ ...f, reasonCode: e.target.value }))} options={REASON_CODES} />
+          <Inp label="Amount ($)" type="number" min={0} value={cmForm.amount} onChange={e => setCmForm(f => ({ ...f, amount: Number(e.target.value) }))} />
+        </div>
         <Inp label="Reason Detail" value={cmForm.reason} onChange={e => setCmForm(f => ({ ...f, reason: e.target.value }))} placeholder="What happened and why the credit is issued..." />
+
+        {/* Apply to invoice — show open invoices for this client */}
+        {cmForm.clientId && (() => {
+          const openInvs = (invoices || []).filter(i => i.clientId === cmForm.clientId && i.balanceDue > 0 && i.status !== "void" && i.status !== "paid");
+          return openInvs.length > 0 ? (
+            <div>
+              <Sel label="Apply to Invoice (optional)" value={cmForm.applyToInvoiceId || ""} onChange={e => setCmForm(f => ({ ...f, applyToInvoiceId: e.target.value }))} options={[{ value: "", label: "Leave as account credit" }, ...openInvs.map(i => ({ value: i.id, label: `${i.invoiceNumber} — $${(i.balanceDue || 0).toLocaleString()} due` }))]} />
+              {cmForm.applyToInvoiceId && (() => {
+                const inv = openInvs.find(i => i.id === cmForm.applyToInvoiceId);
+                if (!inv) return null;
+                const newBal = Math.max(0, (inv.balanceDue || 0) - (cmForm.amount || 0));
+                const remainder = Math.max(0, (cmForm.amount || 0) - (inv.balanceDue || 0));
+                return <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 4 }}>
+                  Invoice balance: ${(inv.balanceDue || 0).toLocaleString()} → ${newBal.toLocaleString()}
+                  {newBal <= 0 && <span style={{ color: Z.su, fontWeight: FW.bold }}> (fully paid)</span>}
+                  {remainder > 0 && <span> · ${remainder.toLocaleString()} remainder stays as account credit</span>}
+                </div>;
+              })()}
+            </div>
+          ) : <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>No open invoices — credit will be added to account balance</div>;
+        })()}
+
         <TA label="Notes" value={cmForm.notes} onChange={e => setCmForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <Btn v="secondary" onClick={() => setCreditMemoModal(false)}>Cancel</Btn>
-          <Btn onClick={createCreditMemo} disabled={!cmForm.clientId || !cmForm.amount || !cmForm.reason}>Create Credit Memo</Btn>
+          <Btn onClick={createCreditMemo} disabled={!cmForm.clientId || !cmForm.amount || !cmForm.reason}>{cmForm.applyToInvoiceId ? "Create & Apply" : "Create Credit"}</Btn>
         </div>
       </div>
     </Modal>
