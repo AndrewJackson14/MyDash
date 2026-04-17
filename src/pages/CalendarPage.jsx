@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB, Pill } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 
 const GCAL_URL = EDGE_FN_URL + "/gcal-api";
@@ -190,7 +191,19 @@ const SnapshotCards = memo(({ role, sales, issues, pubs, clients, stories, allEv
   return <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{cards}</div>;
 });
 
-const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories, bus, onNavigate }) => {
+const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories, bus, onNavigate, isActive }) => {
+  // Publish TopBar header while Calendar is the active page.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Calendar" }],
+        title: "Calendar",
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const today = useMemo(() => new Date(), []);
   const [view, setView] = useState("month");
   const [selectedDate, setSelectedDate] = useState(today);
@@ -363,10 +376,11 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
   }, [toISO(selectedDate)]);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <PageHeader title="Calendar">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
       <Btn sm onClick={() => { setEventForm(f => ({ ...f, date: toISO(selectedDate) })); setEventModal(true); }}><Ic.plus size={13} /> New Event</Btn>
-    </PageHeader>
+    </div>
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <TabRow><TB tabs={["Month", "Week", "Day", "Today"]} active={view.charAt(0).toUpperCase() + view.slice(1)} onChange={v => { if (v === "Today") { goToday(); } else { setView(v.toLowerCase()); } }} /></TabRow>
