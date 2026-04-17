@@ -171,7 +171,11 @@ export function DataProvider({ children, localData }) {
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
         const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal';
-        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,rate_type,rate_amount,specialties,availability,commission_trigger,commission_default_rate';
+        // NOTE: rate_type, rate_amount, specialties (plural), and availability
+        // do not exist on team_members in production — requesting them 400s the
+        // whole SELECT and blanks the roster. If the freelance rate-card
+        // feature ships, add a migration first, then add the columns back here.
+        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,commission_trigger,commission_default_rate';
         const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
@@ -205,7 +209,7 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, rateType: t.rate_type, rateAmount: Number(t.rate_amount || 0), specialties: t.specialties || [], availability: t.availability || 'available', commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -2088,9 +2092,8 @@ export function DataProvider({ children, localData }) {
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
       if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
-      if (changes.rateType !== undefined) db.rate_type = changes.rateType;
-      if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
-      if (changes.availability !== undefined) db.availability = changes.availability;
+      // rate_type / rate_amount / availability columns don't exist yet — see
+      // teamSelect note above. Add a migration before wiring these writes back.
       if (Object.keys(db).length) {
         await supabase.from('team_members').update(db).eq('id', id);
         // Audit log for role/permission changes

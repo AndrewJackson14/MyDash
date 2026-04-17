@@ -558,13 +558,12 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
       {DEPARTMENTS.filter(d => byDept[d.label]?.length > 0).map(dept => <div key={dept.key} style={{ marginBottom: 16 }}>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", padding: "4px 0 8px" }}>{dept.label} ({byDept[dept.label].length})</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
-          {byDept[dept.label].map(t => {
-            const metrics = getMetrics(t);
-            return <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
+          {byDept[dept.label].map(t => (
+            <GlassCard key={t.id} style={{ padding: CARD.pad, cursor: "pointer", transition: "border-color 0.15s" }}
               onClick={() => onOpenMemberProfile ? onOpenMemberProfile(t.id) : (setMemberModal(t), setEditId(t.id), setForm({ name: t.name, role: t.role, email: t.email, phone: t.phone || "", assignedPubs: t.pubs || ["all"] }))}
               onMouseOver={e => e.currentTarget.style.borderColor = Z.ac}
               onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(t.name)}</div>
                 <div>
                   <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
@@ -572,14 +571,8 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
                   <div style={{ fontSize: FS.xs, color: Z.tm }}>{t.email}</div>
                 </div>
               </div>
-              {metrics.length > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 2)}, 1fr)`, gap: 6 }}>
-                {metrics.slice(0, 2).map(m => <div key={m.label}>
-                  <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{m.value}</div>
-                  <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
-                </div>)}
-              </div>}
-            </GlassCard>;
-          })}
+            </GlassCard>
+          ))}
         </div>
       </div>)}
       {filtered.length === 0 && <GlassCard><div style={{ padding: 16, textAlign: "center", color: Z.td }}>No team members found</div></GlassCard>}
