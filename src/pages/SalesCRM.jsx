@@ -716,7 +716,7 @@ const SalesCRM = (props) => {
         const urgentRens = (clients || []).filter(c => (c.status === "Renewal" || c.status === "Lapsed") && c.contractEndDate && c.contractEndDate <= new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
         if (newInqs.length === 0 && urgentRens.length === 0) return null;
         return <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          {newInqs.length > 0 && <div onClick={() => { if (loadInquiries && !inquiriesLoaded) loadInquiries(); setTab("Pipeline"); }} style={{ flex: 1, padding: "8px 14px", background: Z.da + "10", borderLeft: `3px solid ${Z.da}`, borderRadius: Ri, cursor: "pointer" }}>
+          {newInqs.length > 0 && <div onClick={() => { if (loadInquiries && !inquiriesLoaded) loadInquiries(); setTab("Inquiries"); }} style={{ flex: 1, padding: "8px 14px", background: Z.da + "10", borderRadius: Ri, cursor: "pointer" }}>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>{newInqs.length} new inquir{newInqs.length > 1 ? "ies" : "y"}</span>
             <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>Hot leads — respond now</span>
           </div>}

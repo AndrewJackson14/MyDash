@@ -1,6 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, TBL, INV } from "../../lib/theme";
-import { Ic, Badge, Btn, Sel, SB, SolidTabs, GlassCard, DataTable, glass } from "../../components/ui";
+import { Ic, Badge, Btn, Sel, SB, TB, SolidTabs, GlassCard, DataTable, glass } from "../../components/ui";
 import { computeClientStatus, CLIENT_STATUS_COLORS } from "./constants";
 
 const fmtK = (n) => n >= 10000 ? "$" + Math.round(n / 1000) + "K" : "$" + (n || 0).toLocaleString();
@@ -164,22 +164,31 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
   const flaggedCount = (clients || []).filter(c => c.lapsedReason).length;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    {/* Status filter tabs */}
-    <div style={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
-      {[
-        { key: "active", label: "Active", count: statusCounts.Active },
-        { key: "renewal", label: "Renewal", count: statusCounts.Renewal },
-        { key: "lead", label: "Leads", count: statusCounts.Lead },
-        { key: "lapsed", label: "Lapsed", count: statusCounts.Lapsed },
-        { key: "all", label: "All", count: (clients || []).length },
-      ].map(t => (
-        <button key={t.key} onClick={() => setStatusFilter(t.key)} style={{
-          padding: "5px 14px", borderRadius: Ri, border: "none",
-          background: statusFilter === t.key ? Z.go : "transparent",
-          color: statusFilter === t.key ? INV.light : Z.td,
-          cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
-        }}>{t.label} <span style={{ opacity: 0.7 }}>({t.count})</span></button>
-      ))}
+    {/* Status filter tabs — pill slider */}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <TB
+        tabs={[
+          `Active (${statusCounts.Active})`,
+          `Renewal (${statusCounts.Renewal})`,
+          `Leads (${statusCounts.Lead})`,
+          `Lapsed (${statusCounts.Lapsed})`,
+          `All (${(clients || []).length})`,
+        ]}
+        active={
+          statusFilter === "active" ? `Active (${statusCounts.Active})` :
+          statusFilter === "renewal" ? `Renewal (${statusCounts.Renewal})` :
+          statusFilter === "lead" ? `Leads (${statusCounts.Lead})` :
+          statusFilter === "lapsed" ? `Lapsed (${statusCounts.Lapsed})` :
+          `All (${(clients || []).length})`
+        }
+        onChange={v => {
+          if (v.startsWith("Active")) setStatusFilter("active");
+          else if (v.startsWith("Renewal")) setStatusFilter("renewal");
+          else if (v.startsWith("Leads")) setStatusFilter("lead");
+          else if (v.startsWith("Lapsed")) setStatusFilter("lapsed");
+          else setStatusFilter("all");
+        }}
+      />
       {flaggedCount > 0 && <button onClick={() => setShowFlagged(s => !s)} style={{
         padding: "5px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
         background: showFlagged ? Z.wa + "15" : "transparent",

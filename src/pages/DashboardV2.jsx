@@ -1551,7 +1551,7 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
         a new lead sits unassigned is a warm lead cooling off. */}
     {perfData?.sales?.inquiriesNew > 0 && (
       <div
-        onClick={() => { onClose(); feed?.onNavigate?.("sales"); }}
+        onClick={() => { onClose(); feed?.onNavigate?.("/sales?tab=inquiries"); }}
         style={{
           padding: "14px 18px",
           borderRadius: R,
