@@ -1,12 +1,13 @@
 // ============================================================
-// TopBar — subscribes to PageHeaderContext. Renders null until
-// a page publishes a header. The full visual (search, avatar,
+// TopBar — subscribes to PageHeaderContext. Renders null until a
+// page publishes a header. The full visual (search, bell, avatar,
 // keyboard hint) is wired here; pages control content via
 //   const { setHeader } = usePageHeader();
 //   useEffect(() => { setHeader({ breadcrumb, title, actions }); }, [...]);
 // ============================================================
+import { useState } from "react";
 import { usePageHeader } from "../../contexts/PageHeaderContext";
-import { Z, FONT, RADII, DUR, EASE } from "../../lib/theme";
+import { Z, FONT, RADII, DUR, EASE, INV } from "../../lib/theme";
 import Ic from "../ui/Icons";
 
 export default function TopBar({
@@ -16,11 +17,19 @@ export default function TopBar({
   user,
   onUserClick,
   onHelpClick,
+  // Notifications: when provided, TopBar renders the bell + popover.
+  notifications,
+  setNotifications,
+  onNavigate,
 }) {
   const { header } = usePageHeader();
+  const [showNotifs, setShowNotifs] = useState(false);
   if (!header) return null;
 
   const initials = user?.initials || (user?.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const unreadCount = (notifications || []).filter(n => !n.read).length;
+  const markAllRead = () => setNotifications?.(ns => (ns || []).map(n => ({ ...n, read: true })));
 
   return (
     <header
@@ -141,6 +150,97 @@ export default function TopBar({
       {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {header.actions}
+
+        {/* Notification bell — shows when `notifications` prop is provided.
+            Popover is a lightweight clone of the legacy header's "My Alerts"
+            dropdown; once all pages migrate to TopBar the legacy copy in
+            App.jsx can be deleted. */}
+        {notifications && (
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowNotifs(s => !s)}
+              title="Alerts"
+              style={{
+                width: 36, height: 36,
+                borderRadius: RADII.md,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: Z.fgSecondary,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: `all ${DUR.fast}ms ${EASE}`,
+                position: "relative",
+              }}
+            >
+              <Ic.bell size={18} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: 4, right: 4,
+                  background: "#d64545", color: INV.light,
+                  fontSize: 9, fontWeight: 800,
+                  borderRadius: 8,
+                  minWidth: 14, height: 14,
+                  padding: "0 4px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  lineHeight: 1,
+                  fontFamily: FONT.sans,
+                }}>{unreadCount}</span>
+              )}
+            </button>
+            {showNotifs && (
+              <>
+                <div onClick={() => setShowNotifs(false)} style={{ position: "fixed", inset: 0, zIndex: 9998 }} />
+                <div style={{
+                  position: "absolute",
+                  right: 0, top: 44,
+                  width: 340, maxHeight: 420,
+                  overflowY: "auto",
+                  background: Z.bgChrome,
+                  border: `1px solid ${Z.borderSubtle}`,
+                  borderRadius: RADII.md,
+                  boxShadow: Z.glassShadow,
+                  zIndex: 9999,
+                  fontFamily: FONT.sans,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${Z.borderSubtle}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: Z.fgPrimary }}>My Alerts</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: Z.fgAccent, textDecoration: "underline", textUnderlineOffset: 3, padding: 0 }}
+                      >Mark all read</button>
+                    )}
+                  </div>
+                  {(notifications || []).length === 0 && (
+                    <div style={{ padding: "20px 16px", textAlign: "center", color: Z.fgMuted, fontSize: 12 }}>No alerts</div>
+                  )}
+                  {[...(notifications || [])]
+                    .sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1))
+                    .slice(0, 12)
+                    .map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          setNotifications?.(ns => (ns || []).map(x => x.id === n.id ? { ...x, read: !x.read } : x));
+                          if (n.route && !n.read) { onNavigate?.(n.route); setShowNotifs(false); }
+                        }}
+                        style={{
+                          padding: "10px 16px",
+                          borderBottom: `1px solid ${Z.borderSubtle}`,
+                          cursor: n.route ? "pointer" : "default",
+                          background: n.read ? "transparent" : Z.bgActive,
+                        }}
+                      >
+                        <div style={{ fontSize: 13, color: n.read ? Z.fgMuted : Z.fgPrimary, fontWeight: n.read ? 400 : 600 }}>{n.text}</div>
+                        <div style={{ fontSize: 11, color: Z.fgMuted, marginTop: 3 }}>{n.time}</div>
+                      </div>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {onHelpClick && (
           <button
             onClick={onHelpClick}

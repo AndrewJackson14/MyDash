@@ -515,12 +515,17 @@ export default function App() {
       <TopBar
         user={currentUser ? { name: currentUser.name, initials: (currentUser.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() } : null}
         onUserClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }}
+        notifications={notifications}
+        setNotifications={setNotifications}
+        onNavigate={handleNav}
       />
 
-      {/* ── Top Bar — always visible so the notification bell stays in
-          the same place across every page. Back button hides on the
-          dashboard since there's nowhere to go back to. */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: pg === "dashboard" ? "none" : `1px solid ${Z.bd}`, background: isDark ? "rgba(140,150,165,0.05)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
+      {/* ── Legacy Top Bar — back button + notification bell.
+          Hidden on the dashboard, which has migrated to the new
+          TopBar via PageHeaderContext. Once every page has migrated,
+          this whole header and its supporting state (showNotifs,
+          unreadCount, markAllRead) can move into TopBar. */}
+      {pg !== "dashboard" && <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 20px", borderBottom: `1px solid ${Z.bd}`, background: isDark ? "rgba(140,150,165,0.05)" : "rgba(246,247,249,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", flexShrink: 0, position: "relative", zIndex: ZI.top }}>
         <div>
           {pg !== "dashboard" && <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: 600, padding: "4px 8px", borderRadius: 3 }}
             onMouseOver={e => e.currentTarget.style.color = Z.tx}
@@ -541,7 +546,7 @@ export default function App() {
             {[...(notifications || [])].sort((a, b) => a.read === b.read ? 0 : a.read ? 1 : -1).slice(0, 12).map(n => <div key={n.id} onClick={() => { setNotifications(ns => ns.map(x => x.id === n.id ? { ...x, read: !x.read } : x)); if (n.route && !n.read) { handleNav(n.route); setShowNotifs(false); } }} style={{ padding: "10px 16px", borderBottom: `1px solid ${Z.bd}`, cursor: n.route ? "pointer" : "default", background: n.read ? "transparent" : Z.as }}><div style={{ fontSize: 13, color: n.read ? Z.td : Z.tx, fontWeight: n.read ? 400 : 700 }}>{n.text}</div><div style={{ fontSize: 11, color: Z.td, marginTop: 3 }}>{n.time}</div></div>)}
           </div>}
         </div>
-      </header>
+      </header>}
 
       {/* ── Page Content ──────────────────────────────────── */}
       <main data-main style={{ flex: 1, overflow: "auto", padding: pg === "dashboard" ? 0 : 28, background: "transparent" }}>
@@ -552,7 +557,7 @@ export default function App() {
           {online && !clients.length && <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Loading clients...</div>}
           {online && clients.length > 0 && (issueDetailId
             ? <IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} />
-            : <Suspense fallback={<LazyFallback />}><DashboardV2 pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || []} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
+            : <Suspense fallback={<LazyFallback />}><DashboardV2 isActive={pg === "dashboard"} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || []} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
           )}
         </div>
 

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
 import { Ic, Btn, GlassCard, Modal, glass } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
 import { useSignalFeed } from "../hooks/useSignalFeed";
 import { usePerformanceData } from "./performance/usePerformanceData";
@@ -120,8 +121,25 @@ const DashboardV2 = (props) => {
     invoices, payments, subscribers, tickets, legalNotices, creativeJobs,
     salespersonPubAssignments, commissionGoals,
     jurisdiction, currentUser, userName, onNavigate, setIssueDetailId,
-    retainInquiriesRealtime,
+    retainInquiriesRealtime, isActive,
   } = props;
+
+  // Publish header into TopBar via PageHeaderContext while the dashboard is
+  // the active page. Because App.jsx keeps every visited page mounted (just
+  // display:none'd when inactive), we can't rely on mount/unmount alone —
+  // gate on the isActive prop App.jsx passes down, and clear the header when
+  // the user navigates away so a later page isn't stuck showing "My Dash".
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Dashboard" }],
+        title: "My Dash",
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
 
   // Keep ad_inquiries realtime channel open while the dashboard is mounted
   // (ref-counted with SalesCRM in useAppData so duplicate mounts are fine).

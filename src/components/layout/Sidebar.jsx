@@ -62,7 +62,7 @@ export default function Sidebar({
   const userInitials = (currentUser?.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div data-shell="v2" style={{ width: 64, flexShrink: 0, position: "relative" }}>
+    <div data-shell="v2" style={{ width: 64, flexShrink: 0, position: "relative", zIndex: 50 }}>
       <aside
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -107,7 +107,7 @@ export default function Sidebar({
         </div>
 
         {/* Nav */}
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0" }}>
+        <div className="shell-v2-hide-scrollbar" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0", scrollbarWidth: "none", msOverflowStyle: "none" }}>
           {navSections.map(sec => (
             <NavSection
               key={sec.key}
