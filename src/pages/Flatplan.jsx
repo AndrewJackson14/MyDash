@@ -256,6 +256,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const [placeholders, setPlaceholders] = useState([]);
   const [selPage, setSelPage] = useState(null);
   const [showSectionPicker, setShowSectionPicker] = useState(false);
+  const [showSharedPicker, setShowSharedPicker] = useState(false);
   const [newSectionLabel, setNewSectionLabel] = useState("New Section");
   const [newSectionPages, setNewSectionPages] = useState([]);
   const pageStories = globalPageStories || {}; const setPageStories = setGlobalPageStories || (() => {});
@@ -533,6 +534,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       {canSendToPress && issue && <Btn sm onClick={handleSendToPress} disabled={sendingToPress} style={issue.sentToPressAt ? { background: Z.go + "15", color: Z.go, border: `1px solid ${Z.go}40` } : {}}>{sendingToPress ? "Sending..." : issue.sentToPressAt ? "✓ Sent to Press" : "Send to Press"}</Btn>}
       {issue && prevIssueExists && <Btn sm v="secondary" onClick={copyFromPrevious}>Copy Prev Issue</Btn>}
       <Btn sm v="secondary" onClick={() => setShowSectionPicker(true)}>+ Section</Btn>
+      {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "#3B82F6" : Z.bd}`, background: showSharedPicker ? "rgba(59,130,246,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "#3B82F6" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
       <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
     </PageHeader>
@@ -549,6 +551,15 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         <span>{issueAdPct}% fill</span>
       </div>}
     </div>
+
+    {/* Shared-page picker — primary pub only. Click pages to toggle. */}
+    {showSharedPicker && issue && sharedCtx?.isPrimary && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: R, marginBottom: 6 }}>
+      <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: "#3B82F6", flexShrink: 0 }}>↔ Shared pages:</span>
+      <span style={{ fontSize: FS.sm, color: Z.tm }}>Click pages below to toggle shared. Shared pages mirror to {sharedCtx.siblingNames?.join(", ")}.</span>
+      {(issue.sharedPages || []).length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: "#3B82F6" }}>p.{(issue.sharedPages || []).join(",")}</span>}
+      <div style={{ flex: 1 }} />
+      <Btn sm onClick={() => setShowSharedPicker(false)}>Done</Btn>
+    </div>}
 
     {showSectionPicker && issue && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", ...glass(), borderRadius: R, marginBottom: 6 }}>
       <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm, flexShrink: 0 }}>New section:</span>
@@ -586,7 +597,25 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           const issSections = sections[selIssue] || [];
           const sectionHere = issSections.find(s => s.afterPage === n - 1);
           const sectionEndHere = issSections.find(s => s.pages && Math.max(...s.pages) === n);
-          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={getPageItems(n)} dragId={di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClick={() => { if (showSectionPicker) { setNewSectionPages(ps => ps.includes(n) ? ps.filter(x => x !== n) : [...ps, n].sort((a,b) => a-b)); } else { setSelPage(selPage === n ? null : n); } }} phLabels={phLabels} />{sectionEndHere && <div style={{ width: "100%", height: 1, background: Z.bd, margin: "4px 0" }} />}</>; })}
+          const isShared = sharedCtx && sharedCtx.sharedPages.includes(n);
+          const isLocked = isShared && sharedCtx?.isMirror;
+          const sharedLabel = isShared ? (sharedCtx.isMirror ? sharedCtx.primaryPubName : sharedCtx.siblingNames?.join(", ")) : null;
+          const pageAds = isLocked
+            ? (sharedCtx.primarySalesOnShared || []).filter(s => s.page === n).map(s => ({ ...s, isPlaceholder: false, gridRow: s.pagePos?.row ?? null, gridCol: s.pagePos?.col ?? null }))
+            : getPageItems(n);
+          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClick={() => {
+                    if (showSharedPicker && sharedCtx?.isPrimary) {
+                      // Toggle this page in the issue's shared_pages array
+                      const cur = issue.sharedPages || [];
+                      const next = cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a,b) => a-b);
+                      setIssues(ii => ii.map(i => i.id === issue.id ? { ...i, sharedPages: next } : i));
+                      supabase.from("issues").update({ shared_pages: next }).eq("id", issue.id);
+                    } else if (showSectionPicker) {
+                      setNewSectionPages(ps => ps.includes(n) ? ps.filter(x => x !== n) : [...ps, n].sort((a,b) => a-b));
+                    } else {
+                      setSelPage(selPage === n ? null : n);
+                    }
+                  }} phLabels={phLabels} isSharedPage={!!isShared} sharedFromName={sharedLabel} isLocked={!!isLocked} />{sectionEndHere && <div style={{ width: "100%", height: 1, background: Z.bd, margin: "4px 0" }} />}</>; })}
       </div>
 
       {/* Right sidebar — issue stats + story list */}
@@ -627,7 +656,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: FS.sm, color: Z.tm }}>This issue was already sent to press on {issues.find(i => i.id === selIssue)?.sentToPressAt ? new Date(issues.find(i => i.id === selIssue).sentToPressAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—"}. Send invoices again?</div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="secondary" onClick={() => setSentToPressModal(false)}>Cancel</Btn>
+          <Btn v="cancel" onClick={() => setSentToPressModal(false)}>Cancel</Btn>
           <Btn onClick={() => { const iss = issues.find(i => i.id === selIssue); if (iss) executeSendToPress(iss); }}>Resend Invoices</Btn>
         </div>
       </div>
