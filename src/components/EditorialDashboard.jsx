@@ -701,8 +701,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           {(() => { const sc = statusColorsOn ? (statusColors[s.status] || statusColors.Draft) : null; return (
-                          <td style={{ padding: "5px 8px", background: sc?.bg || "transparent", borderLeft: sc ? `3px solid ${sc.fg}` : "none" }}>
-                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", color: sc?.fg || Z.tx, fontWeight: sc ? 700 : 500, background: "transparent", border: "none" }} />
+                          <td style={{ padding: "5px 8px", background: sc?.fg || "transparent", borderRadius: 3 }}>
+                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", color: sc ? "#fff" : Z.tx, fontWeight: 700, background: "transparent", border: "none" }} />
                           </td>
                           ); })()}
                           <td style={{ padding: "5px 8px", width: 60 }}>
