@@ -20,11 +20,11 @@ import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 import Dashboard from "./pages/Dashboard";
 import { NotificationPopover } from "./components/NotificationPopover";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
-import DashboardV2 from "./pages/DashboardV2";
 import IssueDetail from "./pages/IssueDetail";
 
 // Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
 const lazyLoad = (fn) => lazy(() => fn().catch(() => { window.location.reload(); return fn(); }));
+const DashboardV2 = lazyLoad(() => import("./pages/DashboardV2"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
 const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
@@ -632,7 +632,7 @@ export default function App() {
           {online && clients.length > 0 && (issueDetailId
             ? <IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} />
             : (useDashboardV2
-              ? <DashboardV2 pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || []} loadInquiries={appData.loadInquiries} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} />
+              ? <Suspense fallback={<LazyFallback />}><DashboardV2 pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || []} loadInquiries={appData.loadInquiries} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
               : <Dashboard pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} myPriorities={appData.myPriorities} priorityHelpers={{ addPriority: appData.addPriority, removePriority: appData.removePriority, highlightPriority: appData.highlightPriority, autoRemoveClosedPriorities: appData.autoRemoveClosedPriorities }} outreachCampaigns={appData.outreachCampaigns || []} outreachEntries={appData.outreachEntries || []} commissionGoals={appData.commissionGoals || []} billingLoaded={appData.billingLoaded} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} />)
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, useMemo, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { generateRenewalHtml, getRenewalSubject } from "../lib/renewalTemplate";
@@ -85,13 +85,27 @@ const Circulation = ({ pubs, issues, subscribers, setSubscribers, subscriptions,
   const totalDropCopies = locPubs.reduce((s, lp) => s + (lp.quantity || 0), 0);
   const activeLocCount = locs.filter(l => l.isActive).length;
 
-  // Per-pub subscriber counts
-  const pubSubCounts = pubs.map(p => ({
-    pub: p,
-    print: subs.filter(s => s.publicationId === p.id && s.type === "print" && s.status === "active").length,
-    digital: subs.filter(s => s.publicationId === p.id && s.type === "digital" && s.status === "active").length,
-    drops: locPubs.filter(lp => lp.publicationId === p.id).reduce((s, lp) => s + (lp.quantity || 0), 0),
-  }));
+  // Per-pub subscriber counts — O(pubs × subs). Memoize so typing in a
+  // modal doesn't re-scan the full subscriber list on every keystroke.
+  const pubSubCounts = useMemo(() => {
+    const printByPub = new Map();
+    const digitalByPub = new Map();
+    for (const s of subs) {
+      if (s.status !== "active") continue;
+      const m = s.type === "print" ? printByPub : s.type === "digital" ? digitalByPub : null;
+      if (m) m.set(s.publicationId, (m.get(s.publicationId) || 0) + 1);
+    }
+    const dropsByPub = new Map();
+    for (const lp of locPubs) {
+      dropsByPub.set(lp.publicationId, (dropsByPub.get(lp.publicationId) || 0) + (lp.quantity || 0));
+    }
+    return pubs.map(p => ({
+      pub: p,
+      print: printByPub.get(p.id) || 0,
+      digital: digitalByPub.get(p.id) || 0,
+      drops: dropsByPub.get(p.id) || 0,
+    }));
+  }, [pubs, subs, locPubs]);
 
   // ─── CRUD: Subscribers ──────────────────────────────────
   const openSubModal = (sub) => {

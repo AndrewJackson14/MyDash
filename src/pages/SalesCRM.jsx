@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect, memo } from "react";
+import { useState, useRef, useMemo, useEffect, memo, lazy, Suspense } from "react";
 import { useDialog } from "../hooks/useDialog";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
@@ -11,10 +11,12 @@ import { generateContractHtml } from "../lib/contractTemplate";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { fmtTimeRelative } from "../lib/formatters";
 import ClientList from "./sales/ClientList";
-import ClientProfile from "./sales/ClientProfile";
-import ClientSignals from "./sales/ClientSignals";
-import Commissions from "./sales/Commissions";
-import Outreach from "./sales/Outreach";
+// Heavy sub-views — only load when the user opens the relevant tab/row
+const ClientProfile = lazy(() => import("./sales/ClientProfile"));
+const ClientSignals = lazy(() => import("./sales/ClientSignals"));
+const Commissions = lazy(() => import("./sales/Commissions"));
+const Outreach = lazy(() => import("./sales/Outreach"));
+const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading…</div>;
 import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS, getAutoTier, getAutoTermLabel } from "./sales/constants";
 
 // Constants imported from ./sales/constants
@@ -825,9 +827,9 @@ const SalesCRM = (props) => {
     </>}
 
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
-    {tab === "Clients" && !viewClientId && clientView === "signals" && <ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} />}
+    {tab === "Clients" && !viewClientId && clientView === "signals" && <Suspense fallback={<SubFallback />}><ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} /></Suspense>}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
-    {tab === "Clients" && viewClientId && <ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} invoices={invoices} payments={payments} team={props.team} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2), billingAddress: vc.billingAddress || "", billingAddress2: vc.billingAddress2 || "", billingCity: vc.billingCity || "", billingState: vc.billingState || "", billingZip: vc.billingZip || "" }); setCmo(true); }} />}
+    {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} invoices={invoices} payments={payments} team={props.team} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2), billingAddress: vc.billingAddress || "", billingAddress2: vc.billingAddress2 || "", billingCity: vc.billingCity || "", billingState: vc.billingState || "", billingZip: vc.billingZip || "" }); setCmo(true); }} /></Suspense>}
 
     {/* PROPOSALS */}
     {tab === "Proposals" && !viewPropId && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1115,8 +1117,8 @@ const SalesCRM = (props) => {
       </div>; })()}
 
     {/* COMMISSIONS */}
-    {tab === "Commissions" && <Commissions sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} commissionRates={commissionRates || []} commissionLedger={commissionLedger || []} commissionPayouts={commissionPayouts || []} commissionGoals={commissionGoals || []} salespersonPubAssignments={salespersonPubAssignments || []} helpers={commissionHelpers || {}} tab={commTab} setTab={setCommTab} />}
-    {tab === "Outreach" && <Outreach sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} campaigns={outreachCampaigns || []} entries={outreachEntries || []} helpers={outreachHelpers || {}} navTo={navTo} />}
+    {tab === "Commissions" && <Suspense fallback={<SubFallback />}><Commissions sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} commissionRates={commissionRates || []} commissionLedger={commissionLedger || []} commissionPayouts={commissionPayouts || []} commissionGoals={commissionGoals || []} salespersonPubAssignments={salespersonPubAssignments || []} helpers={commissionHelpers || {}} tab={commTab} setTab={setCommTab} /></Suspense>}
+    {tab === "Outreach" && <Suspense fallback={<SubFallback />}><Outreach sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} campaigns={outreachCampaigns || []} entries={outreachEntries || []} helpers={outreachHelpers || {}} navTo={navTo} /></Suspense>}
 
     {/* INQUIRIES */}
     {tab === "Inquiries" && (() => {

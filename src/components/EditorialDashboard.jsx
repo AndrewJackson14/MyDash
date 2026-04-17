@@ -1,11 +1,14 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
-import StoryEditor from "./StoryEditor";
-import EditionManager from "../pages/EditionManager";
+
+// Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
+const StoryEditor = lazy(() => import("./StoryEditor"));
+const EditionManager = lazy(() => import("../pages/EditionManager"));
+const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: 13 }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 // Single-source status model: Draft → Edit → Ready → (published via
@@ -74,7 +77,9 @@ const needsRepublish = (story) => {
 };
 
 // ── Story Card (used in kanban and lists) ────────────────────────
-const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
+// Memoized: kanban renders 50–200 cards and only the dragged/updated one
+// should re-render. onClick is stabilized via useCallback in the parent.
+const StoryCard = memo(({ story, pubs, team, onClick, isDragging }) => {
   const webPublished = !!(story.sent_to_web || story.sentToWeb);
   const repubNeeded = needsRepublish(story);
   const pri = story.priority || "normal";
@@ -143,7 +148,7 @@ const StoryCard = ({ story, pubs, team, onClick, isDragging }) => {
       </div>
     </div>
   );
-};
+});
 
 // ── Kanban Column ────────────────────────────────────────────────
 const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
@@ -296,8 +301,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   }, [setStories, bus]);
 
   // ── Story editor ─────────────────────────────────────────
-  const openDetail = (story) => { setSelected(story); setEditorOpen(true); };
-  const closeEditor = () => { setEditorOpen(false); setSelected(null); };
+  // Stable refs so memo(StoryCard) isn't invalidated by the kanban re-rendering.
+  const openDetail = useCallback((story) => { setSelected(story); setEditorOpen(true); }, []);
+  const closeEditor = useCallback(() => { setEditorOpen(false); setSelected(null); }, []);
 
   const updateStory = (id, updates) => {
     if (updates._deleted) {
@@ -470,17 +476,19 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   if (editorOpen && selected) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 999, background: Z.bg, display: "flex", flexDirection: "column" }}>
-        <StoryEditor
-          story={selected}
-          onClose={closeEditor}
-          onUpdate={updateStory}
-          pubs={pubs}
-          issues={issues}
-          team={team}
-          bus={bus}
-          publishStory={publishStory}
-          unpublishStory={unpublishStory}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <StoryEditor
+            story={selected}
+            onClose={closeEditor}
+            onUpdate={updateStory}
+            pubs={pubs}
+            issues={issues}
+            team={team}
+            bus={bus}
+            publishStory={publishStory}
+            unpublishStory={unpublishStory}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -770,7 +778,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
       {/* EDITIONS */}
       {tab === "editions" && (
-        <EditionManager pubs={pubs} editions={editions} setEditions={setEditions} />
+        <Suspense fallback={<LazyFallback />}>
+          <EditionManager pubs={pubs} editions={editions} setEditions={setEditions} />
+        </Suspense>
       )}
 
       {/* Pulse animation for republish badge */}
