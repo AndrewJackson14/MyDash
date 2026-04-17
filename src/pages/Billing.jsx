@@ -9,6 +9,7 @@ import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { fmtCurrency, fmtDate, daysBetween, fmtTimeRelative } from "../lib/formatters";
 import BillsTab from "./BillsTab";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 // ─── Invoice Status Colors ──────────────────────────────────
 const INV_COLORS = {
@@ -200,7 +201,19 @@ const BillingSettings = ({ dialog, generatePending }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill, onNavigate }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill, onNavigate, isActive }) => {
+  // Publish TopBar header while Billing is the active page.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Billing" }],
+        title: "Billing",
+      });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [tab, setTab] = useState("Overview");
   const [showAllPlans, setShowAllPlans] = useState(false);
@@ -845,11 +858,12 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Billing">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {tab === "Invoices" && <SB value={sr} onChange={setSr} placeholder="Search invoices..." />}
       <Btn sm v="secondary" onClick={generatePending}><Ic.invoice size={13} /> Generate Invoices</Btn>
       <Btn sm onClick={() => openNewInvoice(null)}><Ic.plus size={13} /> New Invoice</Btn>
-    </PageHeader>
+    </div>
 
     <TabRow><TB tabs={["Overview", "Invoices", "Bills", "Payment Plans", "Receivables", "Reports", "Settings"]} active={tab} onChange={setTab} />{tab === "Invoices" && <><TabPipe /><TB tabs={INV_STATUSES.map(s => INV_STATUS_LABELS[s])} active={INV_STATUS_LABELS[statusFilter] || "Overdue"} onChange={v => { const entry = Object.entries(INV_STATUS_LABELS).find(([, l]) => l === v); setStatusFilter(entry ? entry[0] : "overdue"); }} /></>}</TabRow>
 
