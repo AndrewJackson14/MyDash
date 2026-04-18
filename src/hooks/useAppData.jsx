@@ -1138,7 +1138,22 @@ export function DataProvider({ children, localData }) {
 
   const updateIssueGoal = useCallback(async (issueId, goal) => {
     setIssues(ii => ii.map(i => i.id === issueId ? { ...i, revenueGoal: goal } : i));
-    if (isOnline()) await supabase.from('issues').update({ revenue_goal: goal }).eq('id', issueId);
+    if (isOnline()) {
+      // Keep issues.revenue_goal in sync for legacy readers AND upsert
+      // commission_issue_goals so the rebuild trigger fires and the
+      // salesperson allocations cascade. Without the commission_issue_goals
+      // write, goal edits made via Flatplan or Sales flows would never
+      // reach issue_goal_allocations.
+      const { data: issueRow } = await supabase
+        .from('issues').select('pub_id').eq('id', issueId).single();
+      await supabase.from('issues').update({ revenue_goal: goal }).eq('id', issueId);
+      if (issueRow?.pub_id) {
+        await supabase.from('commission_issue_goals').upsert(
+          { issue_id: issueId, publication_id: issueRow.pub_id, goal },
+          { onConflict: 'issue_id' }
+        );
+      }
+    }
   }, []);
 
   const updateClient = useCallback(async (id, changes) => {

@@ -1,13 +1,278 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
+import { useAuth } from "../hooks/useAuth";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { supabase } from "../lib/supabase";
 import EZSchedule from "./EZSchedule";
 
 const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
 const TYPE_OPTIONS = ["Magazine", "Newspaper", "Special Publication"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtMoney = (n) => "$" + Math.round(Number(n) || 0).toLocaleString();
 
-const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive }) => {
+// ============================================================
+// GoalsSubtab — Publisher-only goal entry for the Financials cascade.
+// Issue goals are the single source of truth. Month/year rollups are
+// shown read-only, derived client-side from the issue-level goals.
+// Writes go through updateIssueGoal which upserts commission_issue_goals
+// (triggering the allocation rebuild via the db trigger in migration 051).
+// ============================================================
+const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments, team, updateIssueGoal }) => {
+  const activePubs = (pubs || []).filter(p => !p.dormant);
+  const [selPubId, setSelPubId] = useState(activePubs[0]?.id || "");
+  const currentYear = new Date().getFullYear();
+  const [selYear, setSelYear] = useState(currentYear);
+  const [expanded, setExpanded] = useState(new Set());
+  const [editDraft, setEditDraft] = useState({});
+  const [bulkAnnual, setBulkAnnual] = useState("");
+  const [bulkPct, setBulkPct] = useState("");
+  const [allocationsByIssue, setAllocationsByIssue] = useState({});
+  const [actualsByMonth, setActualsByMonth] = useState({});
+
+  // commission_issue_goals lookup so the UI reflects the canonical source
+  // even when issues.revenueGoal hasn't been synced for some reason.
+  const goalByIssue = useMemo(() => {
+    const m = {};
+    (commissionGoals || []).forEach(cg => { if (cg.issueId) m[cg.issueId] = Number(cg.goal) || 0; });
+    return m;
+  }, [commissionGoals]);
+
+  const pubIssues = useMemo(() => {
+    const yearStr = String(selYear);
+    return (issues || [])
+      .filter(i => i.pubId === selPubId && (i.date || "").startsWith(yearStr))
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  }, [issues, selPubId, selYear]);
+
+  const yearOptions = useMemo(() => {
+    const years = new Set();
+    (issues || []).filter(i => i.pubId === selPubId).forEach(i => {
+      const y = (i.date || "").slice(0, 4);
+      if (y) years.add(y);
+    });
+    years.add(String(currentYear));
+    return Array.from(years).sort();
+  }, [issues, selPubId, currentYear]);
+
+  const effectiveGoal = (iss) => {
+    const draft = editDraft[iss.id];
+    if (draft !== undefined && draft !== "") return Number(draft) || 0;
+    return goalByIssue[iss.id] ?? Number(iss.revenueGoal) ?? 0;
+  };
+
+  // Group issues by month. Annual roll-up math is just a sum.
+  const months = useMemo(() => {
+    const buckets = Array.from({ length: 12 }, (_, i) => ({ monthIdx: i, period: `${selYear}-${String(i + 1).padStart(2, "0")}`, issues: [], goal: 0 }));
+    pubIssues.forEach(iss => {
+      const m = Number((iss.date || "").slice(5, 7)) - 1;
+      if (m < 0 || m > 11) return;
+      buckets[m].issues.push(iss);
+    });
+    buckets.forEach(b => { b.goal = b.issues.reduce((s, iss) => s + effectiveGoal(iss), 0); });
+    return buckets;
+  }, [pubIssues, selYear, editDraft, goalByIssue]);
+
+  const annualGoal = months.reduce((s, m) => s + m.goal, 0);
+
+  // Fetch allocations + actuals for selPubId + selYear
+  useEffect(() => {
+    if (!selPubId) return;
+    let cancelled = false;
+    (async () => {
+      const [{ data: allocs }, { data: actRows }] = await Promise.all([
+        supabase.from("issue_goal_allocations")
+          .select("issue_id, salesperson_id, share_pct, allocated_goal, is_frozen")
+          .in("issue_id", pubIssues.map(i => i.id).filter(Boolean)),
+        supabase.from("publication_monthly_revenue")
+          .select("period, actual_revenue")
+          .eq("publication_id", selPubId)
+          .like("period", `${selYear}-%`),
+      ]);
+      if (cancelled) return;
+      const byIssue = {};
+      (allocs || []).forEach(a => {
+        if (!byIssue[a.issue_id]) byIssue[a.issue_id] = [];
+        byIssue[a.issue_id].push(a);
+      });
+      setAllocationsByIssue(byIssue);
+      const byMonth = {};
+      (actRows || []).forEach(r => { byMonth[r.period] = Number(r.actual_revenue) || 0; });
+      setActualsByMonth(byMonth);
+    })();
+    return () => { cancelled = true; };
+  }, [selPubId, selYear, pubIssues.length]);
+
+  const isIssueFrozen = (issueId) => (allocationsByIssue[issueId] || []).some(a => a.is_frozen);
+
+  const toggleMonth = (period) => setExpanded(prev => {
+    const n = new Set(prev);
+    if (n.has(period)) n.delete(period); else n.add(period);
+    return n;
+  });
+
+  const commitGoal = async (iss, raw) => {
+    const n = Math.max(0, Math.round(Number(raw) || 0));
+    setEditDraft(d => { const c = { ...d }; delete c[iss.id]; return c; });
+    if (updateIssueGoal) await updateIssueGoal(iss.id, n);
+  };
+
+  const distributeEvenly = async () => {
+    const total = Math.max(0, Math.round(Number(bulkAnnual) || 0));
+    if (!total) return;
+    const targets = pubIssues.filter(i => !isIssueFrozen(i.id));
+    if (targets.length === 0) return;
+    const per = Math.round(total / targets.length);
+    for (const iss of targets) {
+      await updateIssueGoal?.(iss.id, per);
+    }
+    setBulkAnnual("");
+  };
+
+  const bumpByPct = async () => {
+    const pct = Number(bulkPct) || 0;
+    if (!pct) return;
+    for (const iss of pubIssues) {
+      if (isIssueFrozen(iss.id)) continue;
+      const curr = goalByIssue[iss.id] ?? Number(iss.revenueGoal) ?? 0;
+      const next = Math.max(0, Math.round(curr * (1 + pct / 100)));
+      await updateIssueGoal?.(iss.id, next);
+    }
+    setBulkPct("");
+  };
+
+  // Read-only salesperson allocation preview based on current
+  // salesperson_pub_assignments × the derived annual goal for selPubId.
+  const activeAssignments = (salespersonPubAssignments || []).filter(a => a.publicationId === selPubId && a.isActive !== false && (a.percentage || 0) > 0);
+  const teamById = useMemo(() => { const m = {}; (team || []).forEach(t => { m[t.id] = t; }); return m; }, [team]);
+
+  const labelFor = (iss) => iss.label || (iss.date || "").slice(0, 10);
+
+  // Rollup: YTD goal running sum for a quick "where are we tracking?" read
+  let ytdSum = 0;
+  const monthsRollup = months.map(m => { ytdSum += m.goal; return { ...m, ytdGoal: ytdSum }; });
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    {/* Picker row */}
+    <GlassCard>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 1fr", gap: 12, alignItems: "flex-end" }}>
+        <Sel label="Publication" value={selPubId} onChange={e => setSelPubId(e.target.value)} options={activePubs.map(p => ({ value: p.id, label: p.name }))} />
+        <Sel label="Year" value={String(selYear)} onChange={e => setSelYear(Number(e.target.value))} options={yearOptions.map(y => ({ value: y, label: y }))} />
+        <div style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, textAlign: "right" }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>Annual Goal</div>
+          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{fmtMoney(annualGoal)}</div>
+        </div>
+      </div>
+    </GlassCard>
+
+    {/* Bulk ops */}
+    <GlassCard>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: COND }}>Bulk Adjustments</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <Inp label="Annual $ (split evenly across non-frozen issues)" type="number" value={bulkAnnual} onChange={e => setBulkAnnual(e.target.value)} placeholder="e.g. 500000" />
+        </div>
+        <Btn onClick={distributeEvenly} disabled={!bulkAnnual}>Distribute Evenly</Btn>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <Inp label="Bump every issue by %" type="number" value={bulkPct} onChange={e => setBulkPct(e.target.value)} placeholder="e.g. 5" />
+        </div>
+        <Btn v="secondary" onClick={bumpByPct} disabled={!bulkPct}>Apply %</Btn>
+      </div>
+      <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6 }}>Bulk ops only affect non-frozen issues. Issues sent to press stay at their historical allocation.</div>
+    </GlassCard>
+
+    {/* Month rollup + expandable issue editing */}
+    <GlassCard noPad style={{ overflow: "hidden" }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${Z.bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{selYear} · {pubIssues.length} issues</span>
+        <span style={{ fontSize: FS.xs, color: Z.td }}>Click a month to expand issue-level goals</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 70px 110px 110px 110px 90px", gap: 0, alignItems: "center" }}>
+        <div style={{ padding: "10px 16px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa }}>Month</div>
+        <div style={{ padding: "10px 8px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Issues</div>
+        <div style={{ padding: "10px 8px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Goal</div>
+        <div style={{ padding: "10px 8px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>YTD Goal</div>
+        <div style={{ padding: "10px 8px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Actual</div>
+        <div style={{ padding: "10px 16px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Δ %</div>
+
+        {monthsRollup.map(m => {
+          const open = expanded.has(m.period);
+          const actual = actualsByMonth[m.period] || 0;
+          const variance = m.goal > 0 ? Math.round(((actual - m.goal) / m.goal) * 100) : null;
+          const varColor = variance === null ? Z.tm : variance >= 0 ? Z.go : variance >= -20 ? Z.wa : Z.da;
+          const disabledRow = m.issues.length === 0;
+          return <div key={m.period} style={{ display: "contents" }}>
+            <div onClick={disabledRow ? undefined : () => toggleMonth(m.period)} style={{ padding: "10px 16px", borderTop: `1px solid ${Z.bd}20`, cursor: disabledRow ? "default" : "pointer", color: disabledRow ? Z.td : Z.tx, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 10, color: Z.tm, width: 10 }}>{m.issues.length === 0 ? "" : open ? "▼" : "▶"}</span>
+              <span style={{ fontWeight: FW.semi, fontFamily: COND }}>{MONTH_NAMES[m.monthIdx]}</span>
+            </div>
+            <div style={{ padding: "10px 8px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", color: Z.tm, fontSize: FS.sm }}>{m.issues.length}</div>
+            <div style={{ padding: "10px 8px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", fontWeight: FW.bold, color: m.goal > 0 ? Z.tx : Z.td, fontFamily: DISPLAY }}>{fmtMoney(m.goal)}</div>
+            <div style={{ padding: "10px 8px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", color: Z.tm, fontFamily: DISPLAY }}>{fmtMoney(m.ytdGoal)}</div>
+            <div style={{ padding: "10px 8px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", color: actual > 0 ? Z.tx : Z.td, fontFamily: DISPLAY }}>{actual > 0 ? fmtMoney(actual) : "—"}</div>
+            <div style={{ padding: "10px 16px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", fontWeight: FW.heavy, color: varColor, fontFamily: DISPLAY }}>{variance === null ? "—" : `${variance > 0 ? "+" : ""}${variance}%`}</div>
+
+            {open && m.issues.map(iss => {
+              const frozen = isIssueFrozen(iss.id);
+              const goalVal = effectiveGoal(iss);
+              return <div key={iss.id} style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, padding: "8px 16px 8px 48px", borderTop: `1px solid ${Z.bd}10`, background: Z.bg, alignItems: "center" }}>
+                <div style={{ fontSize: FS.sm, color: Z.tx, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, minWidth: 80 }}>{(iss.date || "").slice(5)}</span>
+                  <span style={{ fontWeight: FW.semi }}>{labelFor(iss)}</span>
+                  {frozen && <span title="Sent to press — frozen" style={{ fontSize: 11, color: Z.wa, fontWeight: FW.bold, fontFamily: COND }}>🔒 FROZEN</span>}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <input
+                    type="number"
+                    value={editDraft[iss.id] !== undefined ? editDraft[iss.id] : goalVal}
+                    onChange={e => setEditDraft(d => ({ ...d, [iss.id]: e.target.value }))}
+                    onBlur={e => editDraft[iss.id] !== undefined && commitGoal(iss, e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    disabled={frozen}
+                    style={{ width: 140, padding: "6px 10px", textAlign: "right", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: frozen ? Z.tm : Z.tx, fontSize: FS.sm, fontFamily: DISPLAY, fontWeight: FW.bold, outline: "none", opacity: frozen ? 0.5 : 1 }}
+                  />
+                </div>
+              </div>;
+            })}
+          </div>;
+        })}
+      </div>
+    </GlassCard>
+
+    {/* Salesperson allocation preview */}
+    <GlassCard>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontFamily: COND }}>Salesperson Allocation Preview</div>
+      {activeAssignments.length === 0 ? (
+        <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No salesperson assignments for this publication yet.</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 130px 130px", gap: 0 }}>
+          <div style={{ padding: "8px 12px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa }}>Salesperson</div>
+          <div style={{ padding: "8px 12px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Share</div>
+          <div style={{ padding: "8px 12px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Annual Goal</div>
+          <div style={{ padding: "8px 12px", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, background: Z.sa, textAlign: "right" }}>Monthly Avg</div>
+          {activeAssignments.map(a => {
+            const tm = teamById[a.salespersonId];
+            const share = Number(a.percentage) || 0;
+            const annual = annualGoal * share / 100;
+            return <div key={a.id} style={{ display: "contents" }}>
+              <div style={{ padding: "8px 12px", borderTop: `1px solid ${Z.bd}20`, fontWeight: FW.semi, color: Z.tx }}>{tm?.name || "Unknown"}</div>
+              <div style={{ padding: "8px 12px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", color: Z.tm }}>{share}%</div>
+              <div style={{ padding: "8px 12px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", fontFamily: DISPLAY, fontWeight: FW.bold, color: Z.ac }}>{fmtMoney(annual)}</div>
+              <div style={{ padding: "8px 12px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", fontFamily: DISPLAY, color: Z.tm }}>{fmtMoney(annual / 12)}</div>
+            </div>;
+          })}
+        </div>
+      )}
+      <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 8 }}>
+        Derived from salesperson_pub_assignments × annual goal. Share % edits happen in Sales → Commissions; they apply to non-frozen (future) issues only.
+      </div>
+    </GlassCard>
+  </div>;
+};
+
+const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive, commissionGoals = [], salespersonPubAssignments = [], team = [] }) => {
+  const { teamMember } = useAuth();
+  const isPublisher = teamMember?.role === "Publisher";
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -25,6 +290,10 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const [showDormant, setShowDormant] = useState(false);
   const [goToWizard, setGoToWizard] = useState(false);
   const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue, hasWebsite: false, websiteUrl: "" });
+
+  // Publications | Goals tab state. Goals is Publisher-only.
+  const [tab, setTab] = useState("Publications");
+  const tabs = isPublisher ? ["Publications", "Goals"] : ["Publications"];
 
   const openPub = (p) => { setSel(p); setEditPub(JSON.parse(JSON.stringify(p))); setEditMode(false); setRateModal(true); };
   const savePub = async () => {
@@ -56,11 +325,15 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   if (showEZSchedule) return <EZSchedule pubs={pubs} issues={issues} setIssues={setIssues} insertIssuesBatch={insertIssuesBatch} onClose={() => setShowEZSchedule(false)} />;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    {/* Action row — title moved to TopBar via usePageHeader. */}
-    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+    {/* Action row — contextual per tab. Goals tab has its own picker
+        row inside the subtab, so the global action row stays empty
+        there. */}
+    {tab === "Publications" && <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Btn sm v="secondary" onClick={() => setShowEZSchedule(true)}>MyWizard</Btn>
       <Btn sm onClick={() => setShowAddPub(true)}><Ic.plus size={13} /> Publication</Btn>
-    </div>
+    </div>}
+
+    {tabs.length > 1 && <TabRow><TB tabs={tabs} active={tab} onChange={setTab} /></TabRow>}
 
     {/* ADD PUBLICATION MODAL */}
     <Modal open={showAddPub} onClose={() => setShowAddPub(false)} title="Add Publication" onSubmit={newPub.name ? handleAddPub : undefined}>
@@ -108,7 +381,16 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
         </div>
       </div>
     </Modal>
-    {[{ l: "Magazines", f: p => p.type === "Magazine" }, { l: "Newspapers", f: p => p.type === "Newspaper" }, { l: "Special Publications", f: p => p.type === "Special Publication" }].map(g => {
+    {tab === "Goals" && isPublisher && <GoalsSubtab
+      pubs={pubs}
+      issues={issues}
+      commissionGoals={commissionGoals}
+      salespersonPubAssignments={salespersonPubAssignments}
+      team={team}
+      updateIssueGoal={updateIssueGoal}
+    />}
+
+    {tab === "Publications" && [{ l: "Magazines", f: p => p.type === "Magazine" }, { l: "Newspapers", f: p => p.type === "Newspaper" }, { l: "Special Publications", f: p => p.type === "Special Publication" }].map(g => {
       const gpAll = pubs.filter(g.f);
       const gp = gpAll.filter(p => !p.dormant);
       const gpDormant = gpAll.filter(p => p.dormant);
