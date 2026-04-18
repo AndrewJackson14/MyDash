@@ -1,8 +1,12 @@
-import { useState, useEffect, useMemo, memo } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, FilterPillStrip } from "../components/ui";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
+
+const YearOverYearTab = lazy(() => import("./reports/YearOverYearTab"));
+const RevenueVsGoalsTab = lazy(() => import("./reports/RevenueVsGoalsTab"));
 
 import { fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 const fmtK = (n) => "$" + ((n || 0) / 1000).toFixed(1) + "K";
@@ -35,9 +39,17 @@ const Analytics = ({
       clearHeader();
     }
   }, [isActive, setHeader, clearHeader]);
+  const { teamMember } = useAuth();
+  const isPublisher = teamMember?.role === "Publisher" || !!teamMember?.permissions?.includes?.("admin");
   const [tab, setTab] = useState("Overview");
   const [plPub, setPlPub] = useState("all");
   const [overviewType, setOverviewType] = useState("all"); // "all" | "Magazine" | "Newspaper"
+
+  const reportTabs = useMemo(() => [
+    "Overview",
+    ...(isPublisher ? ["Year-over-Year", "Revenue vs. Goals"] : []),
+    "P&L", "Sales", "Editorial", "Subscribers", "Audience",
+  ], [isPublisher]);
 
   const _inv = invoices || [];
   const _pay = payments || [];
@@ -334,7 +346,21 @@ const Analytics = ({
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
-    <TabRow><TB tabs={["Overview", "P&L", "Sales", "Editorial", "Subscribers", "Audience"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={reportTabs} active={tab} onChange={setTab} /></TabRow>
+
+    {/* ════════ YEAR-OVER-YEAR (Publisher/admin only) ════════ */}
+    {tab === "Year-over-Year" && isPublisher && (
+      <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
+        <YearOverYearTab pubs={pubs} />
+      </Suspense>
+    )}
+
+    {/* ════════ REVENUE VS GOALS (Publisher/admin only) ════════ */}
+    {tab === "Revenue vs. Goals" && isPublisher && (
+      <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
+        <RevenueVsGoalsTab pubs={pubs} />
+      </Suspense>
+    )}
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
