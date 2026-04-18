@@ -12,6 +12,7 @@ import DOMPurify from "dompurify";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
 import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
 // ── Config ───────────────────────────────────────────────────
@@ -325,7 +326,15 @@ const ComposeModal = ({ open, onClose, onSent, replyTo, replyAll, forward, signa
 // ══════════════════════════════════════════════════════════════
 // MAIL PAGE
 // ══════════════════════════════════════════════════════════════
-const Mail = () => {
+const Mail = ({ isActive } = {}) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Mail" }], title: "Mail" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   // Connection state
   const [connected, setConnected] = useState(null); // null=loading, true/false
   const [googleEmail, setGoogleEmail] = useState("");
@@ -518,7 +527,7 @@ const Mail = () => {
 
   if (!connected) {
     return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <PageHeader title="Mail" />
+      {/* Title moved to TopBar via usePageHeader; no inline header. */}
       <GlassCard>
         <div style={{ textAlign: "center", padding: 40 }}>
           <Ic.mail size={48} color={Z.tm} />
@@ -534,12 +543,9 @@ const Mail = () => {
 
   // ── Connected — show mail ────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "calc(100vh - 80px)" }}>
-    {/* Header */}
+    {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Mail</h2>
-        <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{googleEmail}</span>
-      </div>
+      <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{googleEmail}</span>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <form onSubmit={e => { e.preventDefault(); handleSearch(); }} style={{ display: "flex", gap: 4 }}>
           <SB value={search} onChange={setSearch} placeholder="Search mail..." />

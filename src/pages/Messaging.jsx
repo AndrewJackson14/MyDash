@@ -10,10 +10,19 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
 import { Z, COND, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Modal } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase } from "../lib/supabase";
 import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
-const Messaging = memo(({ team, currentUser }) => {
+const Messaging = memo(({ team, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Messages" }], title: "Messages" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeOther, setActiveOther] = useState(null); // team_members.id of the other party

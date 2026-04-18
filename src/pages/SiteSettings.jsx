@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
@@ -487,7 +488,15 @@ function OrgAppearancePanel() {
 // ══════════════════════════════════════════════════════════════════
 // SITE SETTINGS PAGE
 // ══════════════════════════════════════════════════════════════════
-export default function SiteSettings({ pubs, setPubs }) {
+export default function SiteSettings({ pubs, setPubs, isActive }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Websites" }], title: "Websites" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -720,9 +729,8 @@ export default function SiteSettings({ pubs, setPubs }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>MyWebsites</h2>
+      {/* Action row — title moved to TopBar via usePageHeader. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={[{ value: "__mydash", label: "MyDash Appearance" }, ...sites.map(s => ({ value: s.id, label: s.name }))]} />
           {site?.domain && (

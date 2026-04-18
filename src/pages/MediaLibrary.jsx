@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
 import { Ic, Btn, SB, Pill, Modal, Sel } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMediaBatch, deleteMedia } from "../lib/media";
@@ -465,7 +466,20 @@ const CATEGORY_OPTIONS = [
   { value: "client_logo", label: "Client Logo" },
 ];
 
-export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset }) {
+export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset, isActive }) {
+  // Publish TopBar header only when this is the standalone page (not the
+  // embedded picker inside StoryEditor / SiteSettings / etc). When
+  // `embedded` is truthy the host page owns the header — bailing out of
+  // both branches keeps the host's title untouched.
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (embedded) return;
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Media Library" }], title: "Media Library" });
+    } else {
+      clearHeader();
+    }
+  }, [embedded, isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [showUnused, setShowUnused] = useState(false);
   const [items, setItems] = useState([]);
