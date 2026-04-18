@@ -97,7 +97,9 @@ const RoleDashboard = memo(({
   };
 
   // ─── Content Editor Dashboard (Camille) — Sec 12.2 ────
-  if (["Editor", "Managing Editor", "Copy Editor", "Content Editor"].includes(role)) {
+  // Editor-in-Chief and Photo Editor fold in here — both work against the
+  // same editorial queue / issue deadlines / edit volume metrics.
+  if (["Editor", "Managing Editor", "Copy Editor", "Content Editor", "Editor-in-Chief", "Photo Editor"].includes(role)) {
     const myQueue = _stories.filter(s => ["Needs Editing", "Draft"].includes(s.status)).sort((a, b) => (a.dueDate || "9").localeCompare(b.dueDate || "9"));
     const editedToday = _stories.filter(s => s.status === "Edited" && s.updatedAt?.startsWith(today));
     const stuckCount = myQueue.filter(s => s.updatedAt && Math.round((new Date(today) - new Date(s.updatedAt.slice(0, 10))) / 86400000) > 3).length;
@@ -760,11 +762,257 @@ const RoleDashboard = memo(({
     </div>;
   }
 
-  // ─── Fallback: generic team dashboard ────
+  // ─── Sales Dashboard (Dana, Salespeople) ─────────────
+  // "My" = sales where the member is the assigned rep, OR sales on
+  // clients where the member is the client's primary rep (legacy
+  // attribution fallback). Every computation stays scoped to the member
+  // viewed; nothing shows org-wide numbers from this branch.
+  if (["Salesperson", "Sales Manager"].includes(role)) {
+    const myClientIds = new Set(_clients.filter(c => c.repId === currentUser?.id).map(c => c.id));
+    const mySales = _sales.filter(s => (s.assignedTo && s.assignedTo === currentUser?.id) || myClientIds.has(s.clientId));
+    const closed = mySales.filter(s => s.status === "Closed");
+    const active = mySales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pipelineValue = active.reduce((s, x) => s + (x.amount || 0), 0);
+    const mtdClosed = closed.filter(s => s.date?.startsWith(thisMonth));
+    const mtdRev = mtdClosed.reduce((s, x) => s + (x.amount || 0), 0);
+    const todayActions = mySales.filter(s => s.nextActionDate === today && s.nextAction && s.status !== "Closed");
+    const overdue = mySales.filter(s => s.nextActionDate && s.nextActionDate < today && s.nextAction && s.status !== "Closed");
+    const d7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const weekActions = mySales.filter(s => s.nextActionDate && s.nextActionDate >= today && s.nextActionDate <= d7 && s.nextAction && s.status !== "Closed");
+    const recentWins = [...closed].sort((a, b) => (b.closedAt || b.date || "").localeCompare(a.closedAt || a.date || "")).slice(0, 3);
+    const adDeadlines = _issues.filter(i => i.adDeadline && daysUntil(i.adDeadline) >= 0 && daysUntil(i.adDeadline) <= 14);
+
+    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
+      {/* Hero */}
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
+        {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 20 }}>{greeting}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(pipelineValue)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {active.length}</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} closed</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: todayActions.length > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{todayActions.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Today's Actions</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: overdue.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdue.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        {/* LEFT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={glass}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Active Pipeline</div>
+            {active.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No active deals</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
+              {active.slice(0, 20).map(s => {
+                const c = cn(s.clientId);
+                return <div key={s.id} onClick={() => onNavigate?.("sales")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${Z.ac}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{c}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.status || "—"} · {pn(s.publication)}{s.nextActionDate ? ` · action ${s.nextActionDate}` : ""}</div>
+                  </div>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(s.amount || 0)}</div>
+                </div>;
+              })}
+            </div>}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Actions This Week ({weekActions.length})</div>
+            {weekActions.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No scheduled follow-ups this week</div>
+            : weekActions.slice(0, 10).map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm }}>{typeof s.nextAction === "string" ? s.nextAction : (s.nextAction?.label || "Follow up")}</div>
+              </div>
+              <div style={{ fontSize: FS.xs, color: s.nextActionDate === today ? Z.ac : Z.tm, fontWeight: s.nextActionDate === today ? FW.bold : FW.semi }}>{fmtDate(s.nextActionDate)}</div>
+            </div>)}
+          </div>
+        </div>
+        {/* RIGHT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Wins</div>
+            {recentWins.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No closed deals yet</div>
+            : recentWins.map(s => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cn(s.clientId)}</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtDate(s.closedAt?.slice(0, 10) || s.date)}</div>
+              </div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go }}>{fmtCurrency(s.amount || 0)}</div>
+            </div>)}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Ad Deadlines</div>
+            {adDeadlines.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No upcoming deadlines</div>
+            : adDeadlines.slice(0, 5).map(i => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: FS.sm }}>
+              <span style={{ color: Z.tx, fontFamily: COND }}>{pn(i.pubId)} {i.label}</span>
+              <span style={{ color: daysUntil(i.adDeadline) <= 3 ? Z.da : Z.tm, fontWeight: FW.bold }}>{daysUntil(i.adDeadline)}d</span>
+            </div>)}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("sales")} style={{ justifyContent: "flex-start" }}>Sales CRM</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("calendar")} style={{ justifyContent: "flex-start" }}>Calendar</Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
+  // ─── Publisher Dashboard (Hayley) ─────────────────────
+  // Org-wide view — not scoped to `currentUser` the way role dashboards
+  // usually are, because the publisher wants a read on the whole
+  // operation, not just their own row.
+  if (role === "Publisher") {
+    const activeSales = _sales.filter(s => !["Closed", "Follow-up"].includes(s.status));
+    const pipelineValue = activeSales.reduce((s, x) => s + (x.amount || 0), 0);
+    const mtdClosed = _sales.filter(s => s.status === "Closed" && s.date?.startsWith(thisMonth));
+    const mtdRev = mtdClosed.reduce((s, x) => s + (x.amount || 0), 0);
+    const teamSize = (team || []).filter(t => !t.isHidden && t.isActive !== false).length;
+    const openInvoices = (invoices || []).filter(inv => ["sent", "overdue", "partially_paid"].includes(inv.status));
+    const overdueInvoices = openInvoices.filter(inv => inv.dueDate && inv.dueDate < today);
+    const overdueBalance = overdueInvoices.reduce((s, inv) => s + Number(inv.balanceDue || 0), 0);
+    const d7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const upcomingIssues = _issues.filter(i => i.date >= today && i.date <= d7);
+
+    // Top closers MTD by rep
+    const repRevenue = {};
+    mtdClosed.forEach(s => {
+      const repId = s.assignedTo;
+      if (repId) repRevenue[repId] = (repRevenue[repId] || 0) + (s.amount || 0);
+    });
+    const topReps = Object.entries(repRevenue)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id, rev]) => ({ id, name: (team || []).find(t => t.id === id)?.name || "Unassigned", revenue: rev }));
+
+    // Stories needing editorial attention (queue + in-edit)
+    const storyQueue = _stories.filter(s => ["Draft", "Needs Editing"].includes(s.status)).length;
+
+    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
+        {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 20 }}>{greeting}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} deals</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(pipelineValue)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {activeSales.length} open</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{teamSize}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Team</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: overdueInvoices.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdueInvoices.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue Invoices · {fmtCurrency(overdueBalance)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        {/* LEFT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={glass}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Top Closers — This Month</div>
+            {topReps.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No closed deals this month</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {topReps.map((rep, idx) => <div key={rep.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: idx === 0 ? Z.go + "25" : Z.sa, color: idx === 0 ? Z.go : Z.tm, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black }}>{idx + 1}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{rep.name}</div>
+                </div>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(rep.revenue)}</div>
+              </div>)}
+            </div>}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Upcoming Issues (7 days)</div>
+            {upcomingIssues.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No issues publishing this week</div>
+            : upcomingIssues.slice(0, 8).map(i => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+              <div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{pn(i.pubId)} {i.label}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>Publishes {fmtDate(i.date)}</div></div>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: daysUntil(i.date) <= 2 ? Z.wa : Z.tm }}>{daysUntil(i.date)}d</div>
+            </div>)}
+          </div>
+        </div>
+        {/* RIGHT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Signals</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: FS.sm }}>
+              {storyQueue > 0 && <div style={{ color: Z.wa }}>• {storyQueue} stor{storyQueue === 1 ? "y" : "ies"} in editorial queue</div>}
+              {overdueInvoices.length > 0 && <div style={{ color: Z.da }}>• {overdueInvoices.length} overdue invoice{overdueInvoices.length === 1 ? "" : "s"} ({fmtCurrency(overdueBalance)})</div>}
+              {upcomingIssues.length > 0 && <div style={{ color: Z.ac }}>• {upcomingIssues.length} issue{upcomingIssues.length === 1 ? "" : "s"} publishing this week</div>}
+              {activeSales.length > 0 && <div style={{ color: Z.tx }}>• {activeSales.length} active deal{activeSales.length === 1 ? "" : "s"} in pipeline</div>}
+              {storyQueue === 0 && overdueInvoices.length === 0 && upcomingIssues.length === 0 && <div style={{ color: Z.go }}>All clear ✓</div>}
+            </div>
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("analytics")} style={{ justifyContent: "flex-start" }}>Reports</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("performance")} style={{ justifyContent: "flex-start" }}>Performance</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("team")} style={{ justifyContent: "flex-start" }}>Team</Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
+  // ─── Fallback: smarter generic dashboard for long-tail roles ────
+  // Distribution Manager, Marketing Manager, Finance, Writer/Reporter,
+  // Stringer, etc. land here. Show the member's basic context
+  // (assigned pubs, employment type, unread direction) instead of
+  // the placeholder message.
+  const assignedPubNames = (currentUser?.pubs || []).includes("all")
+    ? ["All publications"]
+    : (pubs || []).filter(p => (currentUser?.pubs || []).includes(p.id)).map(p => p.name);
+  const unreadDirection = directionNotes.filter(n => !n.is_read).length;
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
     {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
-    <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.md }}>
-      Your personalized dashboard is being set up. Use the sidebar to navigate to your modules.
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={glass}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>At a Glance</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", minWidth: 90 }}>Role</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx, fontWeight: FW.semi }}>{role || "—"}</span>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", minWidth: 90 }}>Employment</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}>{currentUser?.isFreelance ? "Independent Contractor (1099)" : "Employee (W-2)"}</span>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", minWidth: 90 }}>Publications</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}>{assignedPubNames.length > 0 ? assignedPubNames.join(", ") : "None assigned"}</span>
+          </div>
+          {unreadDirection > 0 && <div style={{ display: "flex", gap: 12 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", minWidth: 90 }}>Messages</span>
+            <span style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.bold }}>{unreadDirection} unread from publisher</span>
+          </div>}
+        </div>
+        <div style={{ marginTop: 16, fontSize: FS.sm, color: Z.tm }}>A role-specific dashboard for <strong>{role}</strong> isn't built yet. Use the sidebar to get to your modules.</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <DirectionCard />
+      </div>
     </div>
   </div>;
 });
