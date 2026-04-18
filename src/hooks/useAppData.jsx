@@ -339,14 +339,14 @@ export function DataProvider({ children, localData }) {
   const loadClientDetails = useCallback(async () => {
     if (clientDetailsLoaded || !isOnline()) return;
     const [allContacts, allComms, allSalesSummary] = await Promise.all([
-      fetchAllRows('client_contacts', null, true, 'id,client_id,name,email,phone,role,is_primary'),
+      fetchAllRows('client_contacts', null, true, 'id,client_id,name,email,phone,role,is_primary,notes'),
       fetchAllRows('communications', 'created_at', false, 'id,client_id,type,author_name,date,note'),
       fetchAllRows('client_sales_summary', null, true, 'client_id,publication_id,year,order_count,total_revenue,avg_order,ad_sizes,first_order_date,last_order_date'),
     ]);
     const contactsByClient = {};
     allContacts.forEach(ct => {
       if (!contactsByClient[ct.client_id]) contactsByClient[ct.client_id] = [];
-      contactsByClient[ct.client_id].push({ id: ct.id, name: ct.name, email: ct.email, phone: ct.phone, role: ct.role, isPrimary: ct.is_primary });
+      contactsByClient[ct.client_id].push({ id: ct.id, name: ct.name, email: ct.email, phone: ct.phone, role: ct.role, isPrimary: ct.is_primary, notes: ct.notes || "" });
     });
     const commsByClient = {};
     allComms.forEach(cm => {
@@ -1168,6 +1168,26 @@ export function DataProvider({ children, localData }) {
         db.credit_hold_set_at = changes.creditHold ? new Date().toISOString() : null;
       }
       if (Object.keys(db).length) await supabase.from('clients').update(db).eq('id', id);
+    }
+  }, []);
+
+  // Update a single contact row on client_contacts. Used by the per-contact
+  // Relationship Notes textarea on the client profile and by any future
+  // inline contact edits. Local state mirrors the change so the UI is
+  // optimistic; the remote update runs in the background.
+  const updateClientContact = useCallback(async (clientId, contactId, changes) => {
+    setClients(cl => cl.map(c => c.id === clientId
+      ? { ...c, contacts: (c.contacts || []).map(ct => ct.id === contactId ? { ...ct, ...changes } : ct) }
+      : c));
+    if (isOnline()) {
+      const db = {};
+      if (changes.name !== undefined) db.name = changes.name;
+      if (changes.email !== undefined) db.email = changes.email;
+      if (changes.phone !== undefined) db.phone = changes.phone;
+      if (changes.role !== undefined) db.role = changes.role;
+      if (changes.notes !== undefined) db.notes = changes.notes;
+      if (changes.isPrimary !== undefined) db.is_primary = changes.isPrimary;
+      if (Object.keys(db).length) await supabase.from('client_contacts').update(db).eq('id', contactId);
     }
   }, []);
 
@@ -2287,7 +2307,7 @@ export function DataProvider({ children, localData }) {
     addPriority, removePriority, highlightPriority, autoRemoveClosedPriorities,
     loaded,
     // Original write helpers
-    updateClient, insertClient, deleteClient,
+    updateClient, updateClientContact, insertClient, deleteClient,
     updatePubGoal, updateIssueGoal,
     updateStory, insertStory, deleteStory, publishStory, unpublishStory,
     updateSale, insertSale, deleteSale,

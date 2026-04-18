@@ -12,7 +12,7 @@ const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   invoices, payments, team,
   commForm, setCommForm, onBack, onNavTo, onOpenProposal, onSetViewPropId,
-  onOpenEditClient, bus,
+  onOpenEditClient, bus, updateClientContact,
 }) => {
   const appData = useAppData();
   useEffect(() => {
@@ -242,11 +242,8 @@ const ClientProfile = ({
             />
             <span style={{ fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, color: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.td }}>Legal Notices Client</span>
           </label>
-        </div>
-
-        {/* Credit hold toggle */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "4px 10px", background: vc.creditHold ? Z.da + "15" : Z.bg, border: `1px solid ${vc.creditHold ? Z.da : Z.bd}`, borderRadius: Ri }}>
+          {/* Credit Hold toggle — sits on the same row as Legal Notices. */}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "3px 8px", background: vc.creditHold ? Z.da + "15" : Z.bg, border: `1px solid ${vc.creditHold ? Z.da : Z.bd}`, borderRadius: Ri }}>
             <input
               type="checkbox"
               checked={!!vc.creditHold}
@@ -294,6 +291,241 @@ const ClientProfile = ({
       <Btn sm onClick={() => { if (onOpenProposal) onOpenProposal(vc.id); }}>Create Renewal Proposal</Btn>
     </div>}
 
+    {/* ── PRIMARY CONTACT — surfaces the main contact's full details
+         (name, role, email, phone, notes) at the top so a rep can reach
+         them immediately without scrolling to the Contacts card. When
+         there is no primary contact logged, prompts the user to add one. */}
+    <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Primary Contact</div>
+          {primaryContact.name ? <>
+            <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: serif }}>{primaryContact.name}</div>
+            {primaryContact.role && <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{primaryContact.role}</div>}
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+              {primaryContact.email && <a href={`mailto:${primaryContact.email}`} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.ac, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.mail size={12} /> {primaryContact.email}</a>}
+              {primaryContact.phone && <a href={`tel:${primaryContact.phone}`} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.ac, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.phone size={12} /> {primaryContact.phone}</a>}
+              {!primaryContact.email && !primaryContact.phone && <span style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>No email or phone set</span>}
+            </div>
+          </> : <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>No primary contact set. Add one in the Contacts card below.</div>}
+        </div>
+        {onOpenEditClient && <Btn sm v="ghost" onClick={() => onOpenEditClient(vc)}>Edit</Btn>}
+      </div>
+    </Card>
+
+    {/* ── TWO-COLUMN LAYOUT ── */}
+    <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16, alignItems: "start" }}>
+
+      {/* ══ LEFT COLUMN ══ */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Relationship Notes */}
+        <Card style={{ borderLeft: `3px solid ${Z.wa}` }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Relationship Notes</div>
+          <textarea value={vc.notes || ""} onChange={e => updClient("notes", e.target.value)} placeholder="Personal notes — preferences, interests, family, best time to call, how they like to be contacted, what matters to them..." style={{ width: "100%", minHeight: 120, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: 10, color: Z.tx, fontSize: FS.md, outline: "none", resize: "vertical", fontFamily: "'Source Sans 3',sans-serif", lineHeight: 1.5, boxSizing: "border-box" }} />
+        </Card>
+
+        {/* Client Intelligence */}
+        <Card>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Client Intelligence</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+            {[{ label: "Total Ads", value: closedCS.length }, { label: "Avg Deal", value: `$${avgDeal.toLocaleString()}` }, { label: "Years", value: yearsAsClient > 0 ? yearsAsClient : "New" }, { label: "Active Deals", value: activeCS.length }].map(m => <div key={m.label} style={{ textAlign: "center", padding: 16, background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{m.value}</div>
+              <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
+            </div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+            {[{ label: "Last Ad Placed", value: fmtD(lastAdDate) }, { label: "Last Contract Signed", value: fmtD(lastContractDate) }, { label: "First Purchase", value: fmtD(firstSaleDate) }].map(d => <div key={d.label} style={{ padding: 16, background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{d.label}</div>
+              <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, marginTop: 2 }}>{d.value}</div>
+            </div>)}
+          </div>
+          {closedCS.length > 0 && <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Spending Pattern</div>
+            <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 50 }}>
+              {monthlySpend.map((v, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                <div style={{ width: "100%", background: v > 0 ? (i === peakMonth ? Z.ac : Z.as) : Z.bg, borderRadius: Ri, height: `${Math.max(4, (v / maxMonthSpend) * 40)}px`, transition: "height 0.3s" }} />
+                <span style={{ fontSize: 8, color: i === peakMonth ? Z.ac : Z.td, fontWeight: i === peakMonth ? 800 : 400 }}>{monthNames[i]}</span>
+              </div>)}
+            </div>
+            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Peak: <span style={{ fontWeight: FW.bold, color: Z.ac }}>{monthNames[peakMonth]}</span>{monthlySpend[quietMonth] === 0 && <span> · Quiet: <span style={{ fontWeight: FW.bold, color: Z.wa }}>{monthNames[quietMonth]}</span></span>}</div>
+          </div>}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Product Adoption</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[{ label: "Print Ads", active: hasPrint }, { label: "Digital/Web", active: hasDigital }, { label: "Sponsored Content", active: hasSponsored }, { label: "Newsletter", active: cS.some(s => s.productType === "newsletter") }, { label: "E-Blast", active: cS.some(s => s.productType === "eblast") }, { label: "Creative Services", active: cS.some(s => s.productType === "creative") }].map(p => <span key={p.label} style={{ fontSize: FS.xs, fontWeight: FW.bold, padding: "3px 10px", borderRadius: Ri, background: p.active ? Z.as : Z.bg, color: p.active ? Z.ac : Z.td, border: `1px solid ${p.active ? Z.ac : Z.bd}` }}>{p.active ? "✓ " : ""}{p.label}</span>)}
+            </div>
+          </div>
+          {revByPub.length > 0 && <div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Revenue by Publication</div>
+            {revByPub.map(r => <div key={r.pub.id} style={{ marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{r.pub.name}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${r.rev.toLocaleString()}</span></div>
+              <div style={{ height: 4, background: Z.bg, borderRadius: Ri, marginTop: 2 }}><div style={{ height: "100%", borderRadius: Ri, width: `${(r.rev / maxPubRev) * 100}%`, background: Z.tm }} /></div>
+            </div>)}
+          </div>}
+        </Card>
+
+        {/* Client Satisfaction */}
+        <Card style={{ borderLeft: `3px solid ${avgScore && avgScore >= 4 ? Z.su : avgScore && avgScore >= 3 ? Z.wa : avgScore ? Z.da : Z.bd}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Client Satisfaction</div>
+            {avgScore && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 22, fontWeight: FW.black, color: avgScore >= 4 ? Z.su : avgScore >= 3 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{avgScore}</span>
+              <span style={{ fontSize: FS.xs, color: Z.td }}>/5 avg ({surveys.length} survey{surveys.length !== 1 ? "s" : ""})</span>
+            </div>}
+          </div>
+          {surveys.length === 0
+            ? <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base, background: Z.bg, borderRadius: Ri }}>No survey responses yet. Surveys auto-send 7 days after ad publication.</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {surveys.slice(0, 5).map((sv, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+                <div><div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{sv.publication} — {sv.issue || "Ad Survey"}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtD(sv.date)}</div></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{[1, 2, 3, 4, 5].map(n => <span key={n} style={{ fontSize: FS.md, color: n <= (sv.overallScore || 0) ? Z.tx : Z.bd }}>★</span>)}</div>
+              </div>)}
+            </div>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.sm, color: Z.tm, cursor: "pointer" }}>
+              <input type="checkbox" checked={vc.surveyAutoSend !== false} onChange={e => updClient("surveyAutoSend", e.target.checked)} />
+              Auto-send surveys (7 days after pub)
+            </label>
+          </div>
+        </Card>
+
+        {/* Contacts */}
+        <Card style={{ borderLeft: `3px solid ${Z.ac}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Contacts</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button onClick={() => setClients(cl => cl.map(c => c.id === vc.id ? { ...c, contacts: [...(c.contacts || []), { name: "", email: "", phone: "", role: "Other" }] } : c))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "2px 8px" }}>+ Add</button>
+              {onOpenEditClient && <button onClick={() => onOpenEditClient(vc)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, padding: "2px 8px" }}>Edit</button>}
+            </div>
+          </div>
+          {(vc.contacts || []).map((ct, idx) => <div key={ct.id || idx} style={{ background: Z.bg, borderRadius: R, padding: 16, marginBottom: 4 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
+              <Sel value={ct.role} onChange={e => updCt(idx, "role", e.target.value)} options={CONTACT_ROLES.map(r => ({ value: r, label: r }))} style={{ padding: "2px 24px 2px 6px", textTransform: "uppercase" }} />
+              {idx === 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, padding: "1px 5px", borderRadius: Ri }}>PRIMARY</span>}
+            </div>
+            <input value={ct.name} onChange={e => updCt(idx, "name", e.target.value)} placeholder="Name" style={{ display: "block", width: "100%", background: "none", border: "none", color: Z.tx, fontSize: FS.md, fontWeight: FW.semi, fontFamily: COND, outline: "none", boxSizing: "border-box" }} />
+            <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: Z.tm }}><span>{ct.email}</span>{ct.phone && <span>· {ct.phone}</span>}</div>
+            {/* Per-contact Relationship Notes — distinct from the
+                account-level notes above. Persists on blur so the
+                textarea isn't chatty over the wire. Unsaved new
+                contacts (no ct.id yet) save locally only; the user's
+                next full-save via the Edit Client modal flushes them. */}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Relationship Notes</div>
+              <textarea
+                value={ct.notes || ""}
+                onChange={e => updCt(idx, "notes", e.target.value)}
+                onBlur={e => { if (ct.id && updateClientContact) updateClientContact(vc.id, ct.id, { notes: e.target.value }); }}
+                placeholder="Preferred channel, family, interests, best time to call…"
+                style={{ width: "100%", minHeight: 56, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: 8, color: Z.tx, fontSize: FS.sm, outline: "none", resize: "vertical", fontFamily: "'Source Sans 3',sans-serif", lineHeight: 1.4, boxSizing: "border-box" }}
+              />
+            </div>
+          </div>)}
+        </Card>
+      </div>
+
+      {/* ══ RIGHT COLUMN (sticky) ══ */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 20, maxHeight: "calc(100vh - 120px)", overflow: "hidden" }}>
+
+        {/* Action Center */}
+        <Card style={{ borderLeft: `3px solid ${daysSinceContact > 7 ? Z.da : Z.ac}`, background: daysSinceContact > 14 ? Z.ds : Z.sf }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Next Step</div>
+          {activeCS.length > 0 ? <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, marginBottom: 8 }}>{activeCS[0].nextAction ? (typeof activeCS[0].nextAction === "string" ? activeCS[0].nextAction : activeCS[0].nextAction?.label || "Follow up") : "Follow up on active deal"}{activeCS[0].nextActionDate ? ` — ${activeCS[0].nextActionDate}` : ""}</div>
+            : <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm, fontFamily: COND, marginBottom: 8 }}>No active deals — time to reach out?</div>}
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <Btn sm onClick={() => onOpenProposal(vc.id)}><Ic.send size={11} /> Draft Proposal</Btn>
+            {closedCS.length > 0 && <Btn sm v="secondary" onClick={() => { if (bus) bus.emit("invoice.create", { clientId: vc.id, clientName: vc.name }); }}><Ic.invoice size={11} /> Create Invoice</Btn>}
+            <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: "Account Manager", note: "" })}>Log Call</Btn>
+            <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: "Account Manager", note: "" })}>Log Email</Btn>
+          </div>
+        </Card>
+
+        {/* Communication Timeline */}
+        <Card style={{ borderLeft: `3px solid ${Z.pu}`, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Relationship Timeline ({comms.length})</div>
+          <div style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, marginBottom: 6, border: `1px solid ${Z.bd}` }}>
+            <div style={{ display: "flex", gap: 3, marginBottom: 3 }}>
+              <Sel value={commForm.type} onChange={e => setCommForm(x => ({ ...x, type: e.target.value }))} options={[...COMM_TYPES, "Result", "Survey"].map(t => ({ value: t, label: t }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
+              <Sel value={commForm.author} onChange={e => setCommForm(x => ({ ...x, author: e.target.value }))} options={COMM_AUTHORS.map(a => ({ value: a, label: a }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
+            </div>
+            <div style={{ display: "flex", gap: 3 }}>
+              <input value={commForm.note} onChange={e => setCommForm(x => ({ ...x, note: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addComm(); }} placeholder="What happened..." style={{ flex: 1, background: Z.sa, border: "none", borderRadius: Ri, padding: "5px 8px", color: Z.tx, fontSize: FS.base, outline: "none" }} />
+              <Btn sm onClick={addComm}>Log</Btn>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+            {comms.map(cm => <div key={cm.id} style={{ padding: "10px 14px", borderLeft: `3px solid ${cc(cm.type)}`, background: Z.bg, borderRadius: "0 2px 2px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: cc(cm.type) }}>{cm.type}</span><span style={{ fontSize: FS.xs, color: Z.td }}>{cm.date} · {cm.author}</span></div>
+              <div style={{ fontSize: FS.base, color: Z.tx, lineHeight: 1.4, marginTop: 2 }}>{cm.note}</div>
+            </div>)}
+            {comms.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base }}>No communication logged yet</div>}
+          </div>
+        </Card>
+
+        {/* Sent History — every outbound email logged to this client */}
+        <Card style={{ borderLeft: `3px solid ${Z.ac}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Sent History ({emailLog.length})</span>
+            {emailLog.length > 0 && <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>Newest first</span>}
+          </div>
+          {emailLog.length === 0 ? (
+            <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No emails sent yet</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
+              {emailLog.map(e => {
+                const statusColor = e.status === "sent" ? Z.go : e.status === "failed" ? Z.da : e.status === "draft" ? Z.wa : Z.td;
+                const typeLabel = (e.type || "email").replace(/_/g, " ");
+                return <div key={e.id} style={{ padding: "7px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: statusColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{typeLabel}</span>
+                    <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtTimeRelative(e.created_at)}</span>
+                  </div>
+                  <div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.subject || "(no subject)"}</div>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 1 }}>
+                    {e.to_email}
+                    {e.status && e.status !== "sent" && <span style={{ color: statusColor, fontWeight: FW.bold, marginLeft: 6, textTransform: "uppercase" }}>· {e.status}</span>}
+                  </div>
+                  {e.error_message && <div style={{ fontSize: FS.micro, color: Z.da, marginTop: 2 }}>{e.error_message}</div>}
+                </div>;
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Opportunity */}
+        <Card style={{ borderLeft: `3px solid ${Z.or || Z.wa}`, flexShrink: 0 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Opportunity</div>
+          {(() => {
+            const signals = [];
+            if (clientStatus === "Renewal") signals.push({ text: "Last ordered ad runs within 30 days — renewal conversation is now", color: Z.da, icon: "🔥" });
+            if (clientStatus === "Lapsed") { const daysSinceLast = lastAdDate ? Math.floor((new Date() - new Date(lastAdDate)) / 86400000) : null; signals.push({ text: `No future ads ordered${daysSinceLast ? ` · last ad ${daysSinceLast}d ago` : ""} — re-engage`, color: Z.wa, icon: "⏰" }); }
+            if (closedCS.length > 0 && monthlySpend[peakMonth] > 0) { const now = new Date().getMonth(); const monthsUntilPeak = (peakMonth - now + 12) % 12; if (monthsUntilPeak > 0 && monthsUntilPeak <= 2) signals.push({ text: `Peak spending month (${monthNames[peakMonth]}) approaching — pitch now`, color: Z.ac, icon: "📈" }); }
+            if (avgDeal > 0 && avgDeal < peerAvgSpend * 0.6 && peerAvgSpend > 0) signals.push({ text: `Spending below industry avg — room to grow`, color: Z.wa, icon: "💡" });
+            return signals.length > 0 ? <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+              {signals.map((sig, i) => <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", background: sig.color + "10", borderRadius: Ri, border: `1px solid ${sig.color}30` }}>
+                <span style={{ flexShrink: 0 }}>{sig.icon}</span>
+                <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: sig.color, lineHeight: 1.3 }}>{sig.text}</span>
+              </div>)}
+            </div> : null;
+          })()}
+          {vcIndustries.length > 0 && industryPeers.length > 0 && <div style={{ padding: 16, background: Z.bg, borderRadius: Ri, marginBottom: 10 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Industry Benchmark ({vcIndustries[0]})</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div><div style={{ fontSize: 9, color: Z.td, textTransform: "uppercase" }}>Peer Avg Spend</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: (vc.totalSpend || 0) >= peerAvgSpend ? Z.su : Z.wa }}>${peerAvgSpend.toLocaleString()}</div></div>
+              <div><div style={{ fontSize: 9, color: Z.td, textTransform: "uppercase" }}>Top in Category</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.ac }}>${peerTopSpend.toLocaleString()}</div>{peerTopSpender && <div style={{ fontSize: FS.micro, color: Z.tm }}>{peerTopSpender.name}</div>}</div>
+            </div>
+            <div style={{ fontSize: FS.xs, color: (vc.totalSpend || 0) >= peerAvgSpend ? Z.su : Z.wa, fontWeight: FW.bold, marginTop: 4 }}>{(vc.totalSpend || 0) >= peerAvgSpend ? "Above industry average" : `$${(peerAvgSpend - (vc.totalSpend || 0)).toLocaleString()} below average`}</div>
+          </div>}
+          {activeCS.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Active Pipeline ({activeCS.length})</div>{activeCS.map(s => <div key={s.id} style={{ padding: "4px 0", borderBottom: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(s.publication)} · {s.type}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${(s.amount || 0).toLocaleString()}</span></div></div>)}</div>}
+          {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: Z.tm }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
+        </Card>
+        {/* Client Asset Library */}
+        {vc?.clientCode && <Card style={{ marginTop: 10 }}>
+          <AssetPanel path={`clients/${vc.clientCode}/assets`} title="Asset Library" clientId={vc.id} category="client_logo" />
+        </Card>}
+      </div>
+    </div>
     {/* ── FINANCIAL — AR at-a-glance, invoices, payments ── */}
     {(clientInvoices.length > 0 || clientPayments.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.pu}`, marginBottom: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -495,205 +727,7 @@ const ClientProfile = ({
       })}
     </Card>}
 
-    {/* ── TWO-COLUMN LAYOUT ── */}
-    <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16, alignItems: "start" }}>
-
-      {/* ══ LEFT COLUMN ══ */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Relationship Notes */}
-        <Card style={{ borderLeft: `3px solid ${Z.wa}` }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Relationship Notes</div>
-          <textarea value={vc.notes || ""} onChange={e => updClient("notes", e.target.value)} placeholder="Personal notes — preferences, interests, family, best time to call, how they like to be contacted, what matters to them..." style={{ width: "100%", minHeight: 120, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: 10, color: Z.tx, fontSize: FS.md, outline: "none", resize: "vertical", fontFamily: "'Source Sans 3',sans-serif", lineHeight: 1.5, boxSizing: "border-box" }} />
-        </Card>
-
-        {/* Client Intelligence */}
-        <Card>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Client Intelligence</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-            {[{ label: "Total Ads", value: closedCS.length }, { label: "Avg Deal", value: `$${avgDeal.toLocaleString()}` }, { label: "Years", value: yearsAsClient > 0 ? yearsAsClient : "New" }, { label: "Active Deals", value: activeCS.length }].map(m => <div key={m.label} style={{ textAlign: "center", padding: 16, background: Z.bg, borderRadius: Ri }}>
-              <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{m.value}</div>
-              <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
-            </div>)}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-            {[{ label: "Last Ad Placed", value: fmtD(lastAdDate) }, { label: "Last Contract Signed", value: fmtD(lastContractDate) }, { label: "First Purchase", value: fmtD(firstSaleDate) }].map(d => <div key={d.label} style={{ padding: 16, background: Z.bg, borderRadius: Ri }}>
-              <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{d.label}</div>
-              <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, marginTop: 2 }}>{d.value}</div>
-            </div>)}
-          </div>
-          {closedCS.length > 0 && <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Spending Pattern</div>
-            <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 50 }}>
-              {monthlySpend.map((v, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                <div style={{ width: "100%", background: v > 0 ? (i === peakMonth ? Z.ac : Z.as) : Z.bg, borderRadius: Ri, height: `${Math.max(4, (v / maxMonthSpend) * 40)}px`, transition: "height 0.3s" }} />
-                <span style={{ fontSize: 8, color: i === peakMonth ? Z.ac : Z.td, fontWeight: i === peakMonth ? 800 : 400 }}>{monthNames[i]}</span>
-              </div>)}
-            </div>
-            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Peak: <span style={{ fontWeight: FW.bold, color: Z.ac }}>{monthNames[peakMonth]}</span>{monthlySpend[quietMonth] === 0 && <span> · Quiet: <span style={{ fontWeight: FW.bold, color: Z.wa }}>{monthNames[quietMonth]}</span></span>}</div>
-          </div>}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Product Adoption</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[{ label: "Print Ads", active: hasPrint }, { label: "Digital/Web", active: hasDigital }, { label: "Sponsored Content", active: hasSponsored }, { label: "Newsletter", active: cS.some(s => s.productType === "newsletter") }, { label: "E-Blast", active: cS.some(s => s.productType === "eblast") }, { label: "Creative Services", active: cS.some(s => s.productType === "creative") }].map(p => <span key={p.label} style={{ fontSize: FS.xs, fontWeight: FW.bold, padding: "3px 10px", borderRadius: Ri, background: p.active ? Z.as : Z.bg, color: p.active ? Z.ac : Z.td, border: `1px solid ${p.active ? Z.ac : Z.bd}` }}>{p.active ? "✓ " : ""}{p.label}</span>)}
-            </div>
-          </div>
-          {revByPub.length > 0 && <div>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Revenue by Publication</div>
-            {revByPub.map(r => <div key={r.pub.id} style={{ marginBottom: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{r.pub.name}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${r.rev.toLocaleString()}</span></div>
-              <div style={{ height: 4, background: Z.bg, borderRadius: Ri, marginTop: 2 }}><div style={{ height: "100%", borderRadius: Ri, width: `${(r.rev / maxPubRev) * 100}%`, background: Z.tm }} /></div>
-            </div>)}
-          </div>}
-        </Card>
-
-        {/* Client Satisfaction */}
-        <Card style={{ borderLeft: `3px solid ${avgScore && avgScore >= 4 ? Z.su : avgScore && avgScore >= 3 ? Z.wa : avgScore ? Z.da : Z.bd}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Client Satisfaction</div>
-            {avgScore && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 22, fontWeight: FW.black, color: avgScore >= 4 ? Z.su : avgScore >= 3 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{avgScore}</span>
-              <span style={{ fontSize: FS.xs, color: Z.td }}>/5 avg ({surveys.length} survey{surveys.length !== 1 ? "s" : ""})</span>
-            </div>}
-          </div>
-          {surveys.length === 0
-            ? <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base, background: Z.bg, borderRadius: Ri }}>No survey responses yet. Surveys auto-send 7 days after ad publication.</div>
-            : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {surveys.slice(0, 5).map((sv, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
-                <div><div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{sv.publication} — {sv.issue || "Ad Survey"}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtD(sv.date)}</div></div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{[1, 2, 3, 4, 5].map(n => <span key={n} style={{ fontSize: FS.md, color: n <= (sv.overallScore || 0) ? Z.tx : Z.bd }}>★</span>)}</div>
-              </div>)}
-            </div>}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.sm, color: Z.tm, cursor: "pointer" }}>
-              <input type="checkbox" checked={vc.surveyAutoSend !== false} onChange={e => updClient("surveyAutoSend", e.target.checked)} />
-              Auto-send surveys (7 days after pub)
-            </label>
-          </div>
-        </Card>
-
-        {/* Contacts */}
-        <Card style={{ borderLeft: `3px solid ${Z.ac}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Contacts</span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={() => setClients(cl => cl.map(c => c.id === vc.id ? { ...c, contacts: [...(c.contacts || []), { name: "", email: "", phone: "", role: "Other" }] } : c))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "2px 8px" }}>+ Add</button>
-              {onOpenEditClient && <button onClick={() => onOpenEditClient(vc)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, padding: "2px 8px" }}>Edit</button>}
-            </div>
-          </div>
-          {(vc.contacts || []).map((ct, idx) => <div key={idx} style={{ background: Z.bg, borderRadius: R, padding: 16, marginBottom: 4 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
-              <Sel value={ct.role} onChange={e => updCt(idx, "role", e.target.value)} options={CONTACT_ROLES.map(r => ({ value: r, label: r }))} style={{ padding: "2px 24px 2px 6px", textTransform: "uppercase" }} />
-              {idx === 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, padding: "1px 5px", borderRadius: Ri }}>PRIMARY</span>}
-            </div>
-            <input value={ct.name} onChange={e => updCt(idx, "name", e.target.value)} placeholder="Name" style={{ display: "block", width: "100%", background: "none", border: "none", color: Z.tx, fontSize: FS.md, fontWeight: FW.semi, fontFamily: COND, outline: "none", boxSizing: "border-box" }} />
-            <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: Z.tm }}><span>{ct.email}</span>{ct.phone && <span>· {ct.phone}</span>}</div>
-          </div>)}
-        </Card>
-      </div>
-
-      {/* ══ RIGHT COLUMN (sticky) ══ */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 20, maxHeight: "calc(100vh - 120px)", overflow: "hidden" }}>
-
-        {/* Action Center */}
-        <Card style={{ borderLeft: `3px solid ${daysSinceContact > 7 ? Z.da : Z.ac}`, background: daysSinceContact > 14 ? Z.ds : Z.sf }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Next Step</div>
-          {activeCS.length > 0 ? <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, fontFamily: COND, marginBottom: 8 }}>{activeCS[0].nextAction ? (typeof activeCS[0].nextAction === "string" ? activeCS[0].nextAction : activeCS[0].nextAction?.label || "Follow up") : "Follow up on active deal"}{activeCS[0].nextActionDate ? ` — ${activeCS[0].nextActionDate}` : ""}</div>
-            : <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm, fontFamily: COND, marginBottom: 8 }}>No active deals — time to reach out?</div>}
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <Btn sm onClick={() => onOpenProposal(vc.id)}><Ic.send size={11} /> Draft Proposal</Btn>
-            {closedCS.length > 0 && <Btn sm v="secondary" onClick={() => { if (bus) bus.emit("invoice.create", { clientId: vc.id, clientName: vc.name }); }}><Ic.invoice size={11} /> Create Invoice</Btn>}
-            <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: "Account Manager", note: "" })}>Log Call</Btn>
-            <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: "Account Manager", note: "" })}>Log Email</Btn>
-          </div>
-        </Card>
-
-        {/* Communication Timeline */}
-        <Card style={{ borderLeft: `3px solid ${Z.pu}`, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Relationship Timeline ({comms.length})</div>
-          <div style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: Ri, padding: 6, marginBottom: 6, border: `1px solid ${Z.bd}` }}>
-            <div style={{ display: "flex", gap: 3, marginBottom: 3 }}>
-              <Sel value={commForm.type} onChange={e => setCommForm(x => ({ ...x, type: e.target.value }))} options={[...COMM_TYPES, "Result", "Survey"].map(t => ({ value: t, label: t }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
-              <Sel value={commForm.author} onChange={e => setCommForm(x => ({ ...x, author: e.target.value }))} options={COMM_AUTHORS.map(a => ({ value: a, label: a }))} style={{ padding: "3px 24px 3px 6px", flex: 1 }} />
-            </div>
-            <div style={{ display: "flex", gap: 3 }}>
-              <input value={commForm.note} onChange={e => setCommForm(x => ({ ...x, note: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addComm(); }} placeholder="What happened..." style={{ flex: 1, background: Z.sa, border: "none", borderRadius: Ri, padding: "5px 8px", color: Z.tx, fontSize: FS.base, outline: "none" }} />
-              <Btn sm onClick={addComm}>Log</Btn>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
-            {comms.map(cm => <div key={cm.id} style={{ padding: "10px 14px", borderLeft: `3px solid ${cc(cm.type)}`, background: Z.bg, borderRadius: "0 2px 2px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: cc(cm.type) }}>{cm.type}</span><span style={{ fontSize: FS.xs, color: Z.td }}>{cm.date} · {cm.author}</span></div>
-              <div style={{ fontSize: FS.base, color: Z.tx, lineHeight: 1.4, marginTop: 2 }}>{cm.note}</div>
-            </div>)}
-            {comms.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base }}>No communication logged yet</div>}
-          </div>
-        </Card>
-
-        {/* Sent History — every outbound email logged to this client */}
-        <Card style={{ borderLeft: `3px solid ${Z.ac}`, flexShrink: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Sent History ({emailLog.length})</span>
-            {emailLog.length > 0 && <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>Newest first</span>}
-          </div>
-          {emailLog.length === 0 ? (
-            <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No emails sent yet</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
-              {emailLog.map(e => {
-                const statusColor = e.status === "sent" ? Z.go : e.status === "failed" ? Z.da : e.status === "draft" ? Z.wa : Z.td;
-                const typeLabel = (e.type || "email").replace(/_/g, " ");
-                return <div key={e.id} style={{ padding: "7px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: statusColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{typeLabel}</span>
-                    <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtTimeRelative(e.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.subject || "(no subject)"}</div>
-                  <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 1 }}>
-                    {e.to_email}
-                    {e.status && e.status !== "sent" && <span style={{ color: statusColor, fontWeight: FW.bold, marginLeft: 6, textTransform: "uppercase" }}>· {e.status}</span>}
-                  </div>
-                  {e.error_message && <div style={{ fontSize: FS.micro, color: Z.da, marginTop: 2 }}>{e.error_message}</div>}
-                </div>;
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Opportunity */}
-        <Card style={{ borderLeft: `3px solid ${Z.or || Z.wa}`, flexShrink: 0 }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Opportunity</div>
-          {(() => {
-            const signals = [];
-            if (clientStatus === "Renewal") signals.push({ text: "Last ordered ad runs within 30 days — renewal conversation is now", color: Z.da, icon: "🔥" });
-            if (clientStatus === "Lapsed") { const daysSinceLast = lastAdDate ? Math.floor((new Date() - new Date(lastAdDate)) / 86400000) : null; signals.push({ text: `No future ads ordered${daysSinceLast ? ` · last ad ${daysSinceLast}d ago` : ""} — re-engage`, color: Z.wa, icon: "⏰" }); }
-            if (closedCS.length > 0 && monthlySpend[peakMonth] > 0) { const now = new Date().getMonth(); const monthsUntilPeak = (peakMonth - now + 12) % 12; if (monthsUntilPeak > 0 && monthsUntilPeak <= 2) signals.push({ text: `Peak spending month (${monthNames[peakMonth]}) approaching — pitch now`, color: Z.ac, icon: "📈" }); }
-            if (avgDeal > 0 && avgDeal < peerAvgSpend * 0.6 && peerAvgSpend > 0) signals.push({ text: `Spending below industry avg — room to grow`, color: Z.wa, icon: "💡" });
-            return signals.length > 0 ? <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-              {signals.map((sig, i) => <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 14px", background: sig.color + "10", borderRadius: Ri, border: `1px solid ${sig.color}30` }}>
-                <span style={{ flexShrink: 0 }}>{sig.icon}</span>
-                <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: sig.color, lineHeight: 1.3 }}>{sig.text}</span>
-              </div>)}
-            </div> : null;
-          })()}
-          {vcIndustries.length > 0 && industryPeers.length > 0 && <div style={{ padding: 16, background: Z.bg, borderRadius: Ri, marginBottom: 10 }}>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Industry Benchmark ({vcIndustries[0]})</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div><div style={{ fontSize: 9, color: Z.td, textTransform: "uppercase" }}>Peer Avg Spend</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: (vc.totalSpend || 0) >= peerAvgSpend ? Z.su : Z.wa }}>${peerAvgSpend.toLocaleString()}</div></div>
-              <div><div style={{ fontSize: 9, color: Z.td, textTransform: "uppercase" }}>Top in Category</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.ac }}>${peerTopSpend.toLocaleString()}</div>{peerTopSpender && <div style={{ fontSize: FS.micro, color: Z.tm }}>{peerTopSpender.name}</div>}</div>
-            </div>
-            <div style={{ fontSize: FS.xs, color: (vc.totalSpend || 0) >= peerAvgSpend ? Z.su : Z.wa, fontWeight: FW.bold, marginTop: 4 }}>{(vc.totalSpend || 0) >= peerAvgSpend ? "Above industry average" : `$${(peerAvgSpend - (vc.totalSpend || 0)).toLocaleString()} below average`}</div>
-          </div>}
-          {activeCS.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Active Pipeline ({activeCS.length})</div>{activeCS.map(s => <div key={s.id} style={{ padding: "4px 0", borderBottom: `1px solid ${Z.bd}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(s.publication)} · {s.type}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>${(s.amount || 0).toLocaleString()}</span></div></div>)}</div>}
-          {crossSellPubs.length > 0 && <div style={{ marginBottom: 8 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Not Yet Advertising In</div>{crossSellPubs.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}><div style={{ width: 4, height: 14, borderRadius: Ri, background: Z.tm }} /><span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{p.name}</span><span style={{ fontSize: FS.micro, color: Z.tm }}>{p.circ?.toLocaleString()}</span></div>)}</div>}
-        </Card>
-        {/* Client Asset Library */}
-        {vc?.clientCode && <Card style={{ marginTop: 10 }}>
-          <AssetPanel path={`clients/${vc.clientCode}/assets`} title="Asset Library" clientId={vc.id} category="client_logo" />
-        </Card>}
-      </div>
-    </div>
-  </div>;
+      </div>;
 };
 
 export default ClientProfile;
