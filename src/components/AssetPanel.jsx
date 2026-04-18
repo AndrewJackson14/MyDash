@@ -17,25 +17,35 @@ const isPdf = (name) => /\.pdf$/i.test(name);
 const fmtSize = (bytes) => bytes < 1024 ? `${bytes}B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / 1048576).toFixed(1)}MB`;
 
 // `path` is legacy — it used to point at a Bunny folder and the list
-// was a direct bunny list call. The problem: uploadMedia writes files
-// to /media/YYYY/MM/, not to the path prop, so the list never showed
-// anything uploaded through this panel. Now we query media_assets by
+// was a direct bunny list call. uploadMedia writes files to
+// /media/YYYY/MM/, not to the path prop, so the list never showed
+// anything uploaded through this panel. We now query media_assets by
 // the metadata props that uploadMedia tags each row with; path is
 // retained only so legacy callers don't have to be touched yet.
-const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact = false, clientId, adProjectId, publicationId, category = "general" }) => {
+//
+// `bunnyFallbackFolder` lets callers layer a direct-Bunny folder on
+// top of the media_assets query. This is how we surface files that
+// landed on disk without a media_assets row — currently the public
+// ClientUpload flow writes to ad_projects.client_assets_path on
+// Bunny without auth to insert into media_assets, and the designer's
+// AssetPanel was missing those files.
+const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact = false, clientId, adProjectId, publicationId, legalNoticeId, category = "general", bunnyFallbackFolder }) => {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   // Load assets from media_assets, filtered by whichever metadata anchors
-  // the panel. Most specific wins: ad project > client + category >
-  // publication. Without at least one filter we have no context so we
-  // render empty (this is the "don't list every asset in the system"
-  // safety valve).
+  // the panel. Most specific wins: legal notice > ad project > client +
+  // category > publication. Without at least one filter we render empty
+  // (the "don't list every asset in the system" safety valve).
+  //
+  // If bunnyFallbackFolder is provided, we additionally list that Bunny
+  // folder and append any files whose name isn't already represented by
+  // a media_assets row (media_assets wins on dedupe — it has metadata).
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!clientId && !adProjectId && !publicationId) {
+      if (!clientId && !adProjectId && !publicationId && !legalNoticeId) {
         setAssets([]); setLoading(false); return;
       }
       setLoading(true);
@@ -43,7 +53,8 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
         .select("id, file_name, cdn_url, file_url, file_size, created_at, storage_path")
         .order("created_at", { ascending: false })
         .limit(200);
-      if (adProjectId) q = q.eq("ad_project_id", adProjectId);
+      if (legalNoticeId) q = q.eq("legal_notice_id", legalNoticeId);
+      else if (adProjectId) q = q.eq("ad_project_id", adProjectId);
       else if (clientId) {
         q = q.eq("client_id", clientId);
         if (category) q = q.eq("category", category);
@@ -52,18 +63,48 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
       const { data, error } = await q;
       if (cancelled) return;
       if (error) { console.error("Asset list error:", error); setAssets([]); setLoading(false); return; }
-      setAssets((data || []).map(r => ({
+      const fromMedia = (data || []).map(r => ({
         id: r.id,
         name: r.file_name,
         url: r.cdn_url || r.file_url,
         size: r.file_size || 0,
         date: r.created_at,
         storagePath: r.storage_path,
-      })));
+      }));
+
+      // Supplement with direct-Bunny listing for flows that don't write
+      // media_assets rows (e.g. the public ClientUpload page).
+      let fromBunny = [];
+      if (bunnyFallbackFolder) {
+        try {
+          const res = await fetch(PROXY_URL, {
+            headers: { "x-action": "list", "x-path": bunnyFallbackFolder },
+          });
+          if (res.ok) {
+            const list = await res.json();
+            if (Array.isArray(list)) {
+              const mediaNames = new Set(fromMedia.map(a => a.name));
+              fromBunny = list
+                .filter(f => !f.IsDirectory && !mediaNames.has(f.ObjectName))
+                .map(f => ({
+                  id: `bunny:${bunnyFallbackFolder}/${f.ObjectName}`,
+                  name: f.ObjectName,
+                  url: `${CDN_BASE}/${bunnyFallbackFolder}/${f.ObjectName}`,
+                  size: f.Length || 0,
+                  date: f.LastChanged || f.DateCreated,
+                  storagePath: `${bunnyFallbackFolder}/${f.ObjectName}`,
+                }));
+            }
+          }
+        } catch (err) { console.warn("Bunny fallback list error:", err); }
+      }
+
+      if (cancelled) return;
+      setAssets([...fromMedia, ...fromBunny]);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [clientId, adProjectId, publicationId, category]);
+  }, [clientId, adProjectId, publicationId, legalNoticeId, category, bunnyFallbackFolder]);
 
   // Upload — routes through the shared uploadMedia() helper so every
   // asset gets a tagged media_assets row with the context metadata

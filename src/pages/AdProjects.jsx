@@ -591,7 +591,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive 
             if (!clientCode) return null;
             return <GlassCard>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <AssetPanel path={`clients/${clientCode}/projects/${viewProject.id}`} title="Project Assets" compact adProjectId={viewProject.id} clientId={viewProject.client_id} publicationId={viewProject.publication_id} category="ad_creative" />
+                <AssetPanel path={`clients/${clientCode}/projects/${viewProject.id}`} title="Project Assets" compact adProjectId={viewProject.id} clientId={viewProject.client_id} publicationId={viewProject.publication_id} category="ad_creative" bunnyFallbackFolder={viewProject.client_assets_path || `client-assets/${viewProject.id}`} />
                 <AssetPanel path={`clients/${clientCode}/assets`} title="Client Library" compact clientId={viewProject.client_id} category="client_logo" />
               </div>
             </GlassCard>;

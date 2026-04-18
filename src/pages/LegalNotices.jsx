@@ -4,6 +4,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
+import AssetPanel from "../components/AssetPanel";
 
 // ─── Constants ──────────────────────────────────────────────
 const NOTICE_TYPES = [
@@ -385,6 +386,18 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
           {viewNotice.verifiedAt && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Verified At</div><div style={{ fontSize: FS.base, color: Z.tx }}>{fmtDate(viewNotice.verifiedAt.slice(0, 10))}</div></div>}
         </div>
         {viewNotice.notes && <div style={{ marginTop: 10 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Notes</div><div style={{ fontSize: FS.base, color: Z.tm, marginTop: 2 }}>{viewNotice.notes}</div></div>}
+      </GlassCard>
+
+      {/* Attached scans — the pendingScans uploads at create time
+          landed in media_assets tagged with legal_notice_id. This
+          panel surfaces them on the notice detail view so the
+          scans are actually visible after save. */}
+      <GlassCard>
+        <AssetPanel
+          legalNoticeId={viewNotice.id}
+          title="Attached Scans"
+          allowUpload={false}
+        />
       </GlassCard>
     </div>;
   }
