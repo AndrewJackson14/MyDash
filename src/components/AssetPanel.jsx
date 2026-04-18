@@ -6,7 +6,7 @@
 import { useState, useEffect, memo } from "react";
 import { Z, FS, FW, Ri, R, COND } from "../lib/theme";
 import { Ic, Btn } from "../components/ui";
-import { EDGE_FN_URL } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { uploadMedia } from "../lib/media";
 
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
@@ -16,33 +16,54 @@ const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
 const isPdf = (name) => /\.pdf$/i.test(name);
 const fmtSize = (bytes) => bytes < 1024 ? `${bytes}B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)}KB` : `${(bytes / 1048576).toFixed(1)}MB`;
 
+// `path` is legacy — it used to point at a Bunny folder and the list
+// was a direct bunny list call. The problem: uploadMedia writes files
+// to /media/YYYY/MM/, not to the path prop, so the list never showed
+// anything uploaded through this panel. Now we query media_assets by
+// the metadata props that uploadMedia tags each row with; path is
+// retained only so legacy callers don't have to be touched yet.
 const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact = false, clientId, adProjectId, publicationId, category = "general" }) => {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
-  // Load assets from BunnyCDN
+  // Load assets from media_assets, filtered by whichever metadata anchors
+  // the panel. Most specific wins: ad project > client + category >
+  // publication. Without at least one filter we have no context so we
+  // render empty (this is the "don't list every asset in the system"
+  // safety valve).
   useEffect(() => {
-    if (!path) { setLoading(false); return; }
+    let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(PROXY_URL, {
-          method: "GET",
-          headers: { "x-action": "list", "x-path": path },
-        });
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setAssets(data.filter(f => !f.IsDirectory).map(f => ({
-            name: f.ObjectName,
-            url: `${CDN_BASE}/${path}/${f.ObjectName}`,
-            size: f.Length || 0,
-            date: f.LastChanged || f.DateCreated,
-          })));
-        }
-      } catch (err) { console.error("Asset list error:", err); }
+      if (!clientId && !adProjectId && !publicationId) {
+        setAssets([]); setLoading(false); return;
+      }
+      setLoading(true);
+      let q = supabase.from("media_assets")
+        .select("id, file_name, cdn_url, file_url, file_size, created_at, storage_path")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (adProjectId) q = q.eq("ad_project_id", adProjectId);
+      else if (clientId) {
+        q = q.eq("client_id", clientId);
+        if (category) q = q.eq("category", category);
+      }
+      else if (publicationId) q = q.eq("publication_id", publicationId);
+      const { data, error } = await q;
+      if (cancelled) return;
+      if (error) { console.error("Asset list error:", error); setAssets([]); setLoading(false); return; }
+      setAssets((data || []).map(r => ({
+        id: r.id,
+        name: r.file_name,
+        url: r.cdn_url || r.file_url,
+        size: r.file_size || 0,
+        date: r.created_at,
+        storagePath: r.storage_path,
+      })));
       setLoading(false);
     })();
-  }, [path]);
+    return () => { cancelled = true; };
+  }, [clientId, adProjectId, publicationId, category]);
 
   // Upload — routes through the shared uploadMedia() helper so every
   // asset gets a tagged media_assets row with the context metadata
@@ -59,12 +80,14 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
       for (const f of files) {
         try {
           const row = await uploadMedia(f, { clientId, adProjectId, publicationId, category });
-          setAssets(prev => [...prev, {
+          setAssets(prev => [{
+            id: row.id,
             name: row.file_name,
-            url: row.cdn_url,
+            url: row.cdn_url || row.file_url,
             size: row.file_size || f.size,
             date: row.created_at || new Date().toISOString(),
-          }]);
+            storagePath: row.storage_path,
+          }, ...prev]);
         } catch (err) { console.error("Upload error:", err); }
       }
       setUploading(false);
@@ -72,11 +95,14 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     inp.click();
   };
 
-  // Download via proxy (cross-origin CDN URLs don't support download attribute)
+  // Download via proxy (cross-origin CDN URLs don't support download attribute).
+  // Uses asset.storagePath (the actual bunny location from media_assets)
+  // rather than the legacy `path` prop, which was only ever right for the
+  // browse-folder list — never for the per-row download.
   const downloadAsset = async (asset) => {
     try {
       const res = await fetch(PROXY_URL, {
-        headers: { "x-action": "get", "x-path": `${path}/${asset.name}` },
+        headers: { "x-action": "get", "x-path": asset.storagePath || `${path}/${asset.name}` },
       });
       if (!res.ok) { window.open(asset.url, "_blank"); return; }
       const blob = await res.blob();
@@ -98,7 +124,7 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     {assets.length === 0 ? <div style={{ padding: compact ? 8 : 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No assets yet</div>
     : <div style={{ display: "grid", gridTemplateColumns: compact ? "repeat(auto-fill, minmax(60px, 1fr))" : "repeat(auto-fill, minmax(100px, 1fr))", gap: 6 }}>
       {assets.map(a => (
-        <div key={a.name} onClick={() => downloadAsset(a)} style={{ textDecoration: "none", cursor: "pointer" }}>
+        <div key={a.id || a.name} onClick={() => downloadAsset(a)} style={{ textDecoration: "none", cursor: "pointer" }}>
           <div style={{ background: Z.bg, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }}
             onMouseEnter={e => e.currentTarget.style.borderColor = Z.ac}
             onMouseLeave={e => e.currentTarget.style.borderColor = Z.bd}
