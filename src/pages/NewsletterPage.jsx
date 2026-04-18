@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, Toggle, DataTable, SB } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline } from "../lib/supabase";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -43,7 +44,15 @@ const SortableStory = ({ story, onUpdate, onRemove }) => {
 // ════════════════════════════════════════════════════════════
 // NEWSLETTER PAGE
 // ════════════════════════════════════════════════════════════
-const NewsletterPage = ({ pubs, currentUser }) => {
+const NewsletterPage = ({ pubs, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Newsletters" }], title: "Newsletters" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Today");
   const [selPub, setSelPub] = useState(NEWSLETTER_PUBS[0]);
   const [draft, setDraft] = useState(null);
@@ -231,9 +240,10 @@ const NewsletterPage = ({ pubs, currentUser }) => {
 
   // ════════════════════════════════════════════════════════
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <PageHeader title="Newsletters">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Btn sm onClick={openPreview} disabled={!draft}><Ic.globe size={13} /> Preview</Btn>
-    </PageHeader>
+    </div>
 
     <TabRow>
       <TB tabs={["Today", "Templates", "History"]} active={tab} onChange={setTab} />

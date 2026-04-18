@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, TB, Stat, Modal, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { SITES } from "../constants";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
@@ -22,7 +23,15 @@ async function getAuthHeader() {
 }
 
 // ─── Module ─────────────────────────────────────────────────
-const IntegrationsPage = ({ pubs }) => {
+const IntegrationsPage = ({ pubs, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Integrations" }], title: "Integrations" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Overview");
 
   // ─── QuickBooks Status ─────────────────────────────────
@@ -141,7 +150,7 @@ const IntegrationsPage = ({ pubs }) => {
 
   // ─── Render ─────────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Integrations" />
+    {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
 
     <TabRow><TB tabs={["Overview", "QuickBooks", "Google Workspace", "StellarPress", "Database"]} active={tab} onChange={setTab} /></TabRow>
 

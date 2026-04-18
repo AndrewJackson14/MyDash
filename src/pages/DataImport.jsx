@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, R, Ri, FS, FW } from "../lib/theme";
 import { Btn, FileBtn, GlassCard, PageHeader } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
@@ -393,7 +394,15 @@ const SimpleCircImport = () => {
   );
 };
 
-const DataImport = ({ onClose }) => {
+const DataImport = ({ onClose, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Data Import" }], title: "Data Import" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [clientStatus, setClientStatus] = useState("idle");
   const [clientProgress, setClientProgress] = useState({ counts: {}, total: 0, current: 0, errors: [], summary: "" });
   const [salesStatus, setSalesStatus] = useState("idle");
@@ -650,9 +659,10 @@ const DataImport = ({ onClose }) => {
   };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Data Import">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Btn sm v="ghost" onClick={onClose}>✕ Close</Btn>
-    </PageHeader>
+    </div>
 
     <ImportCard title="Client Import"
       description="Import 3,937 clients and 5,209 contacts from Newspaper Manager. Current team members mapped as reps."

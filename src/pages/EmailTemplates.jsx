@@ -12,6 +12,7 @@ import DOMPurify from "dompurify";
 import TextAlign from "@tiptap/extension-text-align";
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, Modal, GlassCard, PageHeader, TB, TabRow, Pill, SB, glass } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { DEFAULT_PROPOSAL_CONFIG, generateProposalHtml } from "../lib/proposalTemplate";
@@ -81,7 +82,15 @@ const MERGE_FIELDS = {
 
 const isDark = () => Z.bg === DARK.bg;
 
-const EmailTemplates = ({ pubs, currentUser }) => {
+const EmailTemplates = ({ pubs, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Email Templates" }], title: "Email Templates" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -258,10 +267,11 @@ const EmailTemplates = ({ pubs, currentUser }) => {
   );
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Email Templates">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <SB value={search} onChange={setSearch} placeholder="Search templates..." />
       <Btn sm onClick={() => { setCreateModal(true); }}><Ic.plus size={13} /> New Template</Btn>
-    </PageHeader>
+    </div>
 
     {/* Category tabs */}
     <TabRow>
