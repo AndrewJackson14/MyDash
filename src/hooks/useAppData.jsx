@@ -118,7 +118,7 @@ export function DataProvider({ children, localData }) {
         const s = payload.new;
         setSales(prev => {
           if (prev.some(x => x.id === s.id)) return prev;
-          return [{ id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id, type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height), amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at, contractId: s.contract_id || null, proposalId: s.proposal_id, productType: s.product_type || 'display_print' }, ...prev];
+          return [{ id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id, type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height), amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at, contractId: s.contract_id || null, proposalId: s.proposal_id, productType: s.product_type || 'display_print', assignedTo: s.assigned_to || null }, ...prev];
         });
       })
       .subscribe();
@@ -152,7 +152,7 @@ export function DataProvider({ children, localData }) {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason,billing_email,billing_cc_emails,billing_address,billing_address2,billing_city,billing_state,billing_zip';
-        const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id';
+        const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
         // Helper: fetch all rows from a table with automatic pagination.
         // Always applies an id tiebreaker on the ORDER BY — without one, pagination
@@ -178,11 +178,10 @@ export function DataProvider({ children, localData }) {
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
         const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal';
-        // NOTE: rate_type, rate_amount, specialties (plural), and availability
-        // do not exist on team_members in production — requesting them 400s the
-        // whole SELECT and blanks the roster. If the freelance rate-card
-        // feature ships, add a migration first, then add the columns back here.
-        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,commission_trigger,commission_default_rate';
+        // rate_type / rate_amount / availability landed via the
+        // add_freelancer_rate_columns migration. They are nullable and only
+        // populated for freelancers; non-freelancers leave them NULL.
+        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate';
         const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
@@ -216,7 +215,7 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -247,6 +246,7 @@ export function DataProvider({ children, localData }) {
           nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
           productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
           contractId: s.contract_id || null,
+          assignedTo: s.assigned_to || null,
         })));
 
         console.timeEnd('boot-transform');
@@ -276,7 +276,7 @@ export function DataProvider({ children, localData }) {
     let allSales = [];
     let sp = 0;
     while (true) {
-      const { data } = await supabase.from('sales').select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id').gte('date', cutoff).order('date', { ascending: false }).range(sp * 1000, (sp + 1) * 1000 - 1);
+      const { data } = await supabase.from('sales').select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to').gte('date', cutoff).order('date', { ascending: false }).range(sp * 1000, (sp + 1) * 1000 - 1);
       if (!data || data.length === 0) break;
       allSales = allSales.concat(data);
       if (data.length < 1000) break;
@@ -291,6 +291,7 @@ export function DataProvider({ children, localData }) {
       nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
+      assignedTo: s.assigned_to || null,
     })));
     setFullSalesLoaded(true);
   }, [fullSalesLoaded]);
@@ -305,7 +306,7 @@ export function DataProvider({ children, localData }) {
     let sp = 0;
     while (true) {
       const { data } = await supabase.from('sales')
-        .select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id')
+        .select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to')
         .eq('client_id', clientId)
         .order('date', { ascending: false })
         .range(sp * 1000, (sp + 1) * 1000 - 1);
@@ -324,6 +325,7 @@ export function DataProvider({ children, localData }) {
       nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
+      assignedTo: s.assigned_to || null,
     }));
     setSales(prev => {
       const byId = new Map(prev.map(s => [s.id, s]));
@@ -534,6 +536,7 @@ export function DataProvider({ children, localData }) {
           issueDate: i.issue_date, dueDate: i.due_date,
           notes: i.notes || '', createdAt: i.created_at,
           lockedAt: i.locked_at || null,
+          repId: i.rep_id || null, contractId: i.contract_id || null,
           chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
           quickbooksId: i.quickbooks_id || null, quickbooksSyncedAt: i.quickbooks_synced_at || null, quickbooksSyncError: i.quickbooks_sync_error || null,
           // Skinny lines — only the fields needed by the Billing module's
@@ -1421,6 +1424,7 @@ export function DataProvider({ children, localData }) {
       nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
+      assignedTo: s.assigned_to || null,
     })));
 
     // Pull down the newly created invoices + lines for this contract and merge
@@ -1454,6 +1458,7 @@ export function DataProvider({ children, localData }) {
               monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
               issueDate: i.issue_date, dueDate: i.due_date,
               notes: i.notes || '', createdAt: i.created_at,
+              repId: i.rep_id || null, contractId: i.contract_id || null,
               chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
               lines: (linesByInv[i.id] || []).map(l => ({
                 id: l.id, description: l.description,
@@ -1519,6 +1524,7 @@ export function DataProvider({ children, localData }) {
         total: inv.total, balance_due: inv.balanceDue ?? inv.total,
         monthly_amount: inv.monthlyAmount || 0, plan_months: inv.planMonths || 0,
         issue_date: inv.issueDate, due_date: inv.dueDate, notes: inv.notes || '',
+        rep_id: inv.repId || null, contract_id: inv.contractId || null,
       }).select().single();
       if (error) { console.error('insertInvoice failed:', error); return { ...inv, id: inv.id || 'inv-' + Date.now() }; }
       if (data && inv.lines?.length) {
@@ -2101,8 +2107,9 @@ export function DataProvider({ children, localData }) {
       if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
       if (changes.isFreelance !== undefined) db.is_freelance = changes.isFreelance;
       if (changes.specialty !== undefined) db.specialty = changes.specialty;
-      // rate_type / rate_amount / availability columns don't exist yet — see
-      // teamSelect note above. Add a migration before wiring these writes back.
+      if (changes.rateType !== undefined) db.rate_type = changes.rateType;
+      if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
+      if (changes.availability !== undefined) db.availability = changes.availability;
       if (Object.keys(db).length) {
         await supabase.from('team_members').update(db).eq('id', id);
         // Audit log for role/permission changes

@@ -9,6 +9,64 @@ import { MODULES, ROLE_DEFAULTS, ALERT_EVENTS, ALERT_OPTIONS, getAlertDefaults }
 
 const today = new Date().toISOString().slice(0, 10);
 
+// Mirror of the team_members.role Postgres enum (in db sort order).
+// Keep in sync with the enum if/when it grows.
+const TEAM_ROLES = [
+  "Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter",
+  "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer",
+  "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager",
+  "Production Manager", "Finance", "Office Manager", "Ad Designer",
+  "Layout Designer", "Content Editor", "Office Administrator",
+];
+
+// Freelance specialties — stored in team_members.specialty (text). The
+// values are stable identifiers so reporting can group across specialties;
+// only the labels are user-facing.
+const FREELANCE_SPECIALTIES = [
+  { value: "writer", label: "Writer" },
+  { value: "photographer", label: "Photographer" },
+  { value: "graphic_designer", label: "Graphic Designer" },
+  { value: "delivery", label: "Delivery" },
+  { value: "other", label: "Other" },
+];
+
+// Rate-type options vary by specialty so the unit reads naturally to a
+// publisher (writers see "Per Article", delivery sees "Per Route", etc.).
+// per_hour / flat appear in every list because every kind of freelance
+// engagement can fall back to them.
+const RATE_OPTIONS_BY_SPECIALTY = {
+  writer: [
+    { value: "per_article", label: "Per Article" },
+    { value: "per_word", label: "Per Word" },
+    { value: "per_hour", label: "Per Hour" },
+    { value: "flat", label: "Flat" },
+  ],
+  photographer: [
+    { value: "per_shoot", label: "Per Shoot" },
+    { value: "per_photo", label: "Per Photo" },
+    { value: "per_hour", label: "Per Hour" },
+    { value: "flat", label: "Flat" },
+  ],
+  graphic_designer: [
+    { value: "per_project", label: "Per Project" },
+    { value: "per_piece", label: "Per Piece" },
+    { value: "per_hour", label: "Per Hour" },
+    { value: "flat", label: "Flat" },
+  ],
+  delivery: [
+    { value: "per_route", label: "Per Route" },
+    { value: "per_stop", label: "Per Stop" },
+    { value: "per_hour", label: "Per Hour" },
+    { value: "flat", label: "Flat" },
+  ],
+  other: [
+    { value: "per_piece", label: "Per Piece" },
+    { value: "per_hour", label: "Per Hour" },
+    { value: "flat", label: "Flat" },
+  ],
+};
+const DEFAULT_RATE_OPTIONS = RATE_OPTIONS_BY_SPECIALTY.other;
+
 // ============================================================
 // TeamMemberProfile — publisher-facing profile page for a team
 // member. Top section is a Settings card with four subsections
@@ -117,9 +175,21 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
         : (pubs || []).filter(p => (member.pubs || []).includes(p.id)).map(p => p.name).join(", ") || "—"}
     </div>}
 
+    {/* Role editor — admins only. Changes the member's title and recasts
+        their dashboards / commission eligibility / role-default permissions.
+        Backed by the Postgres team_members.role enum. */}
+    {viewerIsAdmin && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Role</div>
+      <Sel
+        value={member.role || ""}
+        onChange={e => updateTeamMember?.(member.id, { role: e.target.value })}
+        options={TEAM_ROLES.map(r => ({ value: r, label: r }))}
+      />
+    </div>}
+
     {/* Employment Type — admins only. Toggling ON marks the member as an
-        Independent Contractor (1099); surfaces the rate fields below once
-        those columns ship in a migration. Employees (W-2) leave it off. */}
+        Independent Contractor (1099) and surfaces the specialty + rate
+        fields below. Employees (W-2) leave it off. */}
     {viewerIsAdmin && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Employment Type</div>
       <Toggle
@@ -129,27 +199,47 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
       />
     </div>}
 
-    {member.isFreelance && <div style={{ marginTop: 12 }}>
-      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Freelancer</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
-          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate Type</div>
-          <Sel value={member.rateType || "per_piece"} onChange={e => updateTeamMember?.(member.id, { rateType: e.target.value })} options={[
-            { value: "per_piece", label: "Per Piece" }, { value: "per_hour", label: "Per Hour" }, { value: "flat", label: "Flat" },
-          ]} />
+    {member.isFreelance && (() => {
+      // Rate-type options follow the chosen specialty so the unit reads
+      // naturally to the publisher. If specialty isn't set yet, fall back
+      // to the generic "other" list (Per Piece / Per Hour / Flat).
+      const specialtyKey = member.specialty || "other";
+      const rateOptions = RATE_OPTIONS_BY_SPECIALTY[specialtyKey] || DEFAULT_RATE_OPTIONS;
+      return <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Independent Contractor</div>
+
+        {/* Specialty selector — drives the rate-type label set */}
+        <div style={{ padding: 10, background: Z.sa, borderRadius: R, marginBottom: 10 }}>
+          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Specialty</div>
+          <Sel
+            value={specialtyKey}
+            onChange={e => updateTeamMember?.(member.id, { specialty: e.target.value })}
+            options={FREELANCE_SPECIALTIES}
+          />
         </div>
-        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
-          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate</div>
-          <Inp type="number" value={member.rateAmount || 0} onChange={e => updateTeamMember?.(member.id, { rateAmount: Number(e.target.value) })} />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate Type</div>
+            <Sel
+              value={member.rateType || rateOptions[0].value}
+              onChange={e => updateTeamMember?.(member.id, { rateType: e.target.value })}
+              options={rateOptions}
+            />
+          </div>
+          <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Rate ($)</div>
+            <Inp type="number" value={member.rateAmount ?? ""} onChange={e => updateTeamMember?.(member.id, { rateAmount: e.target.value === "" ? null : Number(e.target.value) })} />
+          </div>
+          <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Availability</div>
+            <Sel value={member.availability || "available"} onChange={e => updateTeamMember?.(member.id, { availability: e.target.value })} options={[
+              { value: "available", label: "Available" }, { value: "busy", label: "Busy" }, { value: "unavailable", label: "Unavailable" },
+            ]} />
+          </div>
         </div>
-        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
-          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Availability</div>
-          <Sel value={member.availability || "available"} onChange={e => updateTeamMember?.(member.id, { availability: e.target.value })} options={[
-            { value: "available", label: "Available" }, { value: "busy", label: "Busy" }, { value: "unavailable", label: "Unavailable" },
-          ]} />
-        </div>
-      </div>
-    </div>}
+      </div>;
+    })()}
   </div>;
 }
 
@@ -350,10 +440,96 @@ function AlertsPanel({ member, updateTeamMember }) {
   </div>;
 }
 
+// ─── Transfer Open Work panel ────────────────────────────────
+// Lets an admin reassign a member's OPEN clients/sales/invoices/contracts
+// to another active rep. Closed/paid work stays attributed to the original
+// member by design — that's the integrity guarantee of the snapshot model
+// introduced in migration 047. Wraps the transfer_team_member_work RPC.
+function TransferWorkPanel({ member, team, currentUser }) {
+  const viewerIsAdmin = !!currentUser?.permissions?.includes?.("admin");
+  const [counts, setCounts] = useState(null);
+  const [target, setTarget] = useState("");
+  const [scope, setScope] = useState({ clients: true, sales: true, invoices: true, contracts: true });
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadPreview = async () => {
+    setError(null);
+    const { data, error: e } = await supabase.rpc("preview_team_member_work_transfer", { p_from_rep: member.id });
+    if (e) { setError(e.message); return; }
+    setCounts(data);
+  };
+  useEffect(() => { loadPreview(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [member.id]);
+
+  const targets = (team || []).filter(t => t.id !== member.id && t.isActive !== false && (t.permissions?.includes("sales") || t.permissions?.includes("admin")));
+  const totalSelected = (scope.clients ? (counts?.clients_open || 0) : 0)
+    + (scope.sales ? (counts?.sales_open || 0) : 0)
+    + (scope.invoices ? (counts?.invoices_open || 0) : 0)
+    + (scope.contracts ? (counts?.contracts_active || 0) : 0);
+
+  const transfer = async () => {
+    if (!target || totalSelected === 0) return;
+    const targetName = targets.find(t => t.id === target)?.name || "the selected rep";
+    if (!window.confirm(`Move ${totalSelected} open record${totalSelected === 1 ? "" : "s"} from ${member.name} to ${targetName}? Closed/paid history stays attributed to ${member.name}.`)) return;
+    setBusy(true); setError(null); setResult(null);
+    const { data, error: e } = await supabase.rpc("transfer_team_member_work", {
+      p_from_rep: member.id,
+      p_to_rep: target,
+      p_clients: scope.clients,
+      p_sales: scope.sales,
+      p_invoices: scope.invoices,
+      p_contracts: scope.contracts,
+    });
+    setBusy(false);
+    if (e) { setError(e.message); return; }
+    if (data?.error) { setError(data.error); return; }
+    setResult(data);
+    await loadPreview();
+  };
+
+  if (!viewerIsAdmin) return null;
+
+  const Row = ({ k, label, count }) => (
+    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}`, cursor: count > 0 ? "pointer" : "not-allowed", opacity: count > 0 ? 1 : 0.5 }}>
+      <input type="checkbox" checked={scope[k]} disabled={count === 0} onChange={e => setScope(s => ({ ...s, [k]: e.target.checked }))} />
+      <span style={{ flex: 1, fontSize: FS.sm, color: Z.tx, fontWeight: FW.semi }}>{label}</span>
+      <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: count > 0 ? Z.ac : Z.td, fontFamily: DISPLAY }}>{count}</span>
+    </label>
+  );
+
+  return <div>
+    <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Transfer Open Work</div>
+    <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 12 }}>
+      Reassigns this member's open records to another active rep. Closed sales, paid invoices, and completed contracts stay attributed to {member.name} — historical reporting is unaffected.
+    </div>
+    {counts === null && !error && <div style={{ fontSize: FS.sm, color: Z.tm, padding: 8 }}>Loading…</div>}
+    {counts && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: 12 }}>
+      <Row k="clients" label="Open Clients" count={counts.clients_open || 0} />
+      <Row k="sales" label="Open Sales" count={counts.sales_open || 0} />
+      <Row k="invoices" label="Unpaid Invoices" count={counts.invoices_open || 0} />
+      <Row k="contracts" label="Active Contracts" count={counts.contracts_active || 0} />
+    </div>}
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <Sel value={target} onChange={e => setTarget(e.target.value)} options={[
+        { value: "", label: "Select target rep…" },
+        ...targets.map(t => ({ value: t.id, label: `${t.name}${t.role ? ` (${t.role})` : ""}` })),
+      ]} style={{ minWidth: 240 }} />
+      <Btn sm v="primary" disabled={!target || totalSelected === 0 || busy} onClick={transfer}>
+        {busy ? "Transferring…" : `Transfer ${totalSelected} record${totalSelected === 1 ? "" : "s"}`}
+      </Btn>
+    </div>
+    {error && <div style={{ marginTop: 10, fontSize: FS.xs, padding: "8px 12px", borderRadius: Ri, background: Z.da + "10", color: Z.da }}>Error: {error}</div>}
+    {result?.success && <div style={{ marginTop: 10, fontSize: FS.xs, padding: "8px 12px", borderRadius: Ri, background: Z.go + "10", color: Z.go }}>
+      Transferred {result.clients_transferred} clients, {result.sales_transferred} sales, {result.invoices_transferred} invoices, {result.contracts_transferred} contracts.
+    </div>}
+  </div>;
+}
+
 // ─── Main page ──────────────────────────────────────────────
 const TeamMemberProfile = ({
   memberId, team, pubs, clients, sales, stories, issues, payments, subscribers,
-  tickets, legalNotices, creativeJobs, invoices, setStories,
+  tickets, legalNotices, creativeJobs, invoices, contracts, setStories,
   updateTeamMember, deleteTeamMember, onNavigate, setIssueDetailId,
   salespersonPubAssignments, upsertPubAssignment, deletePubAssignment,
   commissionRates, upsertCommissionRate, currentUser, isActive,
