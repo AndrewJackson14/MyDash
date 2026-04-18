@@ -762,6 +762,129 @@ const RoleDashboard = memo(({
     </div>;
   }
 
+  // ─── Author Dashboard (Writer/Reporter, Stringer) ─────
+  // Matches by author name string since stories.author is how bylines
+  // are attributed app-wide. assignedTo (team id) is used as a second
+  // key if the story was routed through the assignment flow.
+  if (["Writer/Reporter", "Stringer"].includes(role)) {
+    const authorName = currentUser?.name || "";
+    const myStories = _stories.filter(s =>
+      (authorName && s.author === authorName) ||
+      (currentUser?.id && s.assignedTo === currentUser.id)
+    );
+    const published = myStories.filter(s => ["Published", "On Page", "Sent to Web", "Approved"].includes(s.status));
+    const publishedMtd = published.filter(s => (s.publishedAt || s.updatedAt || "").startsWith(thisMonth));
+    const inProgress = myStories.filter(s => ["Pitched", "Draft", "Edit", "Needs Editing", "Editing"].includes(s.status));
+    const drafts = inProgress.filter(s => ["Pitched", "Draft"].includes(s.status));
+    const inEdit = inProgress.filter(s => ["Edit", "Needs Editing", "Editing"].includes(s.status));
+    const overdue = inProgress.filter(s => s.dueDate && s.dueDate < today);
+    const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const dueThisWeek = inProgress.filter(s => s.dueDate && s.dueDate >= today && s.dueDate <= weekAhead);
+    const recentBylines = [...published]
+      .sort((a, b) => (b.publishedAt || b.updatedAt || "").localeCompare(a.publishedAt || a.updatedAt || ""))
+      .slice(0, 5);
+    // Issues that have at least one story of mine scheduled
+    const myIssueIds = new Set(myStories.map(s => s.issueId).filter(Boolean));
+    const myUpcomingIssues = _issues
+      .filter(i => myIssueIds.has(i.id) && i.date >= today)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .slice(0, 5);
+
+    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
+      {/* Hero */}
+      <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
+        {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 20 }}>{greeting}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{publishedMtd.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Published MTD</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: drafts.length > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{drafts.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Drafts</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: inEdit.length > 0 ? Z.wa : Z.tm, fontFamily: DISPLAY }}>{inEdit.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>With Editor</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: overdue.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdue.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        {/* LEFT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={glass}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>My Stories — In Progress</div>
+            {inProgress.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>Nothing in progress — pitch something new</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 400, overflowY: "auto" }}>
+              {inProgress.map(s => {
+                const isOverdue = s.dueDate && s.dueDate < today;
+                const isSoon = s.dueDate && s.dueDate >= today && s.dueDate <= weekAhead;
+                const urgency = isOverdue ? Z.da : isSoon ? Z.wa : Z.tm;
+                return <div key={s.id} onClick={() => onNavigate?.("stories")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${urgency}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.status} · {pn(s.publication)}{s.dueDate ? ` · due ${s.dueDate}` : ""}</div>
+                  </div>
+                  <Btn sm v="secondary" onClick={(e) => { e.stopPropagation(); onNavigate?.("stories"); }}>Open</Btn>
+                </div>;
+              })}
+            </div>}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Due This Week ({dueThisWeek.length})</div>
+            {dueThisWeek.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No stories due in the next 7 days</div>
+            : dueThisWeek.map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.status} · {pn(s.publication)}</div>
+              </div>
+              <div style={{ fontSize: FS.xs, color: daysUntil(s.dueDate) <= 1 ? Z.wa : Z.tm, fontWeight: FW.bold }}>{daysUntil(s.dueDate)}d</div>
+            </div>)}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>My Upcoming Issues</div>
+            {myUpcomingIssues.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No stories scheduled for upcoming issues yet</div>
+            : myUpcomingIssues.map(iss => {
+              const mineInIssue = myStories.filter(s => s.issueId === iss.id).length;
+              return <div key={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+                <div>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{pn(iss.pubId)} {iss.label}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{mineInIssue} stor{mineInIssue === 1 ? "y" : "ies"} of mine · publishes {fmtDate(iss.date)}</div>
+                </div>
+                <div style={{ fontSize: FS.xs, color: daysUntil(iss.date) <= 2 ? Z.wa : Z.tm, fontWeight: FW.bold }}>{daysUntil(iss.date)}d</div>
+              </div>;
+            })}
+          </div>
+        </div>
+        {/* RIGHT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DirectionCard />
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Bylines</div>
+            {recentBylines.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No published stories yet</div>
+            : recentBylines.map(s => <div key={s.id} style={{ padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(s.publication)} · {fmtDate((s.publishedAt || s.updatedAt || "").slice(0, 10))}</div>
+            </div>)}
+          </div>
+          <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("stories")} style={{ justifyContent: "flex-start" }}>Stories</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("editorial")} style={{ justifyContent: "flex-start" }}>Editorial</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("schedule")} style={{ justifyContent: "flex-start" }}>Issue Schedule</Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
   // ─── Sales Dashboard (Dana, Salespeople) ─────────────
   // "My" = sales where the member is the assigned rep, OR sales on
   // clients where the member is the client's primary rep (legacy
