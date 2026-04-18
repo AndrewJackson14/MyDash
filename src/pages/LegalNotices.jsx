@@ -280,8 +280,10 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   };
 
   // ─── Filtering ──────────────────────────────────────────
-  const isActive = tab === "Active";
-  let filtered = isActive ? active : all;
+  // Renamed from `isActive` to avoid shadowing the prop of the same name
+  // that the page now accepts for usePageHeader gating.
+  const isActiveTab = tab === "Active";
+  let filtered = isActiveTab ? active : all;
   if (statusFilter !== "all") filtered = filtered.filter(n => n.status === statusFilter);
   if (sr) {
     const q = sr.toLowerCase();
