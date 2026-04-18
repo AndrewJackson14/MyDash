@@ -1198,6 +1198,7 @@ export function DataProvider({ children, localData }) {
         category: client.category || '', notes: client.notes || '',
         lead_source: client.leadSource || '', industries: client.industries || [],
         interested_pubs: client.interestedPubs || [],
+        rep_id: client.repId || null,
         billing_email: client.billingEmail || null,
         billing_cc_emails: Array.isArray(client.billingCcEmails) ? client.billingCcEmails.filter(Boolean).slice(0, 2) : [],
         billing_address: client.billingAddress || null,

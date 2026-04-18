@@ -265,7 +265,10 @@ const SalesCRM = (props) => {
     } else {
       // Create new client — persists to Supabase with real UUID
       if (insertClient) {
-        const newClient = await insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
+        // New client — default ownership to whoever is creating the
+        // record (same philosophy as Convert to Lead). Admin can
+        // reassign from the client profile later.
+        const newClient = await insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, repId: currentUser?.id || null, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
         if (newClient?.id) {
           logActivity(`New client: ${cf.name}`, "pipeline", newClient.id, cf.name);
           addNotif(`Client "${cf.name}" created`);
@@ -1218,8 +1221,18 @@ const SalesCRM = (props) => {
                   {(inq.status === "new" || inq.status === "contacted") && (
                     <Btn sm v="success" onClick={() => {
                       if (!inq.client_id) {
-                        // Create a new client from this inquiry
-                        const newClient = { name: inq.business_name || inq.name, status: "Lead", leadSource: "Website Inquiry", contacts: [{ name: inq.name, email: inq.email, phone: inq.phone || "", role: "Business Owner" }], notes: "From ad inquiry: " + (inq.message || "") };
+                        // Create a new client from this inquiry. Ownership
+                        // defaults to the salesperson who converted it —
+                        // natural since they worked the inquiry. Admin
+                        // can reassign from the client profile later.
+                        const newClient = {
+                          name: inq.business_name || inq.name,
+                          status: "Lead",
+                          leadSource: "Website Inquiry",
+                          contacts: [{ name: inq.name, email: inq.email, phone: inq.phone || "", role: "Business Owner" }],
+                          notes: "From ad inquiry: " + (inq.message || ""),
+                          repId: currentUser?.id || null,
+                        };
                         insertClient(newClient).then(nc => {
                           if (nc?.id) updateInquiry(inq.id, { status: "converted", client_id: nc.id, updated_at: new Date().toISOString() });
                         });
