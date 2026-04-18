@@ -189,6 +189,8 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         due_date: net30.toISOString().slice(0, 10),
         total: sale.amount || 0,
         balance_due: sale.amount || 0,
+        rep_id: sale.assignedTo || null,
+        contract_id: sale.contractId || null,
       }).select("id, invoice_number, total, balance_due, client_id, status").single();
 
       if (inv?.id) {
