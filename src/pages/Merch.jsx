@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Toggle, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -18,7 +19,15 @@ const ORDER_STATUSES = ["paid", "in_production", "shipped", "delivered", "cancel
 const STATUS_COLORS = { paid: Z.ac, in_production: Z.wa, shipped: Z.ac, delivered: Z.su || "#22c55e", cancelled: Z.da };
 const STATUS_LABELS = { paid: "Paid", in_production: "In Production", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled" };
 
-const Merch = ({ clients }) => {
+const Merch = ({ clients, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Merch" }], title: "Merch" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [tab, setTab] = useState("Catalog");
   const [products, setProducts] = useState([]);
@@ -174,7 +183,7 @@ const Merch = ({ clients }) => {
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading merch...</div>;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Merch" />
+    {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
     <TabRow><TB tabs={["Catalog", "Shop Links", "Orders"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ CATALOG TAB ════════ */}

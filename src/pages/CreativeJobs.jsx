@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
@@ -51,7 +52,15 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, jurisdiction }) => {
+const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, jurisdiction, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Creative Services" }], title: "Creative Services" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const [tab, setTab] = useState("Board");
   const [sr, setSr] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
@@ -229,10 +238,11 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
 
   // ─── Main Render ────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Creative Services">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {tab === "List" && <SB value={sr} onChange={setSr} placeholder="Search jobs..." />}
       <Btn sm onClick={openNew}><Ic.plus size={13} /> New Job</Btn>
-    </PageHeader>
+    </div>
 
     <TabRow><TB tabs={["Board", "List", "Revenue"]} active={tab} onChange={setTab} />{tab === "List" && <><TabPipe /><TB tabs={["Active", "All", ...JOB_STATUSES.map(s => STATUS_LABELS[s])]} active={statusFilter === "active" ? "Active" : statusFilter === "all" ? "All" : STATUS_LABELS[statusFilter] || statusFilter} onChange={v => { if (v === "Active") setStatusFilter("active"); else if (v === "All") setStatusFilter("all"); else { const match = Object.entries(STATUS_LABELS).find(([k, l]) => l === v); setStatusFilter(match ? match[0] : v); } }} /></>}</TabRow>
 

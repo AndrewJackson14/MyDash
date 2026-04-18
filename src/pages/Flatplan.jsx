@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 import { supabase } from "../lib/supabase";
 import { sendGmailEmail } from "../lib/gmail";
@@ -91,7 +92,15 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   </div>;
 };
 
-const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser }) => {
+const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Flatplan" }], title: "Flatplan" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const fpPubs = jurisdiction?.myPubs || pubs;
   const [selPub, setSelPub] = useState("");
   const [selIssue, setSelIssue] = useState("");
@@ -530,14 +539,15 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const toggleStoryOnPage = (pg, storyId) => { const key = pageStoryKey(pg); const cur = pageStories[key] || []; if (cur.includes(storyId)) setPageStories(ps => ({ ...ps, [key]: cur.filter(id => id !== storyId) })); else setPageStories(ps => ({ ...ps, [key]: [...cur, storyId] })); };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }} onDragEnd={() => { setDi(null); setDiType(null); }}>
-    <PageHeader title="Flatplan">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {canSendToPress && issue && <Btn sm onClick={handleSendToPress} disabled={sendingToPress} style={issue.sentToPressAt ? { background: Z.go + "15", color: Z.go, border: `1px solid ${Z.go}40` } : {}}>{sendingToPress ? "Sending..." : issue.sentToPressAt ? "✓ Sent to Press" : "Send to Press"}</Btn>}
       {issue && prevIssueExists && <Btn sm v="secondary" onClick={copyFromPrevious}>Copy Prev Issue</Btn>}
       <Btn sm v="secondary" onClick={() => setShowSectionPicker(true)}>+ Section</Btn>
       {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "#3B82F6" : Z.bd}`, background: showSharedPicker ? "rgba(59,130,246,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "#3B82F6" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
       <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
-    </PageHeader>
+    </div>
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
       <Sel value={selPub} onChange={e => handlePubChange(e.target.value)} options={[{ value: "", label: "Choose publication" }, ...fpPubs.filter(p => issues.some(i => i.pubId === p.id)).map(p => ({ value: p.id, label: p.name }))]} style={{ minWidth: 180 }} />
       <Sel value={selIssue} disabled={!selPub} onChange={e => { setSelIssue(e.target.value); setSelPage(null); if (onSelectionChange) onSelectionChange(selPub, e.target.value); }} options={[{ value: "", label: selPub ? "Choose issue" : "Select a publication first" }, ...visibleIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}${i.date >= today ? " ★" : ""}` }))]} style={{ minWidth: 200, opacity: selPub ? 1 : 0.5 }} />

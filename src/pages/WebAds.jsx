@@ -1,11 +1,20 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, FileBtn, Inp, Sel, TA, Toggle, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 
-const WebAds = ({ pubs, clients, sales }) => {
+const WebAds = ({ pubs, clients, sales, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Web Ads" }], title: "Web Ads" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [tab, setTab] = useState("Active Ads");
   const [placements, setPlacements] = useState([]);
@@ -103,7 +112,7 @@ const WebAds = ({ pubs, clients, sales }) => {
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading web ads...</div>;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Web Ads" />
+    {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
     <TabRow><TB tabs={["Active Ads", "Create Placement", "Zones & Rates"]} active={tab} onChange={setTab} /></TabRow>
 
     {tab === "Active Ads" && <>

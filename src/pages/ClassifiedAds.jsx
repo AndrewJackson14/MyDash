@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -9,7 +10,15 @@ const CATEGORIES = ["Employment", "Real Estate", "Automotive", "Services", "Anno
 const STATUSES = ["draft", "active", "expired", "cancelled"];
 const STATUS_COLORS = { draft: Z.tm, active: Z.su, expired: Z.wa, cancelled: Z.da };
 
-const ClassifiedAds = ({ pubs, clients, issues }) => {
+const ClassifiedAds = ({ pubs, clients, issues, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Classified Ads" }], title: "Classified Ads" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   const [tab, setTab] = useState("Classifieds");
   const [ads, setAds] = useState([]);
@@ -133,7 +142,7 @@ const ClassifiedAds = ({ pubs, clients, issues }) => {
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading classifieds...</div>;
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <PageHeader title="Classified Ads" />
+    {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
     <TabRow><TB tabs={["Classifieds", "Rate Cards"]} active={tab} onChange={setTab} /></TabRow>
 
     {tab === "Classifieds" && <>

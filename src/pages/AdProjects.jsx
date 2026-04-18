@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ACCENT } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
 import AssetPanel from "../components/AssetPanel";
@@ -36,7 +37,15 @@ const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 
-const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
+const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Design Studio" }], title: "Design Studio" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
   const dialog = useDialog();
   // useAppData is now the source of truth for ad_projects. Local aliases
   // keep the rest of this file readable — `projects` and `setProjects`
@@ -667,10 +676,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser }) => {
 
   // ── LIST VIEW ──────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <PageHeader title="Design Studio">
+    {/* Action row — title moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <SB value={sr} onChange={setSr} placeholder="Search clients..." />
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
-    </PageHeader>
+    </div>
 
     {/* View toggle + tabs */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
