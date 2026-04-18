@@ -177,7 +177,7 @@ export function DataProvider({ children, localData }) {
 
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
-        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal';
+        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,site_settings';
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
@@ -208,6 +208,7 @@ export function DataProvider({ children, localData }) {
             hasWebsite: !!p.has_website, websiteUrl: p.website_url || '',
             dormant: !!p.dormant,
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
+            sharedContentWith: Array.isArray(p.site_settings?.shared_content_with) ? p.site_settings.shared_content_with : [],
             adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
               rate: a.rate, rate6: a.rate_6, rate12: a.rate_12, rate18: a.rate_18,
@@ -1056,7 +1057,7 @@ export function DataProvider({ children, localData }) {
     const project = adProjects.find(p => p.id === projectId);
     if (!project) return [];
     const pub = (pubs || []).find(p => p.id === project.publication_id);
-    const siblings = pub?.settings?.shared_content_with || [];
+    const siblings = pub?.sharedContentWith || [];
     if (siblings.length === 0) return [];
 
     const projectIssue = (issues || []).find(i => i.id === project.issue_id);
@@ -2024,6 +2025,17 @@ export function DataProvider({ children, localData }) {
   // Publications, Issues, Ad Sizes, Team — write helpers
   // ============================================================
 
+  // Read-modify-write helper for a single publication's site_settings.shared_content_with.
+  // Used for bidirectional sibling sync — when A picks B as a sibling, B needs to
+  // show A as a sibling too. Returns the new list (or null on failure).
+  const writeSharedContentFor = async (pubId, nextSiblings) => {
+    const { data: row } = await supabase.from('publications').select('site_settings').eq('id', pubId).single();
+    const merged = { ...(row?.site_settings || {}), shared_content_with: nextSiblings };
+    const { error } = await supabase.from('publications').update({ site_settings: merged }).eq('id', pubId);
+    if (error) { console.error('writeSharedContentFor error:', pubId, error); return null; }
+    return nextSiblings;
+  };
+
   const insertPublication = useCallback(async (pub) => {
     const dbPub = {
       id: pub.id, name: pub.name, color: pub.color || '#4B8BF5', type: pub.type,
@@ -2034,12 +2046,26 @@ export function DataProvider({ children, localData }) {
       press_dates_of_month: pub.pressDatesOfMonth || [],
       has_website: pub.hasWebsite || false, website_url: pub.websiteUrl || '',
     };
+    if (Array.isArray(pub.sharedContentWith) && pub.sharedContentWith.length) {
+      dbPub.site_settings = { shared_content_with: pub.sharedContentWith };
+    }
     if (isOnline()) {
       const { data, error } = await supabase.from('publications').upsert(dbPub).select().single();
       if (error) console.error('insertPublication error:', error);
       if (data) {
-        const np = { ...pub, id: data.id };
+        const np = { ...pub, id: data.id, sharedContentWith: pub.sharedContentWith || [] };
         setPubs(ps => [...ps.filter(p => p.id !== data.id), np]);
+        // Bidirectional: add this new pub's id to each sibling's list
+        if (Array.isArray(pub.sharedContentWith) && pub.sharedContentWith.length) {
+          await Promise.all(pub.sharedContentWith.map(async siblingId => {
+            const { data: sib } = await supabase.from('publications').select('site_settings').eq('id', siblingId).single();
+            const current = sib?.site_settings?.shared_content_with || [];
+            if (current.includes(data.id)) return;
+            const next = [...current, data.id];
+            await writeSharedContentFor(siblingId, next);
+            setPubs(ps => ps.map(p => p.id === siblingId ? { ...p, sharedContentWith: next } : p));
+          }));
+        }
         return np;
       }
     }
@@ -2065,15 +2091,35 @@ export function DataProvider({ children, localData }) {
       if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
       if (changes.dormant !== undefined) db.dormant = changes.dormant;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
-      // Shared content siblings — stored in site_settings JSONB, merged not overwritten
+      // Shared content siblings — stored in site_settings JSONB and mirrored
+      // bidirectionally: if A picks B, B gets A added; if A drops B, B loses A.
+      // This keeps the relationship symmetric so either publication's edit view
+      // shows the link locked in after a refresh.
       if (changes.sharedContentWith !== undefined) {
-        await supabase.rpc('jsonb_merge_site_settings', { pub_id: id, patch: { shared_content_with: changes.sharedContentWith } })
-          .then(null, async () => {
-            // Fallback if the RPC doesn't exist: read-modify-write
-            const { data: pub } = await supabase.from('publications').select('site_settings').eq('id', id).single();
-            const merged = { ...(pub?.site_settings || {}), shared_content_with: changes.sharedContentWith };
-            await supabase.from('publications').update({ site_settings: merged }).eq('id', id);
-          });
+        const nextSiblings = Array.isArray(changes.sharedContentWith) ? changes.sharedContentWith : [];
+        const { data: current } = await supabase.from('publications').select('site_settings').eq('id', id).single();
+        const prev = current?.site_settings?.shared_content_with || [];
+        const added = nextSiblings.filter(s => !prev.includes(s));
+        const removed = prev.filter(s => !nextSiblings.includes(s));
+        // Write A's own list
+        await writeSharedContentFor(id, nextSiblings);
+        // Mirror onto each added/removed sibling
+        const touched = [...new Set([...added, ...removed])];
+        await Promise.all(touched.map(async siblingId => {
+          const { data: sib } = await supabase.from('publications').select('site_settings').eq('id', siblingId).single();
+          const curr = sib?.site_settings?.shared_content_with || [];
+          const shouldHave = nextSiblings.includes(siblingId);
+          const has = curr.includes(id);
+          if (shouldHave && !has) {
+            const next = [...curr, id];
+            await writeSharedContentFor(siblingId, next);
+            setPubs(ps => ps.map(p => p.id === siblingId ? { ...p, sharedContentWith: next } : p));
+          } else if (!shouldHave && has) {
+            const next = curr.filter(x => x !== id);
+            await writeSharedContentFor(siblingId, next);
+            setPubs(ps => ps.map(p => p.id === siblingId ? { ...p, sharedContentWith: next } : p));
+          }
+        }));
       }
     }
   }, []);

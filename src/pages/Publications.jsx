@@ -272,7 +272,9 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
 
 const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive, commissionGoals = [], salespersonPubAssignments = [], team = [] }) => {
   const { teamMember } = useAuth();
-  const isPublisher = teamMember?.role === "Publisher";
+  // Publisher-level access: either the Publisher role, or any team member
+  // with the 'admin' permission (e.g. Office Managers who oversee the books).
+  const isPublisher = teamMember?.role === "Publisher" || !!teamMember?.permissions?.includes?.("admin");
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -458,12 +460,12 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 8 }}>Publications that share physical pages with this one. Matching ad projects can be linked so designers only produce the ad once.</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {pubs.filter(p => p.id !== editPub.id && !p.dormant).map(p => {
-              const isSelected = (editPub.sharedContentWith || editPub.settings?.shared_content_with || []).includes(p.id);
+              const isSelected = (editPub.sharedContentWith || []).includes(p.id);
               return (
                 <button
                   key={p.id}
                   onClick={() => {
-                    const current = editPub.sharedContentWith || editPub.settings?.shared_content_with || [];
+                    const current = editPub.sharedContentWith || [];
                     const next = isSelected ? current.filter(id => id !== p.id) : [...current, p.id];
                     setEditPub(ep => ({ ...ep, sharedContentWith: next }));
                   }}
