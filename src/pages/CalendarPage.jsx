@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB, Pill } from "../components/ui";
+import { Ic, Btn, Sel, Modal, Inp, TA, PageHeader, GlassCard, TabRow, TB, Pill, FilterPillStrip } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 
@@ -321,7 +321,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
     else if (view === "week") setSelectedDate(addDays(selectedDate, 7));
     else setSelectedDate(addDays(selectedDate, 1));
   };
-  const toggleType = (type) => setActiveTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+  const eventTypeOptions = ALL_TYPES.map(t => ({ value: t, label: EVENT_TYPES[t].label, icon: EVENT_ICONS[t] }));
 
   const saveEvent = async () => {
     if (!eventForm.title) return;
@@ -389,8 +389,8 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
         <span style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, fontFamily: DISPLAY, minWidth: 200, textAlign: "center" }}>{headerLabel}</span>
         <button onClick={goNext} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.lg, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>{"\u203A"}</button>
       </div>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {ALL_TYPES.map(t => <Pill key={t} label={EVENT_TYPES[t].label} icon={EVENT_ICONS[t]} active={activeTypes.includes(t)} onClick={() => toggleType(t)} />)}
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+        <FilterPillStrip multi options={eventTypeOptions} value={activeTypes} onChange={setActiveTypes} />
         {googleLoading && <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Syncing...</span>}
       </div>
     </div>

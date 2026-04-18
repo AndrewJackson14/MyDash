@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, ZI, INV } from "../lib/theme";
-import { Ic, Btn, SB, Pill, Modal, Sel } from "../components/ui";
+import { Ic, Btn, SB, Pill, FilterPillStrip, Modal, Sel } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -738,12 +738,23 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
       {/* Filter chips — By Publication / By Category / Untagged */}
       {dbFiles && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Pub:</span>
-        <Pill label="All" active={pubChip === "all"} onClick={() => setPubChip("all")} />
-        <Pill label="Untagged" active={pubChip === "untagged"} onClick={() => setPubChip("untagged")} />
-        {(allPubs || pubs || []).map(p => <Pill key={p.id} label={p.name} active={pubChip === p.id} onClick={() => setPubChip(p.id)} />)}
+        <FilterPillStrip
+          gap={6}
+          value={pubChip}
+          onChange={setPubChip}
+          options={[
+            { value: "all", label: "All" },
+            { value: "untagged", label: "Untagged" },
+            ...(allPubs || pubs || []).map(p => ({ value: p.id, label: p.name })),
+          ]}
+        />
         <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginLeft: 12 }}>Category:</span>
-        <Pill label="All" active={catChip === "all"} onClick={() => setCatChip("all")} />
-        {CATEGORY_OPTIONS.map(c => <Pill key={c.value} label={c.label} active={catChip === c.value} onClick={() => setCatChip(c.value)} />)}
+        <FilterPillStrip
+          gap={6}
+          value={catChip}
+          onChange={setCatChip}
+          options={[{ value: "all", label: "All" }, ...CATEGORY_OPTIONS]}
+        />
       </div>}
 
       {/* Toolbar — flat view, no folder hierarchy */}

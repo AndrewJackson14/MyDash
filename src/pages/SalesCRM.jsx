@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect, memo, lazy, Suspense } from "react";
 import { useDialog } from "../hooks/useDialog";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill, FilterPillStrip } from "../components/ui";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
 import { generatePdf } from "../lib/pdf";
@@ -1292,12 +1292,13 @@ const SalesCRM = (props) => {
         {/* Interested Publications — prominent at top */}
         <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: CARD.pad }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Interested In</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {pubs.map(p => {
-              const active = (cf.interestedPubs || []).includes(p.id);
-              return <Pill key={p.id} label={p.name} icon={Ic.pub} active={active} color={Z.tm} onClick={() => setCf(x => ({ ...x, interestedPubs: active ? (x.interestedPubs || []).filter(id => id !== p.id) : [...(x.interestedPubs || []), p.id] }))} />;
-            })}
-          </div>
+          <FilterPillStrip
+            multi
+            gap={8}
+            value={cf.interestedPubs || []}
+            onChange={next => setCf(x => ({ ...x, interestedPubs: next }))}
+            options={pubs.map(p => ({ value: p.id, label: p.name, icon: Ic.pub }))}
+          />
         </div>
 
         {/* Company + Lead Source */}
@@ -1309,12 +1310,13 @@ const SalesCRM = (props) => {
         {/* Industry Categories — multi-select chips */}
         <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Industry</div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxHeight: 100, overflowY: "auto", padding: 2 }}>
-            {INDUSTRIES.map(ind => {
-              const active = (cf.industries || []).includes(ind);
-              return <Pill key={ind} label={ind} icon={Ic.tag} active={active} onClick={() => setCf(x => ({ ...x, industries: active ? (x.industries || []).filter(i => i !== ind) : [...(x.industries || []), ind] }))} />;
-            })}
-          </div>
+          <FilterPillStrip
+            multi
+            maxHeight={100}
+            value={cf.industries || []}
+            onChange={next => setCf(x => ({ ...x, industries: next }))}
+            options={INDUSTRIES.map(ind => ({ value: ind, label: ind, icon: Ic.tag }))}
+          />
         </div>
 
         {/* Primary Contact — with breathing room */}

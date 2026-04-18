@@ -5,7 +5,7 @@
 // ============================================================
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, Modal, PageHeader, GlassCard, DataTable, SB, Badge, FilterBar, Pill } from "../components/ui";
+import { Ic, Btn, Inp, Sel, Modal, PageHeader, GlassCard, DataTable, SB, Badge, FilterBar, Pill, FilterPillStrip } from "../components/ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDate } from "../lib/formatters";
 
@@ -400,14 +400,11 @@ const CompressionSettings = ({ preset, setPreset, dpi, setDpi, quality, setQuali
     </div>
 
     {/* Preset buttons */}
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {presetKeys.map(key => {
-        const p = COMPRESSION_PRESETS[key];
-        const active = preset === key;
-        const icon = { none: Ic.file, light: Ic.chart, medium: Ic.chart, aggressive: Ic.chart, custom: Ic.edit }[key];
-        return <Pill key={key} label={p.label} icon={icon} active={active} onClick={() => handlePresetChange(key)} />;
-      })}
-    </div>
+    {(() => {
+      const presetIcons = { none: Ic.file, light: Ic.chart, medium: Ic.chart, aggressive: Ic.chart, custom: Ic.edit };
+      const presetOptions = presetKeys.map(key => ({ value: key, label: COMPRESSION_PRESETS[key].label, icon: presetIcons[key] }));
+      return <FilterPillStrip gap={6} value={preset} onChange={handlePresetChange} options={presetOptions} />;
+    })()}
 
     {/* Description */}
     <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>

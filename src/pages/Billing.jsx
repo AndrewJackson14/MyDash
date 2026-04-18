@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, memo, useEffect, useCallback, Fragment } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, glass } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, FilterPillStrip, glass } from "../components/ui";
 import { COMPANY } from "../constants";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { generatePdf } from "../lib/pdf";
@@ -1193,16 +1193,18 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
             <SB value={arClientSearch} onChange={setArClientSearch} placeholder="Search client..." style={{ minWidth: 200 }} />
             <Sel value={arClientRep} onChange={e => setArClientRep(e.target.value)} options={[
               { value: "all", label: "All Reps" },
-              ...(team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name })),
+              ...(team || []).filter(t => (t.permissions?.includes("sales") || t.permissions?.includes("admin")) && t.isActive !== false).map(t => ({ value: t.id, label: t.name })),
             ]} />
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {[
-                { k: "all", l: "All Open" },
-                { k: "overdue", l: "All Past Due" },
-                { k: "chase", l: "60+ Days (Chase)" },
-                { k: "neverContacted", l: "Stale (60d no payment)" },
-              ].map(opt => <Pill key={opt.k} label={opt.l} active={arClientFilter === opt.k} onClick={() => setArClientFilter(opt.k)} />)}
-            </div>
+            <FilterPillStrip
+              value={arClientFilter}
+              onChange={setArClientFilter}
+              options={[
+                { value: "all", label: "All Open" },
+                { value: "overdue", label: "All Past Due" },
+                { value: "chase", label: "60+ Days (Chase)" },
+                { value: "neverContacted", label: "Stale (60d no payment)" },
+              ]}
+            />
             <div style={{ flex: 1 }} />
             <Btn sm v="secondary" onClick={exportCsv}><Ic.download size={12} /> Export CSV</Btn>
           </div>
@@ -1359,19 +1361,19 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       return <>
         {/* Report selector + period filter */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {[
-              { k: "revenue", l: "Revenue" },
-              { k: "aging", l: "AR Aging" },
-              { k: "uninvoiced", l: "Uninvoiced" },
-              { k: "performance", l: "Sales Perf" },
-              { k: "collections", l: "Rep Collections" },
-              { k: "methods", l: "Payment Methods" },
-              { k: "writeoffs", l: "Write-offs / Credits" },
-            ].map(r => (
-              <Pill key={r.k} label={r.l} active={reportView === r.k} onClick={() => setReportView(r.k)} />
-            ))}
-          </div>
+          <FilterPillStrip
+            value={reportView}
+            onChange={setReportView}
+            options={[
+              { value: "revenue", label: "Revenue" },
+              { value: "aging", label: "AR Aging" },
+              { value: "uninvoiced", label: "Uninvoiced" },
+              { value: "performance", label: "Sales Perf" },
+              { value: "collections", label: "Rep Collections" },
+              { value: "methods", label: "Payment Methods" },
+              { value: "writeoffs", label: "Write-offs / Credits" },
+            ]}
+          />
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <Sel value={reportPeriod} onChange={e => setReportPeriod(e.target.value)} options={[
               { value: "mtd", label: "Month to Date" }, { value: "qtd", label: "Quarter to Date" },
@@ -1636,20 +1638,22 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
         {/* ── Sales Performance (Sec 6.3.4) ── */}
         {reportView === "performance" && (() => {
+          // Attribute by sale.assignedTo (snapshot) — falls back to clients.repId
+          // for legacy sales that predate the assigned_to backfill in migration 047.
           const salespeople = _team.filter(t => ["Sales Manager", "Salesperson"].includes(t.role) && t.isActive !== false);
+          const repFor = (sale) => sale.assignedTo || (clients || []).find(c => c.id === sale.clientId)?.repId || null;
           return <>
             <GlassCard>
               <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Salesperson Performance</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {salespeople.map(sp => {
-                  const myClients = new Set((clients || []).filter(c => c.repId === sp.id).map(c => c.id));
-                  const closed = periodSales.filter(s => myClients.has(s.clientId));
+                  const closed = periodSales.filter(s => repFor(s) === sp.id);
                   const closedRev = closed.reduce((s2, x) => s2 + (x.amount || 0), 0);
                   const dealCount = closed.length;
                   const avgDeal = dealCount > 0 ? closedRev / dealCount : 0;
-                  const lost = _sales.filter(s => s.status === "Follow-up" && inPeriod(s.date) && myClients.has(s.clientId)).length;
+                  const lost = _sales.filter(s => s.status === "Follow-up" && inPeriod(s.date) && repFor(s) === sp.id).length;
                   const winRate = (dealCount + lost) > 0 ? Math.round((dealCount / (dealCount + lost)) * 100) : 0;
-                  const pipeline = _sales.filter(s => s.status !== "Closed" && myClients.has(s.clientId));
+                  const pipeline = _sales.filter(s => s.status !== "Closed" && repFor(s) === sp.id);
                   const pipelineVal = pipeline.reduce((s2, x) => s2 + (x.amount || 0), 0);
 
                   return <div key={sp.id} style={{ background: Z.bg, borderRadius: R, padding: "14px 16px" }}>
@@ -1671,29 +1675,84 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         })()}
 
         {/* ── Rep Collections (closed vs collected) ── */}
+        {/* Attribution: invoice.repId / sale.assignedTo (snapshot). Inactive
+            reps are filtered out — their historical work doesn't disappear,
+            it rolls into the publication group of any unattributed (NULL)
+            invoices/sales it touches. NULL-rep rows render with the
+            publication name in the Rep column. */}
         {reportView === "collections" && (() => {
-          const salespeople = _team.filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin"));
+          const salespeople = _team.filter(t => (t.permissions?.includes("sales") || t.permissions?.includes("admin")) && t.isActive !== false);
+          const activeRepIds = new Set(salespeople.map(t => t.id));
           const periodClosed = _sales.filter(s => s.status === "Closed" && inPeriod(s.date || s.closedAt));
+          const periodInvs = processedInvoices.filter(i => inPeriod(i.issueDate));
 
-          const rows = salespeople.map(sp => {
-            const myClients = new Set((clients || []).filter(c => c.repId === sp.id).map(c => c.id));
-            const myClosed = periodClosed.filter(s => myClients.has(s.clientId));
-            const closedAmt = myClosed.reduce((s, x) => s + (x.amount || 0), 0);
-            const myInvs = processedInvoices.filter(i => myClients.has(i.clientId) && inPeriod(i.issueDate));
+          // Resolve attribution. Anything attributed to an inactive rep (or
+          // missing attribution entirely) falls into the NULL bucket so it
+          // can be re-grouped by publication.
+          const saleRep = (s) => {
+            const r = s.assignedTo;
+            return r && activeRepIds.has(r) ? r : null;
+          };
+          const invRep = (i) => {
+            const r = i.repId;
+            return r && activeRepIds.has(r) ? r : null;
+          };
+          // Dominant publication of an invoice = the publicationId that
+          // appears most across its lines. Falls back to '__none__' when no
+          // line carries a publication.
+          const invPub = (i) => {
+            const counts = {};
+            (i.lines || []).forEach(l => {
+              if (l.publicationId) counts[l.publicationId] = (counts[l.publicationId] || 0) + 1;
+            });
+            const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+            return top ? top[0] : "__none__";
+          };
+          const pubName = (pid) => pubs.find(p => p.id === pid)?.name || "Unattributed";
+
+          const dsoFor = (invs) => {
+            const paid = invs.filter(i => i.status === "paid" && i.issueDate);
+            let totalDays = 0, c = 0;
+            paid.forEach(i => {
+              const lastPay = (payments || []).filter(p => p.invoiceId === i.id).sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0]?.receivedAt?.slice(0, 10);
+              if (lastPay) { totalDays += daysBetween(i.issueDate, lastPay); c++; }
+            });
+            return c > 0 ? Math.round(totalDays / c) : null;
+          };
+          const summarize = (label, mySales, myInvs, isPub = false) => {
+            const closedAmt = mySales.reduce((s, x) => s + (x.amount || 0), 0);
             const invoiced = myInvs.reduce((s, i) => s + (i.total || 0), 0);
-            const openBal = myInvs.filter(i => ["sent","overdue","partially_paid","draft"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0);
+            const openBal = myInvs.filter(i => ["sent", "overdue", "partially_paid", "draft"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0);
             const collected = invoiced - openBal;
             const collectRate = invoiced > 0 ? Math.round((collected / invoiced) * 100) : 0;
-            // DSO for this rep's paid invoices
-            const paid = myInvs.filter(i => i.status === "paid" && i.issueDate);
-            let totalDays = 0, dsoCount = 0;
-            paid.forEach(i => {
-              const lastPay = (payments || []).filter(p => p.invoiceId === i.id).sort((a,b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0]?.receivedAt?.slice(0,10);
-              if (lastPay) { totalDays += daysBetween(i.issueDate, lastPay); dsoCount++; }
-            });
-            const dso = dsoCount > 0 ? Math.round(totalDays / dsoCount) : null;
-            return { sp, closedAmt, closedCount: myClosed.length, invoiced, collected, openBal, collectRate, dso };
-          }).filter(r => r.closedAmt > 0 || r.invoiced > 0).sort((a, b) => b.closedAmt - a.closedAmt);
+            return { label, isPub, closedAmt, closedCount: mySales.length, invoiced, collected, openBal, collectRate, dso: dsoFor(myInvs) };
+          };
+
+          const repRows = salespeople.map(sp => summarize(
+            sp.name,
+            periodClosed.filter(s => saleRep(s) === sp.id),
+            periodInvs.filter(i => invRep(i) === sp.id),
+          ));
+
+          // Publication grouping for unattributed work
+          const nullSales = periodClosed.filter(s => saleRep(s) === null);
+          const nullInvs = periodInvs.filter(i => invRep(i) === null);
+          const pubBuckets = {};
+          nullSales.forEach(s => {
+            const k = s.publication || "__none__";
+            if (!pubBuckets[k]) pubBuckets[k] = { sales: [], invs: [] };
+            pubBuckets[k].sales.push(s);
+          });
+          nullInvs.forEach(i => {
+            const k = invPub(i);
+            if (!pubBuckets[k]) pubBuckets[k] = { sales: [], invs: [] };
+            pubBuckets[k].invs.push(i);
+          });
+          const pubRows = Object.entries(pubBuckets).map(([pid, b]) => summarize(pubName(pid), b.sales, b.invs, true));
+
+          const rows = [...repRows, ...pubRows]
+            .filter(r => r.closedAmt > 0 || r.invoiced > 0)
+            .sort((a, b) => b.closedAmt - a.closedAmt);
 
           return <>
             <GlassCard>
@@ -1710,8 +1769,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                   <th style={{ padding: "6px 8px", textAlign: "right", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>DSO</th>
                 </tr></thead>
                 <tbody>
-                  {rows.map(r => <tr key={r.sp.id} style={{ borderBottom: `1px solid ${Z.bd}15` }}>
-                    <td style={{ padding: "8px", fontWeight: FW.bold, color: Z.tx }}>{r.sp.name}</td>
+                  {rows.map((r, idx) => <tr key={`${r.isPub ? "pub" : "rep"}-${r.label}-${idx}`} style={{ borderBottom: `1px solid ${Z.bd}15` }}>
+                    <td style={{ padding: "8px", fontWeight: FW.bold, color: r.isPub ? Z.tm : Z.tx, fontStyle: r.isPub ? "italic" : "normal" }}>{r.label}</td>
                     <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{r.closedCount}</td>
                     <td style={{ padding: "8px", textAlign: "right", fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(r.closedAmt)}</td>
                     <td style={{ padding: "8px", textAlign: "right", color: Z.tm }}>{fmtCurrency(r.invoiced)}</td>

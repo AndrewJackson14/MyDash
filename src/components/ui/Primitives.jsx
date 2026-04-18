@@ -269,24 +269,35 @@ export const Avi = ({ name, size = "md", style: extraStyle }) => {
 };
 
 // ============================================================
-// Pill — small toggle/filter button with optional icon
+// Pill — small toggle/filter button with optional icon.
+//
+// Active styling has two modes:
+//   - tint   (default): subtle ~9% tint of `color` as background, color text
+//   - solid  (solid=true): full `color` background with white text
+// `color` defaults to the foreground in tint mode and to the green accent
+// (Z.go) in solid mode — picks the right "feels active" look for each.
 // ============================================================
-export const Pill = ({ label, icon: Icon, active, onClick, color, disabled }) => (
-  <button onClick={onClick} disabled={disabled} style={{
-    display: "inline-flex", alignItems: "center", gap: 4,
-    padding: "5px 12px", borderRadius: 14,
-    border: "none",
-    background: active ? (color || Z.tx) + "18" : Z.sa,
-    color: active ? (color || Z.tx) : Z.tx2,
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
-    whiteSpace: "nowrap", transition: "all 0.15s",
-    opacity: disabled ? 0.5 : 1,
-  }}>
-    {Icon && <Icon size={11} />}
-    {label}
-  </button>
-);
+export const Pill = ({ label, icon: Icon, active, onClick, color, disabled, solid = false }) => {
+  const accent = color || (solid ? Z.go : Z.tx);
+  const activeBg = solid ? accent : accent + "18";
+  const activeFg = solid ? "#fff" : accent;
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "5px 12px", borderRadius: 14,
+      border: "none",
+      background: active ? activeBg : Z.sa,
+      color: active ? activeFg : Z.tx2,
+      cursor: disabled ? "not-allowed" : "pointer",
+      fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
+      whiteSpace: "nowrap", transition: "all 0.15s",
+      opacity: disabled ? 0.5 : 1,
+    }}>
+      {Icon && <Icon size={11} />}
+      {label}
+    </button>
+  );
+};
 
 // ============================================================
 // Global Layout Components — used across all pages

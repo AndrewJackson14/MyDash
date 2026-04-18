@@ -11,3 +11,4 @@ export {
   ListCard, ListDivider, ListGrid, glass,
   ErrorBoundary,
 } from "./Primitives";
+export { FilterPillStrip } from "./FilterPillStrip";

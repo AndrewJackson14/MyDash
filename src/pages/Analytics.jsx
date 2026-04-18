@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
-import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, FilterPillStrip } from "../components/ui";
 import { supabase } from "../lib/supabase";
 
 import { fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
@@ -412,16 +412,15 @@ const Analytics = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>12-Month Profit & Loss</div>
             <div style={{ display: "flex", gap: 4 }}>
-              {[
-                { key: "all", label: "All" },
-                { key: "Magazine", label: "Magazines" },
-                { key: "Newspaper", label: "Newspapers" },
-              ].map(o => (
-                <button key={o.key} onClick={() => setOverviewType(o.key)}
-                  style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${overviewType === o.key ? Z.tx : Z.bd}`, background: overviewType === o.key ? Z.tx : "transparent", color: overviewType === o.key ? Z.bg : Z.tm, cursor: "pointer", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {o.label}
-                </button>
-              ))}
+              <FilterPillStrip
+                value={overviewType}
+                onChange={setOverviewType}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "Magazine", label: "Magazines" },
+                  { value: "Newspaper", label: "Newspapers" },
+                ]}
+              />
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", height: 220, position: "relative", paddingTop: 22 }}>

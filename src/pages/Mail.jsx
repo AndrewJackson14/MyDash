@@ -11,7 +11,7 @@ import Underline from "@tiptap/extension-underline";
 import DOMPurify from "dompurify";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
-import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill } from "../components/ui";
+import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill, FilterPillStrip } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
@@ -557,18 +557,21 @@ const Mail = ({ isActive } = {}) => {
     </div>
 
     {/* Label bar */}
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
-      {SYSTEM_LABELS.map(l => {
-        const iconMap = { INBOX: Ic.mail, SENT: Ic.send, STARRED: Ic.star, DRAFT: Ic.edit, TRASH: Ic.trash, SPAM: Ic.close };
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0, alignItems: "center" }}>
+      {(() => {
+        const sysIcons = { INBOX: Ic.mail, SENT: Ic.send, STARRED: Ic.star, DRAFT: Ic.edit, TRASH: Ic.trash, SPAM: Ic.close };
+        const labelOptions = [
+          ...SYSTEM_LABELS.map(l => ({ value: l.id, label: l.name, icon: sysIcons[l.id] || Ic.tag })),
+          ...customLabels.map(l => ({ value: l.id, label: l.name, icon: Ic.tag })),
+        ];
         return (
-          <Pill key={l.id} label={l.name} icon={iconMap[l.id] || Ic.tag} active={activeLabel === l.id}
-            onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }} />
+          <FilterPillStrip
+            value={activeLabel}
+            onChange={next => { setActiveLabel(next); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }}
+            options={labelOptions}
+          />
         );
-      })}
-      {customLabels.map(l => (
-        <Pill key={l.id} label={l.name} icon={Ic.tag} active={activeLabel === l.id}
-          onClick={() => { setActiveLabel(l.id); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }} />
-      ))}
+      })()}
       {searchActive && (
         <span style={{ padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: FW.bold, background: Z.wa + "22", color: Z.wa, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>
           Search: "{searchActive}"
