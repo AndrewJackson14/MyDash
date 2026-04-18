@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, GlassCard, PageHeader, Pill, BackBtn, TabRow, TB, Toggle } from "../components/ui";
 import { initials as ini } from "../lib/formatters";
@@ -355,7 +356,7 @@ const TeamMemberProfile = ({
   tickets, legalNotices, creativeJobs, invoices, setStories,
   updateTeamMember, deleteTeamMember, onNavigate, setIssueDetailId,
   salespersonPubAssignments, upsertPubAssignment, deletePubAssignment,
-  commissionRates, upsertCommissionRate, currentUser,
+  commissionRates, upsertCommissionRate, currentUser, isActive,
 }) => {
   // Default to Dashboard view — publishers open this page to see the member's
   // realtime dashboard; Settings is a click away via the top tab.
@@ -363,10 +364,29 @@ const TeamMemberProfile = ({
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState(null);
   const member = (team || []).find(t => t.id === memberId);
+  const memberName = member?.name;
+
+  // Publish a clickable Home › Team › {member.name} breadcrumb into TopBar.
+  // The "Team" crumb navigates back to the roster, replacing the inline
+  // BackBtn we used to render. onNavigate is captured via a ref so the
+  // effect doesn't have to re-run every parent render (handleNav in App.jsx
+  // is recreated on each render and would otherwise thrash setHeader).
+  const { setHeader, clearHeader } = usePageHeader();
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => { onNavigateRef.current = onNavigate; });
+  useEffect(() => {
+    if (!isActive) { clearHeader(); return; }
+    setHeader({
+      breadcrumb: [
+        { label: "Home" },
+        { label: "Team", onClick: () => onNavigateRef.current?.("team") },
+      ],
+      title: memberName || "Member not found",
+    });
+  }, [isActive, memberName, setHeader, clearHeader]);
 
   if (!member) {
     return <div style={{ padding: 28 }}>
-      <BackBtn onClick={() => onNavigate?.("team")} />
       <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Team member not found.</div>
     </div>;
   }
@@ -384,8 +404,8 @@ const TeamMemberProfile = ({
   };
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <BackBtn onClick={() => onNavigate?.("team")} />
-    <PageHeader title={member.name}>
+    {/* Action row — name + back nav moved to TopBar via usePageHeader. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {!member.authId && <Btn sm v="success" disabled={inviting} onClick={sendInvite}>
         <Ic.mail size={12} /> {inviting ? "Sending…" : "Connect Google"}
       </Btn>}
@@ -394,9 +414,9 @@ const TeamMemberProfile = ({
         await deleteTeamMember(member.id);
         onNavigate?.("team");
       }}><Ic.trash size={12} /> Remove from Team</Btn>}
-    </PageHeader>
+    </div>
 
-    {/* Role + contact strip — no duplicate name (that's in the PageHeader) */}
+    {/* Role + contact strip — name lives in TopBar now */}
     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <span style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi, fontFamily: COND }}>{member.role}</span>
       <span style={{ color: Z.td }}>·</span>
@@ -452,6 +472,8 @@ const TeamMemberProfile = ({
         </div>
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
         <AlertsPanel member={member} updateTeamMember={updateTeamMember} />
+        <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
+        <TransferWorkPanel member={member} team={team} currentUser={currentUser} />
       </div>
     </GlassCard>}
   </div>;
