@@ -14,6 +14,8 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase } from "../lib/supabase";
 import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 
+const MYHELPER_EMAIL = "helper@mydash.local";
+
 const Messaging = memo(({ team, currentUser, isActive }) => {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -135,19 +137,22 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
   const send = useCallback(async () => {
     const text = draft.trim();
     if (!text || !activeOther || !meId || sending) return;
+    // If the recipient is MyHelper, tag the note as a bot_query so the
+    // bot polling loop picks it up. Page context is null from Messages.
+    const isBot = (team || []).find(t => t.id === activeOther)?.email === MYHELPER_EMAIL;
     setSending(true);
     const { data, error } = await supabase.from("team_notes").insert({
       from_user: meId,
       to_user: activeOther,
       message: text,
-      context_type: null,
+      context_type: isBot ? "bot_query" : null,
       context_id: null,
     }).select().single();
     setSending(false);
     if (error) { console.error("send failed:", error); return; }
     setDraft("");
     if (data) setNotes(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
-  }, [draft, activeOther, meId, sending]);
+  }, [draft, activeOther, meId, sending, team]);
 
   const onKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -170,8 +175,18 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
     setActiveOther(id);
   };
 
-  // Team members available to message (everyone except self)
-  const pickerTeam = (team || []).filter(t => t.id !== meId && t.isActive !== false);
+  // Team members available to message (everyone except self).
+  // MyHelper bot is pinned to the top so it's discoverable; otherwise
+  // alphabetical by name. is_hidden=true on the bot row hides it from
+  // role-filtered lists everywhere else, but we want it surfaced here.
+  const pickerTeam = useMemo(() => {
+    const list = (team || []).filter(t => (t.id !== meId && t.isActive !== false) || t.email === MYHELPER_EMAIL);
+    return [...list].sort((a, b) => {
+      if (a.email === MYHELPER_EMAIL) return -1;
+      if (b.email === MYHELPER_EMAIL) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [team, meId]);
 
   // ─── Render ───────────────────────────────────────────
   const activeName = activeOther ? nameOf(activeOther) : "";

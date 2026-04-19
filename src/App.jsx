@@ -19,6 +19,7 @@ import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 // Eagerly loaded (always needed on boot)
 import { NotificationPopover } from "./components/NotificationPopover";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
+import MyHelperLauncher from "./components/MyHelperLauncher";
 import IssueDetail from "./pages/IssueDetail";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
@@ -572,6 +573,9 @@ export default function App() {
 
     {/* Profile Panel */}
     {showProfile && <Suspense fallback={null}><ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} /></Suspense>}
+
+    {/* MyHelper — floating bot launcher in bottom-right of every page */}
+    <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
     </div>
   </PageHeaderProvider>;
 }
