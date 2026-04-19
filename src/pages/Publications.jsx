@@ -484,7 +484,7 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
   </div>;
 };
 
-const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive, commissionGoals = [], salespersonPubAssignments = [], team = [] }) => {
+const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive, commissionGoals = [], salespersonPubAssignments = [], team = [], deepLink }) => {
   const { teamMember } = useAuth();
   // Publisher-level access: either the Publisher role, or any team member
   // with the 'admin' permission (e.g. Office Managers who oversee the books).
@@ -512,6 +512,16 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const tabs = isPublisher ? ["Publications", "Goals"] : ["Publications"];
 
   const openPub = (p) => { setSel(p); setEditPub(JSON.parse(JSON.stringify(p))); setEditMode(false); setRateModal(true); };
+
+  // Deep-link receiver: arrival via nav.toPublication(pubId) opens that pub's
+  // rate modal. Runs on deepLink change; resolves against the full pubs list
+  // so dormant pubs can still be opened directly via URL.
+  useEffect(() => {
+    if (!isActive || !deepLink?.pubId) return;
+    const target = (pubs || []).find(p => p.id === deepLink.pubId);
+    if (target) openPub(target);
+  }, [deepLink, isActive, pubs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const savePub = async () => {
     if (!editPub) return;
     if (updatePublication) await updatePublication(editPub.id, editPub);

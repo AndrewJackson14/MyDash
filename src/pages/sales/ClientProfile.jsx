@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal } from "../../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, EntityLink } from "../../components/ui";
+import { useNav } from "../../hooks/useNav";
 import AssetPanel from "../../components/AssetPanel";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
@@ -11,9 +12,10 @@ import { fmtTimeRelative } from "../../lib/formatters";
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   invoices, payments, team,
-  commForm, setCommForm, onBack, onNavTo, onOpenProposal, onSetViewPropId,
+  commForm, setCommForm, onBack, onNavTo, onNavigate, onOpenProposal, onSetViewPropId,
   onOpenEditClient, bus, updateClientContact,
 }) => {
+  const nav = useNav(onNavigate);
   const appData = useAppData();
   useEffect(() => {
     if (clientId && appData?.loadSalesForClient) appData.loadSalesForClient(clientId);
@@ -687,7 +689,21 @@ const ClientProfile = ({
                 {ctOpen && ct.ads.length > 0 && <div style={{ padding: "0 14px 10px 41px", display: "flex", flexDirection: "column", gap: 2, borderTop: `1px solid ${Z.bd}` }}>
                   <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 0 2px" }}>Ads under this contract ({ct.ads.length})</div>
                   {ct.ads.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: FS.xs, color: Z.tm, borderBottom: `1px solid ${Z.bd}20` }}>
-                    <span style={{ display: "flex", gap: 8 }}><span style={{ color: Z.td, width: 72 }}>{a.date || "—"}</span><span style={{ color: Z.tx, fontWeight: FW.semi }}>{pn(a.publication)}</span><span>{a.size || a.type || "Ad"}</span></span>
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <span style={{ color: Z.td, width: 72 }}>
+                        {a.issueId && a.publication
+                          ? <EntityLink onClick={nav.toFlatplan(a.publication, a.issueId)} muted>{a.date || "—"}</EntityLink>
+                          : (a.date || "—")}
+                      </span>
+                      <span style={{ color: Z.tx, fontWeight: FW.semi }}>
+                        {a.publication
+                          ? <EntityLink onClick={nav.toIssueDesign(a.publication, a.issueId)}>{pn(a.publication)}</EntityLink>
+                          : pn(a.publication)}
+                      </span>
+                      <span>
+                        <EntityLink onClick={nav.toAdProjectForSale(a.id)} muted noUnderline>{a.size || a.type || "Ad"}</EntityLink>
+                      </span>
+                    </span>
                     <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
                   </div>)}
                 </div>}
@@ -700,7 +716,22 @@ const ClientProfile = ({
               <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>Standalone Ad Orders ({yr.standaloneSales.length})</div>
               <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 10px" }}>
                 {yr.standaloneSales.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", fontSize: FS.xs, borderBottom: `1px solid ${Z.bd}20` }}>
-                  <span style={{ display: "flex", gap: 8 }}><Ic.tag size={10} color={Z.td} /><span style={{ color: Z.td, width: 72 }}>{a.date || "—"}</span><span style={{ color: Z.tx, fontWeight: FW.semi }}>{pn(a.publication)}</span><span style={{ color: Z.tm }}>{a.size || a.type || "Ad"}</span></span>
+                  <span style={{ display: "flex", gap: 8 }}>
+                    <Ic.tag size={10} color={Z.td} />
+                    <span style={{ color: Z.td, width: 72 }}>
+                      {a.issueId && a.publication
+                        ? <EntityLink onClick={nav.toFlatplan(a.publication, a.issueId)} muted>{a.date || "—"}</EntityLink>
+                        : (a.date || "—")}
+                    </span>
+                    <span style={{ color: Z.tx, fontWeight: FW.semi }}>
+                      {a.publication
+                        ? <EntityLink onClick={nav.toIssueDesign(a.publication, a.issueId)}>{pn(a.publication)}</EntityLink>
+                        : pn(a.publication)}
+                    </span>
+                    <span style={{ color: Z.tm }}>
+                      <EntityLink onClick={nav.toAdProjectForSale(a.id)} muted noUnderline>{a.size || a.type || "Ad"}</EntityLink>
+                    </span>
+                  </span>
                   <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
                 </div>)}
               </div>

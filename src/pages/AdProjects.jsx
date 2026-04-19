@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ACCENT } from "../lib/theme";
-import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill } from "../components/ui";
+import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill, EntityLink } from "../components/ui";
+import { useNav } from "../hooks/useNav";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
@@ -37,7 +38,9 @@ const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 
-const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink }) => {
+const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate }) => {
+  const nav = useNav(onNavigate);
+
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -428,7 +431,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{cn(viewProject.client_id)} — {pn(viewProject.publication_id)}</div>
+        <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
+          <EntityLink onClick={nav.toClient(viewProject.client_id)}>{cn(viewProject.client_id)}</EntityLink>
+          {" — "}
+          <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {viewProject.status === "brief" && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
           <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
@@ -538,14 +545,30 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
 
                 {/* Team + specs row */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Salesperson</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{spName || "—"}</div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Designer</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{tn(viewProject.designer_id)}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Salesperson</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    {viewProject.salesperson_id
+                      ? <EntityLink onClick={nav.toTeamMember(viewProject.salesperson_id)}>{spName || "—"}</EntityLink>
+                      : (spName || "—")}
+                  </div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Designer</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    {viewProject.designer_id
+                      ? <EntityLink onClick={nav.toTeamMember(viewProject.designer_id)}>{tn(viewProject.designer_id)}</EntityLink>
+                      : tn(viewProject.designer_id)}
+                  </div></div>
                   <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
                   <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.issue_id ? (issues || []).find(i => i.id === viewProject.issue_id)?.label || "—" : "—"}</div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{pn(viewProject.publication_id)}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    {viewProject.issue_id
+                      ? <EntityLink onClick={nav.toFlatplan(viewProject.publication_id, viewProject.issue_id)}>{(issues || []).find(i => i.id === viewProject.issue_id)?.label || "—"}</EntityLink>
+                      : "—"}
+                  </div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    {viewProject.publication_id
+                      ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
+                      : pn(viewProject.publication_id)}
+                  </div></div>
                 </div>
 
                 {/* Editable brief fields — click to edit, save on blur */}
@@ -874,9 +897,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                         }}
                         title={isNeedsBrief ? "Click to start a design brief" : "Open project"}
                       >
-                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(sale.clientId)}</div>
+                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {sale.clientId
+                            ? <EntityLink onClick={nav.toClient(sale.clientId)}>{cn(sale.clientId)}</EntityLink>
+                            : cn(sale.clientId)}
+                        </div>
                         <div style={{ fontSize: FS.xs, color: Z.tm }}>{sale.size || "Ad"}</div>
-                        {project?.designer_id && <div style={{ fontSize: 10, color: Z.td, marginTop: 2 }}>{tn(project.designer_id)?.split(" ")[0]}</div>}
+                        {project?.designer_id && <div style={{ fontSize: 10, color: Z.td, marginTop: 2 }}>
+                          <EntityLink onClick={nav.toTeamMember(project.designer_id)} muted noUnderline>{tn(project.designer_id)?.split(" ")[0]}</EntityLink>
+                        </div>}
                         {isUnassigned && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da, marginTop: 2 }}>Unassigned</div>}
                         {isNeedsBrief && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm, marginTop: 2 }}>Start brief →</div>}
                       </div>
@@ -920,7 +949,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cn(p.client_id)}</div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.client_id
+                        ? <EntityLink onClick={nav.toClient(p.client_id)}>{cn(p.client_id)}</EntityLink>
+                        : cn(p.client_id)}
+                    </div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
                   {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
@@ -975,14 +1008,30 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               }
             };
             return <tr key={rowKey} onClick={onClick} style={{ cursor: "pointer" }}>
-              <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(sale.clientId)}</td>
-              <td style={{ color: Z.tm }}>{pn(sale.publication)}</td>
-              <td style={{ color: Z.tm, fontSize: FS.sm }}>{issue.label || "—"}</td>
+              <td style={{ fontWeight: FW.semi, color: Z.tx }}>
+                {sale.clientId
+                  ? <EntityLink onClick={nav.toClient(sale.clientId)}>{cn(sale.clientId)}</EntityLink>
+                  : cn(sale.clientId)}
+              </td>
+              <td style={{ color: Z.tm }}>
+                {sale.publication
+                  ? <EntityLink onClick={nav.toPublication(sale.publication)} muted>{pn(sale.publication)}</EntityLink>
+                  : pn(sale.publication)}
+              </td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>
+                {sale.issueId
+                  ? <EntityLink onClick={nav.toFlatplan(sale.publication, sale.issueId)} muted>{issue.label || "—"}</EntityLink>
+                  : (issue.label || "—")}
+              </td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{sale.size || "—"}</td>
               <td>{project
                 ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: project.art_source === "camera_ready" ? Z.wa : Z.ac, background: (project.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{project.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span>
                 : <span style={{ color: Z.td, fontSize: FS.sm }}>—</span>}</td>
-              <td style={{ color: Z.tm, fontSize: FS.sm }}>{project?.designer_id ? tn(project.designer_id) : "—"}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>
+                {project?.designer_id
+                  ? <EntityLink onClick={nav.toTeamMember(project.designer_id)} muted>{tn(project.designer_id)}</EntityLink>
+                  : "—"}
+              </td>
               <td><Badge status={st.label} small /></td>
               <td style={{ color: (project?.revision_count || 0) >= 3 ? Z.wa : Z.tm }}>{project?.revision_count || 0}</td>
               <td style={{ color: Z.td, fontSize: FS.sm }}>{project?.updated_at ? fmtDate(project.updated_at) : "—"}</td>
@@ -1001,12 +1050,28 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           : filtered.map(p => {
             const st = STATUSES[p.status] || STATUSES.brief;
             return <tr key={p.id} onClick={() => setViewId(p.id)} style={{ cursor: "pointer" }}>
-              <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(p.client_id)}</td>
-              <td style={{ color: Z.tm }}>{pn(p.publication_id)}</td>
-              <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.issue_id ? ((issues || []).find(i => i.id === p.issue_id)?.label || "—") : "—"}</td>
+              <td style={{ fontWeight: FW.semi, color: Z.tx }}>
+                {p.client_id
+                  ? <EntityLink onClick={nav.toClient(p.client_id)}>{cn(p.client_id)}</EntityLink>
+                  : cn(p.client_id)}
+              </td>
+              <td style={{ color: Z.tm }}>
+                {p.publication_id
+                  ? <EntityLink onClick={nav.toPublication(p.publication_id)} muted>{pn(p.publication_id)}</EntityLink>
+                  : pn(p.publication_id)}
+              </td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>
+                {p.issue_id
+                  ? <EntityLink onClick={nav.toFlatplan(p.publication_id, p.issue_id)} muted>{(issues || []).find(i => i.id === p.issue_id)?.label || "—"}</EntityLink>
+                  : "—"}
+              </td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "—"}</td>
               <td><span style={{ fontSize: 10, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
-              <td style={{ color: Z.tm, fontSize: FS.sm }}>{tn(p.designer_id)}</td>
+              <td style={{ color: Z.tm, fontSize: FS.sm }}>
+                {p.designer_id
+                  ? <EntityLink onClick={nav.toTeamMember(p.designer_id)} muted>{tn(p.designer_id)}</EntityLink>
+                  : tn(p.designer_id)}
+              </td>
               <td><Badge status={st.label} small /></td>
               <td style={{ color: p.revision_count >= 3 ? Z.wa : Z.tm }}>{p.revision_count || 0}</td>
               <td style={{ color: Z.td, fontSize: FS.sm }}>{fmtDate(p.updated_at)}</td>

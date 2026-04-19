@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { sendGmailEmail } from "../lib/gmail";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { deriveTransactionType } from "../lib/qboTransactionType";
+import { useNav } from "../hooks/useNav";
 
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
@@ -46,7 +47,7 @@ function buildPageGrid(items, pub) {
   return placements;
 }
 
-const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels }) => {
+const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick }) => {
   const pH = pageW * (pub.height / pub.width);
   const placements = buildPageGrid(adsOnPage, pub);
   const fs = Math.max(8, pageW * 0.07);
@@ -84,7 +85,22 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       const textColor = isSold ? "#166534" : isPending ? "#92400e" : Z.td;
       const subColor = isSold ? "rgba(22,101,52,0.6)" : isPending ? "rgba(146,64,14,0.5)" : "rgba(138,149,168,0.6)";
 
-      return <div key={p.id} draggable onDragStart={e => { e.stopPropagation(); onStartDrag(p.id, p.isPlaceholder ? "placeholder" : "sale"); }} style={{ position: "absolute", left: `${p.gridCol * cellW}%`, top: `${p.gridRow * cellH}%`, width: `${p.spanCols * cellW}%`, height: `${p.spanRows * cellH}%`, background: bgStyle, border: borderStyle, borderRadius: R, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", zIndex: 5, boxSizing: "border-box", cursor: "grab" }}>
+      return <div
+        key={p.id}
+        draggable
+        onDragStart={e => { e.stopPropagation(); onStartDrag(p.id, p.isPlaceholder ? "placeholder" : "sale"); }}
+        onClick={e => {
+          // Modifier+click opens the client profile in SalesCRM. Normal click
+          // falls through to the page's onClick (selection). Drag is unaffected
+          // because drag starts on pointer-move, not click.
+          if (!isPH && p.clientId && (e.metaKey || e.ctrlKey) && onClientModClick) {
+            e.stopPropagation();
+            onClientModClick(p.clientId);
+          }
+        }}
+        title={!isPH && p.clientId ? "⌘/Ctrl-click to open client" : undefined}
+        style={{ position: "absolute", left: `${p.gridCol * cellW}%`, top: `${p.gridRow * cellH}%`, width: `${p.spanCols * cellW}%`, height: `${p.spanRows * cellH}%`, background: bgStyle, border: borderStyle, borderRadius: R, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", zIndex: 5, boxSizing: "border-box", cursor: "grab" }}
+      >
         <div style={{ fontSize: fs, fontWeight: FW.heavy, color: textColor, textAlign: "center", lineHeight: 1.1, padding: "0 2px" }}>{isPH ? (phLabels?.[p.id] || "HOLD") : clientName(p.clientId).slice(0, 18)}</div>
         <div style={{ fontSize: fsSmall, color: subColor, fontWeight: FW.semi }}>{isPH ? "Placeholder" : (p.size || p.type)}</div>
         {pageW > 70 && <button onClick={e => { e.stopPropagation(); onRemoveAd(p.id); }} style={{ position: "absolute", top: 1, right: 1, width: 13, height: 13, borderRadius: Ri, background: "rgba(232,72,85,0.85)", border: "none", cursor: "pointer", fontSize: 9, color: INV.light, fontWeight: FW.black, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
@@ -93,7 +109,11 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   </div>;
 };
 
-const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser, isActive }) => {
+const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser, isActive, onNavigate }) => {
+  const nav = useNav(onNavigate);
+  // Modifier+click handler threaded into FlatplanPage + sidebar cards.
+  const onClientModClick = (clientId) => { if (clientId) nav.toClient(clientId)(); };
+
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -596,13 +616,27 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         </div>)}
 
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginTop: 8 }}>Unplaced ({unplaced.length})</div>
-        {unplaced.map(s => { const isPending = s.status === "Proposal" || s.status === "Negotiation"; return <div key={s.id} draggable onDragStart={e => handleDragStart(e, s)} style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}>
+        {unplaced.map(s => { const isPending = s.status === "Proposal" || s.status === "Negotiation"; return <div
+          key={s.id}
+          draggable
+          onDragStart={e => handleDragStart(e, s)}
+          onClick={e => { if (s.clientId && (e.metaKey || e.ctrlKey)) { e.stopPropagation(); onClientModClick(s.clientId); } }}
+          title={s.clientId ? "⌘/Ctrl-click to open client" : undefined}
+          style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}
+        >
           <div style={{ fontWeight: FW.bold, color: Z.tx, fontSize: FS.base }}>{cn(s.clientId)}</div>
           <div style={{ color: Z.tm, fontSize: FS.sm }}>{s.size || s.type} · ${s.amount.toLocaleString()}{isPending ? " · PENDING" : ""}</div>
           {s.adW > 0 && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.adW}" × {s.adH}"</div>}
         </div>; })}
         {placed.length > 0 && <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.su, textTransform: "uppercase", marginTop: 8 }}>Placed ({placed.length})</div>}
-        {placed.map(s => { const pm = pageMapRef.current[s.id]; return <div key={s.id} draggable onDragStart={() => startDrag(s.id, "sale")} style={{ ...glass(), borderRadius: R, padding: CARD.pad, fontSize: FS.sm, cursor: "grab" }}><span style={{ fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</span> <span style={{ color: Z.tm }}>{s.size || s.type}</span> <span style={{ color: Z.ac }}>p.{pm?.page || s.page}</span></div>; })}
+        {placed.map(s => { const pm = pageMapRef.current[s.id]; return <div
+          key={s.id}
+          draggable
+          onDragStart={() => startDrag(s.id, "sale")}
+          onClick={e => { if (s.clientId && (e.metaKey || e.ctrlKey)) { e.stopPropagation(); onClientModClick(s.clientId); } }}
+          title={s.clientId ? "⌘/Ctrl-click to open client" : undefined}
+          style={{ ...glass(), borderRadius: R, padding: CARD.pad, fontSize: FS.sm, cursor: "grab" }}
+        ><span style={{ fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</span> <span style={{ color: Z.tm }}>{s.size || s.type}</span> <span style={{ color: Z.ac }}>p.{pm?.page || s.page}</span></div>; })}
       </div>
 
       {/* Center — pages */}
@@ -617,7 +651,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           const pageAds = isLocked
             ? (sharedCtx.primarySalesOnShared || []).filter(s => s.page === n).map(s => ({ ...s, isPlaceholder: false, gridRow: s.pagePos?.row ?? null, gridCol: s.pagePos?.col ?? null }))
             : getPageItems(n);
-          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClick={() => {
+          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} onClick={() => {
                     if (showSharedPicker && sharedCtx?.isPrimary) {
                       // Toggle this page in the issue's shared_pages array
                       const cur = issue.sharedPages || [];
