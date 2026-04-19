@@ -277,14 +277,17 @@ export function DataProvider({ children, localData }) {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - 12);
     const cutoff = cutoffDate.toISOString().slice(0, 10);
+    // Keyset pagination on id (UUIDs sort lexicographically). The boot
+    // transform re-sorts by date below, so fetch order doesn't matter.
+    // Switched from OFFSET .range() — past offset ~18k Postgres timed out.
     let allSales = [];
-    let sp = 0;
+    let cursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
-      const { data } = await supabase.from('sales').select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to').gte('date', cutoff).order('date', { ascending: false }).range(sp * 1000, (sp + 1) * 1000 - 1);
+      const { data } = await supabase.from('sales').select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to').gte('date', cutoff).gt('id', cursor).order('id').limit(1000);
       if (!data || data.length === 0) break;
       allSales = allSales.concat(data);
       if (data.length < 1000) break;
-      sp++;
+      cursor = data[data.length - 1].id;
     }
     if (allSales.length > 0) setSales(allSales.map(s => ({
       id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id,
@@ -306,18 +309,20 @@ export function DataProvider({ children, localData }) {
   const loadSalesForClient = useCallback(async (clientId) => {
     if (!clientId || !isOnline() || loadedClientSalesRef.current.has(clientId)) return;
     loadedClientSalesRef.current.add(clientId);
+    // Keyset on id; date order applied client-side downstream.
     let all = [];
-    let sp = 0;
+    let cursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
       const { data } = await supabase.from('sales')
         .select('id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to')
         .eq('client_id', clientId)
-        .order('date', { ascending: false })
-        .range(sp * 1000, (sp + 1) * 1000 - 1);
+        .gt('id', cursor)
+        .order('id')
+        .limit(1000);
       if (!data || data.length === 0) break;
       all = all.concat(data);
       if (data.length < 1000) break;
-      sp++;
+      cursor = all[all.length - 1].id;
     }
     if (!all.length) return;
     const mapped = all.map(s => ({
@@ -442,16 +447,20 @@ export function DataProvider({ children, localData }) {
   const loadStories = useCallback(async () => {
     if (storiesLoaded || !isOnline()) return;
     let allStories = [];
-    let page = 0;
+    // Keyset on id (UUID); created_at order isn't needed here — downstream
+    // map+sort handles display order. Was OFFSET .range() causing degradation
+    // as story count grew.
     const pageSize = 1000;
+    let storyCursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
       const { data } = await supabase.from('stories').select('*')
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .gt('id', storyCursor)
+        .order('id')
+        .limit(pageSize);
       if (!data || data.length === 0) break;
       allStories = allStories.concat(data);
       if (data.length < pageSize) break;
-      page++;
+      storyCursor = data[data.length - 1].id;
     }
     if (allStories.length > 0) setStories(allStories.map(s => ({
       id: s.id, title: s.title, author: s.author, status: s.status,
@@ -722,16 +731,19 @@ export function DataProvider({ children, localData }) {
     if (mediaAssetsLoaded || !isOnline()) return;
     // Paginate to pick up all tagged rows
     const all = [];
-    let pg = 0;
+    // Keyset on id; media_assets is unbounded — was OFFSET .range() which
+    // degrades linearly with library size.
+    let mediaCursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
       const { data } = await supabase.from('media_assets')
         .select('*')
-        .order('created_at', { ascending: false })
-        .range(pg * 1000, (pg + 1) * 1000 - 1);
+        .gt('id', mediaCursor)
+        .order('id')
+        .limit(1000);
       if (!data?.length) break;
       all.push(...data);
       if (data.length < 1000) break;
-      pg++;
+      mediaCursor = data[data.length - 1].id;
     }
     setMediaAssets(all.map(a => ({
       id: a.id, fileName: a.file_name, mimeType: a.mime_type, fileType: a.file_type,
@@ -1215,13 +1227,14 @@ export function DataProvider({ children, localData }) {
   const [commissionsLoaded, setCommissionsLoaded] = useState(false);
   const loadCommissions = useCallback(async () => {
     if (commissionsLoaded || !isOnline()) return;
-    // Ledger and payouts can grow without bound over years. Clamp to the
-    // last 2 years on boot — older periods are available via a "load archive"
-    // action (not exposed yet; add when the UI needs it).
-    const ledgerCutoff = new Date(Date.now() - 730 * 86400000).toISOString();
+    // Boot loads the trailing 12 months capped at 1500 rows. The Commissions
+    // panel can lazy-load older entries when the user opens an archive view
+    // (TODO: add archive loader when needed). Was 24mo / 5000 rows — boot
+    // payload was the dominant cost for accounts with heavy ledger volume.
+    const ledgerCutoff = new Date(Date.now() - 365 * 86400000).toISOString();
     const [ledgerRes, payoutsRes, goalsRes, assignRes, ratesRes] = await Promise.all([
-      supabase.from('commission_ledger').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(5000),
-      supabase.from('commission_payouts').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(2000),
+      supabase.from('commission_ledger').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1500),
+      supabase.from('commission_payouts').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1000),
       supabase.from('commission_issue_goals').select('*'),
       supabase.from('salesperson_pub_assignments').select('*'),
       supabase.from('commission_rates').select('*'),
@@ -1581,13 +1594,14 @@ export function DataProvider({ children, localData }) {
     }
     // Reload sales to pick up the new orders
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 12);
-    let newSales = []; let pg = 0;
+    // Keyset on id; downstream map re-applies date order.
+    let newSales = []; let salesCursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
-      const { data: sd } = await supabase.from('sales').select('*').gte('date', cutoff.toISOString().slice(0, 10)).order('date', { ascending: false }).range(pg * 1000, (pg + 1) * 1000 - 1);
+      const { data: sd } = await supabase.from('sales').select('*').gte('date', cutoff.toISOString().slice(0, 10)).gt('id', salesCursor).order('id').limit(1000);
       if (!sd || sd.length === 0) break;
       newSales = newSales.concat(sd);
       if (sd.length < 1000) break;
-      pg++;
+      salesCursor = sd[sd.length - 1].id;
     }
     if (newSales.length > 0) setSales(newSales.map(s => ({
       id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id,
