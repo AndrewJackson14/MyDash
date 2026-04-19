@@ -522,8 +522,12 @@ export function DataProvider({ children, localData }) {
           q => q.in('invoice_id', invIds))
       : [];
 
-    // Payments — keyset paginated for reliability (28k+ rows in production)
-    const allPayments = await fetchKeyset('payments', '*');
+    // Payments — last 24 months only on boot. Cuts 28k → ~11k rows
+    // (28 pages → 11 pages). Per-client lifetime totals + last-payment-date
+    // are approximate for clients who haven't paid in 2+ years (usually
+    // dormant accounts); active AR work isn't affected.
+    const pmtCutoff = new Date(Date.now() - 730 * 86400000).toISOString();
+    const allPayments = await fetchKeyset('payments', '*', q => q.gte('received_at', pmtCutoff));
     const payRes = { data: allPayments };
 
     // Index lines by invoice_id for fast lookup
