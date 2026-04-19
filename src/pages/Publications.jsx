@@ -16,7 +16,7 @@ const fmtMoney = (n) => "$" + Math.round(Number(n) || 0).toLocaleString();
 // PlacementsSection — CRUD for named premium positions (Back Cover, IFC,
 // IBC today; other categories deferred). Rendered inside the pub rate
 // modal so it lives alongside Rate Card and Revenue Goals. Self-loads
-// on mount from ad_placements; saves go direct to Supabase. Publisher
+// on mount from print_placements; saves go direct to Supabase. Publisher
 // /admin gated via the parent component.
 // ============================================================
 const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canEdit }) => {
@@ -36,7 +36,7 @@ const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canE
       if (!pubId) return;
       setLoading(true); setErr(null);
       const { data, error } = await supabase
-        .from("ad_placements")
+        .from("print_placements")
         .select("*")
         .eq("pub_id", pubId)
         .order("sort_order");
@@ -74,13 +74,13 @@ const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canE
       const toUpdate = draft.filter(r => r.id);
 
       if (toDelete.length) {
-        const { error } = await supabase.from("ad_placements").delete().in("id", toDelete);
+        const { error } = await supabase.from("print_placements").delete().in("id", toDelete);
         if (error) throw error;
       }
       if (toUpdate.length) {
         for (const r of toUpdate) {
           const { _new, ...payload } = r; // eslint-disable-line no-unused-vars
-          const { error } = await supabase.from("ad_placements")
+          const { error } = await supabase.from("print_placements")
             .update({
               name: payload.name, category: payload.category,
               rate: payload.rate || 0, rate_6: payload.rate_6 || 0, rate_12: payload.rate_12 || 0,
@@ -98,7 +98,7 @@ const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canE
           limited_per_issue: r.limited_per_issue == null ? null : Number(r.limited_per_issue),
           sort_order: r.sort_order || 0,
         }));
-        const { error } = await supabase.from("ad_placements").insert(payload);
+        const { error } = await supabase.from("print_placements").insert(payload);
         if (error) throw error;
       }
 
@@ -113,7 +113,7 @@ const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canE
 
       // Reload.
       const { data, error: reErr } = await supabase
-        .from("ad_placements").select("*").eq("pub_id", pubId).order("sort_order");
+        .from("print_placements").select("*").eq("pub_id", pubId).order("sort_order");
       if (reErr) throw reErr;
       setRows(data || []);
       setEditing(false); setDraft([]);
