@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, SP } from "../../lib/theme";
-import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp } from "../../components/ui";
+import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp, FilterPillStrip } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
+
+const VIEW_OPTIONS = [
+  { value: "size", label: "By Ad Size" },
+  { value: "client", label: "By Client" },
+];
 
 const RANGE_PRESETS = [
   { value: "this_month", label: "This Month" },
@@ -51,6 +56,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
   const [customTo, setCustomTo] = useState("");
   const [pubFilter, setPubFilter] = useState("all");
   const [status, setStatus] = useState("Closed");
+  const [view, setView] = useState("size");
 
   const { from, to } = useMemo(
     () => rangeBounds(preset, customFrom, customTo),
@@ -132,11 +138,40 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
     return out;
   }, [filtered, pubById, issueById]);
 
+  // By-client view: one row per sale (order), enriched with client + issue.
+  const clientRows = useMemo(() => {
+    const out = filtered.map(s => {
+      const pub = pubById[s.publication];
+      const iss = s.issueId ? issueById[s.issueId] : null;
+      const client = clientById[s.clientId];
+      return {
+        id: s.id,
+        pubId: s.publication,
+        pubName: pub?.name || "(unknown pub)",
+        pubColor: pub?.color || Z.tm,
+        issueLabel: iss?.label || (s.issueId ? "(missing issue)" : "(ad-hoc)"),
+        issueDate: iss?.date || s.date || "",
+        clientName: client?.name || "(unknown client)",
+        adSize: (s.size || "").trim() || "—",
+        amount: Number(s.amount || 0),
+        status: s.status,
+      };
+    });
+    out.sort((a, b) =>
+      b.issueDate.localeCompare(a.issueDate) ||
+      a.pubName.localeCompare(b.pubName) ||
+      a.clientName.localeCompare(b.clientName) ||
+      a.adSize.localeCompare(b.adSize)
+    );
+    return out;
+  }, [filtered, pubById, issueById, clientById]);
+
   const headline = useMemo(() => {
     const totalGross = filtered.reduce((s, r) => s + Number(r.amount || 0), 0);
     const pubsTouched = new Set(filtered.map(s => s.publication)).size;
     const issuesTouched = new Set(filtered.map(s => s.issueId).filter(Boolean)).size;
-    return { totalGross, pubsTouched, issuesTouched, dealCount: filtered.length };
+    const clientsTouched = new Set(filtered.map(s => s.clientId).filter(Boolean)).size;
+    return { totalGross, pubsTouched, issuesTouched, clientsTouched, dealCount: filtered.length };
   }, [filtered]);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -163,11 +198,15 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
           <SolidTabs options={STATUS_OPTIONS} active={status} onChange={setStatus} />
         </div>
       </div>
-      {from && to && (
-        <div style={{ marginTop: 10, fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
-          {from} → {to} · filtered by issue date
-        </div>
-      )}
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: FS.sm, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>View:</span>
+        <FilterPillStrip options={VIEW_OPTIONS} value={view} onChange={setView} />
+        {from && to && (
+          <span style={{ marginLeft: "auto", fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
+            {from} → {to} · filtered by issue date
+          </span>
+        )}
+      </div>
     </GlassCard>
 
     {/* Headline */}
@@ -175,19 +214,24 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
       <GlassStat label="Gross Sales" value={fmtCurrency(headline.totalGross)} />
       <GlassStat label="Transactions" value={headline.dealCount.toLocaleString()} />
       <GlassStat label="Issues" value={headline.issuesTouched.toLocaleString()} />
-      <GlassStat label="Publications" value={headline.pubsTouched.toLocaleString()} />
+      <GlassStat
+        label={view === "client" ? "Clients" : "Publications"}
+        value={(view === "client" ? headline.clientsTouched : headline.pubsTouched).toLocaleString()}
+      />
     </div>
 
-    {/* Table */}
+    {/* Table — body swaps based on selected view */}
     <GlassCard style={{ padding: SP.cardPad }}>
       <div style={{ fontSize: FS.lg, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, marginBottom: 12 }}>
-        Sales by publication × issue × size
+        {view === "client"
+          ? "Sales by client × issue"
+          : "Sales by publication × issue × size"}
       </div>
-      {rows.length === 0 ? (
+      {(view === "size" ? rows.length : clientRows.length) === 0 ? (
         <div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>
           No sales match the current filters.
         </div>
-      ) : (
+      ) : view === "size" ? (
         <DataTable>
           <thead>
             <tr>
@@ -218,6 +262,45 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
             <tr style={{ borderTop: `2px solid ${Z.bd}` }}>
               <td style={{ fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx }}>Total</td>
               <td colSpan={3} />
+              <td style={{ textAlign: "right", fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
+                {fmtCurrency(headline.totalGross)}
+              </td>
+            </tr>
+          </tbody>
+        </DataTable>
+      ) : (
+        <DataTable>
+          <thead>
+            <tr>
+              <th>Publication</th>
+              <th>Issue</th>
+              <th>Issue Date</th>
+              <th>Client</th>
+              <th>Ad Size</th>
+              <th style={{ textAlign: "right" }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clientRows.map(r => (
+              <tr key={r.id}>
+                <td>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 4, background: r.pubColor, flexShrink: 0 }} />
+                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{r.pubName}</span>
+                  </span>
+                </td>
+                <td style={{ color: Z.tx }}>{r.issueLabel}</td>
+                <td style={{ color: Z.tm, fontVariantNumeric: "tabular-nums" }}>{r.issueDate || "—"}</td>
+                <td style={{ color: Z.tx, fontWeight: FW.semi }}>{r.clientName}</td>
+                <td style={{ color: Z.td }}>{r.adSize}</td>
+                <td style={{ textAlign: "right", fontFamily: DISPLAY, fontWeight: FW.heavy, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
+                  {fmtCurrency(r.amount)}
+                </td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: `2px solid ${Z.bd}` }}>
+              <td style={{ fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx }}>Total</td>
+              <td colSpan={4} />
               <td style={{ textAlign: "right", fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                 {fmtCurrency(headline.totalGross)}
               </td>
