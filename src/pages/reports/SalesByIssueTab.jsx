@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, SP, Ri } from "../../lib/theme";
-import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp, FilterPillStrip } from "../../components/ui";
+import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp, FilterPillStrip, EntityLink } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 import { useSortable, SortTh } from "./sortable";
+import { useNav } from "../../hooks/useNav";
 
 const VIEW_OPTIONS = [
   { value: "size", label: "By Ad Size" },
@@ -90,7 +91,9 @@ const rangeBounds = (preset, customFrom, customTo) => {
   return { from: customFrom || "", to: customTo || "" };
 };
 
-const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], invoices = [], adProjects = [], loadAdProjects }) => {
+const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], invoices = [], adProjects = [], loadAdProjects, onNavigate, deepLink }) => {
+  const nav = useNav(onNavigate);
+
   // Lazy-load ad_projects on mount. loadAdProjects no-ops if already loaded.
   useEffect(() => { if (loadAdProjects) loadAdProjects(); }, [loadAdProjects]);
 
@@ -118,6 +121,19 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
   const [pubFilter, setPubFilter] = useState("all");
   const [status, setStatus] = useState("Closed");
   const [view, setView] = useState("size");
+
+  // Deep-link receiver: when Analytics routes a deepLink here (via
+  // nav.toReport("Sales by Issue", { pubId, year, ... })) pre-apply filters.
+  // Fires once per new deepLink object — subsequent filter changes stick.
+  useEffect(() => {
+    if (!deepLink) return;
+    if (deepLink.pubId) setPubFilter(deepLink.pubId);
+    if (deepLink.year) {
+      setPreset("custom");
+      setCustomFrom(`${deepLink.year}-01-01`);
+      setCustomTo(`${deepLink.year}-12-31`);
+    }
+  }, [deepLink]);
 
   const { from, to } = useMemo(
     () => rangeBounds(preset, customFrom, customTo),
@@ -227,6 +243,8 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
       return {
         id: s.id,
         pubId: s.publication,
+        issueId: s.issueId || null,
+        clientId: s.clientId,
         pubName: pub?.name || "(unknown pub)",
         pubColor: pub?.color || Z.tm,
         issueLabel: iss?.label || (s.issueId ? "(missing issue)" : "(ad-hoc)"),
@@ -335,10 +353,16 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
                 <td>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 4, background: r.pubColor, flexShrink: 0 }} />
-                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{r.pubName}</span>
+                    <EntityLink onClick={nav.toIssueDesign(r.pubId, r.issueId)} style={{ fontWeight: FW.heavy, color: Z.tx }}>
+                      {r.pubName}
+                    </EntityLink>
                   </span>
                 </td>
-                <td style={{ color: Z.tm, fontVariantNumeric: "tabular-nums" }}>{r.issueDate || "—"}</td>
+                <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {r.issueDate
+                    ? <EntityLink onClick={nav.toFlatplan(r.pubId, r.issueId)} muted>{r.issueDate}</EntityLink>
+                    : <span style={{ color: Z.tm }}>—</span>}
+                </td>
                 <td style={{ color: Z.td }}>{r.adSize}</td>
                 <td><StatusPill value={r.adStatus} colorMap={AD_STATUS_COLOR} /></td>
                 <td><StatusPill value={r.invStatus} colorMap={INV_STATUS_COLOR} /></td>
@@ -375,14 +399,37 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
                 <td>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 4, background: r.pubColor, flexShrink: 0 }} />
-                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{r.pubName}</span>
+                    <EntityLink onClick={nav.toIssueDesign(r.pubId, r.issueId)} muted style={{ fontWeight: FW.heavy }}>
+                      {r.pubName}
+                    </EntityLink>
                   </span>
                 </td>
-                <td style={{ color: Z.tm, fontVariantNumeric: "tabular-nums" }}>{r.issueDate || "—"}</td>
-                <td style={{ color: Z.tx, fontWeight: FW.semi }}>{r.clientName}</td>
-                <td style={{ color: Z.td }}>{r.adSize}</td>
-                <td><StatusPill value={r.adStatus} colorMap={AD_STATUS_COLOR} /></td>
-                <td><StatusPill value={r.invStatus} colorMap={INV_STATUS_COLOR} /></td>
+                <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {r.issueDate
+                    ? <EntityLink onClick={nav.toFlatplan(r.pubId, r.issueId)} muted>{r.issueDate}</EntityLink>
+                    : <span style={{ color: Z.tm }}>—</span>}
+                </td>
+                <td>
+                  {r.clientId
+                    ? <EntityLink onClick={nav.toClient(r.clientId)} style={{ color: Z.tx, fontWeight: FW.semi }}>{r.clientName}</EntityLink>
+                    : <span style={{ color: Z.tx, fontWeight: FW.semi }}>{r.clientName}</span>}
+                </td>
+                <td>
+                  <EntityLink onClick={nav.toAdProjectForSale(r.id)} muted noUnderline>{r.adSize}</EntityLink>
+                </td>
+                <td>
+                  <span onClick={nav.toAdProjectForSale(r.id)} style={{ cursor: "pointer" }}>
+                    <StatusPill value={r.adStatus} colorMap={AD_STATUS_COLOR} />
+                  </span>
+                </td>
+                <td>
+                  <span
+                    onClick={r.clientId ? nav.toBillingClient(r.clientId) : undefined}
+                    style={{ cursor: r.clientId ? "pointer" : "default" }}
+                  >
+                    <StatusPill value={r.invStatus} colorMap={INV_STATUS_COLOR} />
+                  </span>
+                </td>
                 <td style={{ textAlign: "right", fontFamily: DISPLAY, fontWeight: FW.heavy, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                   {fmtCurrency(r.amount)}
                 </td>

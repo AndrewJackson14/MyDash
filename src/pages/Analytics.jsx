@@ -31,7 +31,8 @@ const Analytics = ({
   pubs, sales, clients, issues, stories,
   invoices, payments, subscribers, legalNotices, creativeJobs,
   freelancerPayments, dropLocations, dropLocationPubs, drivers,
-  bills, commissionPayouts, adProjects, loadAdProjects, isActive,
+  bills, commissionPayouts, adProjects, loadAdProjects,
+  isActive, onNavigate, deepLink,
 }) => {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -52,6 +53,15 @@ const Analytics = ({
     ...(isPublisher ? ["Year-over-Year", "Revenue vs. Goals"] : []),
     "P&L", "Sales", "Sales by Issue", "Editorial", "Subscribers", "Audience",
   ], [isPublisher]);
+
+  // Deep-link receiver: nav.toReport("Sales by Issue", { ... }) routes here
+  // with deepLink.tab set to the tab's display label. Match against the tab
+  // strip so unknown values fall through to the current tab rather than
+  // rendering a blank page.
+  useEffect(() => {
+    if (!isActive || !deepLink?.tab) return;
+    if (reportTabs.includes(deepLink.tab)) setTab(deepLink.tab);
+  }, [deepLink, isActive, reportTabs]);
 
   const _inv = invoices || [];
   const _pay = payments || [];
@@ -356,14 +366,14 @@ const Analytics = ({
     {/* ════════ YEAR-OVER-YEAR (Publisher/admin only) ════════ */}
     {tab === "Year-over-Year" && isPublisher && (
       <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
-        <YearOverYearTab pubs={pubs} />
+        <YearOverYearTab pubs={pubs} onNavigate={onNavigate} />
       </Suspense>
     )}
 
     {/* ════════ REVENUE VS GOALS (Publisher/admin only) ════════ */}
     {tab === "Revenue vs. Goals" && isPublisher && (
       <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
-        <RevenueVsGoalsTab pubs={pubs} />
+        <RevenueVsGoalsTab pubs={pubs} onNavigate={onNavigate} />
       </Suspense>
     )}
 
@@ -373,6 +383,7 @@ const Analytics = ({
         <SalesByIssueTab
           sales={sales} pubs={pubs} issues={issues} clients={clients}
           invoices={invoices} adProjects={adProjects} loadAdProjects={loadAdProjects}
+          onNavigate={onNavigate} deepLink={deepLink}
         />
       </Suspense>
     )}

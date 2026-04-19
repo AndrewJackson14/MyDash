@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { Z, COND, DISPLAY, FS, FW, R, SP } from "../../lib/theme";
-import { GlassCard, GlassStat, DataTable, Sel, SolidTabs } from "../../components/ui";
+import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, EntityLink } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 import { pacingColor, pacingIcon } from "./comparisonColors";
 import { daysElapsedPct, isYearComplete, isPeriodFuture } from "./pacing";
 import RefreshPill from "./RefreshPill";
+import { useNav } from "../../hooks/useNav";
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
@@ -13,7 +14,9 @@ const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
 const pct = (num, den) => (den > 0 ? (num / den) * 100 : null);
 const fmtPct = (p) => (p == null ? "—" : `${p.toFixed(0)}%`);
 
-const RevenueVsGoalsTab = ({ pubs }) => {
+const RevenueVsGoalsTab = ({ pubs, onNavigate }) => {
+  const nav = useNav(onNavigate);
+
   const now = useMemo(() => new Date(), []);
   const thisYear = now.getFullYear();
   const thisMonth = now.getMonth();
@@ -364,7 +367,9 @@ const RevenueVsGoalsTab = ({ pubs }) => {
             const overflow = p.goal > 0 && p.actual > p.goal;
             return <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-                <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, minWidth: 200 }}>{p.name}</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, minWidth: 200 }}>
+                  <EntityLink onClick={nav.toReport("Sales by Issue", { pubId: p.id, year })}>{p.name}</EntityLink>
+                </div>
                 <div style={{ fontSize: FS.md, fontFamily: DISPLAY, color: Z.tx }}>
                   {fmtCurrency(p.actual)} <span style={{ color: Z.tm }}>/ {p.goal > 0 ? fmtCurrency(p.goal) : "no goal"}</span>
                 </div>

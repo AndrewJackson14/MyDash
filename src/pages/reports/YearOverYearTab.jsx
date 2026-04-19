@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { Z, COND, DISPLAY, FS, FW, R, SP } from "../../lib/theme";
-import { GlassCard, GlassStat, DataTable, Sel, SolidTabs } from "../../components/ui";
+import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, EntityLink } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 import { deltaColor, deltaArrow } from "./comparisonColors";
 import RefreshPill from "./RefreshPill";
 import { useSortable, SortTh } from "./sortable";
+import { useNav } from "../../hooks/useNav";
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
@@ -21,7 +22,9 @@ const fmt$ = (n) => (n == null ? "—" : fmtCurrency(n));
 const sumBy = (rows, predicate) =>
   rows.reduce((acc, r) => (predicate(r) ? acc + Number(r.actual_revenue || 0) : acc), 0);
 
-const YearOverYearTab = ({ pubs }) => {
+const YearOverYearTab = ({ pubs, onNavigate }) => {
+  const nav = useNav(onNavigate);
+
   const now = useMemo(() => new Date(), []);
   const thisYear = now.getFullYear();
   const thisMonth = now.getMonth(); // 0-indexed
@@ -406,7 +409,14 @@ const YearOverYearTab = ({ pubs }) => {
             {perPubSorted.map(p => {
               const dColor = deltaColor(p.dPct);
               return <tr key={p.id}>
-                <td style={{ fontWeight: FW.heavy, color: Z.tx }}>{p.name}</td>
+                <td style={{ fontWeight: FW.heavy, color: Z.tx }}>
+                  <EntityLink
+                    onClick={nav.toReport("Sales by Issue", { pubId: p.id, year: curYear })}
+                    title={`Sales by Issue — ${p.name} for ${curYear}`}
+                  >
+                    {p.name}
+                  </EntityLink>
+                </td>
                 <td style={{ textAlign: "right", fontFamily: DISPLAY, color: Z.tx }}>{p.cur === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(p.cur)}</td>
                 <td style={{ textAlign: "right", fontFamily: DISPLAY, color: Z.td }}>{p.cmp === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(p.cmp)}</td>
                 <td style={{ textAlign: "right", color: dColor, fontWeight: FW.heavy }}>
