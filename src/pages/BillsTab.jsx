@@ -398,7 +398,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           const body = await ctx.json();
           return body.error || body.Fault?.Error?.[0]?.Detail || body.Fault?.Error?.[0]?.Message || fallback;
         }
-      } catch {}
+      } catch (e) { console.warn('[BillsTab] failed to parse error context', e); }
       return res.error.message || fallback;
     }
     return res.data?.error || res.data?.Fault?.Error?.[0]?.Detail || res.data?.Fault?.Error?.[0]?.Message || fallback;

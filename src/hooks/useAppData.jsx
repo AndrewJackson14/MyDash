@@ -257,12 +257,9 @@ export function DataProvider({ children, localData }) {
         })));
 
         console.timeEnd('boot-transform');
-        console.log('>>> CALLING setLoaded(true) NOW');
         setLoaded(true);
-        console.log('>>> setLoaded(true) CALLED');
       } catch (err) {
         console.error('Supabase fetch error', err);
-        console.log('>>> CALLING setLoaded(true) from CATCH');
         setLoaded(true);
       }
     };

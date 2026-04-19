@@ -22,15 +22,9 @@ export const fmtDateLong = (d) => d ? new Date(d + "T12:00:00").toLocaleDateStri
 /** Jan 5 — compact (no year) */
 export const fmtDateShort = (d) => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "\u2014";
 
-/** Jan 5, 2024, 2:30 PM — with time */
-export const fmtDateTime = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-
 // ─── Time ──────────────────────────────────────────────
 /** 2:30 PM */
 export const fmtTime = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-
-/** 2 PM — hour only (for calendar grids) */
-export const fmtTimeHour = (h) => `${h % 12 || 12} ${h >= 12 ? "PM" : "AM"}`;
 
 /** now / 5m / 2:30 PM / Yesterday 2:30 PM / Jan 5 2:30 PM */
 export const fmtTimeRelative = (d) => {

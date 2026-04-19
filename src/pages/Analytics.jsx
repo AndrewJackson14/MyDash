@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useMemo, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
-import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, FilterPillStrip } from "../components/ui";
+import { Ic, Btn, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, FilterPillStrip } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { useSortable, SortTh } from "./reports/sortable";
@@ -1061,7 +1061,7 @@ const WebAnalyticsTab = ({ pubs }) => {
     const refCounts = {};
     rows.forEach(r => {
       if (!r.referrer) return;
-      try { const h = new URL(r.referrer).hostname; if (h) refCounts[h] = (refCounts[h] || 0) + 1; } catch {}
+      try { const h = new URL(r.referrer).hostname; if (h) refCounts[h] = (refCounts[h] || 0) + 1; } catch (e) { console.warn('[Analytics] malformed referrer URL skipped', r.referrer); }
     });
     const topReferrers = Object.entries(refCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([host, count]) => ({ host, count }));
 
