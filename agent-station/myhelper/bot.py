@@ -26,15 +26,24 @@ from datetime import datetime, timezone
 
 import numpy as np
 import requests
+from dotenv import load_dotenv
 from supabase import create_client
+
+# Load .env from the script's own directory so LaunchAgent + manual runs
+# both pick it up regardless of CWD. override=True so editing .env always
+# wins over a stale value left in the shell environment.
+load_dotenv(pathlib.Path(__file__).parent / ".env", override=True)
 
 # ─── Config ────────────────────────────────────────────
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 MYHELPER_ID = os.environ["MYHELPER_ID"]
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "gemma3:27b")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
+# Chat uses Gemini API (fast, near-free tier). Embeddings stay local via
+# Ollama — they're cheap, private, and nomic-embed-text is already pulled.
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 DOCS_DIR = pathlib.Path(os.environ.get("DOCS_DIR",
     "/Users/nicholasmattson/Documents/Dev/MyDash/_docs"))
 POLL_INTERVAL = 5
@@ -153,20 +162,17 @@ Context from MyDash docs:
 Answer using only this context. End with a CONFIDENCE line."""
 
     r = requests.post(
-        f"{OLLAMA_URL}/api/chat",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        params={"key": GEMINI_API_KEY},
         json={
-            "model": CHAT_MODEL,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": SYS_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "options": {"temperature": 0.2},
+            "systemInstruction": {"parts": [{"text": SYS_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2},
         },
-        timeout=180,
+        timeout=60,
     )
     r.raise_for_status()
-    text = r.json()["message"]["content"].strip()
+    text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
     m = re.search(r"CONFIDENCE:\s*([0-9.]+)", text)
     model_conf = float(m.group(1)) if m else 0.0

@@ -187,7 +187,10 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
         onMouseEnter={e => { if (!open) e.currentTarget.style.transform = "scale(1.08)"; }}
         onMouseLeave={e => { e.currentTarget.style.transform = open ? "scale(0.92)" : "scale(1)"; }}
       >
-        {open ? "×" : "🤖"}
+        {open
+          ? "×"
+          : <img src="/favicon.png" alt="MyHelper" style={{ width: 36, height: 36, objectFit: "contain" }} />
+        }
         {!open && unread > 0 && (
           <span style={{
             position: "absolute",
@@ -216,8 +219,8 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
           right: 24,
           bottom: 96,
           zIndex: 9999,
-          width: 380,
-          maxHeight: 560,
+          width: 460,
+          maxHeight: 680,
           background: Z.sf,
           borderRadius: R,
           border: `1px solid ${Z.bd}`,
@@ -238,14 +241,16 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
             gap: 10,
           }}>
             <div style={{
-              width: 32, height: 32, borderRadius: 16,
-              background: Z.ac, color: "#fff",
+              width: 40, height: 40, borderRadius: 20,
+              background: "#08090D",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 16,
-            }}>🤖</div>
+              overflow: "hidden",
+            }}>
+              <img src="/favicon.png" alt="" style={{ width: 36, height: 36, objectFit: "contain" }} />
+            </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>MyHelper</div>
-              <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+              <div style={{ fontSize: 20, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>MyHelper</div>
+              <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>
                 {pageContext ? `Page: ${pageContext}` : "Ready to help"}
               </div>
             </div>
@@ -253,7 +258,7 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
               onClick={() => setOpen(false)}
               style={{
                 background: "none", border: "none", cursor: "pointer",
-                color: Z.tm, fontSize: 18, lineHeight: 1, padding: 4,
+                color: Z.tm, fontSize: 26, lineHeight: 1, padding: 4,
               }}
               title="Close (Esc)"
             >×</button>
@@ -263,39 +268,40 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
           <div ref={scrollRef} style={{
             flex: 1,
             overflowY: "auto",
-            padding: "12px 16px",
+            padding: "14px 18px",
             display: "flex",
             flexDirection: "column",
-            gap: 10,
-            minHeight: 200,
-            maxHeight: 380,
+            gap: 12,
+            minHeight: 240,
+            maxHeight: 520,
           }}>
             {messages.length === 0 ? (
-              <div style={{ textAlign: "center", color: Z.tm, fontSize: FS.sm, padding: "20px 0" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>👋</div>
-                <div style={{ fontSize: FS.sm, color: Z.tx, fontWeight: FW.bold, marginBottom: 4 }}>
+              <div style={{ textAlign: "center", color: Z.tm, fontSize: 17, padding: "20px 0" }}>
+                <div style={{ fontSize: 44, marginBottom: 10 }}>👋</div>
+                <div style={{ fontSize: 18, color: Z.tx, fontWeight: FW.bold, marginBottom: 6 }}>
                   Hi! I'm MyHelper.
                 </div>
-                <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 16, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 16, color: Z.tm, marginBottom: 20, lineHeight: 1.5 }}>
                   Ask me anything about MyDash — how to find things, how workflows work, where buttons live.
                 </div>
                 {myStarters.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {myStarters.map((s, i) => (
                       <button
                         key={i}
                         onClick={() => send(s)}
                         style={{
-                          padding: "8px 12px",
+                          padding: "12px 14px",
                           background: Z.bg,
                           border: `1px solid ${Z.bd}`,
                           borderRadius: Ri,
                           cursor: "pointer",
-                          fontSize: FS.sm,
+                          fontSize: 17,
                           color: Z.tx,
                           textAlign: "left",
                           fontFamily: "inherit",
                           transition: "background 140ms",
+                          lineHeight: 1.4,
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = Z.ac + "12"}
                         onMouseLeave={e => e.currentTarget.style.background = Z.bg}
@@ -311,22 +317,24 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
                   <div key={m.id} style={{
                     display: "flex",
                     flexDirection: mine ? "row-reverse" : "row",
-                    gap: 8,
+                    gap: 10,
                   }}>
                     {!mine && <div style={{
-                      width: 24, height: 24, borderRadius: 12,
-                      background: Z.ac, color: "#fff",
+                      width: 32, height: 32, borderRadius: 16,
+                      background: "#08090D",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 12, flexShrink: 0,
-                    }}>🤖</div>}
+                      flexShrink: 0, overflow: "hidden",
+                    }}>
+                      <img src="/favicon.png" alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+                    </div>}
                     <div style={{
-                      maxWidth: "75%",
-                      padding: "8px 12px",
-                      borderRadius: 12,
+                      maxWidth: "78%",
+                      padding: "10px 14px",
+                      borderRadius: 14,
                       background: mine ? Z.ac : Z.bg,
                       color: mine ? "#fff" : Z.tx,
-                      fontSize: FS.sm,
-                      lineHeight: 1.45,
+                      fontSize: 17,
+                      lineHeight: 1.5,
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
                     }}>{m.message}</div>
@@ -335,24 +343,26 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
               })
             )}
             {sending && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 10 }}>
                 <div style={{
-                  width: 24, height: 24, borderRadius: 12,
-                  background: Z.ac, color: "#fff",
+                  width: 32, height: 32, borderRadius: 16,
+                  background: "#08090D",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 12, flexShrink: 0,
-                }}>🤖</div>
+                  flexShrink: 0, overflow: "hidden",
+                }}>
+                  <img src="/favicon.png" alt="" style={{ width: 28, height: 28, objectFit: "contain" }} />
+                </div>
                 <div style={{
-                  padding: "8px 12px", borderRadius: 12, background: Z.bg,
-                  color: Z.tm, fontSize: FS.sm, fontStyle: "italic",
+                  padding: "10px 14px", borderRadius: 14, background: Z.bg,
+                  color: Z.tm, fontSize: 17, fontStyle: "italic",
                 }}>Thinking… (complex questions can take ~15s)</div>
               </div>
             )}
             {staleWarn && (
               <div style={{
-                padding: "8px 12px", borderRadius: Ri,
+                padding: "10px 14px", borderRadius: Ri,
                 background: "#E24B4A15", color: "#E24B4A",
-                fontSize: FS.xs, lineHeight: 1.4,
+                fontSize: 15, lineHeight: 1.4,
               }}>
                 MyHelper is slow to respond. If this keeps up, message MySupport directly for a faster answer.
               </div>
@@ -361,10 +371,10 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
 
           {/* Composer */}
           <div style={{
-            padding: "10px 12px",
+            padding: "12px 14px",
             borderTop: `1px solid ${Z.bd}`,
             display: "flex",
-            gap: 6,
+            gap: 8,
           }}>
             <input
               value={draft}
@@ -374,17 +384,17 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
               autoFocus
               style={{
                 flex: 1,
-                padding: "8px 12px",
+                padding: "10px 14px",
                 borderRadius: Ri,
                 border: `1px solid ${Z.bd}`,
                 background: Z.bg,
                 color: Z.tx,
-                fontSize: FS.sm,
+                fontSize: 17,
                 outline: "none",
                 fontFamily: "inherit",
               }}
             />
-            <Btn sm onClick={() => send()} disabled={!draft.trim() || sending}>Send</Btn>
+            <Btn onClick={() => send()} disabled={!draft.trim() || sending}>Send</Btn>
           </div>
         </div>
       )}
