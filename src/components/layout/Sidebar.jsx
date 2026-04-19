@@ -89,20 +89,30 @@ export default function Sidebar({
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: RADII.sm,
-            background: "linear-gradient(135deg, #385879, #0f1d2c)",
-            color: "#fff",
+            background: "#08090D",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 700, fontSize: 13, flexShrink: 0,
-            letterSpacing: "-0.02em",
+            flexShrink: 0,
             boxShadow: "0 2px 8px -2px rgba(15,29,44,0.4)",
-          }}>13</div>
+            overflow: "hidden",
+          }}>
+            <img
+              src="/favicon.png"
+              alt=""
+              style={{ width: 28, height: 28, objectFit: "contain" }}
+            />
+          </div>
           <div style={{
             opacity: expanded ? 1 : 0,
             transition: `opacity ${DUR.med}ms ${EASE}`,
             whiteSpace: "nowrap", overflow: "hidden",
+            display: "flex", flexDirection: "column", gap: 2,
           }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: Z.fgPrimary, lineHeight: 1.2 }}>13 Stars Media</div>
-            <div style={{ fontSize: 11, color: Z.fgMuted, lineHeight: 1.2 }}>MyDash</div>
+            <img
+              src="/logo-mydash.png"
+              alt="MyDash"
+              style={{ height: 22, width: "auto", objectFit: "contain" }}
+            />
+            <div style={{ fontSize: 10, color: Z.fgMuted, lineHeight: 1.2, letterSpacing: 0.3 }}>13 Stars Media</div>
           </div>
         </div>
 
