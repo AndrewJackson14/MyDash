@@ -9,7 +9,221 @@ import EZSchedule from "./EZSchedule";
 const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
 const TYPE_OPTIONS = ["Magazine", "Newspaper", "Special Publication"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const PLACEMENT_CATEGORIES = ["cover", "page", "map", "banner", "skybox", "footer", "directory"];
 const fmtMoney = (n) => "$" + Math.round(Number(n) || 0).toLocaleString();
+
+// ============================================================
+// PlacementsSection — CRUD for named premium positions (Back Cover, IFC,
+// IBC today; other categories deferred). Rendered inside the pub rate
+// modal so it lives alongside Rate Card and Revenue Goals. Self-loads
+// on mount from ad_placements; saves go direct to Supabase. Publisher
+// /admin gated via the parent component.
+// ============================================================
+const PlacementsSection = ({ pubId, defaultGuaranteePct, onGuaranteeChange, canEdit }) => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState([]); // editable copy while editing
+  const [guarantee, setGuarantee] = useState(defaultGuaranteePct ?? 20);
+
+  useEffect(() => { setGuarantee(defaultGuaranteePct ?? 20); }, [defaultGuaranteePct]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!pubId) return;
+      setLoading(true); setErr(null);
+      const { data, error } = await supabase
+        .from("ad_placements")
+        .select("*")
+        .eq("pub_id", pubId)
+        .order("sort_order");
+      if (cancelled) return;
+      if (error) { setErr(error.message); setLoading(false); return; }
+      setRows(data || []);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [pubId]);
+
+  const startEdit = () => { setDraft(rows.map(r => ({ ...r }))); setEditing(true); setErr(null); };
+  const cancelEdit = () => { setDraft([]); setEditing(false); setErr(null); };
+
+  const addRow = () => setDraft(d => [...d, {
+    _new: true, pub_id: pubId, name: "", category: "cover",
+    rate: 0, rate_6: 0, rate_12: 0, limited_per_issue: 1,
+    sort_order: d.length + 1,
+  }]);
+  const removeRow = (idx) => setDraft(d => d.filter((_, i) => i !== idx));
+  const updateRow = (idx, field, val) => setDraft(d => d.map((r, i) => i === idx ? {
+    ...r,
+    [field]: ["rate", "rate_6", "rate_12", "limited_per_issue", "sort_order"].includes(field)
+      ? (val === "" ? null : Number(val) || 0)
+      : val,
+  } : r));
+
+  const saveAll = async () => {
+    setSaving(true); setErr(null);
+    try {
+      const existingIds = new Set(rows.map(r => r.id));
+      const draftIds = new Set(draft.filter(r => r.id).map(r => r.id));
+      const toDelete = [...existingIds].filter(id => !draftIds.has(id));
+      const toInsert = draft.filter(r => r._new && r.name.trim());
+      const toUpdate = draft.filter(r => r.id);
+
+      if (toDelete.length) {
+        const { error } = await supabase.from("ad_placements").delete().in("id", toDelete);
+        if (error) throw error;
+      }
+      if (toUpdate.length) {
+        for (const r of toUpdate) {
+          const { _new, ...payload } = r; // eslint-disable-line no-unused-vars
+          const { error } = await supabase.from("ad_placements")
+            .update({
+              name: payload.name, category: payload.category,
+              rate: payload.rate || 0, rate_6: payload.rate_6 || 0, rate_12: payload.rate_12 || 0,
+              limited_per_issue: payload.limited_per_issue == null ? null : Number(payload.limited_per_issue),
+              sort_order: payload.sort_order || 0,
+            })
+            .eq("id", payload.id);
+          if (error) throw error;
+        }
+      }
+      if (toInsert.length) {
+        const payload = toInsert.map(r => ({
+          pub_id: pubId, name: r.name.trim(), category: r.category || "cover",
+          rate: r.rate || 0, rate_6: r.rate_6 || 0, rate_12: r.rate_12 || 0,
+          limited_per_issue: r.limited_per_issue == null ? null : Number(r.limited_per_issue),
+          sort_order: r.sort_order || 0,
+        }));
+        const { error } = await supabase.from("ad_placements").insert(payload);
+        if (error) throw error;
+      }
+
+      // Persist guarantee % on the publication if it changed.
+      if (Number(guarantee) !== Number(defaultGuaranteePct)) {
+        const { error } = await supabase.from("publications")
+          .update({ default_placement_guarantee_pct: Number(guarantee) || 0 })
+          .eq("id", pubId);
+        if (error) throw error;
+        if (onGuaranteeChange) onGuaranteeChange(Number(guarantee) || 0);
+      }
+
+      // Reload.
+      const { data, error: reErr } = await supabase
+        .from("ad_placements").select("*").eq("pub_id", pubId).order("sort_order");
+      if (reErr) throw reErr;
+      setRows(data || []);
+      setEditing(false); setDraft([]);
+    } catch (e) {
+      setErr(e.message || "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const display = editing ? draft : rows;
+
+  return <div style={{ marginTop: 16 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>
+        Premium Placements
+      </div>
+      {canEdit && !editing && <Btn sm v="ghost" onClick={startEdit}><Ic.edit size={11} /> Edit</Btn>}
+    </div>
+
+    {loading ? (
+      <div style={{ fontSize: FS.sm, color: Z.tm, padding: 12 }}>Loading placements…</div>
+    ) : display.length === 0 && !editing ? (
+      <div style={{ fontSize: FS.sm, color: Z.tm, padding: "8px 0" }}>
+        No premium placements configured. {canEdit && "Click Edit to add Back Cover / IFC / IBC rates."}
+      </div>
+    ) : (
+      <DataTable>
+        <thead>
+          <tr>
+            {["Name", "Category", "1× Rate", "6-tier", "12-tier", "Limit/Issue", ...(editing ? [""] : [])].map(h => <th key={h}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {display.map((r, i) => <tr key={r.id || `new-${i}`}>
+            <td>
+              {editing
+                ? <input value={r.name} onChange={e => updateRow(i, "name", e.target.value)}
+                    placeholder="Back Cover"
+                    style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: "100%", fontWeight: FW.bold }} />
+                : <span style={{ fontWeight: FW.bold, color: Z.tx }}>{r.name}</span>}
+            </td>
+            <td>
+              {editing
+                ? <select value={r.category || "cover"} onChange={e => updateRow(i, "category", e.target.value)}
+                    style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 8px", color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
+                    {PLACEMENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                : <span style={{ color: Z.tm, textTransform: "capitalize" }}>{r.category}</span>}
+            </td>
+            <td>
+              {editing
+                ? <input type="number" value={r.rate ?? 0} onChange={e => updateRow(i, "rate", e.target.value)}
+                    style={{ background: "transparent", border: "none", color: Z.go, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80, fontWeight: FW.bold }} />
+                : <span style={{ fontWeight: FW.bold, color: Z.go }}>${(r.rate || 0).toLocaleString()}</span>}
+            </td>
+            <td>
+              {editing
+                ? <input type="number" value={r.rate_6 ?? 0} onChange={e => updateRow(i, "rate_6", e.target.value)}
+                    style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80 }} />
+                : <span style={{ color: Z.tx }}>${(r.rate_6 || 0).toLocaleString()}</span>}
+            </td>
+            <td>
+              {editing
+                ? <input type="number" value={r.rate_12 ?? 0} onChange={e => updateRow(i, "rate_12", e.target.value)}
+                    style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80 }} />
+                : <span style={{ color: Z.tx }}>${(r.rate_12 || 0).toLocaleString()}</span>}
+            </td>
+            <td>
+              {editing
+                ? <input type="number" value={r.limited_per_issue ?? ""} onChange={e => updateRow(i, "limited_per_issue", e.target.value)}
+                    placeholder="∞"
+                    style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: 60 }} />
+                : <span style={{ color: Z.tm }}>{r.limited_per_issue == null ? "∞" : r.limited_per_issue}</span>}
+            </td>
+            {editing && <td>
+              <button onClick={() => removeRow(i)}
+                style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }}>✕</button>
+            </td>}
+          </tr>)}
+        </tbody>
+      </DataTable>
+    )}
+
+    {editing && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+      <Btn sm v="ghost" onClick={addRow}>+ Add Placement</Btn>
+    </div>}
+
+    {/* Default placement-guarantee % for non-cover asks (page #, RH, competitor distance) */}
+    {canEdit && <div style={{ marginTop: 14, padding: 10, background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8 }}>Default Placement Guarantee %</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>
+          Suggested surcharge when a line has a page #, right-hand, or competitor-distance guarantee. Salesperson can override.
+        </div>
+      </div>
+      {editing
+        ? <input type="number" value={guarantee} onChange={e => setGuarantee(e.target.value)}
+            style={{ width: 72, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "6px 10px", color: Z.tx, fontSize: FS.md, fontWeight: FW.heavy, textAlign: "right", outline: "none" }} />
+        : <div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx, fontFamily: DISPLAY }}>{Number(defaultGuaranteePct ?? 20)}%</div>}
+    </div>}
+
+    {err && <div style={{ marginTop: 8, fontSize: FS.sm, color: Z.da }}>Error: {err}</div>}
+
+    {editing && <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+      <Btn v="cancel" onClick={cancelEdit} disabled={saving}>Cancel</Btn>
+      <Btn onClick={saveAll} disabled={saving}>{saving ? "Saving…" : "Save Placements"}</Btn>
+    </div>}
+  </div>;
+};
 
 // ============================================================
 // GoalsSubtab — Publisher-only goal entry for the Financials cascade.
@@ -512,6 +726,17 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           </tr>)}</tbody>
         </DataTable>
         {editMode && <Btn sm v="ghost" onClick={() => setEditPub(p => ({ ...p, adSizes: [...(p.adSizes || []), { name: "", dims: "", rate: 0, rate6: 0, rate12: 0, w: 0, h: 0 }] }))}>+ Add Ad Size</Btn>}
+
+      {/* Premium Placements — Publisher/admin only */}
+      {isPublisher && <PlacementsSection
+        pubId={sel.id}
+        defaultGuaranteePct={sel.defaultPlacementGuaranteePct ?? editPub?.defaultPlacementGuaranteePct ?? 20}
+        onGuaranteeChange={(v) => {
+          setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultPlacementGuaranteePct: v } : p));
+          setSel(s => ({ ...s, defaultPlacementGuaranteePct: v }));
+        }}
+        canEdit={isPublisher}
+      />}
 
       {/* Revenue Goals */}
       <div style={{ marginTop: 16 }}>
