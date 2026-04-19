@@ -616,6 +616,106 @@ export function DataProvider({ children, localData }) {
     } : inv));
   }, []);
 
+  // ── Paid invoices — lazy loader (boot only fetches open) ─────────
+  // Tracks earliest issue_date already loaded; if a request asks for
+  // earlier data, fetches just the gap. Avoids re-pulling overlapping
+  // ranges when Overview, Reports, and Invoices Paid filter all trigger.
+  const paidInvoicesLoadedSinceRef = useRef(null);
+  const loadPaidInvoices = useCallback(async (sinceDate) => {
+    if (!isOnline() || !sinceDate) return;
+    const since = String(sinceDate).slice(0, 10);
+    if (paidInvoicesLoadedSinceRef.current && paidInvoicesLoadedSinceRef.current <= since) return;
+    const upperBound = paidInvoicesLoadedSinceRef.current; // already have FROM here forward
+
+    const fetchKeyset = async (table, select, applyFilter) => {
+      const PAGE = 1000;
+      const out = [];
+      let cursor = null;
+      while (true) {
+        let q = supabase.from(table).select(select).order('id', { ascending: true }).limit(PAGE);
+        if (cursor) q = q.gt('id', cursor);
+        if (applyFilter) q = applyFilter(q);
+        const res = await q;
+        if (res.error) throw new Error(`fetchKeyset(${table}): ${res.error.message}`);
+        if (!res.data?.length) break;
+        out.push(...res.data);
+        cursor = res.data[res.data.length - 1].id;
+        if (res.data.length < PAGE) break;
+      }
+      return out;
+    };
+
+    const newPaid = await fetchKeyset('invoices', '*', q => {
+      let f = q.eq('status', 'paid').gte('issue_date', since);
+      if (upperBound) f = f.lt('issue_date', upperBound);
+      return f;
+    });
+    if (newPaid.length === 0) {
+      paidInvoicesLoadedSinceRef.current = since;
+      return;
+    }
+    const newIds = newPaid.map(i => i.id);
+    const newLines = await fetchKeyset('invoice_lines', 'id, invoice_id, sale_id, publication_id',
+      q => q.in('invoice_id', newIds));
+    const linesByInv = {};
+    for (const l of newLines) (linesByInv[l.invoice_id] ||= []).push(l);
+
+    const mapped = newPaid.map(i => {
+      const total = Number(i.total);
+      const balance = Number(i.balance_due);
+      return {
+        id: i.id, invoiceNumber: i.invoice_number, clientId: i.client_id,
+        status: i.status, billingSchedule: i.billing_schedule,
+        subtotal: Number(i.subtotal),
+        taxRate: Number(i.tax_rate || 0), taxAmount: Number(i.tax_amount || 0),
+        total, balanceDue: balance, amountPaid: total - balance,
+        monthlyAmount: Number(i.monthly_amount || 0), planMonths: i.plan_months,
+        issueDate: i.issue_date, dueDate: i.due_date,
+        notes: i.notes || '', createdAt: i.created_at,
+        lockedAt: i.locked_at || null,
+        repId: i.rep_id || null, contractId: i.contract_id || null,
+        chargeError: i.charge_error || null, autoChargeAttempts: i.auto_charge_attempts || 0,
+        quickbooksId: i.quickbooks_id || null, quickbooksSyncedAt: i.quickbooks_synced_at || null, quickbooksSyncError: i.quickbooks_sync_error || null,
+        lines: (linesByInv[i.id] || []).map(l => ({ id: l.id, saleId: l.sale_id, publicationId: l.publication_id })),
+        linesHydrated: false,
+      };
+    });
+    setInvoices(prev => {
+      const have = new Set(prev.map(i => i.id));
+      const adds = mapped.filter(i => !have.has(i.id));
+      return adds.length ? [...prev, ...adds] : prev;
+    });
+    paidInvoicesLoadedSinceRef.current = since;
+  }, []);
+
+  // ── Per-client full payment history (boot only loads last 24mo) ──
+  // Lazy-loads any payments older than the boot window for a single
+  // client. Used when a Receivables row expands and the lifetime total
+  // looks short. Idempotent — won't refetch if the client's older
+  // payments are already in state.
+  const clientPaymentsLoadedRef = useRef(new Set());
+  const loadAllPaymentsForClient = useCallback(async (clientId) => {
+    if (!clientId || !isOnline() || clientPaymentsLoadedRef.current.has(clientId)) return;
+    clientPaymentsLoadedRef.current.add(clientId);
+    const cutoff = new Date(Date.now() - 730 * 86400000).toISOString();
+    const { data } = await supabase
+      .from('payments').select('*, invoices!inner(client_id)')
+      .eq('invoices.client_id', clientId)
+      .lt('received_at', cutoff);
+    if (!data?.length) return;
+    setPayments(prev => {
+      const have = new Set(prev.map(p => p.id));
+      const adds = data.filter(p => !have.has(p.id)).map(p => ({
+        id: p.id, invoiceId: p.invoice_id, amount: Number(p.amount), method: p.method,
+        transactionId: p.transaction_id, lastFour: p.last_four,
+        quickbooksId: p.quickbooks_id || null, quickbooksSyncedAt: p.quickbooks_synced_at || null,
+        quickbooksSyncError: p.quickbooks_sync_error || null,
+        notes: p.notes || '', receivedAt: p.received_at,
+      }));
+      return adds.length ? [...prev, ...adds] : prev;
+    });
+  }, []);
+
   // ── Media assets — lazy loader ─────────────────────────
   const loadMediaAssets = useCallback(async () => {
     if (mediaAssetsLoaded || !isOnline()) return;
@@ -2376,7 +2476,7 @@ export function DataProvider({ children, localData }) {
     loadProposals, proposalsLoaded, loadProposalHistory,
     retainInquiriesRealtime,
     loadStories, storiesLoaded,
-    loadBilling, billingLoaded, loadInvoiceLines,
+    loadBilling, billingLoaded, loadInvoiceLines, loadPaidInvoices, loadAllPaymentsForClient,
     bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
     loadCirculation, circulationLoaded,
     loadTickets, ticketsLoaded,

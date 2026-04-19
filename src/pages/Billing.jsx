@@ -263,7 +263,7 @@ const BillingSettings = ({ dialog, generatePending }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, bills, insertBill, updateBill, deleteBill, onNavigate, isActive }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, loadPaidInvoices, loadAllPaymentsForClient, bills, insertBill, updateBill, deleteBill, onNavigate, isActive }) => {
   // Publish TopBar header while Billing is the active page.
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -507,6 +507,32 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   useEffect(() => {
     if (viewInvId && loadInvoiceLines) loadInvoiceLines(viewInvId);
   }, [viewInvId, loadInvoiceLines]);
+
+  // Lazy-load PAID invoices on demand (boot only loads open). Each tab/
+  // filter triggers a load for the date range it needs; useAppData caches
+  // the earliest date already loaded so overlapping requests don't refetch.
+  useEffect(() => {
+    if (!isActive || !loadPaidInvoices) return;
+    if (tab === "Overview") {
+      // MTD only — Overview just needs the "Paid This Month" stat
+      loadPaidInvoices(today.slice(0, 7) + '-01');
+    } else if (tab === "Reports") {
+      // Reports go back as far as the period selector allows; pull 5 yr
+      // for YoY / 5-Year Health views without further round-trips
+      const fiveYrAgo = (parseInt(today.slice(0, 4)) - 5) + today.slice(4);
+      loadPaidInvoices(fiveYrAgo);
+    } else if (tab === "Invoices" && statusFilter === "paid") {
+      // User explicitly asked for paid history — pull all
+      loadPaidInvoices('2020-01-01');
+    }
+  }, [isActive, tab, statusFilter, loadPaidInvoices]);
+
+  // Lazy-load full payment history for a client when their Receivables
+  // row expands — boot only has last 24 months, so any client dormant
+  // longer than that has stale lifetime totals until this fires.
+  useEffect(() => {
+    if (arExpandedClient && loadAllPaymentsForClient) loadAllPaymentsForClient(arExpandedClient);
+  }, [arExpandedClient, loadAllPaymentsForClient]);
 
   const [invoiceSendMap, setInvoiceSendMap] = useState({});
   useEffect(() => {
