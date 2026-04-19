@@ -5,7 +5,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
-import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass } from "../components/ui";
+import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass, EntityLink } from "../components/ui";
+import { useNav } from "../hooks/useNav";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 
 // ─── Small helpers ────────────────────────────────────────────
@@ -107,6 +108,7 @@ function useIssueMetrics(iss, pub, sales, stories) {
 // THIS WEEK CARD — Big action-leaning card per publication
 // ══════════════════════════════════════════════════════════════
 const ThisWeekCard = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
+  const nav = useNav(onNavigate);
   const m = useIssueMetrics(iss, pub, sales, stories);
   const status = statusFor(iss, m);
   const color = pub?.color || Z.ac;
@@ -133,8 +135,16 @@ const ThisWeekCard = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{pub?.name}</div>
-          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 1 }}>{iss.label}</div>
+          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>
+            {pub?.id
+              ? <EntityLink onClick={nav.toPublication(pub.id)}>{pub.name}</EntityLink>
+              : (pub?.name || "")}
+          </div>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 1 }}>
+            {iss?.id && pub?.id
+              ? <EntityLink onClick={nav.toIssueDesign(pub.id, iss.id)}>{iss.label}</EntityLink>
+              : iss.label}
+          </div>
         </div>
         <StatusChip status={status} />
       </div>
@@ -181,6 +191,7 @@ const ThisWeekCard = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => 
 const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
   const m = useIssueMetrics(iss, pub, sales, stories);
   const status = statusFor(iss, m);
+  const nav = useNav(onNavigate);
 
   return (
     <div onClick={() => onOpenIssue(iss.id)} style={{
@@ -192,9 +203,17 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: pub?.color || Z.tm, display: "inline-block" }} />
-          <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND }}>{pub?.name}</span>
+          <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND }}>
+            {pub?.id
+              ? <EntityLink onClick={nav.toPublication(pub.id)}>{pub.name}</EntityLink>
+              : (pub?.name || "")}
+          </span>
         </div>
-        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 1 }}>{iss.label}</div>
+        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 1 }}>
+          {iss?.id && pub?.id
+            ? <EntityLink onClick={nav.toIssueDesign(pub.id, iss.id)} muted>{iss.label}</EntityLink>
+            : iss.label}
+        </div>
       </div>
 
       {/* Publish date */}

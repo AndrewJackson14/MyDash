@@ -108,12 +108,12 @@ export function useSignalFeed({
     _issues.forEach(iss => {
       if (iss.adDeadline && iss.adDeadline >= today && iss.adDeadline <= cutoff48h) {
         const d = daysUntil(iss.adDeadline);
-        alerts.push({ id: "ad-" + iss.id, type: "ad", label: `Ad Deadline — ${pn(iss.pubId)} ${iss.label}`, date: iss.adDeadline, days: d, color: d <= 1 ? Z.da : Z.wa });
+        alerts.push({ id: "ad-" + iss.id, type: "ad", label: `Ad Deadline — ${pn(iss.pubId)} ${iss.label}`, date: iss.adDeadline, days: d, color: d <= 1 ? Z.da : Z.wa, pubId: iss.pubId, issueId: iss.id, pubName: pn(iss.pubId), issueLabel: iss.label });
       }
       if (iss.edDeadline && iss.edDeadline >= today && iss.edDeadline <= cutoff48h) {
         const d = daysUntil(iss.edDeadline);
         const editingCount = _stories.filter(s => s.publication === iss.pubId && ["Draft", "Edit"].includes(s.status)).length;
-        alerts.push({ id: "ed-" + iss.id, type: "ed", label: `Ed Deadline — ${pn(iss.pubId)} ${iss.label}${editingCount > 0 ? ` (${editingCount} still editing)` : ""}`, date: iss.edDeadline, days: d, color: d <= 1 ? Z.da : Z.wa });
+        alerts.push({ id: "ed-" + iss.id, type: "ed", label: `Ed Deadline — ${pn(iss.pubId)} ${iss.label}${editingCount > 0 ? ` (${editingCount} still editing)` : ""}`, date: iss.edDeadline, days: d, color: d <= 1 ? Z.da : Z.wa, pubId: iss.pubId, issueId: iss.id, pubName: pn(iss.pubId), issueLabel: iss.label });
       }
     });
     return alerts.sort((a, b) => a.date.localeCompare(b.date));

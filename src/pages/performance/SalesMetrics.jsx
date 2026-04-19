@@ -3,10 +3,11 @@
 // breakdown. Rendered under Performance > Sales tab.
 // ============================================================
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
-import { GlassCard, GlassStat, DataTable } from "../../components/ui";
+import { GlassCard, GlassStat, DataTable, EntityLink } from "../../components/ui";
 import { fmtCurrencyWhole } from "../../lib/formatters";
 import { proximityColorKey } from "./deadlineProximity";
 import WinsCard from "./WinsCard";
+import { useNav } from "../../hooks/useNav";
 
 const colorFor = (key) => key === "green" ? Z.go : key === "amber" ? Z.wa : Z.da;
 
@@ -22,6 +23,7 @@ function MixBar({ existingPct, newPct }) {
 }
 
 export default function SalesMetrics({ data, onNavigate }) {
+  const nav = useNav(onNavigate);
   if (!data) return <GlassCard><div style={{ padding: 24, color: Z.td, textAlign: "center" }}>Loading sales metrics…</div></GlassCard>;
 
   const leadColor = colorFor(proximityColorKey(data.leadToClosePct));
@@ -115,7 +117,11 @@ export default function SalesMetrics({ data, onNavigate }) {
           {data.perRep.map(r => {
             const repColor = colorFor(proximityColorKey(r.leadToClose));
             return <tr key={r.id}>
-              <td style={{ fontWeight: FW.bold, color: Z.tx }}>{r.name}</td>
+              <td style={{ fontWeight: FW.bold, color: Z.tx }}>
+                {r.id
+                  ? <EntityLink onClick={nav.toTeamMember(r.id)}>{r.name}</EntityLink>
+                  : r.name}
+              </td>
               <td style={{ textAlign: "right", color: Z.tm }}>{r.leads}</td>
               <td style={{ textAlign: "right", color: Z.tm }}>{r.closed}</td>
               <td style={{ textAlign: "right", color: repColor, fontWeight: FW.bold }}>{Math.round(r.leadToClose)}%</td>

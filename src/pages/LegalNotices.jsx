@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
-import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid } from "../components/ui";
+import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, EntityLink } from "../components/ui";
+import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
 import AssetPanel from "../components/AssetPanel";
@@ -57,7 +58,8 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser, isActive }) => {
+const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser, isActive, onNavigate }) => {
+  const nav = useNav(onNavigate);
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -435,9 +437,16 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
                   <NoticeBadge status={n.status} />
                   <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{NOTICE_TYPES.find(t => t.value === n.noticeType)?.label}</span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>{n.organization || n.contactName}</div>
+                <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>
+                  {n.clientId
+                    ? <EntityLink onClick={nav.toClient(n.clientId)}>{n.organization || n.contactName}</EntityLink>
+                    : (n.organization || n.contactName)}
+                </div>
                 <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>
-                  {n.contactName}{n.organization ? ` · ${n.organization}` : ""} · {pn(n.publicationId)}
+                  {n.contactName}{n.organization ? ` · ${n.organization}` : ""} ·{" "}
+                  {n.publicationId
+                    ? <EntityLink onClick={nav.toPublication(n.publicationId)} muted>{pn(n.publicationId)}</EntityLink>
+                    : pn(n.publicationId)}
                 </div>
                 <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 3 }}>
                   {n.issuesRequested} issue{n.issuesRequested > 1 ? "s" : ""} · {linkedIssues.length}/{n.issuesRequested} assigned · {n.lineCount > 0 ? `${n.lineCount} lines` : "Flat rate"}

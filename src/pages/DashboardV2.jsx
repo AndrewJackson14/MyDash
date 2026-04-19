@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
-import { Ic, Btn, GlassCard, Modal, glass } from "../components/ui";
+import { Ic, Btn, GlassCard, Modal, glass, EntityLink } from "../components/ui";
+import { useNav } from "../hooks/useNav";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
 import { useSignalFeed } from "../hooks/useSignalFeed";
@@ -123,6 +124,7 @@ const DashboardV2 = (props) => {
     jurisdiction, currentUser, userName, onNavigate, setIssueDetailId,
     retainInquiriesRealtime, isActive,
   } = props;
+  const nav = useNav(onNavigate);
 
   // Publish header into TopBar via PageHeaderContext while the dashboard is
   // the active page. Because App.jsx keeps every visited page mounted (just
@@ -532,7 +534,11 @@ const DashboardV2 = (props) => {
           {deadlineAlerts.slice(0, 8).map((a, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderTop: i > 0 ? `1px solid ${Z.bd}20` : "none" }}>
               <span style={{ fontSize: 10, fontWeight: FW.bold, color: a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da, background: (a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da) + "15", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", fontFamily: COND }}>{a.type === "ad" ? "Ad" : a.type === "ed" ? "Ed" : "Pub"}</span>
-              <span style={{ fontSize: 12, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>{a.pubName || a.pub} — {a.issueLabel || a.label}</span>
+              <span style={{ fontSize: 12, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>
+                {a.pubId && a.issueId
+                  ? <EntityLink onClick={nav.toFlatplan(a.pubId, a.issueId)}>{a.pubName || a.pub} — {a.issueLabel || a.label}</EntityLink>
+                  : <>{a.pubName || a.pub} — {a.issueLabel || a.label}</>}
+              </span>
               <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.da, fontFamily: COND }}>{a.daysLeft != null ? (a.daysLeft < 0 ? `${Math.abs(a.daysLeft)}d overdue` : a.daysLeft === 0 ? "Today" : `${a.daysLeft}d left`) : ""}</span>
             </div>
           ))}
@@ -692,6 +698,7 @@ const DashboardV2 = (props) => {
         perfData={perfData}
         stories={stories}
         subscribers={subscribers}
+        onNavigate={onNavigate}
         onClose={() => setBriefingOpen(false)}
       />
     </Modal>
@@ -1459,8 +1466,9 @@ const DrillStat = ({ label, value, onClick }) => {
 const STAGE_COLORS = { Draft: "#9CA3AF", Edit: "#F59E0B", Ready: "#10B981" };
 const STAGE_ORDER = ["Draft", "Edit", "Ready"];
 
-const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose }) => {
+const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose, onNavigate }) => {
   const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;
+  const nav = useNav(onNavigate);
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
@@ -1643,7 +1651,9 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
             borderRadius: Ri,
           }}>
             <div>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+                <EntityLink onClick={nav.toFlatplan(iss.pubId, iss.id)}>{pn(iss.pubId)} {iss.label}</EntityLink>
+              </div>
               <div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtCurrency(iss.rev)} of {fmtCurrency(iss.goal)}</div>
             </div>
             <div style={{ height: 6, background: Z.bd, borderRadius: 3, overflow: "hidden" }}>

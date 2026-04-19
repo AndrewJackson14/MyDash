@@ -1,7 +1,8 @@
 import { useState, useEffect, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, EntityLink } from "../components/ui";
+import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtTime } from "../lib/formatters";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -61,7 +62,8 @@ const PriorityDot = ({ priority }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
-const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus, isActive }) => {
+const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus, isActive, onNavigate }) => {
+  const nav = useNav(onNavigate);
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -241,10 +243,10 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Details</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
           {viewTicket.category && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Category</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{CATEGORIES.find(c => c.value === viewTicket.category)?.label}</div></div>}
-          {viewTicket.assignedTo && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Assigned To</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{tn(viewTicket.assignedTo)}</div></div>}
-          {viewTicket.escalatedTo && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Escalated To</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.da }}>{tn(viewTicket.escalatedTo)}</div></div>}
-          {viewTicket.clientId && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Client</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.ac }}>{cn(viewTicket.clientId)}</div></div>}
-          {viewTicket.publicationId && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{pn(viewTicket.publicationId)}</div></div>}
+          {viewTicket.assignedTo && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Assigned To</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}><EntityLink onClick={nav.toTeamMember(viewTicket.assignedTo)}>{tn(viewTicket.assignedTo)}</EntityLink></div></div>}
+          {viewTicket.escalatedTo && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Escalated To</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.da }}><EntityLink onClick={nav.toTeamMember(viewTicket.escalatedTo)}>{tn(viewTicket.escalatedTo)}</EntityLink></div></div>}
+          {viewTicket.clientId && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Client</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.ac }}><EntityLink onClick={nav.toClient(viewTicket.clientId)}>{cn(viewTicket.clientId)}</EntityLink></div></div>}
+          {viewTicket.publicationId && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}><EntityLink onClick={nav.toPublication(viewTicket.publicationId)}>{pn(viewTicket.publicationId)}</EntityLink></div></div>}
           {viewTicket.resolvedAt && <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Resolved</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.su }}>{fmtDate(viewTicket.resolvedAt)}</div></div>}
         </div>
         {viewTicket.resolutionNotes && <div style={{ marginTop: 10 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Resolution Notes</div><div style={{ fontSize: FS.base, color: Z.tx, marginTop: 2 }}>{viewTicket.resolutionNotes}</div></div>}
@@ -360,12 +362,12 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
                 <td style={{ padding: "10px 14px" }}><PriorityDot priority={t.priority} /></td>
                 <td style={{ padding: "10px 14px" }}>
                   <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{t.subject}</div>
-                  {t.clientId && <div style={{ fontSize: FS.xs, color: Z.ac }}>{cn(t.clientId)}</div>}
+                  {t.clientId && <div style={{ fontSize: FS.xs, color: Z.ac }}><EntityLink onClick={nav.toClient(t.clientId)}>{cn(t.clientId)}</EntityLink></div>}
                 </td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{t.contactName || "—"}</td>
                 <td style={{ fontSize: FS.xs, color: Z.tm }}>{CATEGORIES.find(c => c.value === t.category)?.label}</td>
                 <td style={{ fontSize: FS.sm }}>{CHANNELS.find(c => c.value === t.channel)?.icon}</td>
-                <td style={{ fontSize: FS.sm, color: Z.tm }}>{t.assignedTo ? tn(t.assignedTo) : "—"}</td>
+                <td style={{ fontSize: FS.sm, color: Z.tm }}>{t.assignedTo ? <EntityLink onClick={nav.toTeamMember(t.assignedTo)} muted>{tn(t.assignedTo)}</EntityLink> : "—"}</td>
                 <td style={{ fontSize: FS.xs, color: Z.td }}>{fmtAgo(t.createdAt)}</td>
                 <td style={{ padding: "10px 14px" }}><TicketBadge status={t.status} /></td>
               </tr>)}
