@@ -122,7 +122,7 @@ export function DataProvider({ children, localData }) {
         const s = payload.new;
         setSales(prev => {
           if (prev.some(x => x.id === s.id)) return prev;
-          return [{ id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id, type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height), amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at, contractId: s.contract_id || null, proposalId: s.proposal_id, productType: s.product_type || 'display_print', assignedTo: s.assigned_to || null }, ...prev];
+          return [{ id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id, type: s.ad_type, size: s.ad_size, adW: Number(s.ad_width), adH: Number(s.ad_height), amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at, contractId: s.contract_id || null, proposalId: s.proposal_id, productType: s.product_type || 'display_print', assignedTo: s.assigned_to || null, digitalProductId: s.digital_product_id || null, flightStartDate: s.flight_start_date || null, flightEndDate: s.flight_end_date || null, flightMonths: s.flight_months || null }, ...prev];
         });
       })
       .subscribe();
@@ -251,6 +251,7 @@ export function DataProvider({ children, localData }) {
           nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
           nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
           productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
+          digitalProductId: s.digital_product_id || null, flightStartDate: s.flight_start_date || null, flightEndDate: s.flight_end_date || null, flightMonths: s.flight_months || null,
           contractId: s.contract_id || null,
           assignedTo: s.assigned_to || null,
         })));

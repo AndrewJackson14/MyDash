@@ -38,17 +38,20 @@ const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 
-const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate }) => {
+const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate, digitalAdProducts, loadDigitalAdProducts }) => {
   const nav = useNav(onNavigate);
 
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
       setHeader({ breadcrumb: [{ label: "Home" }, { label: "Design Studio" }], title: "Design Studio" });
+      // Lazy-load digital ad products so the digital project specs panel can
+      // resolve product name + zone for sales that came in via Phase 4.
+      if (loadDigitalAdProducts) loadDigitalAdProducts();
     } else {
       clearHeader();
     }
-  }, [isActive, setHeader, clearHeader]);
+  }, [isActive, setHeader, clearHeader, loadDigitalAdProducts]);
   const dialog = useDialog();
   // useAppData is now the source of truth for ad_projects. Local aliases
   // keep the rest of this file readable — `projects` and `setProjects`
@@ -327,7 +330,10 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       await supabase.from("ad_proofs").delete().eq("id", oldestUnsaved.id);
       setProofs(prev => prev.filter(p => p.id !== oldestUnsaved.id));
     }
-    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*,application/pdf";
+    // Accepts both print (PDF, AI/EPS/INDD via image/*) and digital (animated GIF,
+    // HTML5, MP4) formats. The trigger that creates ad_placements on sign-off
+    // doesn't care about format — the operator sees whatever was last uploaded.
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*,application/pdf,text/html,video/mp4";
     inp.onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
       setUploading(true);
@@ -557,19 +563,39 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   </div></div>
                   <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
-                    {viewProject.issue_id
-                      ? <EntityLink onClick={nav.toFlatplan(viewProject.publication_id, viewProject.issue_id)}>{(issues || []).find(i => i.id === viewProject.issue_id)?.label || "—"}</EntityLink>
-                      : "—"}
-                  </div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
-                    {viewProject.publication_id
-                      ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
-                      : pn(viewProject.publication_id)}
-                  </div></div>
-                </div>
+                {(() => {
+                  // Branch: digital projects show Product + Flight + Publication;
+                  // print projects show Ad Size + Issue + Publication. The sale
+                  // is the source of truth for digital_product_id + flight dates.
+                  const viewSale = (sales || []).find(s => s.id === viewProject.sale_id);
+                  const isDigital = !!viewSale?.digitalProductId;
+                  if (isDigital) {
+                    const product = (digitalAdProducts || []).find(p => p.id === viewSale.digitalProductId);
+                    const fmt = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+                    return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Digital Product</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{product?.name || "—"}{product?.width && product?.height ? ` · ${product.width}×${product.height}` : ""}</div></div>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Flight</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{fmt(viewSale.flightStartDate)} – {fmt(viewSale.flightEndDate)}</div></div>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                        {viewProject.publication_id
+                          ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
+                          : pn(viewProject.publication_id)}
+                      </div></div>
+                    </div>;
+                  }
+                  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                      {viewProject.issue_id
+                        ? <EntityLink onClick={nav.toFlatplan(viewProject.publication_id, viewProject.issue_id)}>{(issues || []).find(i => i.id === viewProject.issue_id)?.label || "—"}</EntityLink>
+                        : "—"}
+                    </div></div>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                      {viewProject.publication_id
+                        ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
+                        : pn(viewProject.publication_id)}
+                    </div></div>
+                  </div>;
+                })()}
 
                 {/* Editable brief fields — click to edit, save on blur */}
                 {[
