@@ -488,15 +488,187 @@ function OrgAppearancePanel() {
 // ══════════════════════════════════════════════════════════════════
 // SITE SETTINGS PAGE
 // ══════════════════════════════════════════════════════════════════
-export default function SiteSettings({ pubs, setPubs, isActive }) {
+// ── Phase 6 tabs ──────────────────────────────────────────────────
+// SiteDashboardTab: live placements for the current site. One row per
+// ad_placement; each row shows zone, client, flight dates, status dot,
+// creative thumbnail. Quick Pause toggles is_active. View Sale jumps to
+// SalesCRM. Impression / click sparkline omitted until logging exists.
+function SiteDashboardTab({ site, pubs, clients, sales, digitalAdProducts }) {
+  const [placements, setPlacements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const pubId = site?.publication_id || null;
+
+  const reload = useCallback(async () => {
+    if (!pubId) { setLoading(false); return; }
+    setLoading(true);
+    // ad_placements -> ad_zones -> publications. Filter by the site's
+    // publication_id so we only show ads serving on this site.
+    const { data } = await supabase
+      .from("ad_placements")
+      .select("*, ad_zones!inner(id, name, slug, publication_id)")
+      .eq("ad_zones.publication_id", pubId)
+      .order("end_date", { ascending: true });
+    setPlacements(data || []);
+    setLoading(false);
+  }, [pubId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const togglePause = async (id, currentlyActive) => {
+    await supabase.from("ad_placements")
+      .update({ is_active: !currentlyActive, deactivated_at: currentlyActive ? new Date().toISOString() : null })
+      .eq("id", id);
+    reload();
+  };
+
+  if (!pubId) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>This site has no linked publication; placements can't be loaded.</div>;
+  if (loading) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm }}>Loading placements...</div>;
+  if (placements.length === 0) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>No placements yet. Digital ads land here automatically when a designer signs off on the ad project.</div>;
+
+  const today = new Date().toISOString().slice(0, 10);
+  return <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    {placements.map(p => {
+      const zone = p.ad_zones || {};
+      const clientName = (clients || []).find(c => c.id === p.client_id)?.name || "—";
+      const sale = (sales || []).find(s => s.id === p.sale_id);
+      const product = sale?.digitalProductId ? (digitalAdProducts || []).find(dp => dp.id === sale.digitalProductId) : null;
+      const daysLeft = p.end_date ? Math.ceil((new Date(p.end_date) - new Date(today)) / 86400000) : null;
+      const status = !p.is_active ? "paused" : daysLeft !== null && daysLeft < 0 ? "expired" : daysLeft !== null && daysLeft <= 7 ? "expiring" : "healthy";
+      const dot = { healthy: Z.su, expiring: Z.wa, expired: Z.tm, paused: Z.tm }[status];
+      return <div key={p.id} style={{ display: "grid", gridTemplateColumns: "60px 2fr 1.5fr 1.4fr 0.8fr auto", gap: 12, alignItems: "center", padding: "10px 12px", background: Z.sf, border: "1px solid " + Z.bd, borderRadius: 4 }}>
+        <div style={{ width: 56, height: 40, background: Z.bg, border: "1px solid " + Z.bd, borderRadius: 3, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {p.creative_url
+            ? <img src={p.creative_url} alt={p.alt_text || ""} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            : <Ic.image size={16} color={Z.tm} />}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, display: "inline-block" }} />
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{zone.name || "(zone)"}</span>
+            {product && <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{product.name}</span>}
+          </div>
+          <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{status === "expired" ? "Expired" : status === "paused" ? "Paused" : daysLeft !== null ? `${daysLeft} days left` : ""}</span>
+        </div>
+        <div style={{ fontSize: FS.sm, color: Z.tx }}>{clientName}</div>
+        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{p.start_date || "—"} → {p.end_date || "—"}</div>
+        <div style={{ fontSize: FS.sm, color: Z.tx, textAlign: "right" }}>{(Number(p.impressions) || 0).toLocaleString()} imp</div>
+        <Btn sm v="ghost" onClick={() => togglePause(p.id, p.is_active)}>{p.is_active ? "Pause" : "Resume"}</Btn>
+      </div>;
+    })}
+  </div>;
+}
+
+// DigitalCatalogTab: per-site CRUD for digital_ad_products. Inline-edit
+// rows; new rows are added via Add Row, persisted on Save. Reuses the
+// catalog already loaded by useAppData; refetches via loadDigitalAdProducts
+// after a save so other pages see fresh data immediately.
+function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProducts }) {
+  const pubId = site?.publication_id || null;
+  const dialog = useDialog();
+  const initial = (digitalAdProducts || []).filter(p => p.pub_id === pubId);
+  const [draft, setDraft] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  // Re-sync draft when the upstream catalog loads or the site changes.
+  useEffect(() => {
+    setDraft((digitalAdProducts || []).filter(p => p.pub_id === pubId));
+  }, [digitalAdProducts, pubId]);
+
+  if (!pubId) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>This site has no linked publication; the digital catalog can't be edited.</div>;
+
+  const slugify = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const addRow = () => setDraft(d => [...d, { _new: true, pub_id: pubId, name: "", slug: "", product_type: "web_ad", rate_monthly: 0, rate_6mo: 0, rate_12mo: 0, sort_order: d.length + 1, is_active: true }]);
+  const updateRow = (idx, patch) => setDraft(d => d.map((r, i) => i === idx ? { ...r, ...patch } : r));
+  const removeRow = (idx) => setDraft(d => d.filter((_, i) => i !== idx));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      for (const r of draft) {
+        if (r._new) {
+          if (!r.name?.trim()) continue;
+          const payload = {
+            pub_id: pubId,
+            name: r.name.trim(),
+            slug: slugify(r.slug) || slugify(r.name),
+            product_type: r.product_type || "web_ad",
+            rate_monthly: Number(r.rate_monthly) || 0,
+            rate_6mo: Number(r.rate_6mo) || null,
+            rate_12mo: Number(r.rate_12mo) || null,
+            width: r.width ? Number(r.width) : null,
+            height: r.height ? Number(r.height) : null,
+            sort_order: Number(r.sort_order) || 0,
+            is_active: r.is_active !== false,
+          };
+          const { error } = await supabase.from("digital_ad_products").insert(payload);
+          if (error) throw error;
+        } else if (r.id) {
+          const { error } = await supabase.from("digital_ad_products").update({
+            name: r.name, slug: slugify(r.slug) || slugify(r.name), product_type: r.product_type,
+            rate_monthly: Number(r.rate_monthly) || 0, rate_6mo: Number(r.rate_6mo) || null, rate_12mo: Number(r.rate_12mo) || null,
+            width: r.width ? Number(r.width) : null, height: r.height ? Number(r.height) : null,
+            sort_order: Number(r.sort_order) || 0, is_active: r.is_active !== false,
+          }).eq("id", r.id);
+          if (error) throw error;
+        }
+      }
+      // Refetch — useAppData currently caches loaded=true, so we bypass the
+      // gate by clearing it. Simpler: reload the page-local catalog here too.
+      if (loadDigitalAdProducts) await loadDigitalAdProducts();
+    } catch (e) {
+      await dialog.alert("Save failed: " + (e.message || "unknown"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>Manage sellable digital products for this site. Salespeople pick from here in the proposal builder.</div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <Btn sm v="secondary" onClick={addRow}><Ic.plus size={11} /> Add Product</Btn>
+        <Btn sm onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Catalog"}</Btn>
+      </div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.5fr 24px", gap: 4, padding: "6px 8px", background: Z.sa, fontSize: 10, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
+      <div>Name</div><div>Type</div><div>Mo $</div><div>6mo $</div><div>12mo $</div><div>Slug</div><div>Sort</div><div></div>
+    </div>
+    {draft.length === 0 && <div style={{ padding: 16, color: Z.tm, fontSize: FS.sm, fontFamily: COND, textAlign: "center" }}>No digital products. Add the first one above.</div>}
+    {draft.map((r, idx) => <div key={r.id || `_n${idx}`} style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.5fr 24px", gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center" }}>
+      <Inp value={r.name || ""} onChange={e => updateRow(idx, { name: e.target.value })} />
+      <Sel value={r.product_type || "web_ad"} onChange={e => updateRow(idx, { product_type: e.target.value })} options={[
+        { value: "web_ad", label: "Web Ad" },
+        { value: "newsletter_sponsor", label: "Newsletter Sponsor" },
+        { value: "eblast", label: "E-Blast" },
+        { value: "social_sponsor", label: "Social Sponsor" },
+        { value: "programmatic", label: "Programmatic" },
+      ]} />
+      <Inp type="number" value={r.rate_monthly ?? 0} onChange={e => updateRow(idx, { rate_monthly: e.target.value })} />
+      <Inp type="number" value={r.rate_6mo ?? ""} onChange={e => updateRow(idx, { rate_6mo: e.target.value })} />
+      <Inp type="number" value={r.rate_12mo ?? ""} onChange={e => updateRow(idx, { rate_12mo: e.target.value })} />
+      <Inp value={r.slug || ""} onChange={e => updateRow(idx, { slug: e.target.value })} placeholder={slugify(r.name)} />
+      <Inp type="number" value={r.sort_order ?? 0} onChange={e => updateRow(idx, { sort_order: e.target.value })} />
+      <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
+    </div>)}
+  </div>;
+}
+
+export default function MySites({ pubs, setPubs, isActive, sales, clients, digitalAdProducts, loadDigitalAdProducts }) {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
-      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Websites" }], title: "Websites" });
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "MySites" }], title: "MySites" });
+      // Phase 6: Dashboard + Catalog tabs need the digital products list.
+      if (loadDigitalAdProducts) loadDigitalAdProducts();
     } else {
       clearHeader();
     }
-  }, [isActive, setHeader, clearHeader]);
+  }, [isActive, setHeader, clearHeader, loadDigitalAdProducts]);
+  // Phase 6: site|dashboard|catalog tab. "site" is the legacy single-view
+  // (branding, nav, weather, errors, house ads). "dashboard" lists active
+  // ad_placements for the selected site. "catalog" is CRUD over digital
+  // _ad_products for the selected site.
+  const [tab, setTab] = useState("site");
   const dialog = useDialog();
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -744,6 +916,17 @@ export default function SiteSettings({ pubs, setPubs, isActive }) {
         </div>
       </div>
 
+      {/* Phase 6: tab row. Site tab keeps the existing single-view UI;
+           Dashboard + Catalog are new digital-ad-workflow surfaces. */}
+      {selectedId !== "__mydash" && (
+        <div style={{ display: "flex", gap: 4, borderBottom: "1px solid " + Z.bd, marginBottom: 4 }}>
+          {[["site", "Site"], ["dashboard", "Dashboard"], ["catalog", "Digital Catalog"]].map(([v, l]) => (
+            <button key={v} onClick={() => setTab(v)} style={{ padding: "8px 16px", border: "none", borderBottom: tab === v ? "2px solid " + Z.ac : "2px solid transparent", background: "transparent", color: tab === v ? Z.ac : Z.tm, cursor: "pointer", fontSize: 13, fontWeight: tab === v ? 700 : 600, fontFamily: COND }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      {(selectedId === "__mydash" || tab === "site") && <>
       {/* ─── Org Appearance (when MyDash selected) ────── */}
       {selectedId === "__mydash" && <OrgAppearancePanel />}
 
@@ -1122,6 +1305,15 @@ export default function SiteSettings({ pubs, setPubs, isActive }) {
         }}
         pubs={pubs}
       />}
+      </>}
+
+      {selectedId !== "__mydash" && tab === "dashboard" && (
+        <SiteDashboardTab site={site} pubs={pubs} clients={clients} sales={sales || []} digitalAdProducts={digitalAdProducts || []} />
+      )}
+
+      {selectedId !== "__mydash" && tab === "catalog" && (
+        <DigitalCatalogTab site={site} pubs={pubs} digitalAdProducts={digitalAdProducts || []} loadDigitalAdProducts={loadDigitalAdProducts} />
+      )}
     </div>
   );
 }

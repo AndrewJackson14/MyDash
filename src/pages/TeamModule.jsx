@@ -31,7 +31,7 @@ export const MODULES = [
   { key: "flatplan", label: "Flatplan", section: "Content" },
   { key: "adprojects", label: "Ad Projects", section: "Content" },
   { key: "newsletters", label: "Newsletters", section: "Content" },
-  { key: "sitesettings", label: "MyWebsites", section: "Content" },
+  { key: "sitesettings", label: "MySites", section: "Content" },
   { key: "medialibrary", label: "Media Library", section: "Content" },
   { key: "social_posts", label: "Social Posts", section: "Content" },
   { key: "circulation", label: "Circulation", section: "Operations" },

@@ -38,7 +38,7 @@ const TeamModule = lazyLoad(() => import("./pages/TeamModule"));
 const TeamMemberProfile = lazyLoad(() => import("./pages/TeamMemberProfile"));
 const Analytics = lazyLoad(() => import("./pages/Analytics"));
 const IntegrationsPage = lazyLoad(() => import("./pages/IntegrationsPage"));
-const SiteSettings = lazyLoad(() => import("./pages/SiteSettings"));
+const MySites = lazyLoad(() => import("./pages/MySites"));
 const MediaLibrary = lazyLoad(() => import("./pages/MediaLibrary"));
 const DataImport = lazyLoad(() => import("./pages/DataImport"));
 const Billing = lazyLoad(() => import("./pages/Billing"));
@@ -48,7 +48,6 @@ const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
 const Performance = lazyLoad(() => import("./pages/Performance"));
 const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
-const WebAds = lazyLoad(() => import("./pages/WebAds"));
 const Merch = lazyLoad(() => import("./pages/Merch"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
@@ -397,11 +396,10 @@ export default function App() {
     { id: "medialibrary", label: "Media Library", icon: Ic.image },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "newsletters", label: "Newsletters", icon: Ic.mail },
-    { id: "sitesettings", label: "Websites", icon: Ic.globe },
+    { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "creativejobs", label: "Creative Jobs", icon: Ic.paintbrush },
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "classifieds", label: "Classifieds", icon: Ic.list },
-    { id: "web_ads", label: "Web Ads", icon: Ic.globe },
     { id: "merch", label: "Merch", icon: Ic.star },
     { id: "_operations", section: true, label: "Operations" },
     { id: "circulation", label: "Circulation", icon: Ic.pub, badge: subExpiring || null },
@@ -552,7 +550,7 @@ export default function App() {
         {show("messaging") && <div style={vis("messaging")}><Messaging isActive={pg === "messaging"} team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail isActive={pg === "mail"} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage isActive={pg === "newsletters"} pubs={pubs} currentUser={currentUser} /></div>}
-        {show("sitesettings") && <div style={vis("sitesettings")}><SiteSettings isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} /></div>}
+        {show("sitesettings") && <div style={vis("sitesettings")}><MySites isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} sales={jSales} clients={jClients} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></div>}
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage isActive={pg === "integrations"} pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport isActive={pg === "dataimport"} onClose={() => handleNav("integrations")} /></div>}
@@ -566,7 +564,6 @@ export default function App() {
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs isActive={pg === "creativejobs"} jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
         {show("classifieds") && <div style={vis("classifieds")}><ClassifiedAds isActive={pg === "classifieds"} pubs={pubs} clients={jClients} issues={jIssues} /></div>}
-        {show("web_ads") && <div style={vis("web_ads")}><WebAds isActive={pg === "web_ads"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} /></div>}
         {show("merch") && <div style={vis("merch")}><Merch isActive={pg === "merch"} clients={jClients} /></div>}
         </Suspense>
         </ErrorBoundary>

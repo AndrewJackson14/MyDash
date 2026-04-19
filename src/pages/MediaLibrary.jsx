@@ -468,7 +468,7 @@ const CATEGORY_OPTIONS = [
 
 export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset, isActive }) {
   // Publish TopBar header only when this is the standalone page (not the
-  // embedded picker inside StoryEditor / SiteSettings / etc). When
+  // embedded picker inside StoryEditor / MySites / etc). When
   // `embedded` is truthy the host page owns the header — bailing out of
   // both branches keeps the host's title untouched.
   const { setHeader, clearHeader } = usePageHeader();
