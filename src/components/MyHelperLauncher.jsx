@@ -12,7 +12,7 @@
 // the build handoff doc) for the activation checklist.
 // ============================================================
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
+import { Z, COND, DISPLAY, FS, FW, Ri, R, isDark } from "../lib/theme";
 import { Btn } from "./ui";
 import { supabase } from "../lib/supabase";
 import starters from "../../_docs/_starters.json";
@@ -158,6 +158,11 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
 
   if (!helper) return null;  // MyHelper team_members row doesn't exist yet
 
+  // Dark mode flips Z.ac to a light tone, which makes the user bubble and
+  // floating launcher look white-on-white. Swap to brand blue in dark mode
+  // so outgoing bubbles + the launcher circle stay legible.
+  const bubbleAccent = isDark() ? "#486b95" : Z.ac;
+
   return (
     <>
       {/* Floating bubble */}
@@ -172,7 +177,7 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
           width: 56,
           height: 56,
           borderRadius: 28,
-          background: Z.ac,
+          background: bubbleAccent,
           color: "#fff",
           fontSize: 24,
           border: "none",
@@ -331,7 +336,7 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
                       maxWidth: "78%",
                       padding: "10px 14px",
                       borderRadius: 14,
-                      background: mine ? Z.ac : Z.bg,
+                      background: mine ? bubbleAccent : Z.bg,
                       color: mine ? "#fff" : Z.tx,
                       fontSize: 17,
                       lineHeight: 1.5,
