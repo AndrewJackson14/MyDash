@@ -155,23 +155,24 @@ export function DataProvider({ children, localData }) {
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason,billing_email,billing_cc_emails,billing_address,billing_address2,billing_city,billing_state,billing_zip';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
-        // Helper: fetch all rows from a table with automatic pagination.
-        // Always applies an id tiebreaker on the ORDER BY — without one, pagination
-        // across non-unique columns (name, date, issue_date) shifts rows between
-        // pages and silently loses data.
+        // Keyset pagination — uses PK index (id > cursor), no OFFSET. Earlier
+        // OFFSET pagination silently dropped pages on Postgres statement
+        // timeouts at offset ~18k+, so boot would load only the first ~3860
+        // sales of 41k+ and the rest of the app would render against partial
+        // data with no error surfaced.
         const fetchAllRows = async (table, select, opts = {}) => {
           const all = [];
-          let pg = 0;
+          let cursor = null;
           while (true) {
-            let q = supabase.from(table).select(select).range(pg * 1000, (pg + 1) * 1000 - 1);
-            if (opts.order) q = q.order(opts.order, opts.orderOpts);
-            q = q.order('id', { ascending: true });
+            let q = supabase.from(table).select(select).order('id', { ascending: true }).limit(1000);
+            if (cursor) q = q.gt('id', cursor);
             if (opts.gte) q = q.gte(opts.gte[0], opts.gte[1]);
-            const { data } = await q;
+            const { data, error } = await q;
+            if (error) { console.error(`fetchAllRows(${table}) error:`, error); throw error; }
             if (!data?.length) break;
             all.push(...data);
+            cursor = data[data.length - 1].id;
             if (data.length < 1000) break;
-            pg++;
           }
           return all;
         };
@@ -182,7 +183,7 @@ export function DataProvider({ children, localData }) {
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
-        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate';
+        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate,commission_payout_frequency';
         const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
@@ -217,7 +218,7 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20) })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20), commissionPayoutFrequency: t.commission_payout_frequency || 'monthly' })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -485,35 +486,45 @@ export function DataProvider({ children, localData }) {
   const loadBilling = useCallback(async () => {
     if (billingLoaded || !isOnline()) return;
 
-    // Parallel paginate: count first, then fire every page at once so the
-    // wait is ~one round-trip instead of serial page-by-page.
-    const paginateParallel = async (table, select, filterFn) => {
+    // Keyset pagination — uses PK index (id > cursor), no OFFSET. Earlier
+    // OFFSET-based pagination hit Postgres statement timeouts at offset
+    // ~18k+, returning 500s and randomly partial UI numbers (AR aging
+    // jumping $123K-$149K per refresh). Sequential but reliable.
+    const fetchKeyset = async (table, select, applyFilter) => {
       const PAGE = 1000;
-      const countRes = await (filterFn ? filterFn(supabase.from(table).select('*', { count: 'exact', head: true })) : supabase.from(table).select('*', { count: 'exact', head: true }));
-      const total = countRes.count || 0;
-      if (total === 0) return [];
-      const pages = Math.ceil(total / PAGE);
-      const results = await Promise.all(Array.from({ length: pages }, (_, pg) => {
-        const base = supabase.from(table).select(select).order('id', { ascending: true }).range(pg * PAGE, (pg + 1) * PAGE - 1);
-        return filterFn ? filterFn(base) : base;
-      }));
       const out = [];
-      for (const r of results) if (r.data) out.push(...r.data);
+      let cursor = null;
+      while (true) {
+        let q = supabase.from(table).select(select).order('id', { ascending: true }).limit(PAGE);
+        if (cursor) q = q.gt('id', cursor);
+        if (applyFilter) q = applyFilter(q);
+        const res = await q;
+        if (res.error) throw new Error(`fetchKeyset(${table}): ${res.error.message}`);
+        if (!res.data || res.data.length === 0) break;
+        out.push(...res.data);
+        cursor = res.data[res.data.length - 1].id;
+        if (res.data.length < PAGE) break;
+      }
       return out;
     };
 
-    // Win 1: only load the narrow columns from invoice_lines that the
-    // Billing module actually needs at render time — sale_id + publication_id.
-    // Full line records (description, quantity, unit_price, total) are
-    // lazy-loaded per invoice via loadInvoiceLines() when the detail modal
-    // opens. Before this change, loadBilling fetched ~22k full-fat line
-    // rows on every first Billing visit, which was the dominant wait.
-    const [allInv, allLinesSkinny, payRes] = await Promise.all([
-      paginateParallel('invoices', '*'),
-      paginateParallel('invoice_lines', 'id, invoice_id, sale_id, publication_id'),
-      supabase.from('payments').select('*').order('received_at', { ascending: false }),
-    ]);
-    const allLines = allLinesSkinny;
+    // Initial load: only OPEN invoices (sent/overdue/partial/draft). Paid
+    // history is lazy-loaded by loadPaidInvoices(since) when a view that
+    // needs it opens (Overview "Paid This Month", Reports tabs, Invoices
+    // tab Paid filter). Open set is ~600 rows; full set is 39k+ which
+    // tripped the statement-timeout pagination bug above.
+    const allInv = await fetchKeyset('invoices', '*', q => q.in('status', ['sent','overdue','partially_paid','draft']));
+    const invIds = allInv.map(i => i.id);
+
+    // Lines for the open invoices only (matched by invoice_id IN list)
+    const allLines = invIds.length > 0
+      ? await fetchKeyset('invoice_lines', 'id, invoice_id, sale_id, publication_id',
+          q => q.in('invoice_id', invIds))
+      : [];
+
+    // Payments — keyset paginated for reliability (28k+ rows in production)
+    const allPayments = await fetchKeyset('payments', '*');
+    const payRes = { data: allPayments };
 
     // Index lines by invoice_id for fast lookup
     const linesByInv = {};
@@ -2198,6 +2209,7 @@ export function DataProvider({ children, localData }) {
       if (changes.modulePermissions !== undefined) db.module_permissions = changes.modulePermissions;
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
+      if (changes.commissionPayoutFrequency !== undefined) db.commission_payout_frequency = changes.commissionPayoutFrequency;
       if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
       if (changes.isFreelance !== undefined) db.is_freelance = changes.isFreelance;
       if (changes.specialty !== undefined) db.specialty = changes.specialty;

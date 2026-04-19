@@ -118,6 +118,8 @@ function WorkloadPanel({ member, clients, sales, stories, tickets }) {
 // Trigger goes to salesperson_pub_assignments.commission_trigger.
 function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate, currentUser }) {
   const viewerIsAdmin = !!currentUser?.permissions?.includes?.("admin");
+  // Publishers also need to manage team roles + employment type, even without explicit admin permission.
+  const viewerCanManageTeam = viewerIsAdmin || currentUser?.role === "Publisher";
   const isSales = ["Sales Manager", "Salesperson"].includes(member.role);
   const assignments = (salespersonPubAssignments || []).filter(a => a.salespersonId === member.id);
   const rates = (commissionRates || []).filter(r => r.salespersonId === member.id && (r.productType == null || r.productType === ""));
@@ -167,6 +169,23 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
         </div>;
       })}
       <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>Rate = commission %, sh = territory share %, Trigger controls when commission is earned.</div>
+
+      {/* Commission payout schedule (per-rep, drives commission_payouts cadence) */}
+      {viewerCanManageTeam && <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${Z.bd}` }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Payout Schedule</div>
+        <Sel
+          value={member.commissionPayoutFrequency || "monthly"}
+          onChange={e => updateTeamMember?.(member.id, { commissionPayoutFrequency: e.target.value })}
+          options={[
+            { value: "weekly",      label: "Weekly" },
+            { value: "biweekly",    label: "Every 2 Weeks" },
+            { value: "semimonthly", label: "Twice a Month (1st & 15th)" },
+            { value: "monthly",     label: "Monthly" },
+            { value: "quarterly",   label: "Quarterly" },
+          ]}
+        />
+        <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>How often earned commissions are bundled into a payout for this rep.</div>
+      </div>}
     </div>}
 
     {!isSales && <div style={{ fontSize: FS.sm, color: Z.tm }}>
@@ -175,10 +194,10 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
         : (pubs || []).filter(p => (member.pubs || []).includes(p.id)).map(p => p.name).join(", ") || "—"}
     </div>}
 
-    {/* Role editor — admins only. Changes the member's title and recasts
-        their dashboards / commission eligibility / role-default permissions.
-        Backed by the Postgres team_members.role enum. */}
-    {viewerIsAdmin && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+    {/* Role editor — admins + publishers. Changes the member's title and
+        recasts their dashboards / commission eligibility / role-default
+        permissions. Backed by the Postgres team_members.role enum. */}
+    {viewerCanManageTeam && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Role</div>
       <Sel
         value={member.role || ""}
@@ -187,10 +206,8 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
       />
     </div>}
 
-    {/* Employment Type — admins only. Toggling ON marks the member as an
-        Independent Contractor (1099) and surfaces the specialty + rate
-        fields below. Employees (W-2) leave it off. */}
-    {viewerIsAdmin && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+    {/* Employment Type — admins + publishers. */}
+    {viewerCanManageTeam && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Employment Type</div>
       <Toggle
         checked={!!member.isFreelance}
