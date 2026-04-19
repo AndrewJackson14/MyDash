@@ -37,7 +37,7 @@ const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
 
-const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive }) => {
+const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink }) => {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -72,6 +72,50 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive 
     designNotes: "", designerId: "", clientContactName: "", clientContactEmail: "",
     referenceAds: [], _saleId: null,
   });
+
+  // Deep-link receivers: honor navigation from other pages. Fires only while
+  // this page is active. Depends on `projects` being loaded — the effect
+  // reruns when that list changes so "?saleId=X" can resolve after load.
+  useEffect(() => {
+    if (!isActive || !deepLink) return;
+    if (deepLink.projectId) {
+      setViewId(deepLink.projectId);
+      return;
+    }
+    if (deepLink.saleId) {
+      const match = adProjectBySaleId?.get?.(deepLink.saleId);
+      if (match) {
+        setViewId(match.id);
+      } else {
+        // No project yet for this sale — seed the Create Brief modal.
+        const sale = (sales || []).find(s => s.id === deepLink.saleId);
+        if (sale) {
+          setForm(f => ({
+            ...f,
+            clientId: sale.clientId || "",
+            publicationId: sale.publication || "",
+            issueId: sale.issueId || "",
+            adSize: sale.size || "",
+            _saleId: sale.id,
+          }));
+          setCreateModal(true);
+        }
+      }
+      return;
+    }
+    if (deepLink.pubId) {
+      setFPub(deepLink.pubId);
+      if (deepLink.issueId) {
+        const pub = (pubs || []).find(p => p.id === deepLink.pubId);
+        const iss = (issues || []).find(i => i.id === deepLink.issueId);
+        setHeatmapFilter({
+          pubId: deepLink.pubId,
+          issueId: deepLink.issueId,
+          label: `${pub?.name || ""} ${iss?.label || ""}`.trim(),
+        });
+      }
+    }
+  }, [deepLink, isActive, adProjectBySaleId, sales, pubs, issues]);
 
   // Proof upload form
   const [proofForm, setProofForm] = useState({ designerNotes: "" });

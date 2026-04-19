@@ -263,7 +263,7 @@ const BillingSettings = ({ dialog, generatePending }) => {
 };
 
 // ─── Billing Module ─────────────────────────────────────────
-const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, loadPaidInvoices, loadAllPaymentsForClient, bills, insertBill, updateBill, deleteBill, onNavigate, isActive }) => {
+const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoices, payments, setPayments, bus, jurisdiction, team, subscribers, subscriptionPayments, contracts, billingLoaded, loadInvoiceLines, loadPaidInvoices, loadAllPaymentsForClient, bills, insertBill, updateBill, deleteBill, onNavigate, isActive, deepLink }) => {
   // Publish TopBar header while Billing is the active page.
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -313,6 +313,24 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const [arClientFilter, setArClientFilter] = useState("all");
   const [arClientRep, setArClientRep] = useState("all");
   const [arExpandedClient, setArExpandedClient] = useState(null);
+
+  // Deep-link receivers: open the invoice detail modal when arriving with an
+  // invoiceId, or jump to Receivables with a specific client's row expanded
+  // when arriving with a clientId. Only fires while Billing is active so
+  // stale deepLink state from other pages doesn't reopen modals on background
+  // mounts.
+  useEffect(() => {
+    if (!isActive || !deepLink) return;
+    if (deepLink.invoiceId) {
+      setTab("Invoices");
+      setViewInvId(deepLink.invoiceId);
+      return;
+    }
+    if (deepLink.clientId) {
+      setTab("Receivables");
+      setArExpandedClient(deepLink.clientId);
+    }
+  }, [deepLink, isActive]);
   // AR Aging flat report (Reports tab)
   const [agingReportSort, setAgingReportSort] = useState({ key: "total", dir: "desc" });
 

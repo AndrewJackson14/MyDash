@@ -144,17 +144,28 @@ const SalesCRM = (props) => {
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
   const [actExpanded, setActExpanded] = useState(null);
 
-  // Deep-link handling from notifications + cross-page client jumps
+  // Deep-link handling from notifications + cross-page client jumps.
+  // Accepts both the legacy `id` param (kept for existing callers) and the
+  // new `clientId` / `saleId` params issued by useNav helpers.
   useEffect(() => {
-    if (props.deepLink?.tab === "inquiries") {
+    const dl = props.deepLink;
+    if (!dl) return;
+    if (dl.tab === "inquiries") {
       setTab("Inquiries");
       if (loadInquiries && !inquiriesLoaded) loadInquiries();
+      return;
     }
-    // /sales?tab=clients&id=<clientId> opens the client profile directly.
-    // Used by Billing → client name links and any other cross-page jump.
-    if (props.deepLink?.tab === "clients" && props.deepLink?.id) {
+    if (dl.tab === "clients") {
+      const cid = dl.clientId || dl.id;
       setTab("Clients");
-      setViewClientId(props.deepLink.id);
+      if (cid) setViewClientId(cid);
+      return;
+    }
+    if (dl.tab === "pipeline" && dl.saleId) {
+      setTab("Pipeline");
+      // Sale-row highlight handled inline by Pipeline rendering via
+      // props.deepLink.saleId — no extra state needed here.
+      return;
     }
   }, [props.deepLink]);
 

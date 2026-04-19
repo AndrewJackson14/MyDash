@@ -12,3 +12,4 @@ export {
   ErrorBoundary,
 } from "./Primitives";
 export { FilterPillStrip } from "./FilterPillStrip";
+export { EntityLink } from "./EntityLink";
