@@ -23,7 +23,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, onNavigate, registerSubBack, isActive } = props;
+  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, onNavigate, registerSubBack, isActive } = props;
 
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
@@ -1229,6 +1229,51 @@ const SalesCRM = (props) => {
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
                   {inq.status === "new" && <Btn sm onClick={() => updateInquiry(inq.id, { status: "contacted", updated_at: new Date().toISOString() })}>Mark Contacted</Btn>}
+                  {(inq.status === "new" || inq.status === "contacted") && !inq.converted_sale_id && (
+                    <Btn sm v="primary" onClick={async () => {
+                      // Convert to Draft Sale: ensure client, create a Discovery
+                      // sale pre-filled from inquiry data, link inquiry -> sale,
+                      // jump to the pipeline so the rep sees it. Spec Phase 3.
+                      let clientId = inq.client_id;
+                      if (!clientId) {
+                        const nc = await insertClient({
+                          name: inq.business_name || inq.name,
+                          status: "Lead",
+                          leadSource: "Website Inquiry",
+                          contacts: [{ name: inq.name, email: inq.email, phone: inq.phone || "", role: "Business Owner" }],
+                          notes: "From ad inquiry: " + (inq.message || ""),
+                          repId: currentUser?.id || null,
+                        });
+                        clientId = nc?.id;
+                        if (!clientId) return;
+                      }
+                      const startDate = inq.desired_start || new Date().toISOString().slice(0, 10);
+                      const newSale = await insertSale({
+                        clientId,
+                        publication: inq.site_id || null,
+                        productType: "web_ad",
+                        date: startDate,
+                        status: "Discovery",
+                        assignedTo: currentUser?.id || null,
+                        flightStartDate: inq.desired_start || null,
+                        oppNotes: inq.message ? [{ text: inq.message, time: inq.created_at, source: "inquiry" }] : [],
+                      });
+                      if (newSale?.id) {
+                        await updateInquiry(inq.id, {
+                          status: "contacted",
+                          client_id: clientId,
+                          converted_sale_id: newSale.id,
+                          converted_by: currentUser?.id || null,
+                          converted_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                        });
+                        setTab("Pipeline");
+                      }
+                    }}>Create Draft Sale</Btn>
+                  )}
+                  {(inq.status === "new" || inq.status === "contacted") && inq.converted_sale_id && (
+                    <Btn sm v="ghost" onClick={() => setTab("Pipeline")}>View Sale &rarr;</Btn>
+                  )}
                   {(inq.status === "new" || inq.status === "contacted") && (
                     <Btn sm v="success" onClick={() => {
                       if (!inq.client_id) {
