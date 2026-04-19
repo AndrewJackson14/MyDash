@@ -62,6 +62,9 @@ export function DataProvider({ children, localData }) {
   // Ad projects — design workflow state, one per sale (see migration 027)
   const [adProjects, setAdProjects] = useState([]);
   const [adProjectsLoaded, setAdProjectsLoaded] = useState(false);
+  // Digital ad products catalog — sellable per-pub products with rate tiers (mig 067)
+  const [digitalAdProducts, setDigitalAdProducts] = useState([]);
+  const [digitalAdProductsLoaded, setDigitalAdProductsLoaded] = useState(false);
 
   const [loaded, setLoaded] = useState(!isOnline());
 
@@ -979,6 +982,17 @@ export function DataProvider({ children, localData }) {
     if (isOnline()) await supabase.from('ad_inquiries').update(updates).eq('id', id);
   }, []);
 
+  // Digital ad products — small catalog (~30 rows today), load lazily on first
+  // request from the proposal builder. Sorted so dropdowns are stable.
+  const loadDigitalAdProducts = useCallback(async () => {
+    if (digitalAdProductsLoaded || !isOnline()) return;
+    const { data } = await supabase.from('digital_ad_products').select('*')
+      .eq('is_active', true)
+      .order('pub_id').order('sort_order').order('name');
+    if (data) setDigitalAdProducts(data);
+    setDigitalAdProductsLoaded(true);
+  }, [digitalAdProductsLoaded]);
+
   // Service Desk
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
   const loadTickets = useCallback(async () => {
@@ -1486,6 +1500,8 @@ export function DataProvider({ children, localData }) {
       if (changes.monthly !== undefined) db.monthly = changes.monthly;
       if (changes.contractId !== undefined) db.contract_id = changes.contractId;
       if (changes.convertedAt !== undefined) db.converted_at = changes.convertedAt;
+      if (changes.deliveryReportCadence !== undefined) db.delivery_report_cadence = changes.deliveryReportCadence;
+      if (changes.deliveryReportContactId !== undefined) db.delivery_report_contact_id = changes.deliveryReportContactId;
       if (Object.keys(db).length) await supabase.from('proposals').update(db).eq('id', id);
     }
   }, []);
@@ -1500,6 +1516,8 @@ export function DataProvider({ children, localData }) {
         assigned_to: proposal.assignedTo || null, discount_pct: proposal.discountPct || 0,
         sent_at: proposal.sentAt || null, art_source: proposal.artSource || null, charge_day: proposal.chargeDay || 1,
         brief_headline: proposal.briefHeadline || null, brief_style: proposal.briefStyle || null, brief_colors: proposal.briefColors || null, brief_instructions: proposal.briefInstructions || null,
+        delivery_report_cadence: proposal.deliveryReportCadence || null,
+        delivery_report_contact_id: proposal.deliveryReportContactId || null,
       }).select().single();
       if (error) { console.error("insertProposal error:", error); throw new Error(error.message); }
       if (data && proposal.lines?.length) {
@@ -1508,6 +1526,10 @@ export function DataProvider({ children, localData }) {
           ad_size: l.adSize, dims: l.dims || '', ad_width: l.adW || 0, ad_height: l.adH || 0,
           issue_id: l.issueId, issue_label: l.issueLabel, issue_date: l.issueDate || null,
           price: l.price, sort_order: i, notes: l.notes || null,
+          digital_product_id: l.digitalProductId || null,
+          flight_start_date: l.flightStartDate || null,
+          flight_end_date: l.flightEndDate || null,
+          flight_months: l.flightMonths || null,
         })));
         if (lineErr) console.error("insertProposal lines error:", lineErr);
         const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]); return np;
@@ -2512,6 +2534,8 @@ export function DataProvider({ children, localData }) {
     editions, setEditions, loadEditions, editionsLoaded,
     // Ad Inquiries
     adInquiries, setAdInquiries, loadInquiries, inquiriesLoaded, updateInquiry,
+    // Digital ad products catalog
+    digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded,
     insertTicket, updateTicket, insertTicketComment,
     insertLegalNotice, updateLegalNotice,
     insertCreativeJob, updateCreativeJob,

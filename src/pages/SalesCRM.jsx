@@ -23,7 +23,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, onNavigate, registerSubBack, isActive } = props;
+  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded, onNavigate, registerSubBack, isActive } = props;
 
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
@@ -101,6 +101,12 @@ const SalesCRM = (props) => {
   const [propPubs, setPropPubs] = useState([]);
   const [propAddPubId, setPropAddPubId] = useState("");
   const [propExpandedPub, setPropExpandedPub] = useState(null);
+  // Phase 4: digital ad lines (parallel to print propPubs). Each row is one
+  // digital line; the proposal can mix print + digital freely. Cadence is
+  // set once per proposal, only shown when at least one digital line exists.
+  const [propDigitalLines, setPropDigitalLines] = useState([]);
+  const [propDeliveryCadence, setPropDeliveryCadence] = useState("monthly");
+  const [propDeliveryContactId, setPropDeliveryContactId] = useState(null);
   const [propEmailRecipients, setPropEmailRecipients] = useState([]);
   const [propEmailMsg, setPropEmailMsg] = useState("");
   const [propSending, setPropSending] = useState(false);
@@ -439,7 +445,7 @@ const SalesCRM = (props) => {
     setPropArtSource(client?.lastArtSource || client?.last_art_source || "we_design");
   }, [propClient]);
 
-  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropArtSource("we_design"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); };
+  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropDigitalLines([]); setPropDeliveryCadence("monthly"); setPropDeliveryContactId(null); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropArtSource("we_design"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); if (loadDigitalAdProducts) loadDigitalAdProducts(); };
   // Open renewal proposal pre-populated from client's previous closed sales
   const openRenewalProposal = (clientId) => {
     const cid = clientId || clients[0]?.id || "";
@@ -461,14 +467,15 @@ const SalesCRM = (props) => {
       const futureIssues = issues.filter(i => i.pubId === pg.pubId && i.date >= today).slice(0, 12);
       return { pubId: pg.pubId, issues: futureIssues.map(iss => ({ issueId: iss.id, adSizeIdx: adSizeIdx >= 0 ? adSizeIdx : 0 })) };
     }).filter(Boolean);
-    setPropClient(cid); setPropPubs(renewPubs); setPropPayPlan(false); setPropStep("build");
+    setPropClient(cid); setPropPubs(renewPubs); setPropDigitalLines([]); setPropDeliveryCadence("monthly"); setPropDeliveryContactId(null); setPropPayPlan(false); setPropStep("build");
     setPropName(`${clientName} \u2014 Renewal ${new Date().toLocaleDateString()}`);
     setEditPropId(null); setPropAddPubId(pubs[0]?.id || "");
     setPropExpandedPub(renewPubs[0]?.pubId || null);
     setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true);
+    if (loadDigitalAdProducts) loadDigitalAdProducts();
   };
   const closePropMo = () => { if (propPending && propStep === "build") { setSales(sl => sl.map(s => s.id === propPending ? { ...s, status: "Presentation" } : s)); logActivity("Proposal cancelled — back to Presentation", "pipeline", sales.find(s => s.id === propPending)?.clientId, cn(sales.find(s => s.id === propPending)?.clientId)); } setPropPending(null); setPropMo(false); };
-  const editProposal = (propId) => { const p = proposals.find(x => x.id === propId); if (!p) return; setPropClient(p.clientId); setPropName(p.name); setEditPropId(propId); setPropPayPlan(p.payPlan); setPropStep("build"); setViewPropId(null); const grouped = {}; p.lines.forEach(li => { if (!grouped[li.pubId]) grouped[li.pubId] = { pubId: li.pubId, issues: [] }; const pub = pubs.find(x => x.id === li.pubId); const ai = (pub?.adSizes || []).findIndex(a => a.name === li.adSize); grouped[li.pubId].issues.push({ issueId: li.issueId, adSizeIdx: ai >= 0 ? ai : 0 }); }); setPropPubs(Object.values(grouped)); setPropExpandedPub(Object.keys(grouped)[0] || null); setPropMo(true); };
+  const editProposal = (propId) => { const p = proposals.find(x => x.id === propId); if (!p) return; setPropClient(p.clientId); setPropName(p.name); setEditPropId(propId); setPropPayPlan(p.payPlan); setPropStep("build"); setViewPropId(null); const grouped = {}; const digitalLines = []; (p.lines || []).forEach(li => { if (li.digitalProductId || li.digital_product_id) { digitalLines.push({ pubId: li.pubId, digitalProductId: li.digitalProductId || li.digital_product_id, flightStartDate: li.flightStartDate || li.flight_start_date || "", flightEndDate: li.flightEndDate || li.flight_end_date || "", flightMonths: li.flightMonths || li.flight_months || 1, price: li.price || 0 }); return; } if (!grouped[li.pubId]) grouped[li.pubId] = { pubId: li.pubId, issues: [] }; const pub = pubs.find(x => x.id === li.pubId); const ai = (pub?.adSizes || []).findIndex(a => a.name === li.adSize); grouped[li.pubId].issues.push({ issueId: li.issueId, adSizeIdx: ai >= 0 ? ai : 0 }); }); setPropPubs(Object.values(grouped)); setPropDigitalLines(digitalLines); setPropDeliveryCadence(p.deliveryReportCadence || p.delivery_report_cadence || "monthly"); setPropDeliveryContactId(p.deliveryReportContactId || p.delivery_report_contact_id || null); setPropExpandedPub(Object.keys(grouped)[0] || null); setPropMo(true); if (loadDigitalAdProducts) loadDigitalAdProducts(); };
   const addPropPub = () => { if (!propAddPubId || propPubs.some(pp => pp.pubId === propAddPubId)) return; setPropPubs(pp => [...pp, { pubId: propAddPubId, issues: [] }]); setPropExpandedPub(propAddPubId); };
   const removePropPub = (pubId) => { setPropPubs(pp => pp.filter(p => p.pubId !== pubId)); };
   const togglePropIssue = (pi, iid) => { setPropPubs(pp => pp.map((p, i) => { if (i !== pi) return p; const ex = p.issues.find(x => x.issueId === iid); if (ex) return { ...p, issues: p.issues.filter(x => x.issueId !== iid) }; return { ...p, issues: [...p.issues, { issueId: iid, adSizeIdx: p.issues[p.issues.length - 1]?.adSizeIdx || 0 }] }; })); };
@@ -479,7 +486,54 @@ const SalesCRM = (props) => {
   const autoTier = getAutoTier(totalInsertions); const autoTermLabel = getAutoTermLabel(totalInsertions);
   const allIssueDates = propPubs.flatMap(pp => pp.issues.map(iss => issues.find(i => i.id === iss.issueId)?.date)).filter(Boolean).sort();
   const monthSpan = allIssueDates.length >= 2 ? Math.max(1, Math.ceil((new Date(allIssueDates[allIssueDates.length - 1]) - new Date(allIssueDates[0])) / (30.44 * 86400000)) + 1) : 1;
-  const propLineItems = propPubs.flatMap(pp => { const pub = pubs.find(p => p.id === pp.pubId); return pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; const issue = issueMap[iss.issueId]; return { pubId: pp.pubId, pubName: pub?.name, adSize: ad?.name, dims: ad?.dims, adW: ad?.w, adH: ad?.h, issueId: iss.issueId, issueLabel: issLabel(iss.issueId), issueDate: issue?.date || null, adDeadline: issue?.adDeadline || null, price: ad?.[autoTier] || ad?.rate || 0 }; }); });
+  // Digital line helpers — pricing tier picked by months: 1mo, 6mo, 12mo
+  const digitalRateForMonths = (product, months) => {
+    if (!product) return 0;
+    const m = Number(months) || 1;
+    if (m >= 12 && product.rate_12mo) return Number(product.rate_12mo) * m;
+    if (m >= 6 && product.rate_6mo) return Number(product.rate_6mo) * m;
+    return Number(product.rate_monthly || 0) * m;
+  };
+  const addDigitalLine = () => setPropDigitalLines(d => [...d, { pubId: pubs[0]?.id || "", digitalProductId: "", flightStartDate: today, flightEndDate: "", flightMonths: 1, price: 0, _customPrice: false }]);
+  const removeDigitalLine = (idx) => setPropDigitalLines(d => d.filter((_, i) => i !== idx));
+  const updateDigitalLine = (idx, patch) => setPropDigitalLines(d => d.map((ln, i) => {
+    if (i !== idx) return ln;
+    const next = { ...ln, ...patch };
+    // Auto-recalc months from flight dates if user edited a date
+    if (patch.flightStartDate !== undefined || patch.flightEndDate !== undefined) {
+      if (next.flightStartDate && next.flightEndDate) {
+        const ms = (new Date(next.flightEndDate) - new Date(next.flightStartDate)) / (30.44 * 86400000);
+        next.flightMonths = Math.max(1, Math.round(ms));
+      }
+    }
+    // Auto-recalc end_date from start + months if user edited months
+    if (patch.flightMonths !== undefined && next.flightStartDate) {
+      const start = new Date(next.flightStartDate);
+      start.setMonth(start.getMonth() + Number(next.flightMonths || 1));
+      next.flightEndDate = start.toISOString().slice(0, 10);
+    }
+    // Auto-price unless the user has manually edited price
+    if (!next._customPrice && (patch.digitalProductId !== undefined || patch.flightMonths !== undefined || patch.flightStartDate !== undefined || patch.flightEndDate !== undefined)) {
+      const product = (digitalAdProducts || []).find(p => p.id === next.digitalProductId);
+      next.price = digitalRateForMonths(product, next.flightMonths);
+    }
+    if (patch.price !== undefined) next._customPrice = true;
+    return next;
+  }));
+  const digitalLineItems = propDigitalLines.filter(d => d.digitalProductId && d.flightStartDate && d.flightEndDate).map(d => {
+    const product = (digitalAdProducts || []).find(p => p.id === d.digitalProductId);
+    const pub = pubs.find(p => p.id === d.pubId);
+    return {
+      pubId: d.pubId, pubName: pub?.name,
+      adSize: product?.name || "Digital", dims: product ? `${product.width || ""}x${product.height || ""}`.replace(/^x$/, "") : "",
+      adW: product?.width || 0, adH: product?.height || 0,
+      issueId: null, issueLabel: null, issueDate: null,
+      digitalProductId: d.digitalProductId,
+      flightStartDate: d.flightStartDate, flightEndDate: d.flightEndDate, flightMonths: d.flightMonths,
+      price: Number(d.price) || 0,
+    };
+  });
+  const propLineItems = [...propPubs.flatMap(pp => { const pub = pubs.find(p => p.id === pp.pubId); return pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; const issue = issueMap[iss.issueId]; return { pubId: pp.pubId, pubName: pub?.name, adSize: ad?.name, dims: ad?.dims, adW: ad?.w, adH: ad?.h, issueId: iss.issueId, issueLabel: issLabel(iss.issueId), issueDate: issue?.date || null, adDeadline: issue?.adDeadline || null, price: ad?.[autoTier] || ad?.rate || 0 }; }); }), ...digitalLineItems];
   const pTotal = propLineItems.reduce((s, li) => s + li.price, 0);
   const pMonthly = monthSpan > 1 ? Math.ceil(pTotal / monthSpan) : pTotal;
   const pubSummary = (pp) => { const pub = pubs.find(p => p.id === pp.pubId); const t = pp.issues.reduce((s, iss) => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return s + (ad?.[autoTier] || ad?.rate || 0); }, 0); return `${pp.issues.length} issues · $${t.toLocaleString()}`; };
@@ -493,6 +547,7 @@ const SalesCRM = (props) => {
       clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
       lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
       total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
+      deliveryReportCadence: digitalLineItems.length > 0 ? propDeliveryCadence : null, deliveryReportContactId: digitalLineItems.length > 0 ? propDeliveryContactId : null,
       status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
     };
     if (editPropId) {
@@ -522,6 +577,7 @@ const SalesCRM = (props) => {
         clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
         lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
         total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
+      deliveryReportCadence: digitalLineItems.length > 0 ? propDeliveryCadence : null, deliveryReportContactId: digitalLineItems.length > 0 ? propDeliveryContactId : null,
         status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
       };
       let proposalId = editPropId;
@@ -1493,8 +1549,45 @@ const SalesCRM = (props) => {
           <button onClick={() => removePropPub(pp.pubId)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button></div>
           <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{[3,6,12].map(m => <button key={m} onClick={() => selectIssueRange(pi, m)} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{m}mo</button>)}<button onClick={() => setPropPubs(pps => pps.map((p, i) => i !== pi ? p : { ...p, issues: [] }))} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Clear</button></div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{pI.map(iss => { const sel = pp.issues.some(x => x.issueId === iss.id); return <button key={iss.id} onClick={() => togglePropIssue(pi, iss.id)} style={{ padding: "4px 8px", borderRadius: R, border: `1px solid ${sel ? Z.go : Z.bd}`, background: sel ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: sel ? INV.light : Z.tm }}>{iss.label}</button>; })}</div>{pp.issues.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return <div key={iss.issueId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 60px 24px", gap: 5, padding: "4px 6px", background: Z.sa, borderRadius: R }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{issLabel(iss.issueId)}</span><select value={iss.adSizeIdx} onChange={e => setIssueAdSize(pi, iss.issueId, +e.target.value)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: "3px", color: Z.tx, fontSize: FS.sm, outline: "none" }}>{(pub?.adSizes || []).map((a, ai) => <option key={ai} value={ai}>{a.name}</option>)}</select><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(ad?.[autoTier] || 0).toLocaleString()}</span><button onClick={() => applyAdSizeBelow(pi, iss.issueId, iss.adSizeIdx)} title="Apply below" style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, cursor: "pointer", fontSize: FS.sm, color: Z.tx, fontWeight: FW.heavy }}>↓</button></div>; })}</div>}</div>; })}</div>
+        {/* Digital Ads section — parallel to print propPubs above. Each row
+             is one digital line (pub × product × flight). Pricing autocalcs
+             from rate × months unless the user edits the price field. */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Digital Ads</div>
+            <Btn sm v="secondary" onClick={addDigitalLine} disabled={!digitalAdProductsLoaded || (digitalAdProducts || []).length === 0}><Ic.plus size={11} /> Add Digital Line</Btn>
+          </div>
+          {!digitalAdProductsLoaded && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Loading digital products...</div>}
+          {digitalAdProductsLoaded && propDigitalLines.length === 0 && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>No digital lines. Click Add Digital Line to include leaderboard, sidebar, eblast, etc.</div>}
+          {propDigitalLines.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{propDigitalLines.map((dl, di) => {
+            const productsForPub = (digitalAdProducts || []).filter(p => p.pub_id === dl.pubId);
+            return <div key={di} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.6fr 1fr 1fr 0.7fr 1fr 24px", gap: 4, padding: "5px 6px", background: Z.sa, borderRadius: R, alignItems: "end" }}>
+              <Sel value={dl.pubId} onChange={e => updateDigitalLine(di, { pubId: e.target.value, digitalProductId: "" })} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} />
+              <Sel value={dl.digitalProductId} onChange={e => updateDigitalLine(di, { digitalProductId: e.target.value })} options={[{ value: "", label: productsForPub.length ? "— Select product —" : "(no products for this pub)" }, ...productsForPub.map(p => ({ value: p.id, label: `${p.name} ($${Number(p.rate_monthly).toLocaleString()}/mo)` }))]} />
+              <Inp type="date" value={dl.flightStartDate} onChange={e => updateDigitalLine(di, { flightStartDate: e.target.value })} />
+              <Inp type="date" value={dl.flightEndDate} onChange={e => updateDigitalLine(di, { flightEndDate: e.target.value })} />
+              <Inp type="number" value={dl.flightMonths} onChange={e => updateDigitalLine(di, { flightMonths: Number(e.target.value) || 1 })} />
+              <Inp type="number" value={dl.price} onChange={e => updateDigitalLine(di, { price: Number(e.target.value) || 0 })} />
+              <button onClick={() => removeDigitalLine(di)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
+            </div>;
+          })}</div>}
+        </div>
+
+        {/* Delivery Reports — proposal-level cadence + recipient. Only shown
+             when the proposal has at least one digital line; print-only
+             proposals don't generate delivery reports. */}
+        {digitalLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Delivery Reports</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {[["weekly", "Weekly"], ["monthly", "Monthly"], ["end_of_flight", "End of flight only"], ["annual", "Annual (12mo+)"]].map(([v, l]) => (
+              <button key={v} onClick={() => setPropDeliveryCadence(v)} style={{ padding: "5px 12px", borderRadius: R, border: `1px solid ${propDeliveryCadence === v ? Z.go : Z.bd}`, background: propDeliveryCadence === v ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: propDeliveryCadence === v ? FW.bold : FW.normal, color: propDeliveryCadence === v ? INV.light : Z.tm, fontFamily: COND }}>{l}</button>
+            ))}
+          </div>
+          <Sel label="Send To" value={propDeliveryContactId || ""} onChange={e => setPropDeliveryContactId(e.target.value || null)} options={[{ value: "", label: "— No email recipient (post to client profile only) —" }, ...((clients.find(c => c.id === propClient)?.contacts || []).filter(c => c.email).map(c => ({ value: c.id || c.email, label: `${c.name} <${c.email}>` })))]} />
+        </div>}
+
         {propLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} insertions · {autoTermLabel}</span><span style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} print insertions{digitalLineItems.length > 0 ? ` + ${digitalLineItems.length} digital` : ""} · {autoTermLabel}</span><span style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Payment Terms</div>
           <div style={{ display: "flex", gap: 4 }}>
             {[["per_issue", "Per Issue"], ["monthly", `Monthly (${monthSpan}mo × $${pMonthly.toLocaleString()})`], ["lump_sum", "Lump Sum Upfront"]].map(([v, l]) => (
