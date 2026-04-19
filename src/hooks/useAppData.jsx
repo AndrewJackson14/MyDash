@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
+import { deriveTransactionType } from '../lib/qboTransactionType';
 
 const DataContext = createContext(null);
 
@@ -1566,12 +1567,22 @@ export function DataProvider({ children, localData }) {
       }).select().single();
       if (error) { console.error('insertInvoice failed:', error); return { ...inv, id: inv.id || 'inv-' + Date.now() }; }
       if (data && inv.lines?.length) {
-        await supabase.from('invoice_lines').insert(inv.lines.map((l, i) => ({
-          invoice_id: data.id, description: l.description,
-          sale_id: l.saleId || null,
-          publication_id: l.publicationId || null, issue_id: l.issueId || null,
-          quantity: l.quantity || 1, unit_price: l.unitPrice, total: l.total, sort_order: i,
-        })));
+        await supabase.from('invoice_lines').insert(inv.lines.map((l, i) => {
+          // transaction_type is NOT NULL (migration 063) + FK to qbo_account_mapping.
+          // Caller passes either transactionType (explicit override) or productType
+          // (sale.product_type). Catch-all = other_income — sends to Sales:Other
+          // in QBO on push, loudly surfaceable via the sync_error column.
+          const txType = l.transactionType
+            || (l.productType ? deriveTransactionType(l.productType) : null)
+            || 'other_income';
+          return {
+            invoice_id: data.id, description: l.description,
+            sale_id: l.saleId || null,
+            publication_id: l.publicationId || null, issue_id: l.issueId || null,
+            quantity: l.quantity || 1, unit_price: l.unitPrice, total: l.total, sort_order: i,
+            transaction_type: txType,
+          };
+        }));
       }
       return { ...inv, id: data.id };
     }

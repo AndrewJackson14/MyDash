@@ -6,6 +6,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase } from "../lib/supabase";
 import { sendGmailEmail } from "../lib/gmail";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
+import { deriveTransactionType } from "../lib/qboTransactionType";
 
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
@@ -201,6 +202,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           quantity: 1,
           unit_price: sale.amount || 0,
           total: sale.amount || 0,
+          transaction_type: deriveTransactionType(sale.productType),
         });
         invoicesCreated++;
 
