@@ -4,6 +4,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, CARD, R } from "../lib/theme";
 import { Ic, Btn, Card, Sel, Stat, TB, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, FilterPillStrip } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { useSortable, SortTh } from "./reports/sortable";
 
 const YearOverYearTab = lazy(() => import("./reports/YearOverYearTab"));
 const RevenueVsGoalsTab = lazy(() => import("./reports/RevenueVsGoalsTab"));
@@ -156,7 +157,7 @@ const Analytics = ({
       const pubTotalCost = pubFreelanceCost + pubPrintCost + pubDriverCost;
       const pubProfit = pubTotalRev - pubTotalCost;
       const pubMargin = pubTotalRev > 0 ? Math.round((pubProfit / pubTotalRev) * 100) : 0;
-      return { pub, adRev: pubAdRev, legalRev: pubLegalRev, subRev: pubSubRev, totalRev: pubTotalRev, freelanceCost: pubFreelanceCost, printCost: pubPrintCost, driverCost: pubDriverCost, totalCost: pubTotalCost, profit: pubProfit, margin: pubMargin };
+      return { pub, pubName: pub.name, adRev: pubAdRev, legalRev: pubLegalRev, subRev: pubSubRev, totalRev: pubTotalRev, freelanceCost: pubFreelanceCost, printCost: pubPrintCost, driverCost: pubDriverCost, totalCost: pubTotalCost, profit: pubProfit, margin: pubMargin };
     }).sort((a, b) => b.totalRev - a.totalRev);
   }, [pubs, closedSales, stories, issues, _legal, _subs, _fpay, _drivers, dropLocationPubs]);
 
@@ -344,6 +345,9 @@ const Analytics = ({
 
   // Selected pub for P&L detail
   const selPL = plPub === "all" ? null : pubPL.find(p => p.pub.id === plPub);
+
+  // P&L table sort. Default = total revenue desc (matches current arrangement).
+  const { sorted: pubPLSorted, sortCol: plCol, sortDir: plDir, handleSort: handlePlSort } = useSortable(pubPL, "totalRev", "desc");
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
@@ -715,13 +719,21 @@ const Analytics = ({
         <DataTable>
             <thead>
               <tr>
-                {["Publication", "Ad Revenue", "Legal", "Subscriptions", "Total Rev", "Freelance", "Printing", "Distribution", "Total Cost", "Profit", "Margin"].map(h =>
-                  <th key={h} style={{ textAlign: h === "Publication" ? "left" : "right", fontWeight: FW.heavy, color: Z.tm, fontSize: FS.micro, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
-                )}
+                <SortTh col="pubName"       label="Publication"   sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="adRev"         label="Ad Revenue"    numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="legalRev"      label="Legal"         numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="subRev"        label="Subscriptions" numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="totalRev"      label="Total Rev"     numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="freelanceCost" label="Freelance"     numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="printCost"     label="Printing"      numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="driverCost"    label="Distribution"  numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="totalCost"     label="Total Cost"    numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="profit"        label="Profit"        numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
+                <SortTh col="margin"        label="Margin"        numeric sortCol={plCol} sortDir={plDir} onSort={handlePlSort} />
               </tr>
             </thead>
             <tbody>
-              {pubPL.map(p => <tr key={p.pub.id} onClick={() => setPlPub(p.pub.id)} style={{ cursor: "pointer" }}>
+              {pubPLSorted.map(p => <tr key={p.pub.id} onClick={() => setPlPub(p.pub.id)} style={{ cursor: "pointer" }}>
                 <td style={{ padding: "10px 14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ width: 8, height: 8, borderRadius: R, background: Z.tm }} />

@@ -5,6 +5,7 @@ import { GlassCard, GlassStat, DataTable, Sel, SolidTabs } from "../../component
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 import { deltaColor, deltaArrow } from "./comparisonColors";
 import RefreshPill from "./RefreshPill";
+import { useSortable, SortTh } from "./sortable";
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
@@ -242,6 +243,9 @@ const YearOverYearTab = ({ pubs }) => {
   }
 
   const dPctColor = deltaColor(deltaPct);
+
+  // Per-pub sort: default current-year desc (biggest revenue first).
+  const { sorted: perPubSorted, sortCol: perPubCol, sortDir: perPubDir, handleSort: handlePerPubSort } = useSortable(perPub, "cur", "desc");
   const dPctArrow = deltaArrow(deltaPct);
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -391,15 +395,15 @@ const YearOverYearTab = ({ pubs }) => {
         <DataTable>
           <thead>
             <tr>
-              <th>Publication</th>
-              <th style={{ textAlign: "right" }}>{labelFor(curYear, curWindow)}</th>
-              <th style={{ textAlign: "right" }}>{labelFor(cmpYear, cmpWindow)}</th>
-              <th style={{ textAlign: "right" }}>$ Δ</th>
-              <th style={{ textAlign: "right" }}>% Δ</th>
+              <SortTh col="name" label="Publication" sortCol={perPubCol} sortDir={perPubDir} onSort={handlePerPubSort} />
+              <SortTh col="cur"  label={labelFor(curYear, curWindow)} numeric sortCol={perPubCol} sortDir={perPubDir} onSort={handlePerPubSort} />
+              <SortTh col="cmp"  label={labelFor(cmpYear, cmpWindow)} numeric sortCol={perPubCol} sortDir={perPubDir} onSort={handlePerPubSort} />
+              <SortTh col="d$"   label="$ Δ" numeric sortCol={perPubCol} sortDir={perPubDir} onSort={handlePerPubSort} />
+              <SortTh col="dPct" label="% Δ" numeric sortCol={perPubCol} sortDir={perPubDir} onSort={handlePerPubSort} />
             </tr>
           </thead>
           <tbody>
-            {perPub.map(p => {
+            {perPubSorted.map(p => {
               const dColor = deltaColor(p.dPct);
               return <tr key={p.id}>
                 <td style={{ fontWeight: FW.heavy, color: Z.tx }}>{p.name}</td>

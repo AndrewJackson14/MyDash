@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, SP, Ri } from "../../lib/theme";
 import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp, FilterPillStrip } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
+import { useSortable, SortTh } from "./sortable";
 
 const VIEW_OPTIONS = [
   { value: "size", label: "By Ad Size" },
@@ -255,6 +256,10 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
     return { totalGross, pubsTouched, issuesTouched, clientsTouched, dealCount: filtered.length };
   }, [filtered]);
 
+  // Sortable wrappers for both views. Default sort = issueDate desc.
+  const { sorted: sizeSorted, sortCol: sizeCol, sortDir: sizeDir, handleSort: handleSizeSort } = useSortable(rows, "issueDate", "desc");
+  const { sorted: clientSorted, sortCol: clientCol, sortDir: clientDir, handleSort: handleClientSort } = useSortable(clientRows, "issueDate", "desc");
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Filter row */}
     <GlassCard style={{ padding: "14px 18px" }}>
@@ -316,16 +321,16 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
         <DataTable>
           <thead>
             <tr>
-              <th>Publication</th>
-              <th>Issue Date</th>
-              <th>Ad Size</th>
-              <th>Ad Status</th>
-              <th>Invoice Status</th>
-              <th style={{ textAlign: "right" }}>Gross</th>
+              <SortTh col="pubName"    label="Publication"    sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
+              <SortTh col="issueDate"  label="Issue Date"     sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
+              <SortTh col="adSize"     label="Ad Size"        sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
+              <SortTh col="adStatus"   label="Ad Status"      sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
+              <SortTh col="invStatus"  label="Invoice Status" sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
+              <SortTh col="gross"      label="Gross" numeric  sortCol={sizeCol} sortDir={sizeDir} onSort={handleSizeSort} />
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {sizeSorted.map(r => (
               <tr key={r.key}>
                 <td>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -355,17 +360,17 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
         <DataTable>
           <thead>
             <tr>
-              <th>Publication</th>
-              <th>Issue Date</th>
-              <th>Client</th>
-              <th>Ad Size</th>
-              <th>Ad Status</th>
-              <th>Invoice Status</th>
-              <th style={{ textAlign: "right" }}>Amount</th>
+              <SortTh col="pubName"    label="Publication"    sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="issueDate"  label="Issue Date"     sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="clientName" label="Client"         sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="adSize"     label="Ad Size"        sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="adStatus"   label="Ad Status"      sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="invStatus"  label="Invoice Status" sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
+              <SortTh col="amount"     label="Amount" numeric sortCol={clientCol} sortDir={clientDir} onSort={handleClientSort} />
             </tr>
           </thead>
           <tbody>
-            {clientRows.map(r => (
+            {clientSorted.map(r => (
               <tr key={r.id}>
                 <td>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
