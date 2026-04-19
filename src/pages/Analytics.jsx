@@ -485,25 +485,29 @@ const Analytics = ({
                 </div>
               );
             })}
-            {/* Net income line */}
-            <svg style={{ position: "absolute", top: 22, left: 0, width: "100%", height: "calc(100% - 22px)", pointerEvents: "none", zIndex: 3 }}>
+            {/* Net income line — SVG viewBox uses 0-100 numeric coords (was throwing
+                "<polyline> Expected number" because percentages/calc() aren't valid
+                in points/cx/cy attributes). preserveAspectRatio="none" stretches
+                the chart to fill the container. */}
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", top: 22, left: 0, width: "100%", height: "calc(100% - 22px)", pointerEvents: "none", zIndex: 3 }}>
               <polyline
                 points={plView.map((m, i) => {
-                  const x = `${(i + 0.5) * (100 / 12)}%`;
+                  const x = (i + 0.5) * (100 / 12);
                   const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
-                  const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
+                  const y = 50 - (netPlotted / maxPlVal) * 40;
                   return `${x},${y}`;
                 }).join(" ")}
                 fill="none"
                 stroke={Z.ac}
-                strokeWidth="2"
+                strokeWidth="0.5"
+                vectorEffect="non-scaling-stroke"
                 strokeLinejoin="round"
               />
               {plView.map((m, i) => {
-                const x = `${(i + 0.5) * (100 / 12)}%`;
+                const x = (i + 0.5) * (100 / 12);
                 const netPlotted = Math.max(-maxPlVal, Math.min(maxPlVal, m.net));
-                const y = `calc(50% - ${(netPlotted / maxPlVal) * 40}%)`;
-                return <circle key={i} cx={x} cy={y} r="3" fill={Z.ac} />;
+                const y = 50 - (netPlotted / maxPlVal) * 40;
+                return <circle key={i} cx={x} cy={y} r="0.8" fill={Z.ac} vectorEffect="non-scaling-stroke" />;
               })}
             </svg>
           </div>
