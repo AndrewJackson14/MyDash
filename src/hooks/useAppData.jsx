@@ -579,7 +579,7 @@ export function DataProvider({ children, localData }) {
     if (alreadyHydrated) return;
     const { data, error } = await supabase
       .from('invoice_lines')
-      .select('id, description, sale_id, publication_id, issue_id, quantity, unit_price, total')
+      .select('id, description, sale_id, publication_id, issue_id, quantity, unit_price, total, transaction_type')
       .eq('invoice_id', invoiceId)
       .order('id', { ascending: true });
     if (error) { console.error('loadInvoiceLines error:', error); return; }
@@ -595,6 +595,7 @@ export function DataProvider({ children, localData }) {
         quantity: l.quantity,
         unitPrice: Number(l.unit_price),
         total: Number(l.total),
+        transactionType: l.transaction_type,
       })),
     } : inv));
   }, []);

@@ -6,6 +6,9 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, Badge, GlassCard, PageHeader, DataTable, SB, Toggle } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { useQboResolver } from "../hooks/useQboResolver";
+import { UnknownTransactionTypeError, MissingTokenError } from "../lib/qboMappingTypes";
+import { QboAccountNotFoundError } from "../lib/qboAccountLookup";
 
 const PAY_METHODS = [
   { value: "check", label: "Check" },
@@ -29,28 +32,16 @@ const CATEGORIES = [
   { value: "software", label: "Software" },
   { value: "insurance", label: "Insurance" },
   { value: "marketing", label: "Marketing" },
-  { value: "other", label: "Other" },
+  { value: "other_expense", label: "Other" },
 ];
 
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label]));
 
-// Category → canonical QB top-level account name (exact match, case-insensitive).
-// Publications are NOT encoded here — publication tracking stays in MyDash.
-const CATEGORY_QB_ACCOUNT = {
-  freelance: "Freelance",
-  commission: "Commissions",
-  route_driver: "Route Drivers",
-  shipping: "Shipping",
-  printing: "Printing",
-  postage: "Postage",
-  payroll: "Payroll",
-  rent: "Rent",
-  utilities: "Utilities",
-  software: "Software",
-  insurance: "Insurance",
-  marketing: "Marketing",
-  other: "Other Expenses",
-};
+// Categories that map to QBO "Cost of Goods Sold" accounts (vs "Expense").
+// Used to narrow the live Account.Id lookup done by the resolver.
+const COGS_CATEGORIES = new Set([
+  "printing", "postage", "shipping", "route_driver", "freelance", "commission",
+]);
 
 const STATUS_COLORS = {
   pending: Z.wa,
@@ -60,6 +51,45 @@ const STATUS_COLORS = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+const formatMonthLabel = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+};
+
+// Map a bill row's fields to the tokens expected by the line_description_template
+// for its category, per qbo_account_mapping seed rows. Missing tokens → MissingTokenError
+// thrown by the resolver, caught in pushToQuickBooks and surfaced to the user.
+const buildBillTokens = (bill, pubName) => {
+  const title = bill.publicationId ? pubName(bill.publicationId) : "";
+  const period = formatMonthLabel(bill.billDate);
+  const common = { vendor: bill.vendorName || "", description: bill.description || "" };
+  const titled = { title, issue_or_date: bill.issueLabel || bill.billDate || "", issue: bill.issueLabel || "", period };
+
+  switch (bill.category) {
+    case "printing":
+    case "postage":
+    case "route_driver":
+    case "freelance":
+      return { ...common, ...titled };
+    case "commission":
+      return { vendor: common.vendor, period };
+    case "payroll":
+      return { description: common.description || `Payroll ${bill.billDate || ""}` };
+    case "shipping":
+    case "rent":
+    case "utilities":
+    case "software":
+    case "insurance":
+    case "marketing":
+    case "other_expense":
+      return common;
+    default:
+      return common;
+  }
+};
 
 // ─── Bill modal (create / edit) ──────────────────────────────
 const BillModal = ({ open, onClose, bill, pubs, onSave, onDelete }) => {
@@ -289,6 +319,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
   const [editBill, setEditBill] = useState(null);
   const [paidModalBill, setPaidModalBill] = useState(null);
   const [syncingId, setSyncingId] = useState(null);
+  const { resolveForPush } = useQboResolver();
 
   // Local mirror of bills to guarantee instant UI updates
   const [localBills, setLocalBills] = useState(bills);
@@ -405,33 +436,17 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
         if (!vendorId) throw new Error("Vendor created but no ID returned: " + JSON.stringify(createRes.data));
       }
 
-      // 3. Look up the QB top-level expense account for this category
-      const targetAccountName = CATEGORY_QB_ACCOUNT[bill.category];
-      if (!targetAccountName) throw new Error(`No QB account mapping for category "${bill.category}"`);
-
-      const acctRes = await supabase.functions.invoke("qb-api", {
-        headers: { "x-action": "query" },
-        body: { query: "SELECT Id, Name, AccountType FROM Account WHERE AccountType = 'Expense' MAXRESULTS 200" },
+      // 3. Resolve QBO account via mapping table + live Account.Id lookup.
+      //    Replaces the old CATEGORY_QB_ACCOUNT literal + inline fuzzy match.
+      const tokens = buildBillTokens(bill, pubName);
+      const resolved = await resolveForPush({
+        transactionType: bill.category,
+        tokens,
+        qboAccountTypeFilter: COGS_CATEGORIES.has(bill.category) ? "Cost of Goods Sold" : "Expense",
       });
-      if (acctRes.error) {
-        const msg = await fnError(acctRes, "Could not load QuickBooks expense accounts");
-        throw new Error(msg);
-      }
-      const accounts = acctRes.data?.QueryResponse?.Account || [];
-      if (accounts.length === 0) {
-        throw new Error("No Expense accounts found in QuickBooks. Create one in QB first.");
-      }
 
-      // Exact match (case-insensitive)
-      const match = accounts.find(a => (a.Name || "").toLowerCase() === targetAccountName.toLowerCase());
-      if (!match) {
-        const available = accounts.map(a => a.Name).join(", ");
-        throw new Error(`QuickBooks has no expense account named "${targetAccountName}". Create it in QB, or rename one of: ${available}`);
-      }
-      const accountId = match.Id;
-      const matchedName = match.Name;
-
-      // 4. Create bill
+      // 4. Create bill — AccountRef Id + name come from the resolver; the
+      //    line Description comes from the templated line_description.
       const billRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "create-bill" },
         body: {
@@ -442,9 +457,9 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           Line: [{
             Amount: Number(bill.amount),
             DetailType: "AccountBasedExpenseLineDetail",
-            Description: bill.description || CATEGORY_LABEL[bill.category] || bill.category,
+            Description: resolved.line_description,
             AccountBasedExpenseLineDetail: {
-              AccountRef: { value: accountId, name: matchedName },
+              AccountRef: { value: resolved.qbo_account_id, name: resolved.qbo_account_name },
             },
           }],
         },
@@ -465,7 +480,18 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
       setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, ...syncChanges } : b));
       alert("Pushed to QuickBooks ✓");
     } catch (e) {
-      const msg = e.message || String(e);
+      // Specific error classes from the resolver surface actionable messages.
+      let msg;
+      if (e instanceof UnknownTransactionTypeError) {
+        msg = `No QBO mapping for bill category "${e.transactionType}". Add a row to qbo_account_mapping.`;
+      } else if (e instanceof MissingTokenError) {
+        msg = `Bill is missing required fields for the QBO line description: ${e.missing.join(", ")}`;
+      } else if (e instanceof QboAccountNotFoundError) {
+        const sample = e.availableNames.slice(0, 10).join(", ") + (e.availableNames.length > 10 ? "…" : "");
+        msg = `QBO account "${e.wantedName}" doesn't exist. Create it in QBO, or update qbo_account_mapping. Available: ${sample}`;
+      } else {
+        msg = e.message || String(e);
+      }
       await updateBill(bill.id, { quickbooksSyncError: msg });
       setLocalBills(prev => prev.map(b => b.id === bill.id ? { ...b, quickbooksSyncError: msg } : b));
       alert("QuickBooks push failed:\n\n" + msg);

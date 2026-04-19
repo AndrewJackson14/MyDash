@@ -10,6 +10,9 @@ import { useDialog } from "../hooks/useDialog";
 import { fmtCurrency, fmtDate, daysBetween, fmtTimeRelative } from "../lib/formatters";
 import BillsTab from "./BillsTab";
 import { usePageHeader } from "../contexts/PageHeaderContext";
+import { useQboResolver } from "../hooks/useQboResolver";
+import { UnknownTransactionTypeError, MissingTokenError } from "../lib/qboMappingTypes";
+import { QboAccountNotFoundError } from "../lib/qboAccountLookup";
 
 // ─── Invoice Status Colors ──────────────────────────────────
 const INV_COLORS = {
@@ -19,6 +22,65 @@ const INV_COLORS = {
   paid:           { bg: Z.ss, text: Z.su },
   overdue:        { bg: Z.ds, text: Z.da },
   void:           { bg: Z.sa, text: Z.td },
+};
+
+// Map invoice_line fields + its parent invoice + lookup tables to the tokens
+// required by each transaction_type's line_description_template. Missing
+// tokens surface as MissingTokenError from the resolver. See qbo_account_mapping
+// rows for each type's required_tokens array.
+const fmtMonthLabel = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+};
+
+const buildInvoiceLineTokens = (line, invoice, { clients, pubs, issues, sales }) => {
+  const pub = pubs?.find(p => p.id === line.publicationId);
+  const iss = issues?.find(i => i.id === line.issueId);
+  const client = clients?.find(c => c.id === invoice.clientId);
+  const sale = line.saleId ? sales?.find(s => s.id === line.saleId) : null;
+
+  const title = pub?.name || "";
+  const advertiser = client?.name || "";
+  const issue = iss?.label || "";
+  const edition_date = iss?.date || invoice.invoiceDate || "";
+  const period = fmtMonthLabel(invoice.invoiceDate);
+  const ad_size = sale?.adSize || sale?.ad_size || line.description || "Ad";
+  const property = pub?.websiteUrl || pub?.domain || title;
+
+  switch (line.transactionType) {
+    case "display_ad":
+      return { title, issue: issue || edition_date, advertiser, ad_size };
+    case "web_ad":
+      return {
+        property,
+        advertiser,
+        campaign: line.description || "Campaign",
+        period,
+      };
+    case "newspaper_svc_classified":
+      return { title, edition_date, advertiser };
+    case "newspaper_svc_legal_notice":
+      return {
+        title,
+        filing_name: line.description || advertiser,
+        filing_date: edition_date,
+      };
+    case "subscription":
+      return { title, subscriber: advertiser, term: line.description || "1yr" };
+    case "sponsorship":
+      return {
+        property,
+        sponsor_type: line.description || "Sponsorship",
+        sponsor: advertiser,
+        period,
+      };
+    case "other_income":
+      return { description: line.description || "Other", customer: advertiser };
+    default:
+      return {};
+  }
 };
 
 // Overdue is the default because that's the view that drives AR collections.
@@ -350,13 +412,14 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
   // ─── Sync invoice to QuickBooks ─────────────────────────────
   const [qbSyncing, setQbSyncing] = useState(null);
+  const { resolveForPush } = useQboResolver();
   const syncInvoiceToQB = async (inv) => {
     setQbSyncing(inv.id);
     try {
       const client = (clients || []).find(c => c.id === inv.clientId);
       if (!client) throw new Error("Client not found");
 
-      // 1. Find or create QB customer
+      // 1. Find or create QB customer (unchanged).
       const findRes = await supabase.functions.invoke("qb-api", { headers: { "x-action": "find-customer" }, body: { name: client.name } });
       let qbCustomerId = findRes.data?.customers?.[0]?.Id;
       if (!qbCustomerId) {
@@ -368,17 +431,35 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       }
       if (!qbCustomerId) throw new Error("Could not find or create QB customer");
 
-      // 2. Build invoice lines
+      // 2. Resolve each line: mapping table → income account → live Account.Id.
+      //    Fail atomically if any line is unmapped or missing required tokens.
       const invLines = (inv.lines || []).filter(l => l.description || l.total);
-      const qbLines = invLines.length > 0
-        ? invLines.map((l, i) => ({
-            Amount: Number(l.total || 0), DetailType: "SalesItemLineDetail",
-            Description: l.description || `Line ${i + 1}`,
-            SalesItemLineDetail: { Qty: l.quantity || 1, UnitPrice: Number(l.unitPrice || l.total || 0) },
-          }))
-        : [{ Amount: Number(inv.total || 0), DetailType: "SalesItemLineDetail", Description: `Invoice ${inv.invoiceNumber}`, SalesItemLineDetail: { Qty: 1, UnitPrice: Number(inv.total || 0) } }];
+      if (invLines.length === 0) {
+        throw new Error("Invoice has no lines to push.");
+      }
 
-      // 3. Create invoice in QB
+      const resolvedLines = await Promise.all(invLines.map(async (l) => {
+        const tokens = buildInvoiceLineTokens(l, inv, { clients, pubs, issues, sales });
+        const resolved = await resolveForPush({
+          transactionType: l.transactionType,
+          tokens,
+          qboAccountTypeFilter: "Income",
+        });
+        return { resolved, line: l };
+      }));
+
+      const qbLines = resolvedLines.map(({ resolved, line: l }) => ({
+        Amount: Number(l.total || 0),
+        DetailType: "SalesItemLineDetail",
+        Description: resolved.line_description,
+        SalesItemLineDetail: {
+          Qty: l.quantity || 1,
+          UnitPrice: Number(l.unitPrice || l.total || 0),
+          IncomeAccountRef: { value: resolved.qbo_account_id, name: resolved.qbo_account_name },
+        },
+      }));
+
+      // 3. Create invoice in QB (unchanged payload shape).
       const invRes = await supabase.functions.invoke("qb-api", {
         headers: { "x-action": "create-invoice" },
         body: { CustomerRef: { value: qbCustomerId }, Line: qbLines, DueDate: inv.dueDate, DocNumber: inv.invoiceNumber },
@@ -386,11 +467,21 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       const qbId = invRes.data?.Invoice?.Id;
       if (!qbId) throw new Error(invRes.data?.error || "QB invoice creation failed");
 
-      // 4. Save sync status
+      // 4. Persist sync state.
       await supabase.from("invoices").update({ quickbooks_id: qbId, quickbooks_synced_at: new Date().toISOString(), quickbooks_sync_error: null }).eq("id", inv.id);
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, quickbooksId: qbId, quickbooksSyncedAt: new Date().toISOString(), quickbooksSyncError: null } : i));
     } catch (err) {
-      const msg = err.message || "Unknown error";
+      let msg;
+      if (err instanceof UnknownTransactionTypeError) {
+        msg = `Invoice line has transaction_type "${err.transactionType}" which isn't mapped. Add a row to qbo_account_mapping.`;
+      } else if (err instanceof MissingTokenError) {
+        msg = `Invoice line missing required fields: ${err.missing.join(", ")} (transaction_type: ${err.transactionType}).`;
+      } else if (err instanceof QboAccountNotFoundError) {
+        const sample = err.availableNames.slice(0, 10).join(", ") + (err.availableNames.length > 10 ? "…" : "");
+        msg = `QBO account "${err.wantedName}" doesn't exist. Available income accounts: ${sample}`;
+      } else {
+        msg = err.message || "Unknown error";
+      }
       await supabase.from("invoices").update({ quickbooks_sync_error: msg }).eq("id", inv.id);
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, quickbooksSyncError: msg } : i));
       await dialog.alert("QB sync failed: " + msg);

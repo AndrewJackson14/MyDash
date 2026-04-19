@@ -30,6 +30,7 @@ import { supabase } from './supabase'; // existing MyDash supabase client
 interface QboAccount {
   Id: string;
   Name: string;
+  FullyQualifiedName?: string;
   AccountType: string;
 }
 
@@ -62,10 +63,12 @@ export async function resolveLiveQboAccountId(
   wantedName: string,
   typeFilter: QboAccountTypeFilter = 'All',
 ): Promise<string> {
+  // Include FullyQualifiedName so sub-account names like "Publication
+  // Delivery:USPS" match. QBO's `Name` returns the leaf only.
   const sql =
     typeFilter === 'All'
-      ? `SELECT Id, Name, AccountType FROM Account`
-      : `SELECT Id, Name, AccountType FROM Account WHERE AccountType='${typeFilter}'`;
+      ? `SELECT Id, Name, FullyQualifiedName, AccountType FROM Account`
+      : `SELECT Id, Name, FullyQualifiedName, AccountType FROM Account WHERE AccountType='${typeFilter}'`;
 
   const { data, error } = await supabase.functions.invoke('qb-api', {
     body: { query: sql },
@@ -78,14 +81,17 @@ export async function resolveLiveQboAccountId(
 
   const accounts: QboAccount[] = data?.QueryResponse?.Account ?? [];
 
+  const want = wantedName.toLowerCase();
   const match = accounts.find(
-    (a) => a.Name.toLowerCase() === wantedName.toLowerCase(),
+    (a) =>
+      a.Name.toLowerCase() === want ||
+      (a.FullyQualifiedName && a.FullyQualifiedName.toLowerCase() === want),
   );
 
   if (!match) {
     throw new QboAccountNotFoundError(
       wantedName,
-      accounts.map((a) => a.Name).sort(),
+      accounts.map((a) => a.FullyQualifiedName || a.Name).sort(),
     );
   }
 

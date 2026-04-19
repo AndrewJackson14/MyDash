@@ -16,10 +16,10 @@
  */
 
 import { useCallback } from 'react';
-import { supabase } from '@/lib/supabase'; // existing client
-import { resolveQboLine } from '@/lib/qboMappingResolver';
-import { resolveLiveQboAccountId } from '@/lib/qboAccountLookup';
-import type { TokenValues } from '@/lib/qboMappingTypes';
+import { supabase } from '../lib/supabase'; // existing client
+import { resolveQboLine } from '../lib/qboMappingResolver';
+import { resolveLiveQboAccountId } from '../lib/qboAccountLookup';
+import type { TokenValues } from '../lib/qboMappingTypes';
 
 export interface ResolvedForPush {
   qbo_account_name: string;
