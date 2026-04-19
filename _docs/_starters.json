@@ -1,0 +1,108 @@
+{
+  "Salesperson": [
+    "How do I create a proposal?",
+    "How do I find a client?",
+    "What does 'Follow-up' mean in the pipeline?"
+  ],
+  "Sales Manager": [
+    "How do I create a proposal?",
+    "How do I reassign a rep?",
+    "Where is the Sales by Issue report?"
+  ],
+  "Graphic Designer": [
+    "How do I upload a proof?",
+    "What triggers a revision charge?",
+    "How do I sign off on an ad?"
+  ],
+  "Ad Designer": [
+    "How do I upload a proof?",
+    "What triggers a revision charge?",
+    "How do I sign off on an ad?"
+  ],
+  "Layout Designer": [
+    "How do I place an ad on the flatplan?",
+    "How do I lock an issue?",
+    "What are shared pages?"
+  ],
+  "Production Manager": [
+    "How do I place an ad on the flatplan?",
+    "How do I send an issue to press?",
+    "Where is the Issue Schedule?"
+  ],
+  "Office Manager": [
+    "How do I send an invoice?",
+    "How do I reconcile a payment?",
+    "How do I push an invoice to QuickBooks?"
+  ],
+  "Office Administrator": [
+    "How do I send an invoice?",
+    "How do I reconcile a payment?",
+    "How do I refund a subscription?"
+  ],
+  "Finance": [
+    "How do I send an invoice?",
+    "Where is the P&L report?",
+    "How do I push a bill to QuickBooks?"
+  ],
+  "Publisher": [
+    "Where are Revenue vs. Goals?",
+    "How do I set issue goals?",
+    "How do I add a team member?"
+  ],
+  "Editor-in-Chief": [
+    "How do I assign a story?",
+    "How do I publish to the web?",
+    "Where is the flatplan?"
+  ],
+  "Managing Editor": [
+    "How do I assign a story?",
+    "How do I publish to the web?",
+    "Where is the flatplan?"
+  ],
+  "Editor": [
+    "How do I assign a story?",
+    "How do I publish to the web?",
+    "How do I cross-publish a story?"
+  ],
+  "Copy Editor": [
+    "How do I approve a story for web?",
+    "Where is the edit queue?",
+    "How do inline comments work?"
+  ],
+  "Content Editor": [
+    "How do I approve a story for web?",
+    "Where is the edit queue?",
+    "How do inline comments work?"
+  ],
+  "Writer/Reporter": [
+    "Where are my assigned stories?",
+    "How do I submit a draft?",
+    "How do I check my word-count target?"
+  ],
+  "Stringer": [
+    "Where are my assigned stories?",
+    "How do I submit a draft?",
+    "How do I check my word-count target?"
+  ],
+  "Photo Editor": [
+    "How do I upload a photo?",
+    "Where do cutlines go?",
+    "How do I assign a photo to a story?"
+  ],
+  "Distribution Manager": [
+    "Where are the routes?",
+    "How do I add a drop point?",
+    "How do I log a driver payment?"
+  ],
+  "Marketing Manager": [
+    "Where are audience metrics?",
+    "How do I build a newsletter?",
+    "How do I schedule a social post?"
+  ],
+  "Bot": [],
+  "_default": [
+    "Where do I find my assigned work?",
+    "How do I send a message?",
+    "Where are my notifications?"
+  ]
+}
