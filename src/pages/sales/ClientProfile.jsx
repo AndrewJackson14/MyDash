@@ -130,7 +130,37 @@ const ClientProfile = ({
   const lastPayment = [...clientPayments].sort((a, b) => (b.receivedAt || "").localeCompare(a.receivedAt || ""))[0];
   const oldestOpenInvoice = openInvoices.length > 0 ? [...openInvoices].sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"))[0] : null;
 
-  const [finTab, setFinTab] = useState("invoices"); // invoices | payments
+  const [finTab, setFinTab] = useState("invoices"); // invoices | payments | reports
+
+  // Phase 7: delivery reports + cadence schedules. Loaded lazily when the
+  // Reports tab is opened — typically empty, no point boot-fetching for
+  // every client. Reports list view + a per-campaign cadence-change modal.
+  const [deliveryReports, setDeliveryReports] = useState([]);
+  const [deliverySchedules, setDeliverySchedules] = useState([]);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [viewReportId, setViewReportId] = useState(null);
+  const [cadenceModalSchedule, setCadenceModalSchedule] = useState(null);
+  const digitalSales = (sales || []).filter(s => s.clientId === clientId && s.digitalProductId);
+  useEffect(() => {
+    if (finTab !== "reports" || reportsLoaded || !clientId) return;
+    let cancelled = false;
+    setReportsLoading(true);
+    (async () => {
+      const [{ data: reports }, { data: schedules }] = await Promise.all([
+        supabase.from("delivery_reports").select("*").eq("client_id", clientId).order("period_end", { ascending: false }),
+        digitalSales.length > 0
+          ? supabase.from("delivery_report_schedules").select("*").in("sale_id", digitalSales.map(s => s.id))
+          : Promise.resolve({ data: [] }),
+      ]);
+      if (cancelled) return;
+      setDeliveryReports(reports || []);
+      setDeliverySchedules(schedules || []);
+      setReportsLoaded(true);
+      setReportsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [finTab, reportsLoaded, clientId, digitalSales.length]);
 
   // Purchase Timeline — group contracts, standalone sales, and orphan proposals by year.
   // A proposal is shown only if it did not convert to a contract, or if the contract it
@@ -562,10 +592,11 @@ const ClientProfile = ({
           {oldestOpenInvoice && <div style={{ fontSize: FS.micro, color: Z.tm }}>Oldest: {fmtD(oldestOpenInvoice.dueDate)}</div>}
         </div>
       </div>
-      {/* Tabs: Invoices / Payments */}
+      {/* Tabs: Invoices / Payments / Reports */}
       <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
         <button onClick={() => setFinTab("invoices")} style={{ padding: "4px 12px", borderRadius: Ri, border: `1px solid ${finTab === "invoices" ? Z.ac : Z.bd}`, background: finTab === "invoices" ? Z.ac + "15" : "transparent", color: finTab === "invoices" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase" }}>Invoices ({clientInvoices.length})</button>
         <button onClick={() => setFinTab("payments")} style={{ padding: "4px 12px", borderRadius: Ri, border: `1px solid ${finTab === "payments" ? Z.ac : Z.bd}`, background: finTab === "payments" ? Z.ac + "15" : "transparent", color: finTab === "payments" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase" }}>Payments ({clientPayments.length})</button>
+        {digitalSales.length > 0 && <button onClick={() => setFinTab("reports")} style={{ padding: "4px 12px", borderRadius: Ri, border: `1px solid ${finTab === "reports" ? Z.ac : Z.bd}`, background: finTab === "reports" ? Z.ac + "15" : "transparent", color: finTab === "reports" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND, textTransform: "uppercase" }}>Reports{reportsLoaded ? ` (${deliveryReports.length})` : ""}</button>}
       </div>
       {/* Invoices list */}
       {finTab === "invoices" && <div style={{ maxHeight: 320, overflowY: "auto", border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
@@ -633,7 +664,76 @@ const ClientProfile = ({
           {clientPayments.length > 100 && <div style={{ padding: 6, textAlign: "center", fontSize: FS.micro, color: Z.td }}>Showing 100 of {clientPayments.length}</div>}
         </div>}
       </div>}
+      {/* Reports tab — delivery reports + per-campaign cadence schedule.
+           Each digital sale shows its current cadence + Manage button (opens
+           cadence modal). Below: list of delivery_reports rows, click View
+           to render the html_snapshot inline. */}
+      {finTab === "reports" && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {reportsLoading ? <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>Loading reports...</div>
+        : <>
+          {/* Active campaigns + cadence */}
+          {digitalSales.length > 0 && <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: 8 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, fontFamily: COND }}>Digital Campaigns</div>
+            {digitalSales.map(s => {
+              const sched = deliverySchedules.find(d => d.sale_id === s.id);
+              return <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px auto", gap: 8, alignItems: "center", padding: "5px 6px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{s.size || "Digital"}{s.flightStartDate ? ` — ${fmtD(s.flightStartDate)} → ${fmtD(s.flightEndDate)}` : ""}</span>
+                <span style={{ fontSize: FS.xs, color: sched?.is_active ? Z.go : Z.tm, fontWeight: FW.heavy, textTransform: "uppercase" }}>{sched ? (sched.is_active ? sched.cadence : "paused") : "no schedule"}</span>
+                <span style={{ fontSize: FS.xs, color: Z.tm }}>{sched?.next_run_at ? `Next ${fmtD(sched.next_run_at.slice(0, 10))}` : "—"}</span>
+                <Btn sm v="ghost" onClick={() => setCadenceModalSchedule(sched ? { ...sched, _saleLabel: s.size || "Digital" } : { _newForSale: s, sale_id: s.id, cadence: "monthly", is_active: true, _saleLabel: s.size || "Digital" })}>Manage</Btn>
+              </div>;
+            })}
+          </div>}
+
+          {/* Reports list */}
+          <div style={{ maxHeight: 320, overflowY: "auto", border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
+            <div style={{ display: "grid", gridTemplateColumns: "120px 70px 70px 60px 80px 70px", gap: 10, alignItems: "center", padding: "8px 10px", background: Z.sa, borderBottom: `1px solid ${Z.bd}`, fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, position: "sticky", top: 0, zIndex: 1 }}>
+              <span>Period</span><span style={{ textAlign: "right" }}>Imp</span><span style={{ textAlign: "right" }}>Clicks</span><span style={{ textAlign: "right" }}>CTR</span><span>Status</span><span style={{ textAlign: "right" }}>Action</span>
+            </div>
+            {deliveryReports.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No reports yet — they generate on the campaign cadence.</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: 4 }}>
+              {deliveryReports.map(r => <div key={r.id} style={{ display: "grid", gridTemplateColumns: "120px 70px 70px 60px 80px 70px", gap: 10, alignItems: "center", padding: "5px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+                <span style={{ color: Z.tm, fontSize: FS.xs }}>{fmtD(r.period_start)} → {fmtD(r.period_end)}</span>
+                <span style={{ textAlign: "right", fontWeight: FW.heavy, color: Z.tx }}>{(Number(r.impressions) || 0).toLocaleString()}</span>
+                <span style={{ textAlign: "right", color: Z.tx }}>{(Number(r.clicks) || 0).toLocaleString()}</span>
+                <span style={{ textAlign: "right", color: Z.tm, fontSize: FS.xs }}>{Number(r.ctr || 0).toFixed(2)}%</span>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: r.status === "sent" ? Z.go : r.status === "failed" ? Z.da : Z.tm, textTransform: "uppercase" }}>{r.status}</span>
+                <span style={{ textAlign: "right" }}><Btn sm v="ghost" onClick={() => setViewReportId(r.id)}>View</Btn></span>
+              </div>)}
+            </div>}
+          </div>
+        </>}
+      </div>}
     </Card>}
+
+    {/* View report modal — renders the saved html_snapshot in an iframe so
+         report styles can't leak into the host page. */}
+    {viewReportId && (() => {
+      const r = deliveryReports.find(x => x.id === viewReportId);
+      if (!r) return null;
+      return <Modal open={true} onClose={() => setViewReportId(null)} title={`Delivery Report — ${fmtD(r.period_start)} → ${fmtD(r.period_end)}`} width={800}>
+        {r.html_snapshot
+          ? <iframe srcDoc={r.html_snapshot} title="Report" style={{ width: "100%", height: "70vh", border: "none", background: "#fff", borderRadius: 4 }} />
+          : <div style={{ padding: 24, color: Z.td, fontSize: FS.sm }}>No HTML snapshot saved on this report.</div>}
+      </Modal>;
+    })()}
+
+    {/* Cadence modal — change cadence / recipient / pause for a campaign's
+         delivery_report_schedules row. If the campaign has no schedule yet,
+         creates one (rare — usually the convert RPC seeds it). */}
+    {cadenceModalSchedule && <CadenceModal
+      schedule={cadenceModalSchedule}
+      contacts={(clients.find(c => c.id === clientId)?.contacts || []).filter(c => c.email)}
+      onClose={() => setCadenceModalSchedule(null)}
+      onSaved={(updated) => {
+        setDeliverySchedules(prev => {
+          const idx = prev.findIndex(s => s.id === updated.id);
+          if (idx >= 0) return prev.map((s, i) => i === idx ? updated : s);
+          return [...prev, updated];
+        });
+        setCadenceModalSchedule(null);
+      }}
+    />}
 
     {/* ── PURCHASE TIMELINE — contracts, standalone ads, orphan proposals grouped by year ── */}
     {(timelineYears.length > 0 || clientProposals.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>
@@ -760,5 +860,71 @@ const ClientProfile = ({
 
       </div>;
 };
+
+// CadenceModal — edit a delivery_report_schedules row. Used from the
+// Reports tab. If the schedule has no id (a sale that somehow lost its
+// schedule), inserts on save instead of updating.
+function CadenceModal({ schedule, contacts, onClose, onSaved }) {
+  const [cadence, setCadence] = useState(schedule.cadence || "monthly");
+  const [contactId, setContactId] = useState(schedule.contact_id || "");
+  const [isActive, setIsActive] = useState(schedule.is_active !== false);
+  const [saving, setSaving] = useState(false);
+
+  // next_run_at recompute on cadence change. Mirrors the convert RPC math.
+  const nextRunForCadence = (c) => {
+    const base = new Date();
+    if (c === "weekly") base.setUTCDate(base.getUTCDate() + 7);
+    else if (c === "monthly") base.setUTCMonth(base.getUTCMonth() + 1);
+    else if (c === "annual") base.setUTCFullYear(base.getUTCFullYear() + 1);
+    else if (c === "end_of_flight") return null;
+    return base.toISOString();
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const next_run_at = nextRunForCadence(cadence);
+    const updates = {
+      cadence,
+      contact_id: contactId || null,
+      is_active: isActive,
+      ...(next_run_at ? { next_run_at } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    if (schedule.id) {
+      const { data } = await supabase.from("delivery_report_schedules").update(updates).eq("id", schedule.id).select().single();
+      onSaved(data || { ...schedule, ...updates });
+    } else {
+      const { data } = await supabase.from("delivery_report_schedules").insert({
+        sale_id: schedule.sale_id, ...updates,
+        next_run_at: next_run_at || new Date().toISOString(),
+      }).select().single();
+      if (data) onSaved(data);
+      else onClose();
+    }
+    setSaving(false);
+  };
+
+  return <Modal open={true} onClose={onClose} title={`Delivery Cadence — ${schedule._saleLabel || "Campaign"}`} width={460}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: Z.td, textTransform: "uppercase", display: "block", marginBottom: 6, fontFamily: COND }}>Frequency</label>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[["weekly", "Weekly"], ["monthly", "Monthly"], ["end_of_flight", "End of flight only"], ["annual", "Annual"]].map(([v, l]) => (
+            <button key={v} onClick={() => setCadence(v)} style={{ padding: "5px 12px", borderRadius: 4, border: `1px solid ${cadence === v ? Z.go : Z.bd}`, background: cadence === v ? Z.go + "20" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: cadence === v ? 700 : 600, color: cadence === v ? Z.go : Z.tm, fontFamily: COND }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <Sel label="Send To" value={contactId} onChange={e => setContactId(e.target.value)} options={[{ value: "", label: "— Profile only (no email) —" }, ...contacts.map(c => ({ value: c.id || c.email, label: `${c.name} <${c.email}>` }))]} />
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: Z.tx }}>
+        <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
+        Active (uncheck to pause report generation)
+      </label>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <Btn v="cancel" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving}>{saving ? "Saving..." : "Save"}</Btn>
+      </div>
+    </div>
+  </Modal>;
+}
 
 export default ClientProfile;
