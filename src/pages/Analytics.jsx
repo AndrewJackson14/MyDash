@@ -7,6 +7,7 @@ import { useAuth } from "../hooks/useAuth";
 
 const YearOverYearTab = lazy(() => import("./reports/YearOverYearTab"));
 const RevenueVsGoalsTab = lazy(() => import("./reports/RevenueVsGoalsTab"));
+const SalesByIssueTab = lazy(() => import("./reports/SalesByIssueTab"));
 
 import { fmtCurrencyWhole as fmtCurrency } from "../lib/formatters";
 const fmtK = (n) => "$" + ((n || 0) / 1000).toFixed(1) + "K";
@@ -48,7 +49,7 @@ const Analytics = ({
   const reportTabs = useMemo(() => [
     "Overview",
     ...(isPublisher ? ["Year-over-Year", "Revenue vs. Goals"] : []),
-    "P&L", "Sales", "Editorial", "Subscribers", "Audience",
+    "P&L", "Sales", "Sales by Issue", "Editorial", "Subscribers", "Audience",
   ], [isPublisher]);
 
   const _inv = invoices || [];
@@ -359,6 +360,13 @@ const Analytics = ({
     {tab === "Revenue vs. Goals" && isPublisher && (
       <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
         <RevenueVsGoalsTab pubs={pubs} />
+      </Suspense>
+    )}
+
+    {/* ════════ SALES BY ISSUE (all Reports users — salespeople auto-scoped by RLS) ════════ */}
+    {tab === "Sales by Issue" && (
+      <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
+        <SalesByIssueTab sales={sales} pubs={pubs} issues={issues} clients={clients} />
       </Suspense>
     )}
 
