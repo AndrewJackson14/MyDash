@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Z, COND, DISPLAY, FS, FW, SP } from "../../lib/theme";
+import { useEffect, useMemo, useState } from "react";
+import { Z, COND, DISPLAY, FS, FW, SP, Ri } from "../../lib/theme";
 import { GlassCard, GlassStat, DataTable, Sel, SolidTabs, Inp, FilterPillStrip } from "../../components/ui";
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 
@@ -7,6 +7,45 @@ const VIEW_OPTIONS = [
   { value: "size", label: "By Ad Size" },
   { value: "client", label: "By Client" },
 ];
+
+// Color map for ad_project.status — green when creative is done, amber in-flight,
+// blue for not-started (brief), muted fallback.
+const AD_STATUS_COLOR = {
+  brief:         { bg: "rgba(59,130,246,0.15)", fg: "#3b82f6" },
+  awaiting_art:  { bg: "rgba(59,130,246,0.15)", fg: "#3b82f6" },
+  designing:     { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
+  proof_sent:    { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
+  revising:      { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
+  approved:      { bg: "rgba(0,163,0,0.18)",    fg: "#00a300" },
+  signed_off:    { bg: "rgba(0,163,0,0.18)",    fg: "#00a300" },
+  placed:        { bg: "rgba(0,163,0,0.18)",    fg: "#00a300" },
+};
+
+// Color map for invoices.status.
+const INV_STATUS_COLOR = {
+  draft:           { bg: "rgba(140,150,165,0.18)", fg: "#8A95A8" },
+  sent:            { bg: "rgba(59,130,246,0.15)",  fg: "#3b82f6" },
+  partially_paid:  { bg: "rgba(212,137,14,0.18)",  fg: "#D4890E" },
+  overdue:         { bg: "rgba(224,80,80,0.15)",   fg: "#E05050" },
+  paid:            { bg: "rgba(0,163,0,0.18)",     fg: "#00a300" },
+  void:            { bg: "rgba(140,150,165,0.18)", fg: "#8A95A8" },
+};
+
+const StatusPill = ({ value, colorMap }) => {
+  if (!value) return <span style={{ color: Z.tm, fontFamily: COND }}>—</span>;
+  if (value === "mixed") {
+    return <span style={{ color: Z.tm, fontSize: FS.sm, fontFamily: COND, fontStyle: "italic" }}>mixed</span>;
+  }
+  const c = colorMap[value] || { bg: "rgba(140,150,165,0.18)", fg: Z.tm };
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: Ri,
+      background: c.bg, color: c.fg, fontSize: 10, fontWeight: FW.bold,
+      fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.3,
+      whiteSpace: "nowrap",
+    }}>{value.replace(/_/g, " ")}</span>
+  );
+};
 
 const RANGE_PRESETS = [
   { value: "this_month", label: "This Month" },
@@ -50,7 +89,28 @@ const rangeBounds = (preset, customFrom, customTo) => {
   return { from: customFrom || "", to: customTo || "" };
 };
 
-const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) => {
+const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], invoices = [], adProjects = [], loadAdProjects }) => {
+  // Lazy-load ad_projects on mount. loadAdProjects no-ops if already loaded.
+  useEffect(() => { if (loadAdProjects) loadAdProjects(); }, [loadAdProjects]);
+
+  // saleId → ad_project.status lookup. ad_projects are snake_case from the *
+  // select in useAppData.loadAdProjects.
+  const adStatusBySaleId = useMemo(() => {
+    const m = new Map();
+    (adProjects || []).forEach(p => { if (p.sale_id && p.status) m.set(p.sale_id, p.status); });
+    return m;
+  }, [adProjects]);
+
+  // saleId → invoice.status. invoices[].lines is pre-loaded with skinny
+  // {id, saleId, publicationId} rows per useAppData.
+  const invStatusBySaleId = useMemo(() => {
+    const m = new Map();
+    (invoices || []).forEach(inv => {
+      (inv.lines || []).forEach(l => { if (l.saleId) m.set(l.saleId, inv.status); });
+    });
+    return m;
+  }, [invoices]);
+
   const [preset, setPreset] = useState("last_12");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -98,16 +158,20 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
   }, [sales, status, pubFilter, from, to, issueById]);
 
   // Aggregate: (publication, issueId, adSize) → sum(amount).
-  // "No issue" rows (shouldn't happen for display_print per migration 028, but
-  // safe for other product types) roll up under a synthetic issue bucket.
+  // Status columns (ad_project + invoice) collapse to a single value when all
+  // sales in the bucket share it, otherwise "mixed". Empty = "—" via render.
   const rows = useMemo(() => {
     const map = new Map();
     filtered.forEach(s => {
       const adSize = (s.size || "").trim() || "—";
       const key = `${s.publication || ""}|${s.issueId || "_none"}|${adSize}`;
       const existing = map.get(key);
+      const adStatus = adStatusBySaleId.get(s.id) || null;
+      const invStatus = invStatusBySaleId.get(s.id) || null;
       if (existing) {
         existing.gross += Number(s.amount || 0);
+        existing._adStatuses.add(adStatus);
+        existing._invStatuses.add(invStatus);
       } else {
         map.set(key, {
           key,
@@ -115,18 +179,33 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
           issueId: s.issueId || null,
           adSize,
           gross: Number(s.amount || 0),
+          _adStatuses: new Set([adStatus]),
+          _invStatuses: new Set([invStatus]),
         });
       }
     });
+    const collapse = (set) => {
+      const vals = [...set].filter(Boolean);
+      if (vals.length === 0) return null;
+      if (vals.length === 1 && set.size === 1) return vals[0];
+      // More than one distinct status, or a mix of set+null → mixed.
+      return vals.length > 1 || set.size > vals.length ? "mixed" : vals[0];
+    };
     const out = [...map.values()].map(r => {
       const pub = pubById[r.pubId];
       const iss = r.issueId ? issueById[r.issueId] : null;
       return {
-        ...r,
+        key: r.key,
+        pubId: r.pubId,
+        issueId: r.issueId,
+        adSize: r.adSize,
+        gross: r.gross,
         pubName: pub?.name || "(unknown pub)",
         pubColor: pub?.color || Z.tm,
         issueLabel: iss?.label || (r.issueId ? "(missing issue)" : "(ad-hoc)"),
         issueDate: iss?.date || "",
+        adStatus: collapse(r._adStatuses),
+        invStatus: collapse(r._invStatuses),
       };
     });
     // Default sort: issueDate desc, then publication, then ad size.
@@ -136,7 +215,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
       a.adSize.localeCompare(b.adSize)
     );
     return out;
-  }, [filtered, pubById, issueById]);
+  }, [filtered, pubById, issueById, adStatusBySaleId, invStatusBySaleId]);
 
   // By-client view: one row per sale (order), enriched with client + issue.
   const clientRows = useMemo(() => {
@@ -155,6 +234,8 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
         adSize: (s.size || "").trim() || "—",
         amount: Number(s.amount || 0),
         status: s.status,
+        adStatus: adStatusBySaleId.get(s.id) || null,
+        invStatus: invStatusBySaleId.get(s.id) || null,
       };
     });
     out.sort((a, b) =>
@@ -164,7 +245,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
       a.adSize.localeCompare(b.adSize)
     );
     return out;
-  }, [filtered, pubById, issueById, clientById]);
+  }, [filtered, pubById, issueById, clientById, adStatusBySaleId, invStatusBySaleId]);
 
   const headline = useMemo(() => {
     const totalGross = filtered.reduce((s, r) => s + Number(r.amount || 0), 0);
@@ -236,9 +317,10 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
           <thead>
             <tr>
               <th>Publication</th>
-              <th>Issue</th>
               <th>Issue Date</th>
               <th>Ad Size</th>
+              <th>Ad Status</th>
+              <th>Invoice Status</th>
               <th style={{ textAlign: "right" }}>Gross</th>
             </tr>
           </thead>
@@ -251,9 +333,10 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
                     <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{r.pubName}</span>
                   </span>
                 </td>
-                <td style={{ color: Z.tx }}>{r.issueLabel}</td>
                 <td style={{ color: Z.tm, fontVariantNumeric: "tabular-nums" }}>{r.issueDate || "—"}</td>
                 <td style={{ color: Z.td }}>{r.adSize}</td>
+                <td><StatusPill value={r.adStatus} colorMap={AD_STATUS_COLOR} /></td>
+                <td><StatusPill value={r.invStatus} colorMap={INV_STATUS_COLOR} /></td>
                 <td style={{ textAlign: "right", fontFamily: DISPLAY, fontWeight: FW.heavy, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                   {fmtCurrency(r.gross)}
                 </td>
@@ -261,7 +344,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
             ))}
             <tr style={{ borderTop: `2px solid ${Z.bd}` }}>
               <td style={{ fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx }}>Total</td>
-              <td colSpan={3} />
+              <td colSpan={4} />
               <td style={{ textAlign: "right", fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                 {fmtCurrency(headline.totalGross)}
               </td>
@@ -273,10 +356,11 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
           <thead>
             <tr>
               <th>Publication</th>
-              <th>Issue</th>
               <th>Issue Date</th>
               <th>Client</th>
               <th>Ad Size</th>
+              <th>Ad Status</th>
+              <th>Invoice Status</th>
               <th style={{ textAlign: "right" }}>Amount</th>
             </tr>
           </thead>
@@ -289,10 +373,11 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
                     <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{r.pubName}</span>
                   </span>
                 </td>
-                <td style={{ color: Z.tx }}>{r.issueLabel}</td>
                 <td style={{ color: Z.tm, fontVariantNumeric: "tabular-nums" }}>{r.issueDate || "—"}</td>
                 <td style={{ color: Z.tx, fontWeight: FW.semi }}>{r.clientName}</td>
                 <td style={{ color: Z.td }}>{r.adSize}</td>
+                <td><StatusPill value={r.adStatus} colorMap={AD_STATUS_COLOR} /></td>
+                <td><StatusPill value={r.invStatus} colorMap={INV_STATUS_COLOR} /></td>
                 <td style={{ textAlign: "right", fontFamily: DISPLAY, fontWeight: FW.heavy, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                   {fmtCurrency(r.amount)}
                 </td>
@@ -300,7 +385,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [] }) =
             ))}
             <tr style={{ borderTop: `2px solid ${Z.bd}` }}>
               <td style={{ fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx }}>Total</td>
-              <td colSpan={4} />
+              <td colSpan={5} />
               <td style={{ textAlign: "right", fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, fontVariantNumeric: "tabular-nums" }}>
                 {fmtCurrency(headline.totalGross)}
               </td>

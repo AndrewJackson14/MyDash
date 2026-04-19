@@ -30,7 +30,7 @@ const Analytics = ({
   pubs, sales, clients, issues, stories,
   invoices, payments, subscribers, legalNotices, creativeJobs,
   freelancerPayments, dropLocations, dropLocationPubs, drivers,
-  bills, commissionPayouts, isActive,
+  bills, commissionPayouts, adProjects, loadAdProjects, isActive,
 }) => {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -366,7 +366,10 @@ const Analytics = ({
     {/* ════════ SALES BY ISSUE (all Reports users — salespeople auto-scoped by RLS) ════════ */}
     {tab === "Sales by Issue" && (
       <Suspense fallback={<GlassCard style={{ padding: 24 }}><div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>Loading…</div></GlassCard>}>
-        <SalesByIssueTab sales={sales} pubs={pubs} issues={issues} clients={clients} />
+        <SalesByIssueTab
+          sales={sales} pubs={pubs} issues={issues} clients={clients}
+          invoices={invoices} adProjects={adProjects} loadAdProjects={loadAdProjects}
+        />
       </Suspense>
     )}
 
