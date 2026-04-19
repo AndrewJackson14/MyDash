@@ -187,7 +187,7 @@ export function DataProvider({ children, localData }) {
         const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
-          supabase.from('notifications').select('id,title,text,detail,type,created_at,read,link,route').order('created_at', { ascending: false }).limit(50),
+          supabase.from('notifications').select('id,title,detail,type,created_at,read,link').order('created_at', { ascending: false }).limit(50),
           supabase.from('ad_sizes').select('*').order('sort_order'),
         ]);
 
