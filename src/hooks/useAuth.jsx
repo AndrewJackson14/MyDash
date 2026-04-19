@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
 
 // ============================================================
@@ -104,10 +104,16 @@ export function AuthProvider({ children }) {
     setLoading(false);
   };
 
-  // Failsafe: hard cutoff — never show spinner for more than 5 seconds
+  // Failsafe: hard cutoff — never show spinner for more than 5 seconds.
+  // Reads `loading` via ref so the timeout sees the current value (the
+  // earlier version captured `loading` in a closure with empty deps and
+  // always fired the warning + redundant setLoading(false) at 5s, even
+  // when auth completed in 100ms).
+  const loadingRef = useRef(loading);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (loading) {
+      if (loadingRef.current) {
         console.warn('[auth] Hard timeout — forcing login screen');
         setLoading(false);
       }
