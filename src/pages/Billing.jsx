@@ -1479,6 +1479,8 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         {/* Report selector + period filter */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <FilterPillStrip
+            slider
+            mini
             value={reportView}
             onChange={setReportView}
             options={[

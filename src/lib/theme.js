@@ -11,7 +11,10 @@ export const DARK = {
   sf:  "#0E1018",
   sa:  "#161A24",
   bd:  "#1C2130",
-  tx:  "#E8ECF2",
+  // tx softened ~13% from #E8ECF2 — pure-white-on-near-black was too aggressive
+  // for long reading. Keeps active-state text (TB/SliderStrip use literal #fff)
+  // and brand accents (ac) at full brightness so selection still pops.
+  tx:  "#CACDD3",
   tx2: "#C8CED8",
   tm:  "#8A95A8",
   td:  "#525E72",
