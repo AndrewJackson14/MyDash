@@ -315,11 +315,16 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     // Single-source model: Ready + sent_to_web=true is "live on web".
     // The sync trigger will mirror sent_to_web into the legacy
     // web_status column for any StellarPress consumer still reading it.
+    //
+    // Preserve any existing published_at (re-publish after an unpublish
+    // should stay chronologically where it was) and stamp
+    // first_published_at on the true first publish only.
     const now = new Date().toISOString();
     const u = {
       status: "Ready",
       sent_to_web: true,
-      published_at: now,
+      published_at: meta.published_at || now,
+      first_published_at: meta.first_published_at || meta.published_at || now,
       updated_at: now,
     };
     if (!meta.slug) u.slug = (meta.title || "untitled").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").slice(0, 120);
@@ -341,8 +346,17 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   };
 
   // ── Republish (skip preflight — already published once) ─────
+  // Preserve the original published_at so the story stays in its
+  // chronological slot on StellarPress (sorted by published_at DESC).
+  // Bump last_significant_edit_at + updated_at so the republish badge
+  // clears and the edit timestamp reflects the new content.
   const republishToWeb = async () => {
-    const u = { web_status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const u = {
+      web_status: "published",
+      last_significant_edit_at: now,
+      updated_at: now,
+    };
     if (editor) { u.body = editor.getHTML(); u.content_json = editor.getJSON(); }
     const { error } = await supabase.from("stories").update(u).eq("id", story.id);
     if (!error) {

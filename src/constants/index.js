@@ -38,7 +38,11 @@ export const MILESTONES = ["Scheduled", "In Progress", "Editing", "Proofing", "P
 // not via additional status values. "Archived" is NOT a status — old
 // stories live in the Editorial > Archive view, which is a date-based
 // filter, not a state on the story itself.
-export const STORY_STATUSES = ["Pitched", "Draft", "Edit", "Ready", "Approved"];
+// "Pitched" dropped from the selector — pre-draft ideation isn't part
+// of the editorial-workflow state machine. Legacy rows that still carry
+// status="Pitched" continue to work in filter logic, just not offered
+// as a choice when editing a story.
+export const STORY_STATUSES = ["Draft", "Edit", "Ready", "Approved"];
 export const CONTACT_ROLES = ["Business Owner", "Marketing Manager", "Art Director", "Accounts Payable", "Customer Service", "Other"];
 export const COMM_TYPES = ["Email", "Phone", "Text", "Comment"];
 export const COMM_AUTHORS = ["Account Manager", "Graphic Designer", "Publisher", "Editor"];
