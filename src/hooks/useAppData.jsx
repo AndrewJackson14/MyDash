@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { supabase, isOnline } from '../lib/supabase';
 import { deriveTransactionType } from '../lib/qboTransactionType';
+import { withTimeout } from '../lib/withTimeout';
 
 const DataContext = createContext(null);
 
@@ -1555,7 +1556,11 @@ export function DataProvider({ children, localData }) {
   // Convert a Sent proposal → Signed & Converted contract + sales orders via database function
   const convertProposal = useCallback(async (proposalId) => {
     if (!isOnline()) return { error: 'Offline — cannot convert' };
-    const { data, error } = await supabase.rpc('convert_proposal_to_contract', { p_proposal_id: proposalId });
+    const { data, error } = await withTimeout(
+      supabase.rpc('convert_proposal_to_contract', { p_proposal_id: proposalId }),
+      60_000,
+      'convert_proposal_to_contract',
+    );
     if (error) return { error: error.message };
     if (data?.error) return data;
     // Success — reload the affected data into local state
@@ -1975,17 +1980,35 @@ export function DataProvider({ children, localData }) {
 
   const calculateSaleCommission = useCallback(async (saleId) => {
     if (!isOnline()) return { error: 'Offline' };
-    const { data, error } = await supabase.rpc('calculate_sale_commission', { p_sale_id: saleId });
+    const { data, error } = await withTimeout(
+      supabase.rpc('calculate_sale_commission', { p_sale_id: saleId }),
+      30_000,
+      'calculate_sale_commission',
+    );
     if (error) return { error: error.message };
     return data;
   }, []);
 
   const recalculateAllCommissions = useCallback(async () => {
     if (!isOnline()) return { error: 'Offline' };
-    const { data, error } = await supabase.rpc('recalculate_all_commissions');
+    // Recalc over every sale is the long-pole RPC in the app — budget
+    // 2 minutes before surfacing a timeout to the caller. Anything
+    // longer than that and the user should retry or investigate.
+    const { data, error } = await withTimeout(
+      supabase.rpc('recalculate_all_commissions'),
+      120_000,
+      'recalculate_all_commissions',
+    );
     if (error) return { error: error.message };
-    // Reload ledger after recalculation
-    const { data: ledger } = await supabase.from('commission_ledger').select('*').order('created_at', { ascending: false });
+    // Reload ledger after recalculation. Matches the 365-day · 1500-row
+    // cap used on initial load (line 1236) so we don't pull a decade
+    // of history on every recalc.
+    const ledgerCutoff = new Date(Date.now() - 365 * 86400000).toISOString();
+    const { data: ledger } = await supabase.from('commission_ledger')
+      .select('*')
+      .gte('created_at', ledgerCutoff)
+      .order('created_at', { ascending: false })
+      .limit(1500);
     if (ledger) setCommissionLedger(ledger.map(l => ({
       id: l.id, saleId: l.sale_id, salespersonId: l.salesperson_id, publicationId: l.publication_id,
       issueId: l.issue_id, clientId: l.client_id, saleAmount: Number(l.sale_amount),

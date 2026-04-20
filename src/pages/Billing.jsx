@@ -596,6 +596,45 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
   const totalDraftValue = processedInvoices.filter(i => i.status === "draft").reduce((s, i) => s + (i.total || 0), 0);
   const overdueCount = processedInvoices.filter(i => i.status === "overdue").length;
 
+  // Payment Plans aggregation — memoized so the heavy filter/map/sort
+  // chain doesn't re-run on every Billing render. Only recomputes when
+  // contracts / clients / processedInvoices change. Audit finding P-7.
+  const paymentPlansData = useMemo(() => {
+    const monthlyContracts = (contracts || []).filter(c => c.paymentTerms === "monthly" && c.status === "active");
+    const planClientIds = [...new Set(monthlyContracts.map(c => c.clientId))];
+
+    const plans = planClientIds.map(cid => {
+      const client = (clients || []).find(c => c.id === cid);
+      if (!client) return null;
+      const clientContracts = monthlyContracts.filter(c => c.clientId === cid);
+      const monthlyAmount = clientContracts.reduce((s, c) => s + (c.monthlyAmount || 0), 0) || clientContracts[0]?.totalValue / 12 || 0;
+      const chargeDay = clientContracts[0]?.chargeDay || 1;
+      const clientInvs = processedInvoices.filter(i => i.clientId === cid);
+      const openInvs = clientInvs.filter(i => ["draft", "sent", "overdue", "partially_paid"].includes(i.status) && (i.balanceDue || 0) > 0).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+      const paidInvs = clientInvs.filter(i => i.status === "paid");
+      const overdueInvs = openInvs.filter(i => i.dueDate && i.dueDate < today);
+      const totalOutstanding = openInvs.reduce((s, i) => s + (i.balanceDue || 0), 0);
+      const totalOverdue = overdueInvs.reduce((s, i) => s + (i.balanceDue || 0), 0);
+      const hasCard = !!client.cardLast4;
+      const failedCharges = openInvs.filter(i => i.chargeError).length;
+      const needsAction = failedCharges > 0 || (!hasCard && totalOutstanding > 0) || overdueInvs.length > 0;
+      return { client, monthlyAmount, chargeDay, openInvs, paidInvs, overdueInvs, totalOutstanding, totalOverdue, hasCard, failedCharges, needsAction };
+    }).filter(Boolean).sort((a, b) => {
+      if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1;
+      return (a.client.name || "").localeCompare(b.client.name || "");
+    });
+
+    return {
+      plans,
+      actionPlans: plans.filter(p => p.needsAction),
+      okPlans: plans.filter(p => !p.needsAction),
+      totalOutstandingAll: plans.reduce((s, p) => s + p.totalOutstanding, 0),
+      totalOverdueAll: plans.reduce((s, p) => s + p.totalOverdue, 0),
+      clientsWithCards: plans.filter(p => p.hasCard).length,
+      totalCredits: plans.reduce((s, p) => s + (p.client.creditBalance || 0), 0),
+    };
+  }, [contracts, clients, processedInvoices]);
+
   // Closed sales without invoices (candidates for invoice generation)
   const uninvoicedSales = useMemo(() => {
     const invoicedSaleIds = new Set();
@@ -1403,37 +1442,9 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
 
     {/* ════════ PAYMENT PLANS TAB ════════ */}
     {tab === "Payment Plans" && (() => {
-      const monthlyContracts = (contracts || []).filter(c => c.paymentTerms === "monthly" && c.status === "active");
-      const planClientIds = [...new Set(monthlyContracts.map(c => c.clientId))];
-
-      const plans = planClientIds.map(cid => {
-        const client = (clients || []).find(c => c.id === cid);
-        if (!client) return null;
-        const clientContracts = monthlyContracts.filter(c => c.clientId === cid);
-        const monthlyAmount = clientContracts.reduce((s, c) => s + (c.monthlyAmount || 0), 0) || clientContracts[0]?.totalValue / 12 || 0;
-        const chargeDay = clientContracts[0]?.chargeDay || 1;
-        const clientInvs = processedInvoices.filter(i => i.clientId === cid);
-        const openInvs = clientInvs.filter(i => ["draft", "sent", "overdue", "partially_paid"].includes(i.status) && (i.balanceDue || 0) > 0).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
-        const paidInvs = clientInvs.filter(i => i.status === "paid");
-        const overdueInvs = openInvs.filter(i => i.dueDate && i.dueDate < today);
-        const totalOutstanding = openInvs.reduce((s, i) => s + (i.balanceDue || 0), 0);
-        const totalOverdue = overdueInvs.reduce((s, i) => s + (i.balanceDue || 0), 0);
-        const hasCard = !!client.cardLast4;
-        const failedCharges = openInvs.filter(i => i.chargeError).length;
-        const needsAction = failedCharges > 0 || (!hasCard && totalOutstanding > 0) || overdueInvs.length > 0;
-
-        return { client, monthlyAmount, chargeDay, openInvs, paidInvs, overdueInvs, totalOutstanding, totalOverdue, hasCard, failedCharges, needsAction };
-      }).filter(Boolean).sort((a, b) => {
-        if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1;
-        return (a.client.name || "").localeCompare(b.client.name || "");
-      });
-
-      const actionPlans = plans.filter(p => p.needsAction);
-      const okPlans = plans.filter(p => !p.needsAction);
-      const totalOutstandingAll = plans.reduce((s, p) => s + p.totalOutstanding, 0);
-      const totalOverdueAll = plans.reduce((s, p) => s + p.totalOverdue, 0);
-      const clientsWithCards = plans.filter(p => p.hasCard).length;
-      const totalCredits = plans.reduce((s, p) => s + (p.client.creditBalance || 0), 0);
+      // Pulls the pre-memoized payload from above. Avoids re-running the
+      // filter/map/sort chain on every Billing re-render.
+      const { plans, actionPlans, okPlans, totalOutstandingAll, totalOverdueAll, clientsWithCards, totalCredits } = paymentPlansData;
 
       // handleRetry is hoisted above via useCallback at component top level
       // so memo(PaymentPlanCard) isn't invalidated by fresh handler identity
