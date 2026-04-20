@@ -98,15 +98,22 @@ async function getPdfjs() {
   return pdfjsLib;
 }
 
-// Open a PDF document with full rendering support (cMaps, standard fonts)
+// Open a PDF document with full rendering support (cMaps, standard fonts,
+// WASM decoders). Newspaper PDFs use JBig2 for B&W scans and OpenJPEG
+// for some color layers; without the wasm dir, pdf.js silently falls
+// back to pure-JS decoders that are 10-50x slower and will stall the
+// compression pass on a multi-page paper.
 async function openPdf(data) {
   const pdfjsLib = await getPdfjs();
   const cMapUrl = await import("pdfjs-dist/cmaps/78-H.bcmap?url").then(m => {
-    // Derive the cmaps directory URL from one known file
     const url = m.default;
     return url.substring(0, url.lastIndexOf("/") + 1);
   });
   const standardFontDataUrl = await import("pdfjs-dist/standard_fonts/FoxitFixed.pfb?url").then(m => {
+    const url = m.default;
+    return url.substring(0, url.lastIndexOf("/") + 1);
+  });
+  const wasmUrl = await import("pdfjs-dist/wasm/jbig2.wasm?url").then(m => {
     const url = m.default;
     return url.substring(0, url.lastIndexOf("/") + 1);
   });
@@ -115,6 +122,7 @@ async function openPdf(data) {
     cMapUrl,
     cMapPacked: true,
     standardFontDataUrl,
+    wasmUrl,
     isEvalSupported: false,
   }).promise;
 }
@@ -655,9 +663,13 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
       setCompressionStatus("Saving to database...");
 
-      // Unfeature others if this one is featured
+      // Unfeature others if this one is featured. On a brand-new edition
+      // there's no row to exclude, so skip the .neq() which would emit
+      // `id=neq.` (empty value → Supabase 400).
       if (isFeatured) {
-        const { error: featErr } = await supabase.from("editions").update({ is_featured: false }).eq("publication_id", pubId).neq("id", edition?.id || "");
+        let q = supabase.from("editions").update({ is_featured: false }).eq("publication_id", pubId);
+        if (edition?.id) q = q.neq("id", edition.id);
+        const { error: featErr } = await q;
         if (featErr) console.warn("Featured toggle error:", featErr);
       }
 
