@@ -62,6 +62,12 @@ const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
+// Stable empty-array fallback for optional hook outputs. `appData.foo ?? []`
+// in JSX creates a new [] on every render, defeating React.memo on child
+// components. Using this shared reference keeps prop identity stable when
+// the underlying data is nullish. Audit finding P-4.
+const EMPTY_ARR = Object.freeze([]);
+
 export default function App() {
   const appData = useAppData();
   const { teamMember: realUser } = useAuth();
@@ -536,7 +542,7 @@ export default function App() {
           {online && clients.length > 0 && (issueDetailId
             ? <IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} />
             : (currentUser?.role === "Publisher"
-              ? <Suspense fallback={<LazyFallback />}><DashboardV2 isActive={pg === "dashboard"} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || []} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || []} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
+              ? <Suspense fallback={<LazyFallback />}><DashboardV2 isActive={pg === "dashboard"} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || EMPTY_ARR} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || EMPTY_ARR} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
               : <Suspense fallback={<LazyFallback />}><RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></Suspense>
             )
           )}

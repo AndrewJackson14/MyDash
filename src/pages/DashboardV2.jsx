@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
 import { Ic, Btn, GlassCard, Modal, glass, EntityLink } from "../components/ui";
 import { useNav } from "../hooks/useNav";
@@ -1793,4 +1793,7 @@ const BriefingSection = ({ title, children }) => (
   </div>
 );
 
-export default DashboardV2;
+// memo because App.jsx passes ~30 props on every re-render; when the
+// inputs are actually equal we don't want to recompute the whole signal
+// feed / dept grid / now feed tree. Audit finding P-4.
+export default memo(DashboardV2);
