@@ -579,32 +579,16 @@ const DashboardV2 = (props) => {
         onNavigate={onNavigate}
       />
 
-      {/* ── Forward-looking modules: rep pace + issue risk + cash ──
-          Two-column layout below the dept tiles. Left is the rep
-          leaderboard (wider); right stacks issue risk and cash flow. */}
+      {/* ── Forward-looking modules: cash + leaderboard + issue risk ──
+          Two-column layout below the dept tiles. Left stacks cash flow
+          on top of the rep leaderboard; right is the issue risk feed. */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
         gap: 16,
         alignItems: "start",
       }}>
-        <RepLeaderboardCard
-          sales={_sales}
-          team={team}
-          userId={currentUser?.id}
-          onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
-        />
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <IssueAtRiskFeed
-            issues={_issues}
-            stories={_stories}
-            sales={_sales}
-            adProjects={props.adProjects || []}
-            pubs={_pubs}
-            commissionGoals={commissionGoals}
-            userId={currentUser?.id}
-            onOpenIssue={setIssueDetailId}
-          />
           <CashFlowSignalCard
             invoices={_inv}
             payments={props.payments || []}
@@ -613,7 +597,23 @@ const DashboardV2 = (props) => {
             onOpenInvoice={(invoiceId) => onNavigate?.(`/billing?invoiceId=${invoiceId}`)}
             onOpenBilling={() => onNavigate?.("billing")}
           />
+          <RepLeaderboardCard
+            sales={_sales}
+            team={team}
+            userId={currentUser?.id}
+            onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
+          />
         </div>
+        <IssueAtRiskFeed
+          issues={_issues}
+          stories={_stories}
+          sales={_sales}
+          adProjects={props.adProjects || []}
+          pubs={_pubs}
+          commissionGoals={commissionGoals}
+          userId={currentUser?.id}
+          onOpenIssue={setIssueDetailId}
+        />
       </div>
 
       {/* ── Right-hand auto-pin (Cami / Camille) ─────────── */}
