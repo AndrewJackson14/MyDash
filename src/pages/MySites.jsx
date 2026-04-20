@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, TB } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -664,11 +664,11 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       clearHeader();
     }
   }, [isActive, setHeader, clearHeader, loadDigitalAdProducts]);
-  // Phase 6: site|dashboard|catalog tab. "site" is the legacy single-view
-  // (branding, nav, weather, errors, house ads). "dashboard" lists active
-  // ad_placements for the selected site. "catalog" is CRUD over digital
-  // _ad_products for the selected site.
-  const [tab, setTab] = useState("site");
+  // Phase 6: tab labels match what TB renders. "Site" is the legacy
+  // single-view (branding, nav, weather, errors, house ads). "Dashboard"
+  // lists active ad_placements for the selected site. "Digital Catalog"
+  // is CRUD over digital_ad_products for the selected site.
+  const [tab, setTab] = useState("Site");
   const dialog = useDialog();
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -919,14 +919,10 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       {/* Phase 6: tab row. Site tab keeps the existing single-view UI;
            Dashboard + Catalog are new digital-ad-workflow surfaces. */}
       {selectedId !== "__mydash" && (
-        <div style={{ display: "flex", gap: 4, borderBottom: "1px solid " + Z.bd, marginBottom: 4 }}>
-          {[["site", "Site"], ["dashboard", "Dashboard"], ["catalog", "Digital Catalog"]].map(([v, l]) => (
-            <button key={v} onClick={() => setTab(v)} style={{ padding: "8px 16px", border: "none", borderBottom: tab === v ? "2px solid " + Z.ac : "2px solid transparent", background: "transparent", color: tab === v ? Z.ac : Z.tm, cursor: "pointer", fontSize: 13, fontWeight: tab === v ? 700 : 600, fontFamily: COND }}>{l}</button>
-          ))}
-        </div>
+        <TB tabs={["Site", "Dashboard", "Digital Catalog"]} active={tab} onChange={setTab} />
       )}
 
-      {(selectedId === "__mydash" || tab === "site") && <>
+      {(selectedId === "__mydash" || tab === "Site") && <>
       {/* ─── Org Appearance (when MyDash selected) ────── */}
       {selectedId === "__mydash" && <OrgAppearancePanel />}
 
@@ -1307,11 +1303,11 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       />}
       </>}
 
-      {selectedId !== "__mydash" && tab === "dashboard" && (
+      {selectedId !== "__mydash" && tab === "Dashboard" && (
         <SiteDashboardTab site={site} pubs={pubs} clients={clients} sales={sales || []} digitalAdProducts={digitalAdProducts || []} />
       )}
 
-      {selectedId !== "__mydash" && tab === "catalog" && (
+      {selectedId !== "__mydash" && tab === "Digital Catalog" && (
         <DigitalCatalogTab site={site} pubs={pubs} digitalAdProducts={digitalAdProducts || []} loadDigitalAdProducts={loadDigitalAdProducts} />
       )}
     </div>
