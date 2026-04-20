@@ -1044,6 +1044,8 @@ export function DataProvider({ children, localData }) {
       proofApprovedAt: n.proof_approved_at, placedBy: n.placed_by,
       verifiedBy: n.verified_by, verifiedAt: n.verified_at,
       invoiceId: n.invoice_id, notes: n.notes, createdAt: n.created_at,
+      attachments: n.attachments || [],
+      body: n.body || null,
     })));
     if (legalIssueRes.data) setLegalNoticeIssues(legalIssueRes.data.map(li => ({
       id: li.id, legalNoticeId: li.legal_notice_id, issueId: li.issue_id, pageNumber: li.page_number,

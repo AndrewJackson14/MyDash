@@ -451,6 +451,23 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
                 <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 3 }}>
                   {n.issuesRequested} issue{n.issuesRequested > 1 ? "s" : ""} · {linkedIssues.length}/{n.issuesRequested} assigned · {n.lineCount > 0 ? `${n.lineCount} lines` : "Flat rate"}
                 </div>
+                {/* Attachments uploaded via the StellarPress Submit FBN form
+                     (or future admin uploads) land here. Click to open in
+                     a new tab — usually a scan of the notarized form. */}
+                {(n.attachments || []).length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                    {n.attachments.map((url, i) => {
+                      const fname = decodeURIComponent((url || "").split("/").pop() || `file-${i + 1}`);
+                      const short = fname.length > 28 ? fname.slice(0, 25) + "…" : fname;
+                      return <a key={i} href={url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND,
+                        padding: "2px 8px", borderRadius: 3, background: Z.ac + "12",
+                        textDecoration: "none",
+                      }}>📎 {short}</a>;
+                    })}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right", minWidth: 100 }}>
                 <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.su }}>{fmtCurrency(n.totalAmount)}</div>
