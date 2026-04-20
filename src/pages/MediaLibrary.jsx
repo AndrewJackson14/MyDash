@@ -4,7 +4,7 @@ import { Ic, Btn, SB, Pill, FilterPillStrip, Modal, Sel } from "../components/ui
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
-import { uploadMediaBatch, deleteMedia } from "../lib/media";
+import { uploadMediaBatch, deleteMedia, bunnyList, bunnyUpload, bunnyDelete } from "../lib/media";
 
 // ── Config ───────────────────────────────────────────────────────
 const CDN_BASE = "https://cdn.13stars.media";
@@ -21,14 +21,9 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "sho
 const isImage = (name) => /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|ico)$/i.test(name || "");
 const sanitize = (name) => name.toLowerCase().replace(/[^a-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
-// ── BunnyCDN API calls via proxy ─────────────────────────────────
-async function bunnyList(path) {
-  const res = await fetch(PROXY_URL, {
-    headers: { "x-action": "list", "x-path": path || "" },
-  });
-  if (!res.ok) throw new Error("List failed: " + res.status);
-  return res.json();
-}
+// bunnyList / bunnyUpload / bunnyDelete are imported from ../lib/media —
+// those versions attach the authed Authorization header per-call (the
+// bunny-storage edge function runs with verify_jwt:true).
 
 // Progressively list files from subfolders (one folder at a time, newest first)
 async function bunnyListProgressive(path, onBatch, signal) {
@@ -60,28 +55,7 @@ async function bunnyListProgressive(path, onBatch, signal) {
   }
 }
 
-async function bunnyUpload(file, path, filename) {
-  const res = await fetch(PROXY_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": file.type || "application/octet-stream",
-      "x-action": "upload",
-      "x-path": path,
-      "x-filename": encodeURIComponent(filename),
-    },
-    body: file,
-  });
-  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Upload failed"); }
-  return res.json();
-}
-
-async function bunnyDelete(path, filename) {
-  const res = await fetch(PROXY_URL, {
-    method: "DELETE",
-    headers: { "x-action": "delete", "x-path": path, "x-filename": encodeURIComponent(filename) },
-  });
-  if (!res.ok) throw new Error("Delete failed: " + res.status);
-}
+// (bunnyUpload / bunnyDelete imported from ../lib/media — see above.)
 
 // ── Publication folder mapping ──────────────────────────────────
 const PUB_FOLDERS = [
