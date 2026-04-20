@@ -4,3 +4,7 @@ export { default as RevenuePaceCard } from "./RevenuePaceCard";
 export { default as CashFlowSignalCard } from "./CashFlowSignalCard";
 export { default as IssueAtRiskFeed } from "./IssueAtRiskFeed";
 export { default as RepLeaderboardCard } from "./RepLeaderboardCard";
+export { default as IncomingPipelineCard } from "./IncomingPipelineCard";
+export { default as WebPublishingQueue } from "./WebPublishingQueue";
+export { default as EditedStoryImpactCard } from "./EditedStoryImpactCard";
+export { default as WriterPerformanceTable } from "./WriterPerformanceTable";

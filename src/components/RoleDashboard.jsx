@@ -6,6 +6,9 @@ import { useState, useEffect, useMemo, memo } from "react";
 import { Z, DARK, COND, DISPLAY, R, Ri, SP, FS, FW, ACCENT, INV } from "../lib/theme";
 import { Ic, Btn, Pill, GlassCard, GlassStat, glass as glassStyle } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
+import {
+  IncomingPipelineCard, WebPublishingQueue, EditedStoryImpactCard, WriterPerformanceTable,
+} from "./dashboard";
 
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil, initials as ini } from "../lib/formatters";
 
@@ -163,6 +166,12 @@ const RoleDashboard = memo(({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
         {/* LEFT: Queue */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <IncomingPipelineCard
+            stories={_stories}
+            team={team}
+            userId={currentUser?.id}
+            onOpenStory={() => onNavigate?.("stories")}
+          />
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>My Editing Queue</div>
             {myQueue.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>Queue empty — nice work!</div>
@@ -180,6 +189,13 @@ const RoleDashboard = memo(({
               })}
             </div>}
           </div>
+          <WebPublishingQueue
+            stories={_stories}
+            pubs={pubs}
+            userId={currentUser?.id}
+            onOpenStory={() => onNavigate?.("stories")}
+            onOpenWebQueue={() => onNavigate?.("editorial")}
+          />
           {/* Issue Story Assignments */}
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Issue Assignments</div>
@@ -199,10 +215,22 @@ const RoleDashboard = memo(({
               </div>;
             })}
           </div>
+          <WriterPerformanceTable
+            stories={_stories}
+            team={team}
+            userId={currentUser?.id}
+            onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
+          />
         </div>
         {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+          <EditedStoryImpactCard
+            stories={_stories}
+            currentUserId={currentUser?.id}
+            userId={currentUser?.id}
+            onOpenStory={() => onNavigate?.("stories")}
+          />
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Today's Completed</div>
             {editedToday.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No stories submitted yet today</div>
