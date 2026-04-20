@@ -283,9 +283,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         if (!match) return false;
       } else {
         // Only apply scope when not searching — search spans everything.
-        const isArchived = s.status === "Archived";
-        const publishedLongAgo = (s.sent_to_web || s.sentToWeb) && s.published_at && s.published_at < archiveCutoff;
-        const isOld = isArchived || publishedLongAgo;
+        // Archive is purely date-based: stories published to web more than
+        // 90 days ago. "Archived" is not a status.
+        const isOld = (s.sent_to_web || s.sentToWeb) && s.published_at && s.published_at < archiveCutoff;
         if (viewScope === "active" && isOld) return false;
         if (viewScope === "archive" && !isOld) return false;
       }

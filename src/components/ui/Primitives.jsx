@@ -96,7 +96,7 @@ export const TB = ({ tabs, active, onChange }) => {
   const containerRef = useRef(null);
   const btnRefs = useRef({});
   const [rect, setRect] = useState({ left: 0, width: 0, ready: false });
-  const tabsKey = Array.isArray(tabs) ? tabs.join("|") : "";
+  const tabsKey = Array.isArray(tabs) ? tabs.map(t => typeof t === "string" ? t : t.value).join("|") : "";
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -136,11 +136,16 @@ export const TB = ({ tabs, active, onChange }) => {
       boxShadow: rect.ready ? "0 2px 8px rgba(59,130,246,0.3)" : "none",
     }} />
     {tabs.map(t => {
-      const isActive = active === t;
+      // Tabs are either strings ("Active") or objects ({ value, label }).
+      // Object form lets callers render an icon or styled glyph in the
+      // label without mutating what's stored in onChange.
+      const value = typeof t === "string" ? t : t.value;
+      const label = typeof t === "string" ? t : t.label;
+      const isActive = active === value;
       return <button
-        key={t}
-        ref={el => { btnRefs.current[t] = el; }}
-        onClick={() => onChange(t)}
+        key={value}
+        ref={el => { btnRefs.current[value] = el; }}
+        onClick={() => onChange(value)}
         style={{
           position: "relative",
           zIndex: 1,
@@ -155,8 +160,11 @@ export const TB = ({ tabs, active, onChange }) => {
           color: isActive ? "#fff" : Z.td,
           transition: "color 0.25s",
           whiteSpace: "nowrap",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
         }}
-      >{t}</button>;
+      >{label}</button>;
     })}
   </div>;
 };

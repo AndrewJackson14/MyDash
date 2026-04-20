@@ -15,11 +15,13 @@ import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
 
 // ── Constants ────────────────────────────────────────────────────
-// Single-source status model: Draft → Edit → Ready → Archived.
+// Single-source status model: Draft → Edit → Ready → Approved.
 // Destination flags (sent_to_web / sent_to_print) track where it shipped.
-const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "Archived"];
-const STAGE_TO_STATUS = { "Draft": "Draft", "Edit": "Edit", "Ready": "Ready", "Archived": "Archived" };
-const STATUS_TO_STAGE = { Draft: "Draft", Edit: "Edit", Ready: "Ready", Archived: "Archived" };
+// Old stories live in the Editorial > Archive view (a date-based filter),
+// not in an "Archived" status.
+const WORKFLOW_STAGES = ["Draft", "Edit", "Ready", "Approved"];
+const STAGE_TO_STATUS = { "Draft": "Draft", "Edit": "Edit", "Ready": "Ready", "Approved": "Approved" };
+const STATUS_TO_STAGE = { Draft: "Draft", Edit: "Edit", Ready: "Ready", Approved: "Approved" };
 const STORY_TYPES = [
   { key: "article", label: "Article" }, { key: "column", label: "Column" },
   { key: "letter", label: "Letter to Editor" }, { key: "obituary", label: "Obituary" },
@@ -477,7 +479,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {/* Status — standard pill selector */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Status</div>
-            <TB tabs={STORY_STATUSES} active={meta.status || "Draft"} onChange={v => saveMeta("status", v)} />
+            <TB tabs={STORY_STATUSES.map(s => s === "Approved"
+              ? { value: "Approved", label: <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.check size={13} color={meta.status === "Approved" ? "#fff" : (Z.su || "#22c55e")} /> Approved</span> }
+              : s
+            )} active={meta.status || "Draft"} onChange={v => saveMeta("status", v)} />
             {isPublished && <div style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
           </div>
 

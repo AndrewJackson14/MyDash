@@ -35,8 +35,10 @@ export const COMPANY = { name: "13 Stars Media", tagline: "Making Communities Be
 export const MILESTONES = ["Scheduled", "In Progress", "Editing", "Proofing", "Packaged for Publishing"];
 // Single-source-of-truth story lifecycle. Publishing destinations
 // (web / print) are tracked via sent_to_web and sent_to_print booleans,
-// not via additional status values.
-export const STORY_STATUSES = ["Pitched", "Draft", "Edit", "Ready", "Archived"];
+// not via additional status values. "Archived" is NOT a status — old
+// stories live in the Editorial > Archive view, which is a date-based
+// filter, not a state on the story itself.
+export const STORY_STATUSES = ["Pitched", "Draft", "Edit", "Ready", "Approved"];
 export const CONTACT_ROLES = ["Business Owner", "Marketing Manager", "Art Director", "Accounts Payable", "Customer Service", "Other"];
 export const COMM_TYPES = ["Email", "Phone", "Text", "Comment"];
 export const COMM_AUTHORS = ["Account Manager", "Graphic Designer", "Publisher", "Editor"];
