@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "rm -rf public/pdfjs-wasm && cp -R node_modules/pdfjs-dist/wasm public/pdfjs-wasm",
     "build": "vite build"
   },
   "dependencies": {

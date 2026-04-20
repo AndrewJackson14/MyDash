@@ -113,16 +113,17 @@ async function openPdf(data) {
     const url = m.default;
     return url.substring(0, url.lastIndexOf("/") + 1);
   });
-  const wasmUrl = await import("pdfjs-dist/wasm/jbig2.wasm?url").then(m => {
-    const url = m.default;
-    return url.substring(0, url.lastIndexOf("/") + 1);
-  });
+  // pdf.js's wasmUrl needs a directory containing unhashed filenames
+  // (jbig2.wasm, openjpeg.wasm, qcms_bg.wasm). Vite's `?url` imports
+  // would hash each file and we'd only include the one we imported.
+  // Copy the whole wasm dir into public/ at prebuild time (see
+  // package.json prebuild script) so Vite serves them verbatim.
   return pdfjsLib.getDocument({
     data,
     cMapUrl,
     cMapPacked: true,
     standardFontDataUrl,
-    wasmUrl,
+    wasmUrl: "/pdfjs-wasm/",
     isEvalSupported: false,
   }).promise;
 }

@@ -14,3 +14,6 @@ scripts/nmReimport/
 
 # Legacy-migration audit output
 *_audit.csv
+
+# Copied at prebuild time from node_modules/pdfjs-dist/wasm
+public/pdfjs-wasm/
