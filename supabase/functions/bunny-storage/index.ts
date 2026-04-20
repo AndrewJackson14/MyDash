@@ -37,7 +37,7 @@ function genericError(status: number, code: string, detail: unknown) {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-action, x-path, x-filename",
+  "Access-Control-Allow-Headers": "apikey, Authorization, Content-Type, x-action, x-path, x-filename, x-client-info",
 };
 
 serve(async (req: Request) => {
