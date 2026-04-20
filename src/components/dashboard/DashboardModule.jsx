@@ -11,7 +11,7 @@
 // ============================================================
 import { useState, useEffect } from "react";
 import { Z, FS, FW, DISPLAY, DUR, EASE } from "../../lib/theme";
-import { GlassCard, Ic } from "../ui";
+import { GlassCard } from "../ui";
 
 const FOLD_KEY = (userId, id) => `dashboard.${userId || "anon"}.${id}.expanded`;
 
@@ -61,12 +61,11 @@ export default function DashboardModule({
         {collapsible && (
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 18, height: 18, color: Z.tm,
+            width: 14, height: 14, color: Z.tm,
+            fontSize: 10, lineHeight: 1,
             transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
             transition: `transform ${DUR.med}ms ${EASE}`,
-          }}>
-            <Ic.right size={14} />
-          </span>
+          }}>▶</span>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
