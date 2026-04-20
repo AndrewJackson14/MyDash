@@ -75,6 +75,10 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         // Only surface incoming messages addressed to me, and skip my own sends
         if (n.to_user !== uid || n.from_user === uid) return;
         if (n.is_read) return;
+        // MyHelper has its own floating launcher with unread badge and a
+        // dedicated subscription. Suppress the top-level toast for bot
+        // threads so replies don't double-notify.
+        if (n.context_type === "bot_query") return;
 
         setStack(prev => {
           // Dedupe
