@@ -5,7 +5,7 @@
 // media_assets row in one shot. The metadata is the permanent
 // organization — folders are just physical layout.
 // ============================================================
-import { supabase, EDGE_FN_URL } from "./supabase";
+import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "./supabase";
 
 export const CDN_BASE = "https://cdn.13stars.media";
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
@@ -28,11 +28,17 @@ export function buildStoragePath(file) {
 // ── Raw Bunny API via edge-function proxy ──────────────────
 // bunny-storage edge function runs with verify_jwt:true (default +
 // explicit as of the 2026-04-20 security audit), so every call needs
-// the authed user's access token in the Authorization header.
+// BOTH the anon apikey (Supabase gateway) AND the authed user's
+// access token (verify_jwt). supabase.functions.invoke handles both
+// automatically — when we hit the function via raw fetch we have to
+// attach them ourselves.
 async function authHeader() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
-  return { Authorization: "Bearer " + session.access_token };
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: "Bearer " + session.access_token,
+  };
 }
 
 export async function bunnyUpload(file, dir, filename) {
