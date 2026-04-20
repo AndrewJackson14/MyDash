@@ -96,23 +96,111 @@ function probeImageDims(file) {
   });
 }
 
+// Load a file into an HTMLImageElement so we can draw it to canvas.
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+}
+
+// ── Image compression / resize (client-side) ───────────────
+// Keeps the CDN from filling up with 12 MP phone photos. Targets
+// 2000 px max width + <500 KB. Only touches raster formats; SVG and
+// GIF pass through unchanged (vector / possibly-animated).
+//
+// Passes verbatim if the source is already within both thresholds —
+// no re-encode cost and no quality loss for already-optimized images.
+//
+// PNG sources get converted to JPEG as part of the re-encode when a
+// resize is needed. That's fine for photographic content (which is
+// most of what goes into stories) but strips alpha; if you're ever
+// routing logos through this helper, pass `skipCompress: true` in
+// the metadata to uploadMedia.
+export async function compressImageIfLarge(file, {
+  maxWidth = 2000,
+  targetBytes = 500 * 1024,
+  minQuality = 0.5,
+} = {}) {
+  if (!file?.type?.startsWith("image/")) return file;
+  if (file.type === "image/svg+xml" || file.type === "image/gif") return file;
+
+  let img;
+  try { img = await loadImageFromFile(file); }
+  catch { return file; }   // unreadable — let upload layer handle it
+
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+  const needsResize = srcW > maxWidth;
+  const needsRecompress = file.size > targetBytes;
+  if (!needsResize && !needsRecompress) return file;
+
+  // Work out the resize ratio.
+  const scale = needsResize ? maxWidth / srcW : 1;
+  const outW = Math.round(srcW * scale);
+  const outH = Math.round(srcH * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, outW, outH);
+
+  // Iteratively lower JPEG quality until we hit the target size.
+  let quality = 0.85;
+  let blob = await canvasToBlob(canvas, "image/jpeg", quality);
+  while (blob && blob.size > targetBytes && quality > minQuality) {
+    quality = Math.max(minQuality, quality - 0.1);
+    blob = await canvasToBlob(canvas, "image/jpeg", quality);
+  }
+  if (!blob) return file;   // toBlob failed — upload original
+
+  // If the compressed result is somehow larger than the source (small
+  // PNG screenshots can round-trip larger as JPEG), keep the source.
+  if (blob.size >= file.size && !needsResize) return file;
+
+  // Free the canvas memory.
+  canvas.width = 1; canvas.height = 1;
+
+  // Replace extension with .jpg since we re-encoded to JPEG.
+  const baseName = file.name.replace(/\.(png|webp|jpe?g|bmp|heic|avif)$/i, "");
+  return new File([blob], baseName + ".jpg", {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
 // ── Main upload helper ─────────────────────────────────────
 // Uploads a single file to Bunny at /media/YYYY/MM/<uniq>-<name>
 // and writes a media_assets row with the provided metadata.
 // Returns the inserted row (with cdn_url + id).
 export async function uploadMedia(file, metadata = {}) {
-  const { dir, filename } = buildStoragePath(file);
-  const result = await bunnyUpload(file, dir, filename);
+  // Shrink oversize raster images before upload unless the caller opts
+  // out (skipCompress: true). Targets 2000 px / 500 KB; pass-through if
+  // already within spec.
+  const uploadFile = metadata.skipCompress
+    ? file
+    : await compressImageIfLarge(file);
+
+  const { dir, filename } = buildStoragePath(uploadFile);
+  const result = await bunnyUpload(uploadFile, dir, filename);
   const storagePath = `${dir}/${filename}`;
   const cdnUrl = result.cdnUrl || `${CDN_BASE}/${storagePath}`;
 
-  const dims = await probeImageDims(file);
+  const dims = await probeImageDims(uploadFile);
 
   const row = {
-    file_name: file.name,
-    mime_type: file.type || null,
-    file_type: file.type || null,
-    file_size: file.size || null,
+    file_name: uploadFile.name,
+    mime_type: uploadFile.type || null,
+    file_type: uploadFile.type || null,
+    file_size: uploadFile.size || null,
     storage_path: storagePath,
     cdn_url: cdnUrl,
     file_url: cdnUrl,
