@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable } from "./ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable, FilterPillStrip } from "./ui";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -263,12 +263,37 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
 
-  // Archive-tab date range. Default = last 7 days; user can widen.
+  // Archive-tab date range. Preset-driven (7d / this month / last month /
+  // custom). `archiveFrom` / `archiveTo` are always the live window used
+  // by the filter; presets compute them on click. When the preset is
+  // "custom" the date inputs are editable.
+  const [archivePreset, setArchivePreset] = useState("7days");
   const [archiveFrom, setArchiveFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
   });
   const [archiveTo, setArchiveTo] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const applyArchivePreset = useCallback((preset) => {
+    setArchivePreset(preset);
+    const today = new Date();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    if (preset === "7days") {
+      const from = new Date(today); from.setDate(from.getDate() - 7);
+      setArchiveFrom(iso(from));
+      setArchiveTo(iso(today));
+    } else if (preset === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      setArchiveFrom(iso(from));
+      setArchiveTo(iso(today));
+    } else if (preset === "lastMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const to   = new Date(today.getFullYear(), today.getMonth(), 0);  // last day of prev month
+      setArchiveFrom(iso(from));
+      setArchiveTo(iso(to));
+    }
+    // "custom" leaves the current from/to intact so the user can edit.
+  }, []);
 
   // ── Filtered stories ────────────────────────────────────────
   // Active: default daily-work surface. Anything published > 90 days ago
@@ -555,27 +580,40 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   // window. Default window is the past 7 days.
   if (viewScope === "archive") {
     const sorted = [...filtered].sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+    const presetOptions = [
+      { value: "7days",     label: "7 days" },
+      { value: "thisMonth", label: "This month" },
+      { value: "lastMonth", label: "Last month" },
+      { value: "custom",    label: "Custom" },
+    ];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <TB tabs={["Active", "Archive"]} active="Archive" onChange={(v) => setViewScope(v.toLowerCase())} />
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <SB value={sr} onChange={setSr} placeholder="Search archive…" />
             <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-              From
-              <input type="date" value={archiveFrom} onChange={e => setArchiveFrom(e.target.value)}
-                style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-              To
-              <input type="date" value={archiveTo} onChange={e => setArchiveTo(e.target.value)}
-                style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
-            </label>
           </div>
         </div>
-        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-          {sorted.length} {sorted.length === 1 ? "story" : "stories"}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <FilterPillStrip options={presetOptions} value={archivePreset} onChange={applyArchivePreset} />
+          {archivePreset === "custom" && (
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                From
+                <input type="date" value={archiveFrom} onChange={e => setArchiveFrom(e.target.value)}
+                  style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                To
+                <input type="date" value={archiveTo} onChange={e => setArchiveTo(e.target.value)}
+                  style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
+              </label>
+            </>
+          )}
+          <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>
+            {archiveFrom} → {archiveTo} · {sorted.length} {sorted.length === 1 ? "story" : "stories"}
+          </div>
         </div>
         {sorted.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
