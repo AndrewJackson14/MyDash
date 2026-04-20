@@ -142,7 +142,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   useEffect(() => {
     if (!story.id) { setContentLoading(false); return; }
     supabase.from("stories")
-      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id, needs_legal_review, legal_reviewed_by, legal_reviewed_at, word_limit")
+      .select("body, content_json, published_at, first_published_at, last_significant_edit_at, edit_count, correction_note, notes, web_status, web_approved, print_status, print_issue_id, priority, story_type, source, assigned_to, is_featured, is_premium, is_sponsored, sponsor_name, slug, seo_title, seo_description, excerpt, featured_image_url, featured_image_id, category_id, view_count, scheduled_at, created_at, submitted_at, edited_at, approved_for_web_at, editor_id, needs_legal_review, legal_reviewed_by, legal_reviewed_at, word_limit, audience")
       .eq("id", story.id).single()
       .then(({ data }) => {
         if (data) {
@@ -630,6 +630,19 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
               <option value="">Select category</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          </div>
+
+          {/* Audience: Public stories appear on the website; Internal KB
+               articles never publish — they're searchable by the team and
+               readable by MyHelper. Defaults to Public. */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Audience</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[["public", "Public"], ["internal", "Internal Knowledge Base"]].map(([v, l]) => {
+                const sel = (meta.audience || "public") === v;
+                return <button key={v} onClick={() => saveMeta("audience", v)} style={{ flex: 1, padding: "6px 12px", borderRadius: Ri, border: `1px solid ${sel ? Z.ac : Z.bd}`, background: sel ? Z.ac + "15" : "transparent", color: sel ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12, fontWeight: sel ? 700 : 600, fontFamily: COND }}>{l}</button>;
+              })}
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

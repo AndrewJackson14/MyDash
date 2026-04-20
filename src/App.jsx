@@ -52,6 +52,7 @@ const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
 const Merch = lazyLoad(() => import("./pages/Merch"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
+const KnowledgeBase = lazyLoad(() => import("./pages/KnowledgeBase"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
 const Permissions = lazy(() => import("./pages/Permissions"));
 const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
@@ -398,6 +399,7 @@ export default function App() {
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "newsletters", label: "Newsletters", icon: Ic.mail },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
+    { id: "knowledgebase", label: "Knowledge Base", icon: Ic.file },
     { id: "creativejobs", label: "Creative Jobs", icon: Ic.paintbrush },
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "classifieds", label: "Classifieds", icon: Ic.list },
@@ -563,6 +565,7 @@ export default function App() {
         {show("performance") && <div style={vis("performance")}><Performance isActive={pg === "performance"} sales={jSales} clients={jClients} stories={jStories} issues={jIssues} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} team={team} onNavigate={handleNav} /></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices isActive={pg === "legalnotices"} legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} onNavigate={handleNav} /></div>}
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></div>}
+        {show("knowledgebase") && <div style={vis("knowledgebase")}><KnowledgeBase isActive={pg === "knowledgebase"} team={team} currentUser={currentUser} /></div>}
         {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs isActive={pg === "creativejobs"} jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
         {show("classifieds") && <div style={vis("classifieds")}><ClassifiedAds isActive={pg === "classifieds"} pubs={pubs} clients={jClients} issues={jIssues} /></div>}
         {show("merch") && <div style={vis("merch")}><Merch isActive={pg === "merch"} clients={jClients} /></div>}
