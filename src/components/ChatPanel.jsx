@@ -21,9 +21,13 @@ const ChatPanel = memo(({ threadId, currentUser, height = 400, placeholder = "Ty
     if (!threadId) return;
     didLoad.current = false;
     (async () => {
+      // Cap at 200 most-recent messages, then reverse for ascending
+      // render. Prevents unbounded fetches on long threads.
       const { data } = await supabase.from("messages").select("*")
-        .eq("thread_id", threadId).order("created_at", { ascending: true });
-      setMessages(data || []);
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      setMessages((data || []).reverse());
       didLoad.current = true;
     })();
   }, [threadId]);

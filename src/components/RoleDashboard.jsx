@@ -459,7 +459,11 @@ const RoleDashboard = memo(({
     if (!isAdDesigner) return;
       if (!currentUser?.id || !isOnline()) return;
       (async () => {
-        const { data: projects } = await supabase.from("ad_projects").select("*").order("created_at", { ascending: false });
+        // Cap at 500 most-recent ad_projects. Designer dashboards only
+        // need an active-window slice, not full history.
+        const { data: projects } = await supabase.from("ad_projects").select("*")
+          .order("created_at", { ascending: false })
+          .limit(500);
         const myProjects = (projects || []).filter(p => p.designer_id === currentUser.id || !p.designer_id);
         setAdProjects(myProjects);
 

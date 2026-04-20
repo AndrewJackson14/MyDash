@@ -5,6 +5,35 @@ const STORAGE_ZONE = Deno.env.get("BUNNY_STORAGE_ZONE") || "stellarpress-media";
 const BUNNY_BASE = `https://ny.storage.bunnycdn.com/${STORAGE_ZONE}`;
 const CDN_BASE = "https://cdn.13stars.media";
 
+// Hardening per AUDIT-2026-04-20 S-7:
+// upload-side file size cap (raw bytes) and extension/content-type
+// allowlist. Keeps the storage zone from filling up with arbitrary
+// binaries and blocks executable drop-paths.
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;   // 200 MB (edition PDFs run ~100 MB)
+const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|avif|heic|svg|pdf|mp4|mov|webm|m4v|mp3|wav|ogg|opus|txt|csv|json|xml|woff2?|otf|ttf|eot)$/i;
+
+// Reject anything that even smells like a path-traversal attempt or a
+// hostile filename. Applied to BOTH x-path and x-filename on every
+// action (audit S-3).
+function safePathSegment(s: string): boolean {
+  if (!s) return true;
+  if (s.includes("..")) return false;
+  if (s.startsWith("/") || s.startsWith("\\")) return false;
+  // control chars (0x00–0x1f, 0x7f)
+  if (/[\x00-\x1f\x7f]/.test(s)) return false;
+  return true;
+}
+
+// Never echo upstream errors — they can carry zone name + key fragments
+// on 401s. Log full detail server-side; hand the client a generic code.
+function genericError(status: number, code: string, detail: unknown) {
+  console.error("bunny-storage", code, status, detail);
+  return new Response(JSON.stringify({ error: code }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -23,6 +52,13 @@ serve(async (req: Request) => {
   const rawFilename = req.headers.get("x-filename") || "";
   const filename = decodeURIComponent(rawFilename);
 
+  // Reject path traversal and control chars on every action. Applies
+  // to both path and filename before they get concatenated into the
+  // Bunny URL.
+  if (!safePathSegment(path) || !safePathSegment(filename)) {
+    return genericError(400, "invalid_path", { path, filename });
+  }
+
   try {
     // LIST — GET files/folders in a path
     if (action === "list") {
@@ -34,11 +70,7 @@ serve(async (req: Request) => {
         headers: { AccessKey: BUNNY_API_KEY, Accept: "application/json" },
       });
       if (!res.ok) {
-        const text = await res.text();
-        return new Response(JSON.stringify({ error: `BunnyCDN list error: ${res.status}`, detail: text }), {
-          status: res.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return genericError(res.status, "list_failed", await res.text());
       }
       const items = await res.json();
       // Add CDN URLs to each item
@@ -60,10 +92,7 @@ serve(async (req: Request) => {
         headers: { AccessKey: BUNNY_API_KEY },
       });
       if (!res.ok) {
-        return new Response(JSON.stringify({ error: `Fetch failed: ${res.status}` }), {
-          status: res.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return genericError(res.status, "get_failed", await res.text());
       }
       const contentType = res.headers.get("Content-Type") || "application/octet-stream";
       return new Response(res.body, {
@@ -73,7 +102,20 @@ serve(async (req: Request) => {
 
     // UPLOAD — PUT a file
     if (action === "upload") {
+      // Extension allowlist (audit S-7).
+      if (!ALLOWED_EXT.test(filename)) {
+        return genericError(400, "disallowed_extension", filename);
+      }
+      // Cheap pre-read size guard via Content-Length if the client sent
+      // one. The real enforcement is on body size below.
+      const cl = Number(req.headers.get("Content-Length") || 0);
+      if (cl && cl > MAX_UPLOAD_BYTES) {
+        return genericError(413, "file_too_large", cl);
+      }
       const body = await req.arrayBuffer();
+      if (body.byteLength > MAX_UPLOAD_BYTES) {
+        return genericError(413, "file_too_large", body.byteLength);
+      }
       const contentType = req.headers.get("Content-Type") || "application/octet-stream";
       const uploadPath = path ? `${path}/${filename}` : filename;
       const url = `${BUNNY_BASE}/${uploadPath}`;
@@ -86,11 +128,7 @@ serve(async (req: Request) => {
         body,
       });
       if (!res.ok) {
-        const text = await res.text();
-        return new Response(JSON.stringify({ error: `Upload failed: ${res.status}`, detail: text }), {
-          status: res.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return genericError(res.status, "upload_failed", await res.text());
       }
       const cdnUrl = `${CDN_BASE}/${uploadPath}`;
       return new Response(JSON.stringify({ success: true, cdnUrl, path: uploadPath }), {
@@ -107,25 +145,18 @@ serve(async (req: Request) => {
         headers: { AccessKey: BUNNY_API_KEY },
       });
       if (!res.ok && res.status !== 404) {
-        const text = await res.text();
-        return new Response(JSON.stringify({ error: `Delete failed: ${res.status}`, detail: text }), {
-          status: res.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return genericError(res.status, "delete_failed", await res.text());
       }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action: " + action }), {
+    return new Response(JSON.stringify({ error: "unknown_action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return genericError(500, "internal_error", err?.message ?? err);
   }
 });
