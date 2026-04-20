@@ -263,15 +263,28 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
 
+  // Archive-tab date range. Default = last 7 days; user can widen.
+  const [archiveFrom, setArchiveFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [archiveTo, setArchiveTo] = useState(() => new Date().toISOString().slice(0, 10));
+
   // ── Filtered stories ────────────────────────────────────────
-  // Active vs Archive boundary: published > 90 days ago = archive. Drafts
-  // and in-progress always count as Active. When the user is searching
-  // (sr non-empty), scope is ignored — search hits across the whole corpus.
+  // Active: default daily-work surface. Anything published > 90 days ago
+  // drops out so the kanban stays focused on current work.
+  // Archive: published stories inside the user's chosen date range. No
+  // drafts / in-progress, no kanban — it's a read-only list view.
+  // When the user is searching (sr non-empty), scope is ignored — search
+  // hits across the whole corpus.
   const archiveCutoff = useMemo(() => {
     const d = new Date(); d.setDate(d.getDate() - 90);
     return d.toISOString();
   }, []);
   const filtered = useMemo(() => {
+    // Archive date-range bounds as ISO strings for column compare.
+    const fromISO = archiveFrom ? new Date(archiveFrom + "T00:00:00").toISOString() : null;
+    const toISO   = archiveTo   ? new Date(archiveTo   + "T23:59:59").toISOString() : null;
     return stories.filter(s => {
       if (fPub !== "all" && (s.publication_id || s.publication) !== fPub) return false;
       if (fAssignee !== "all" && s.assigned_to !== fAssignee) return false;
@@ -281,17 +294,20 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
           (s.author || "").toLowerCase().includes(q) ||
           (s.category || "").toLowerCase().includes(q);
         if (!match) return false;
-      } else {
-        // Only apply scope when not searching — search spans everything.
-        // Archive is purely date-based: stories published to web more than
-        // 90 days ago. "Archived" is not a status.
+      } else if (viewScope === "active") {
+        // Active hides published stories older than 90 days so the
+        // kanban doesn't accumulate history.
         const isOld = (s.sent_to_web || s.sentToWeb) && s.published_at && s.published_at < archiveCutoff;
-        if (viewScope === "active" && isOld) return false;
-        if (viewScope === "archive" && !isOld) return false;
+        if (isOld) return false;
+      } else if (viewScope === "archive") {
+        // Archive: only published stories inside the date range.
+        if (!(s.sent_to_web || s.sentToWeb) || !s.published_at) return false;
+        if (fromISO && s.published_at < fromISO) return false;
+        if (toISO   && s.published_at > toISO)   return false;
       }
       return true;
     });
-  }, [stories, fPub, fAssignee, sr, viewScope, archiveCutoff]);
+  }, [stories, fPub, fAssignee, sr, viewScope, archiveCutoff, archiveFrom, archiveTo]);
 
   // ── Group stories by kanban column ──────────────────────────
   // Single-source rules: a story at Ready + no publish flags lives in
@@ -529,6 +545,49 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             unpublishStory={unpublishStory}
           />
         </Suspense>
+      </div>
+    );
+  }
+
+  // ── Archive view ────────────────────────────────────────────
+  // Flat list of published stories in a date range. No stats, no
+  // kanban — just a searchable / pub-filterable archive with a date
+  // window. Default window is the past 7 days.
+  if (viewScope === "archive") {
+    const sorted = [...filtered].sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <TB tabs={["Active", "Archive"]} active="Archive" onChange={(v) => setViewScope(v.toLowerCase())} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <SB value={sr} onChange={setSr} placeholder="Search archive…" />
+            <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+              From
+              <input type="date" value={archiveFrom} onChange={e => setArchiveFrom(e.target.value)}
+                style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+              To
+              <input type="date" value={archiveTo} onChange={e => setArchiveTo(e.target.value)}
+                style={{ padding: "4px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm }} />
+            </label>
+          </div>
+        </div>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+          {sorted.length} {sorted.length === 1 ? "story" : "stories"}
+        </div>
+        {sorted.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+            No published stories in this range.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+            {sorted.map(s => (
+              <StoryCard key={s.id} story={s} pubs={pubs} team={team} onClick={() => openDetail(s)} />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
