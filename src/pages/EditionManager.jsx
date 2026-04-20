@@ -283,11 +283,21 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
 
   // ── Save callback from modal ─────────────────────────────
   const handleSave = (savedEdition) => {
-    if (editEdition) {
-      setEditions(prev => prev.map(e => e.id === savedEdition.id ? savedEdition : e));
-    } else {
-      setEditions(prev => [savedEdition, ...prev]);
-    }
+    // If this edition is featured, mirror the DB-side "unfeature all others
+    // in the same publication" step in local state so the list shows the
+    // correct status without waiting for a reload.
+    setEditions(prev => {
+      let next = savedEdition.isFeatured
+        ? prev.map(e => e.publicationId === savedEdition.publicationId && e.id !== savedEdition.id
+            ? { ...e, isFeatured: false } : e)
+        : prev;
+      if (editEdition) {
+        next = next.map(e => e.id === savedEdition.id ? savedEdition : e);
+      } else {
+        next = [savedEdition, ...next];
+      }
+      return next;
+    });
     setModal(false);
   };
 
