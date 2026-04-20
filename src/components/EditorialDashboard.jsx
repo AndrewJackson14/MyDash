@@ -201,7 +201,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive, deepLink }) => {
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
   const { setHeader, clearHeader } = usePageHeader();
@@ -243,6 +243,18 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const [sr, setSr] = useState("");
   const [selected, setSelected] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  // Active vs Archive view. Active is the daily-work surface (drafts, in
+  // progress, recently published); Archive is everything else so old
+  // published stories stay searchable but out of the way. Default Active.
+  const [viewScope, setViewScope] = useState("active");
+
+  // Header search → /editorial?q=foo deeplinks here. Seed the search
+  // input on first activation. When sr is non-empty the filter ignores
+  // viewScope (search across all stories), so the user finds matches
+  // regardless of which tab is active.
+  useEffect(() => {
+    if (isActive && deepLink?.q) setSr(deepLink.q);
+  }, [isActive, deepLink?.q]);
 
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
@@ -252,6 +264,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   const [sortDir, setSortDir] = useState("asc");
 
   // ── Filtered stories ────────────────────────────────────────
+  // Active vs Archive boundary: published > 90 days ago = archive. Drafts
+  // and in-progress always count as Active. When the user is searching
+  // (sr non-empty), scope is ignored — search hits across the whole corpus.
+  const archiveCutoff = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 90);
+    return d.toISOString();
+  }, []);
   const filtered = useMemo(() => {
     return stories.filter(s => {
       if (fPub !== "all" && (s.publication_id || s.publication) !== fPub) return false;
@@ -262,10 +281,17 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
           (s.author || "").toLowerCase().includes(q) ||
           (s.category || "").toLowerCase().includes(q);
         if (!match) return false;
+      } else {
+        // Only apply scope when not searching — search spans everything.
+        const isArchived = s.status === "Archived";
+        const publishedLongAgo = (s.sent_to_web || s.sentToWeb) && s.published_at && s.published_at < archiveCutoff;
+        const isOld = isArchived || publishedLongAgo;
+        if (viewScope === "active" && isOld) return false;
+        if (viewScope === "archive" && !isOld) return false;
       }
       return true;
     });
-  }, [stories, fPub, fAssignee, sr]);
+  }, [stories, fPub, fAssignee, sr, viewScope, archiveCutoff]);
 
   // ── Group stories by kanban column ──────────────────────────
   // Single-source rules: a story at Ready + no publish flags lives in
@@ -510,9 +536,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* ── Action row — title moved to TopBar via usePageHeader. ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <TB tabs={["Active", "Archive"]} active={viewScope === "archive" ? "Archive" : "Active"} onChange={(v) => setViewScope(v.toLowerCase())} />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <SB value={sr} onChange={setSr} placeholder="Search stories…" />
+          <SB value={sr} onChange={setSr} placeholder={sr ? "Searching all stories…" : "Search stories…"} />
           <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
           <Btn sm onClick={async () => {
             const issueId = selIssue || "";
