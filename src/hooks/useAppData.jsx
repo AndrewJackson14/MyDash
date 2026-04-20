@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, createContext, useCo
 import { supabase, isOnline } from '../lib/supabase';
 import { deriveTransactionType } from '../lib/qboTransactionType';
 import { withTimeout } from '../lib/withTimeout';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 const DataContext = createContext(null);
 
@@ -1417,9 +1418,15 @@ export function DataProvider({ children, localData }) {
   }, []);
 
   const publishStory = useCallback(async (id, { title, body, excerpt, category, siteId, featuredImageUrl, seoTitle, seoDescription, scheduledAt }) => {
+    // Sanitize story body at the publish boundary (audit S-8). Every
+    // render path currently goes through DOMPurify too, so this is
+    // belt-and-suspenders — but catches any future renderer that
+    // forgets to wrap dangerouslySetInnerHTML and costs ~none at
+    // steady state.
+    const safeBody = body ? sanitizeHtml(body) : body;
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const categorySlug = category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const autoExcerpt = excerpt || (body ? body.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim().slice(0, 200) + '…' : '');
+    const autoExcerpt = excerpt || (safeBody ? safeBody.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim().slice(0, 200) + '…' : '');
     const isScheduled = scheduledAt && new Date(scheduledAt) > new Date();
     // Single-source status model: once editorial is done the story is
     // "Ready". Scheduled vs Live is expressed through sent_to_web +
@@ -1431,7 +1438,7 @@ export function DataProvider({ children, localData }) {
     const changes = {
       status: 'Ready',
       sent_to_web: !isScheduled,
-      slug, body, excerpt: autoExcerpt,
+      slug, body: safeBody, excerpt: autoExcerpt,
       category, category_slug: categorySlug,
       site_id: siteId, featured_image_url: featuredImageUrl || null,
       seo_title: seoTitle || title, seo_description: seoDescription || autoExcerpt,
