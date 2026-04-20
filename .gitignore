@@ -11,3 +11,6 @@ FullSales-*/
 scripts/import-*.mjs
 scripts/apply-*.mjs
 scripts/nmReimport/
+
+# Legacy-migration audit output
+*_audit.csv
