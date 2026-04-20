@@ -26,10 +26,21 @@ export function buildStoragePath(file) {
 }
 
 // ── Raw Bunny API via edge-function proxy ──────────────────
+// bunny-storage edge function runs with verify_jwt:true (default +
+// explicit as of the 2026-04-20 security audit), so every call needs
+// the authed user's access token in the Authorization header.
+async function authHeader() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
+  return { Authorization: "Bearer " + session.access_token };
+}
+
 export async function bunnyUpload(file, dir, filename) {
+  const auth = await authHeader();
   const res = await fetch(PROXY_URL, {
     method: "POST",
     headers: {
+      ...auth,
       "Content-Type": file.type || "application/octet-stream",
       "x-action": "upload",
       "x-path": dir,
@@ -45,9 +56,11 @@ export async function bunnyUpload(file, dir, filename) {
 }
 
 export async function bunnyDelete(dir, filename) {
+  const auth = await authHeader();
   const res = await fetch(PROXY_URL, {
     method: "DELETE",
     headers: {
+      ...auth,
       "x-action": "delete",
       "x-path": dir,
       "x-filename": encodeURIComponent(filename),
@@ -57,8 +70,9 @@ export async function bunnyDelete(dir, filename) {
 }
 
 export async function bunnyList(path) {
+  const auth = await authHeader();
   const res = await fetch(PROXY_URL, {
-    headers: { "x-action": "list", "x-path": path || "" },
+    headers: { ...auth, "x-action": "list", "x-path": path || "" },
   });
   if (!res.ok) throw new Error("List failed: " + res.status);
   return res.json();

@@ -59,10 +59,15 @@ const titleFromPubAndDate = (pubName, dateStr) => {
 const today = () => new Date().toISOString().slice(0, 10);
 
 // ── BunnyCDN upload with XHR for progress ────────────────────
-function bunnyUploadWithProgress(file, path, filename, onProgress) {
+async function bunnyUploadWithProgress(file, path, filename, onProgress) {
+  // bunny-storage requires JWT (verify_jwt:true). Pull the access
+  // token before the XHR opens so headers can go on the request.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Not authenticated");
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", PROXY_URL, true);
+    xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.setRequestHeader("x-action", "upload");
     xhr.setRequestHeader("x-path", path);
