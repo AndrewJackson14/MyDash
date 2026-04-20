@@ -201,17 +201,32 @@ async function main() {
     const matches = bySlug.get(a.slug) || [];
     let matched = null;
     let matchType;
+
+    // When the caller gave us an allowlist, narrow the candidate set to
+    // it first. An "ambiguous-slug" match where exactly one candidate is
+    // on the allowlist is effectively unambiguous for THIS legacy site —
+    // the other candidates belong to a different pub/domain and can't
+    // own the legacy URL. Without an allowlist we fall back to the raw
+    // collision count.
+    const allowed = ALLOWED_PUBS.size > 0
+      ? matches.filter(m => ALLOWED_PUBS.has(m.publication_id))
+      : matches;
+
     if (matches.length === 0) {
       matchType = 'missing';
       miss++;
+    } else if (allowed.length === 1) {
+      matched = allowed[0];
+      matchType = matches.length === 1 ? 'single-slug' : 'single-in-allowlist';
+      hit++;
     } else if (matches.length === 1) {
       matched = matches[0];
       matchType = 'single-slug';
       hit++;
     } else {
-      // Prefer a match where the story's pub is on the allowlist, then
-      // one whose publication_id contains the legacy pub hint.
-      matched = matches.find(m => ALLOWED_PUBS.has(m.publication_id))
+      // Multiple allowlist candidates (or no allowlist and >1 match) —
+      // can't pick safely. Surface the best guess for inspection.
+      matched = allowed[0]
         || matches.find(m => m.publication_id && a.hintPub && m.publication_id.includes(a.hintPub))
         || matches[0];
       matchType = 'ambiguous-slug';
@@ -243,7 +258,15 @@ async function main() {
       csvField(matched?.legacy_url),
     ].join(',') + '\n');
 
-    if (matched && matchType === 'single-slug' && pubMatch === 'yes' && !matched.legacy_url) {
+    // Eligible for --apply when the match is either a true single-slug
+    // or the single-in-allowlist case, pub is on the allowlist, and the
+    // story isn't already linked. Ambiguous (multi-allowlist) stays in
+    // the CSV for manual triage.
+    if (matched
+      && (matchType === 'single-slug' || matchType === 'single-in-allowlist')
+      && pubMatch === 'yes'
+      && !matched.legacy_url
+    ) {
       toApply.push({ id: matched.id, legacy_url: a.url });
     }
   }
