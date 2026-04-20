@@ -326,9 +326,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         if (isOld) return false;
       } else if (viewScope === "archive") {
         // Archive: only published stories inside the date range.
-        if (!(s.sent_to_web || s.sentToWeb) || !s.published_at) return false;
-        if (fromISO && s.published_at < fromISO) return false;
-        if (toISO   && s.published_at > toISO)   return false;
+        // useAppData maps DB published_at → publishedAt (camelCase only),
+        // so read both forms — snake_case will be set on rows that never
+        // went through the hook's mapper (fresh inserts, realtime), and
+        // camelCase on everything else.
+        const pubDate = s.published_at || s.publishedAt;
+        if (!(s.sent_to_web || s.sentToWeb) || !pubDate) return false;
+        if (fromISO && pubDate < fromISO) return false;
+        if (toISO   && pubDate > toISO)   return false;
       }
       return true;
     });
@@ -579,7 +584,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   // kanban — just a searchable / pub-filterable archive with a date
   // window. Default window is the past 7 days.
   if (viewScope === "archive") {
-    const sorted = [...filtered].sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+    const sorted = [...filtered].sort((a, b) =>
+      (b.published_at || b.publishedAt || "").localeCompare(a.published_at || a.publishedAt || "")
+    );
     const presetOptions = [
       { value: "7days",     label: "7 days" },
       { value: "thisMonth", label: "This month" },
