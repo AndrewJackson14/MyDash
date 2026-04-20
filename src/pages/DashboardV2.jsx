@@ -8,6 +8,9 @@ import { useSignalFeed } from "../hooks/useSignalFeed";
 import { usePerformanceData } from "./performance/usePerformanceData";
 import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
+import {
+  RevenuePaceCard, IssueAtRiskFeed, RepLeaderboardCard, CashFlowSignalCard,
+} from "../components/dashboard";
 import { supabase, isOnline } from "../lib/supabase";
 import { useEventBus } from "../hooks/useEventBus";
 
@@ -554,6 +557,15 @@ const DashboardV2 = (props) => {
       {/* ── Activity banner (streak + live event feed) ───── */}
       <ActivityBanner activity={activity} streak={streak} allClear={doseWins?.allDeadlinesMet} />
 
+      {/* ── Revenue pace (forward-looking MTD vs goal) ───── */}
+      <RevenuePaceCard
+        sales={_sales}
+        commissionGoals={commissionGoals}
+        issues={_issues}
+        userId={currentUser?.id}
+        onClick={nav.toReport("rvg", { publisherId: currentUser?.id })}
+      />
+
       {/* ── Department tiles ─────────────────────────────── */}
       {/* Floating, urgency-responsive tiles in a 2x2 grid whose
           template columns + rows animate on hover so the hovered
@@ -566,6 +578,43 @@ const DashboardV2 = (props) => {
         onOpenMember={(m) => setOpenMember(m)}
         onNavigate={onNavigate}
       />
+
+      {/* ── Forward-looking modules: rep pace + issue risk + cash ──
+          Two-column layout below the dept tiles. Left is the rep
+          leaderboard (wider); right stacks issue risk and cash flow. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
+        gap: 16,
+        alignItems: "start",
+      }}>
+        <RepLeaderboardCard
+          sales={_sales}
+          team={team}
+          userId={currentUser?.id}
+          onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <IssueAtRiskFeed
+            issues={_issues}
+            stories={_stories}
+            sales={_sales}
+            adProjects={props.adProjects || []}
+            pubs={_pubs}
+            commissionGoals={commissionGoals}
+            userId={currentUser?.id}
+            onOpenIssue={setIssueDetailId}
+          />
+          <CashFlowSignalCard
+            invoices={_inv}
+            payments={props.payments || []}
+            clients={_clients}
+            userId={currentUser?.id}
+            onOpenInvoice={(invoiceId) => onNavigate?.(`/billing?invoiceId=${invoiceId}`)}
+            onOpenBilling={() => onNavigate?.("billing")}
+          />
+        </div>
+      </div>
 
       {/* ── Right-hand auto-pin (Cami / Camille) ─────────── */}
       {rightHandNotes.length > 0 && <GlassCard style={{
