@@ -16,10 +16,11 @@ CREATE INDEX IF NOT EXISTS idx_stories_pub_slug
 CREATE INDEX IF NOT EXISTS idx_invoices_status_client
   ON invoices(status, client_id);
 
--- sales(status, rep_id) — SalesCRM jurisdiction filter. Existing
--- indexes are publication_id / date single-column.
-CREATE INDEX IF NOT EXISTS idx_sales_status_rep
-  ON sales(status, rep_id);
+-- sales(status, assigned_to) — SalesCRM jurisdiction filter. The "rep"
+-- column on sales is assigned_to (not rep_id — that's the invoices
+-- column). useAppData normalizes this to repId/rep_id in JS land.
+CREATE INDEX IF NOT EXISTS idx_sales_status_assigned
+  ON sales(status, assigned_to);
 
 -- team_notes(from_user, to_user, created_at DESC) — Messaging inbox
 -- sort orders by conversation pair. Existing idx_team_notes_to is
