@@ -529,8 +529,10 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
   const abortRef = useRef(null);
   const searchTimer = useRef(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Metadata filters for the DB-backed view
-  const [pubChip, setPubChip] = useState("all");    // "all" | publication_id | "untagged"
+  // Metadata filters for the DB-backed view. Seed from pubFilter so
+  // embed hosts (StoryEditor, MySites) open the picker pre-scoped to the
+  // story's / site's publication; user can still widen to "All" via the chip.
+  const [pubChip, setPubChip] = useState(pubFilter || "all");    // "all" | publication_id | "untagged"
   const [catChip, setCatChip] = useState("all");    // "all" | category
   // Upload pub-picker modal (forced before any upload proceeds)
   const [uploadModal, setUploadModal] = useState(null); // { files, publicationId, category }
