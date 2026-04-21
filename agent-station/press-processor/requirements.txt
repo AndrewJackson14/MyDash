@@ -1,0 +1,19 @@
+# Runtime deps for the Press Release Processor agent.
+# Install with: pip install -r requirements.txt
+# (inside the agent's venv after `python3 -m venv venv && source venv/bin/activate`)
+
+# Core
+supabase>=2.5.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+numpy>=1.26.0
+
+# Gmail & Drive APIs
+google-api-python-client>=2.100.0
+google-auth>=2.22.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
+
+# File extractors
+pdfplumber>=0.10.0
+python-docx>=1.0.0
