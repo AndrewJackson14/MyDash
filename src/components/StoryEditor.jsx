@@ -245,7 +245,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Image.configure({ HTMLAttributes: { class: "editor-image" }, allowBase64: false }),
+      // Inline style on every emitted <img> caps height at 500px and lets
+      // width auto-scale to maintain aspect ratio. Inline so the constraint
+      // travels with the HTML — no dependency on the consumer (StellarPress
+      // or otherwise) shipping matching CSS, and survives any sanitizer
+      // that strips classes but allows style.
+      Image.configure({ HTMLAttributes: { class: "editor-image", style: "max-height:500px;width:auto;max-width:100%" }, allowBase64: false }),
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: "Start writing your story\u2026" }),
       Underline, TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -996,7 +1001,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
         .tiptap blockquote { border-left: 3px solid " + Z.ac + "; padding-left: 16px; margin: 1.2em 0; color: " + Z.tm + "; font-style: italic; }\
         .tiptap a { color: " + Z.ac + "; text-decoration: underline; }\
         .tiptap hr { border: none; border-top: 1px solid " + Z.bd + "; margin: 2em 0; }\
-        .tiptap .editor-image { max-width: 100%; border-radius: 4px; margin: 1.5em 0; }\
+        .tiptap .editor-image { max-width: 100%; max-height: 500px; width: auto; height: auto; border-radius: 4px; margin: 1.5em 0; }\
         .tiptap .story-gallery { display: grid; gap: 6px; margin: 1.5em 0; grid-template-columns: repeat(3, 1fr); }\
         .tiptap .story-gallery[data-columns='2'] { grid-template-columns: repeat(2, 1fr); }\
         .tiptap .story-gallery[data-columns='4'] { grid-template-columns: repeat(4, 1fr); }\
