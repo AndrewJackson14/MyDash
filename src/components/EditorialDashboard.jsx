@@ -804,7 +804,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             </div>
             {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
             {futureIssues.map(iss => {
-              const stCount = stories.filter(s => s.print_issue_id === iss.id || s.issue_id === iss.id).length;
+              // Anchor on print_issue_id only — must match the issueStories
+              // filter so the sidebar count matches what's actually rendered
+              // when the issue is opened.
+              const stCount = stories.filter(s => s.print_issue_id === iss.id).length;
               const isSelected = selIssue === iss.id;
               return (
                 <div key={iss.id} onClick={() => setSelIssue(iss.id)} style={{

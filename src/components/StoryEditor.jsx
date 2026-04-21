@@ -361,9 +361,18 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     // FIX #3: Map frontend camelCase to DB snake_case for publication
     const dbField = field === "publication" ? "publication_id" : field;
     const u = { [dbField]: value, updated_at: new Date().toISOString() };
-    setMeta(m => ({ ...m, [field]: value, [dbField]: value }));
+    // Keep the legacy `issue_id` column in sync with `print_issue_id`.
+    // The Story Planner anchors strictly on print_issue_id, but legacy
+    // consumers (and the planner sidebar count) still read issue_id —
+    // letting them drift produces ghost stories under the wrong issue.
+    if (dbField === "print_issue_id") u.issue_id = value;
+    setMeta(m => ({ ...m, [field]: value, [dbField]: value, ...(dbField === "print_issue_id" ? { issue_id: value, issueId: value } : {}) }));
     const { error } = await supabase.from("stories").update(u).eq("id", story.id);
-    if (!error) { onUpdate(story.id, { [field]: value }); setLastSaved(new Date()); }
+    if (!error) {
+      const propagate = dbField === "print_issue_id" ? { [field]: value, issue_id: value, issueId: value } : { [field]: value };
+      onUpdate(story.id, propagate);
+      setLastSaved(new Date());
+    }
   }, [story.id, onUpdate]);
 
   // ── FIX #4: Preflight check before publish ──────────────────
