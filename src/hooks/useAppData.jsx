@@ -452,10 +452,32 @@ export function DataProvider({ children, localData }) {
     // Keyset on id (UUID); created_at order isn't needed here — downstream
     // map+sort handles display order. Was OFFSET .range() causing degradation
     // as story count grew.
+    //
+    // Column allowlist (perf): bulk planner/archive list views never render
+    // body or content_json (~219 MB across 78k+ rows in prod). StoryEditor
+    // re-fetches body/content_json/excerpt/etc. on detail-open. Dropping
+    // those from the bulk select cuts payload ~95%.
+    const STORY_LIST_COLS = [
+      "id", "title", "author", "status",
+      "publication_id", "issue_id", "print_issue_id",
+      "category", "category_id", "page", "print_page",
+      "word_count", "word_limit", "priority", "story_type", "source",
+      "due_date", "scheduled_at",
+      "slug", "web_status", "print_status",
+      "sent_to_web", "sent_to_print",
+      "published_at", "first_published_at", "print_published_at",
+      "last_significant_edit_at", "edit_count", "sent_to_press_at",
+      "assigned_to", "author_id", "editor_id", "assigned_by", "edited_by",
+      "is_featured", "is_premium", "is_sponsored", "sponsor_name",
+      "featured_image_url", "photo_credit", "audience", "source_type",
+      "corrected_after_publish", "last_correction_at",
+      "images", "freelancer_name", "freelancer_email",
+      "created_at", "updated_at",
+    ].join(", ");
     const pageSize = 1000;
     let storyCursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
-      const { data } = await supabase.from('stories').select('*')
+      const { data } = await supabase.from('stories').select(STORY_LIST_COLS)
         .gt('id', storyCursor)
         .order('id')
         .limit(pageSize);
