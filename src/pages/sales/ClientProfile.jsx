@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, EntityLink } from "../../components/ui";
 import { useNav } from "../../hooks/useNav";
 import AssetPanel from "../../components/AssetPanel";
+import EntityThread from "../../components/EntityThread";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
 import { useAppData } from "../../hooks/useAppData";
@@ -734,6 +735,19 @@ const ClientProfile = ({
         setCadenceModalSchedule(null);
       }}
     />}
+
+    {/* Per-client discussion — lazy thread, team all see it */}
+    {clientId && (
+      <div style={{ marginBottom: 12 }}>
+        <EntityThread
+          refType="client"
+          refId={clientId}
+          title={`Client: ${(clients.find(c => c.id === clientId) || {}).name || "Unknown"}`}
+          team={team}
+          height={320}
+        />
+      </div>
+    )}
 
     {/* ── PURCHASE TIMELINE — contracts, standalone ads, orphan proposals grouped by year ── */}
     {(timelineYears.length > 0 || clientProposals.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>

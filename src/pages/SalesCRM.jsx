@@ -11,6 +11,7 @@ import { generateContractHtml } from "../lib/contractTemplate";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { fmtTimeRelative } from "../lib/formatters";
 import ClientList from "./sales/ClientList";
+import EntityThread from "../components/EntityThread";
 // Heavy sub-views — only load when the user opens the relevant tab/row
 const ClientProfile = lazy(() => import("./sales/ClientProfile"));
 const ClientSignals = lazy(() => import("./sales/ClientSignals"));
@@ -1147,6 +1148,14 @@ const SalesCRM = (props) => {
               </div>)}
             </div>
           </GlassCard>}
+          {/* Per-contract discussion thread */}
+          <EntityThread
+            refType="contract"
+            refId={viewContract.id}
+            title={`Contract: ${cn(viewContract.client_id) || viewContract.id}`}
+            team={team}
+            height={320}
+          />
         </div>}
       </Modal>
       </div>; })()}

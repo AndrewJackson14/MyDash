@@ -13,8 +13,23 @@ import { Ic, Btn, Modal } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase } from "../lib/supabase";
 import { fmtTimeRelative as fmtTime } from "../lib/formatters";
+import ChatPanel from "../components/ChatPanel";
 
 const MYHELPER_EMAIL = "helper@mydash.local";
+
+// Labels for the polymorphic ref_type values on message_threads.
+// Kept in sync with the refType strings passed to <EntityThread /> in
+// StoryEditor, AdProjects, ClientProfile, LegalNotices, and the
+// Sales Contract modal.
+const ENTITY_TYPE_LABELS = {
+  story: "Stories",
+  ad_project: "Ad Projects",
+  client: "Clients",
+  contract: "Contracts",
+  legal_notice: "Legal Notices",
+  sale: "Sales",
+};
+const ENTITY_TYPE_ORDER = ["story", "ad_project", "client", "contract", "legal_notice", "sale"];
 
 const Messaging = memo(({ team, currentUser, isActive }) => {
   const { setHeader, clearHeader } = usePageHeader();
@@ -33,6 +48,15 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
+
+  // "dm" = direct messages (team_notes). "entity" = per-entity threads
+  // (message_threads with a ref_type set). Switching tabs keeps each
+  // pane's own selection so you don't lose context toggling back.
+  const [view, setView] = useState("dm");
+  const [entityThreads, setEntityThreads] = useState([]);
+  const [entityPreviews, setEntityPreviews] = useState({}); // { [threadId]: latestMessage }
+  const [activeThreadId, setActiveThreadId] = useState(null);
+  const [entityLoading, setEntityLoading] = useState(false);
 
   const meId = currentUser?.id || null;
 
@@ -103,6 +127,95 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
     for (const t of (team || [])) m.set(t.id, t);
     return m;
   }, [team]);
+
+  // ─── Load entity threads on demand ─────────────────────
+  // Pulls every message_threads row that has a ref_type set, so they can
+  // be grouped by entity type in the left pane. Previews come from the
+  // most recent message per thread (small extra query — keeps previews
+  // accurate without subscribing to every thread).
+  useEffect(() => {
+    if (view !== "entity") return;
+    let cancelled = false;
+    setEntityLoading(true);
+    (async () => {
+      const { data: threads, error } = await supabase
+        .from("message_threads")
+        .select("id, ref_type, ref_id, title, participants, is_archived, updated_at, created_at")
+        .not("ref_type", "is", null)
+        .eq("is_archived", false)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (cancelled) return;
+      if (error) {
+        console.error("Entity threads load error:", error);
+        setEntityThreads([]);
+        setEntityLoading(false);
+        return;
+      }
+      setEntityThreads(threads || []);
+      if (!threads?.length) {
+        setEntityPreviews({});
+        setEntityLoading(false);
+        return;
+      }
+      const ids = threads.map(t => t.id);
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("thread_id, body, sender_name, created_at, is_system")
+        .in("thread_id", ids)
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const previews = {};
+      (msgs || []).forEach(m => {
+        if (!previews[m.thread_id]) previews[m.thread_id] = m;
+      });
+      setEntityPreviews(previews);
+      setEntityLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [view]);
+
+  // ─── Realtime: bubble new entity-thread messages into the preview map
+  useEffect(() => {
+    if (view !== "entity") return;
+    const ch = supabase.channel("entity-thread-previews")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        const m = payload.new;
+        setEntityPreviews(prev => ({ ...prev, [m.thread_id]: m }));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [view]);
+
+  const threadsByType = useMemo(() => {
+    const groups = {};
+    entityThreads.forEach(t => {
+      const key = t.ref_type || "other";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [entityThreads]);
+
+  const filteredThreadsByType = useMemo(() => {
+    if (!search.trim()) return threadsByType;
+    const q = search.toLowerCase();
+    const out = {};
+    Object.entries(threadsByType).forEach(([type, list]) => {
+      const filtered = list.filter(t => {
+        const title = (t.title || "").toLowerCase();
+        const preview = (entityPreviews[t.id]?.body || "").toLowerCase();
+        return title.includes(q) || preview.includes(q);
+      });
+      if (filtered.length) out[type] = filtered;
+    });
+    return out;
+  }, [threadsByType, entityPreviews, search]);
+
+  const activeThread = useMemo(
+    () => entityThreads.find(t => t.id === activeThreadId) || null,
+    [entityThreads, activeThreadId],
+  );
 
   const nameOf = (id) => teamById.get(id)?.name || "Unknown";
   const roleOf = (id) => teamById.get(id)?.role || "";
@@ -198,32 +311,118 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
       <div style={{ width: 320, flexShrink: 0, borderRight: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", background: Z.bg }}>
         <div style={{ padding: "14px 16px", borderBottom: `1px solid ${Z.bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 16, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>Messages</span>
-          <button
-            onClick={() => setShowPicker(true)}
-            style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center" }}
-            title="New direct message"
-          >
-            <Ic.edit size={13} color={Z.bg} />
-          </button>
+          {view === "dm" && (
+            <button
+              onClick={() => setShowPicker(true)}
+              style={{ width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", background: Z.ac, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title="New direct message"
+            >
+              <Ic.edit size={13} color={Z.bg} />
+            </button>
+          )}
+        </div>
+
+        {/* View tabs — Direct (team_notes DMs) vs Entity (ad_project / story / client / etc threads) */}
+        <div style={{ display: "flex", borderBottom: `1px solid ${Z.bd}`, background: Z.sf }}>
+          {[
+            { id: "dm", label: "Direct" },
+            { id: "entity", label: "Entity threads" },
+          ].map(t => {
+            const active = view === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setView(t.id)}
+                style={{
+                  flex: 1, padding: "8px 10px", border: "none", cursor: "pointer",
+                  background: active ? Z.bg : "transparent",
+                  color: active ? Z.tx : Z.tm,
+                  fontSize: 11, fontWeight: active ? FW.black : FW.bold,
+                  fontFamily: COND, letterSpacing: "0.06em", textTransform: "uppercase",
+                  borderBottom: active ? `2px solid ${Z.ac}` : "2px solid transparent",
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ padding: "8px 12px" }}>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations..."
+            placeholder={view === "dm" ? "Search conversations..." : "Search threads..."}
             style={{ width: "100%", padding: "7px 12px", borderRadius: 20, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
           />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading...</div>}
-          {!loading && filteredConvs.length === 0 && (
+          {view === "entity" && (
+            <>
+              {entityLoading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading threads...</div>}
+              {!entityLoading && entityThreads.length === 0 && (
+                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>No entity threads yet. Threads appear here as stories, ad projects, clients, contracts, and legal notices get discussion activity.</div>
+              )}
+              {!entityLoading && Object.keys(filteredThreadsByType).length === 0 && entityThreads.length > 0 && (
+                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>No matches</div>
+              )}
+              {ENTITY_TYPE_ORDER.concat(
+                Object.keys(filteredThreadsByType).filter(k => !ENTITY_TYPE_ORDER.includes(k))
+              ).map(typeKey => {
+                const list = filteredThreadsByType[typeKey];
+                if (!list?.length) return null;
+                const label = ENTITY_TYPE_LABELS[typeKey] || typeKey;
+                return (
+                  <div key={typeKey}>
+                    <div style={{ padding: "10px 14px 4px", fontSize: 10, fontWeight: FW.black, letterSpacing: "0.08em", textTransform: "uppercase", color: Z.td, fontFamily: COND, background: Z.sf }}>
+                      {label} · {list.length}
+                    </div>
+                    {list.map(th => {
+                      const preview = entityPreviews[th.id];
+                      const isActive = th.id === activeThreadId;
+                      return (
+                        <div
+                          key={th.id}
+                          onClick={() => setActiveThreadId(th.id)}
+                          style={{
+                            display: "flex", flexDirection: "column", gap: 2,
+                            padding: "8px 14px", cursor: "pointer",
+                            background: isActive ? Z.sa : "transparent",
+                            borderLeft: isActive ? `3px solid ${Z.ac}` : "3px solid transparent",
+                          }}
+                          onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = Z.sa; }}
+                          onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+                            <div style={{ fontSize: 12, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
+                              {th.title || "Untitled thread"}
+                            </div>
+                            {preview && <span style={{ fontSize: 10, color: Z.td, flexShrink: 0 }}>{fmtTime(preview.created_at)}</span>}
+                          </div>
+                          {preview ? (
+                            <div style={{ fontSize: 11, color: Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {preview.is_system ? "· " : `${preview.sender_name || ""}: `}{(preview.body || "").slice(0, 70)}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 11, color: Z.td, fontStyle: "italic" }}>No messages yet</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {view === "dm" && loading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading...</div>}
+          {view === "dm" && !loading && filteredConvs.length === 0 && (
             <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>
               {search ? "No matches" : "No conversations yet. Tap + to start one."}
             </div>
           )}
-          {filteredConvs.map(c => {
+          {view === "dm" && filteredConvs.map(c => {
             const other = teamById.get(c.otherId);
             const name = other?.name || "Unknown";
             const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -268,9 +467,30 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         </div>
       </div>
 
-      {/* ─── Right: active conversation ─── */}
+      {/* ─── Right: active conversation / thread ─── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {activeOther ? (
+        {view === "entity" && activeThread ? (
+          <>
+            <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, textTransform: "uppercase" }}>
+                {(activeThread.ref_type || "?").slice(0, 2)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: FW.bold, color: Z.tx }}>{activeThread.title || "Untitled thread"}</div>
+                <div style={{ fontSize: 11, color: Z.td }}>{ENTITY_TYPE_LABELS[activeThread.ref_type] || activeThread.ref_type}</div>
+              </div>
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", background: Z.bg }}>
+              <ChatPanel
+                threadId={activeThread.id}
+                currentUser={currentUser}
+                height="100%"
+                placeholder="Message this thread..."
+                onNewMessage={(m) => setEntityPreviews(prev => ({ ...prev, [activeThread.id]: m }))}
+              />
+            </div>
+          </>
+        ) : view === "dm" && activeOther ? (
           <>
             {/* Header */}
             <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
@@ -359,14 +579,20 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         ) : (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
             <Ic.chat size={48} color={Z.bd} />
-            <div style={{ fontSize: 16, fontWeight: FW.bold, color: Z.td }}>Select a conversation</div>
-            <div style={{ fontSize: 13, color: Z.td }}>or start a new one</div>
-            <button
-              onClick={() => setShowPicker(true)}
-              style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: Z.bg, fontSize: 13, fontWeight: FW.bold }}
-            >
-              New Message
-            </button>
+            <div style={{ fontSize: 16, fontWeight: FW.bold, color: Z.td }}>
+              {view === "entity" ? "Select an entity thread" : "Select a conversation"}
+            </div>
+            <div style={{ fontSize: 13, color: Z.td }}>
+              {view === "entity" ? "Threads from stories, ad projects, clients, contracts, and legal notices." : "or start a new one"}
+            </div>
+            {view === "dm" && (
+              <button
+                onClick={() => setShowPicker(true)}
+                style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: Z.bg, fontSize: 13, fontWeight: FW.bold }}
+              >
+                New Message
+              </button>
+            )}
           </div>
         )}
       </div>

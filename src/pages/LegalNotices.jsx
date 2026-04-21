@@ -6,6 +6,7 @@ import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
 import AssetPanel from "../components/AssetPanel";
+import EntityThread from "../components/EntityThread";
 
 // ─── Constants ──────────────────────────────────────────────
 const NOTICE_TYPES = [
@@ -401,6 +402,16 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
           allowUpload={false}
         />
       </GlassCard>
+
+      {/* Per-notice discussion — keeps legal / sales / accounting aligned */}
+      <EntityThread
+        refType="legal_notice"
+        refId={viewNotice.id}
+        title={`Legal notice: ${viewNotice.title || viewNotice.case_number || viewNotice.id}`}
+        team={team}
+        currentUser={currentUser}
+        height={320}
+      />
     </div>;
   }
 
