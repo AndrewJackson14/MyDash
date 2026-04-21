@@ -462,18 +462,18 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <TBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} title="H3">H3</TBtn>
             <TBtn onClick={() => editor.chain().focus().setParagraph().run()} active={editor.isActive("paragraph")} title="P">{"\u00b6"}</TBtn>
             <TSep />
-            <TBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="Bullets">{"\u2022"}</TBtn>
-            <TBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Numbers">1.</TBtn>
-            <TBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Quote">{"\u201c"}</TBtn>
+            <TBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="Bullets"><Ic.listBul size={16} /></TBtn>
+            <TBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Numbered list"><Ic.listOl size={16} /></TBtn>
+            <TBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Quote"><Ic.quote size={16} /></TBtn>
             <TSep />
-            <TBtn onClick={() => { setLinkUrl(editor.getAttributes("link").href || ""); setLinkModalOpen(true); }} active={editor.isActive("link")} title="Link">{"\ud83d\udd17"}</TBtn>
-            <TBtn onClick={() => fileInput.current?.click()} title="Upload Image">{"\ud83d\udcf7"}</TBtn>
-            <TBtn onClick={() => { setMediaPickerMode("inline"); setMediaPickerOpen(true); }} title="From Library">{"\ud83d\uddbc"}</TBtn>
-            <TBtn onClick={() => { setMediaPickerMode("gallery"); setMediaPickerOpen(true); }} title="Insert Gallery">{"\u25a6"}</TBtn>
-            <TBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">{"\u2014"}</TBtn>
+            <TBtn onClick={() => { setLinkUrl(editor.getAttributes("link").href || ""); setLinkModalOpen(true); }} active={editor.isActive("link")} title="Link"><Ic.link size={16} /></TBtn>
+            <TBtn onClick={() => fileInput.current?.click()} title="Upload Image"><Ic.up size={16} /></TBtn>
+            <TBtn onClick={() => { setMediaPickerMode("inline"); setMediaPickerOpen(true); }} title="From Library"><Ic.image size={16} /></TBtn>
+            <TBtn onClick={() => { setMediaPickerMode("gallery"); setMediaPickerOpen(true); }} title="Insert Gallery"><Ic.flat size={16} /></TBtn>
+            <TBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider"><Ic.divider size={16} /></TBtn>
             <TSep />
-            <TBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">{"\u21a9"}</TBtn>
-            <TBtn onClick={() => editor.chain().focus().redo().run()} title="Redo">{"\u21aa"}</TBtn>
+            <TBtn onClick={() => editor.chain().focus().undo().run()} title="Undo"><Ic.undo size={16} /></TBtn>
+            <TBtn onClick={() => editor.chain().focus().redo().run()} title="Redo"><Ic.redo size={16} /></TBtn>
             <input ref={fileInput} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleImageUpload(e.target.files[0]); e.target.value = ""; }} />
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px 64px" }}><EditorContent editor={editor} /></div>
