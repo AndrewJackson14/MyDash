@@ -24,6 +24,13 @@ export default function EntityThread({
   defaultOpen = false,
   label = "Discussion",
   team,
+  // When true, the component renders ChatPanel directly without the
+  // collapsible header — used when the host (e.g. a top-bar popover)
+  // is providing its own toggle UI. Implies always-open.
+  headerless = false,
+  // Called whenever the internal message count updates, so an
+  // external chrome (top-bar button, sidebar pill) can surface it.
+  onMsgCount,
 }) {
   const [thread, setThread] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,10 +84,28 @@ export default function EntityThread({
     return () => { cancelled = true; };
   }, [thread?.id]);
 
+  // Surface the count to any external chrome (top-bar pill, sidebar
+  // button) so it can show "Discussion · N" without a second fetch.
+  useEffect(() => {
+    if (onMsgCount && msgCount != null) onMsgCount(msgCount);
+  }, [msgCount, onMsgCount]);
+
   const headerLabel = useMemo(() => {
     if (msgCount == null) return label;
     return `${label} · ${msgCount}`;
   }, [label, msgCount]);
+
+  if (headerless) {
+    return (
+      <div style={{ background: Z.bg, borderRadius: Ri, border: "1px solid " + Z.bd, overflow: "hidden" }}>
+        {loading && <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading discussion…</div>}
+        {error && <div style={{ padding: 12, color: Z.da, fontSize: FS.sm, fontFamily: COND }}>Thread failed: {error}</div>}
+        {!loading && !error && thread && (
+          <ChatPanel threadId={thread.id} currentUser={resolvedUser} height={height} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: Z.bg, borderRadius: Ri, border: "1px solid " + Z.bd, overflow: "hidden" }}>

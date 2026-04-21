@@ -136,6 +136,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [editingPubDate, setEditingPubDate] = useState(false);
   const [pubDateDraft, setPubDateDraft] = useState("");
   const [savingPubDate, setSavingPubDate] = useState(false);
+  const [discussionOpen, setDiscussionOpen] = useState(false);
+  const [discussionCount, setDiscussionCount] = useState(null);
   const [fullContent, setFullContent] = useState(null); // loaded from DB
   const [contentLoading, setContentLoading] = useState(true);
   const saveTimer = useRef(null);
@@ -505,6 +507,54 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {isPublished && !needsRepublish && !republishedFlash && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
           {republishedFlash > 0 && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "22", color: ACCENT.green }}>{"\u2713"} Republished</span>}
           {needsRepublish && !republishedFlash && <Btn sm onClick={republishToWeb} disabled={republishing} style={{ background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{republishing ? "Republishing\u2026" : "\u21bb Republish"}</Btn>}
+          {/* Discussion dropdown — top-bar pill + popover below */}
+          {story?.id && (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setDiscussionOpen(o => !o)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 10px", borderRadius: Ri,
+                  border: "1px solid " + Z.bd,
+                  background: discussionOpen ? Z.ac + "18" : Z.sa,
+                  color: discussionOpen ? Z.ac : Z.tx,
+                  fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer",
+                }}
+                title="Open thread"
+              >
+                <Ic.chat size={13} />
+                <span>Discussion</span>
+                {discussionCount > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: Z.tm }}>\u00b7 {discussionCount}</span>
+                )}
+                <span style={{ fontSize: 10, color: Z.tm, marginLeft: 2 }}>{discussionOpen ? "\u25be" : "\u25bf"}</span>
+              </button>
+              {discussionOpen && (
+                <>
+                  {/* click-away backdrop */}
+                  <div onClick={() => setDiscussionOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "transparent" }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0,
+                    width: 440, maxWidth: "90vw", zIndex: 91,
+                    background: Z.sf, border: "1px solid " + Z.bd, borderRadius: 8,
+                    boxShadow: "0 18px 48px rgba(0,0,0,0.35)", overflow: "hidden",
+                  }}>
+                    <EntityThread
+                      refType="story"
+                      refId={story.id}
+                      title={`Story: ${meta.title || "Untitled"}`}
+                      participants={[meta.assigned_to, meta.editor_id].filter(Boolean)}
+                      team={team}
+                      headerless
+                      height={420}
+                      onMsgCount={setDiscussionCount}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -879,18 +929,6 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             </div>;
           })()}
 
-          {/* Story discussion — collapsible per-story thread */}
-          {story?.id && (
-            <EntityThread
-              refType="story"
-              refId={story.id}
-              title={`Story: ${meta.title || "Untitled"}`}
-              participants={[meta.assigned_to, meta.editor_id].filter(Boolean)}
-              team={team}
-              height={320}
-              label="Discussion"
-            />
-          )}
 
           {activity.length > 0 && <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>
