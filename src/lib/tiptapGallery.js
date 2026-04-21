@@ -54,10 +54,18 @@ export const Gallery = Node.create({
     const images = node.attrs.images || [];
     const columns = Math.max(2, Math.min(6, node.attrs.columns || 3));
     const gid = node.attrs.galleryId || newGalleryId();
+    // Inline styles so the mosaic renders even if the consuming site
+    // hasn't added .story-gallery CSS (or strips class attributes in
+    // its HTML sanitizer). GLightbox hydration still depends on the
+    // .glightbox class + data-gallery being allowed through.
+    const containerStyle = `display:grid;grid-template-columns:repeat(${columns},1fr);gap:6px;margin:1.5em 0;`;
+    const anchorStyle = "display:block;overflow:hidden;border-radius:4px;";
+    const imgStyle = "width:100%;aspect-ratio:1/1;object-fit:cover;display:block;margin:0;";
     const attrs = mergeAttributes(HTMLAttributes, {
       class: "story-gallery",
       "data-columns": String(columns),
       "data-gallery-id": gid,
+      style: containerStyle,
     });
     const children = images.map(img => [
       "a",
@@ -66,8 +74,9 @@ export const Gallery = Node.create({
         "data-gallery": gid,
         href: img.url,
         "data-title": img.caption || "",
+        style: anchorStyle,
       },
-      ["img", { src: img.url, alt: img.alt || "", title: img.caption || "", loading: "lazy" }],
+      ["img", { src: img.url, alt: img.alt || "", title: img.caption || "", loading: "lazy", style: imgStyle }],
     ]);
     return ["div", attrs, ...children];
   },
