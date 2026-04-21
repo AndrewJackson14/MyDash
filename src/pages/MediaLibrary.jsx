@@ -487,6 +487,7 @@ const UnusedImagesPanel = ({ onClose }) => {
 const CATEGORY_OPTIONS = [
   { value: "general", label: "General" },
   { value: "story_image", label: "Story Image" },
+  { value: "obituary", label: "Obituary (auto greyscale)" },
   { value: "ad_creative", label: "Ad Creative" },
   { value: "ad_proof", label: "Ad Proof" },
   { value: "legal_scan", label: "Legal Scan" },
@@ -1020,6 +1021,11 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
             onChange={e => setUploadModal(m => ({ ...m, category: e.target.value }))}
             options={CATEGORY_OPTIONS}
           />
+          {uploadModal?.category === "obituary" && (
+            <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, padding: "6px 10px", background: Z.sa, borderRadius: Ri, border: "1px solid " + Z.bd }}>
+              Photos will be auto-converted to grayscale (Rec. 601 luminance) before upload. The original color file is not preserved.
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
             <Btn v="cancel" onClick={() => setUploadModal(null)}>Cancel</Btn>
             <Btn onClick={confirmUpload}><Ic.up size={13} /> Upload {uploadModal?.files?.length || ""}</Btn>

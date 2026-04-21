@@ -194,6 +194,46 @@ export async function compressImageIfLarge(file, {
   });
 }
 
+// ── Greyscale conversion (client-side) ──────────────────────
+// Used for obituary photos, which print in B&W. Uses luminance-
+// weighted greyscale (Rec. 601: 0.299R + 0.587G + 0.114B) for a
+// perceptually accurate result — closer to what a print press would
+// produce than a naive average. Output is JPEG; filename picks up a
+// "-bw" suffix so the Media Library still surfaces the source file.
+export async function convertToGreyscale(file, { quality = 0.9 } = {}) {
+  if (!file?.type?.startsWith("image/")) return file;
+  if (file.type === "image/svg+xml" || file.type === "image/gif") return file;
+
+  let img;
+  try { img = await loadImageFromFile(file); }
+  catch { return file; }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    data[i] = gray; data[i + 1] = gray; data[i + 2] = gray;
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  const blob = await canvasToBlob(canvas, "image/jpeg", quality);
+  if (!blob) return file;
+
+  canvas.width = 1; canvas.height = 1;
+
+  const baseName = file.name.replace(/\.(png|webp|jpe?g|bmp|heic|avif|tiff?)$/i, "");
+  return new File([blob], baseName + "-bw.jpg", {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
 // ── Main upload helper ─────────────────────────────────────
 // Uploads a single file to Bunny at /media/YYYY/MM/<uniq>-<name>
 // and writes a media_assets row with the provided metadata.
@@ -202,9 +242,16 @@ export async function uploadMedia(file, metadata = {}) {
   // Shrink oversize raster images before upload unless the caller opts
   // out (skipCompress: true). Targets 2000 px / 500 KB; pass-through if
   // already within spec.
-  const uploadFile = metadata.skipCompress
+  let uploadFile = metadata.skipCompress
     ? file
     : await compressImageIfLarge(file);
+
+  // Obituary category → convert to grayscale for print fidelity.
+  // Runs after compression so the pixel loop operates on the smaller
+  // bitmap. Caller can override with skipGreyscale: true.
+  if (metadata.category === "obituary" && !metadata.skipGreyscale) {
+    uploadFile = await convertToGreyscale(uploadFile);
+  }
 
   const { dir, filename } = buildStoragePath(uploadFile);
   const result = await bunnyUpload(uploadFile, dir, filename);
