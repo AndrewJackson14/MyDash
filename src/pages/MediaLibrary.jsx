@@ -829,7 +829,8 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: Ri, border: "1px solid " + Z.ac + "20" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
           {multi && onSelectMulti && (
-            <button
+            <Btn
+              sm
               onClick={() => {
                 const assets = files.filter(f => selectedItems.has(f.ObjectName)).map(f => ({
                   url: f.cdnUrl || `${CDN_BASE}/${f.fullPath}`,
@@ -840,10 +841,9 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
                 }));
                 onSelectMulti(assets);
               }}
-              style={{ padding: "3px 12px", borderRadius: Ri, border: `1px solid ${Z.ac}`, background: Z.ac, color: INV.light, fontSize: 11, fontFamily: COND, fontWeight: 700, cursor: "pointer" }}
             >
               Insert {selectedItems.size} as Gallery
-            </button>
+            </Btn>
           )}
           <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.da}30`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
           <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
