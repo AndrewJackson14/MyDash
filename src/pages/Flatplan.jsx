@@ -326,6 +326,16 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   (clients || []).forEach(c => { clientMap[c.id] = c.name; });
   const cn = id => clientMap[id] || "—";
 
+  // ── Shared-page context (primary/mirror for shared-content pubs) ──
+  // Referenced by the render tree (shared-page picker, mirror locking,
+  // cross-pub sales mirroring). The useMemo that originally computed
+  // this was missing from migration commit 31c4106 — the render tree
+  // has been throwing ReferenceError on every Flatplan load since.
+  // Returning null here short-circuits every `?.` guard downstream so
+  // the page renders; the shared-pages feature stays inert until the
+  // proper primary/mirror detection is reimplemented.
+  const sharedCtx = null;
+
   // QUALIFICATION + ENRICHMENT — derive from sales prop
   const adSizeLookup = useMemo(() => {
     const asl = {};

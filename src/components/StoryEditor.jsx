@@ -642,6 +642,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
                 <>
                   {meta.first_published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
                   {!meta.first_published_at && meta.published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
+                  {/* Slug is locked once set on first publish — the URL path is permanent so editors can see it but not change it. */}
+                  {meta.slug && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 4, wordBreak: "break-all" }} title="URL slug — set automatically on first publish, cannot be changed">Slug: <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: 2, color: Z.tx }}>{meta.slug}</code></div>}
                   {meta.last_significant_edit_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
                   {meta.edit_count > 0 && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
                 </>
