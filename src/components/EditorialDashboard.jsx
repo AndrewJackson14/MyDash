@@ -258,7 +258,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
-  const [showPublished, setShowPublished] = useState(false);
   const [showSiblings, setShowSiblings] = useState(false);
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
@@ -494,13 +493,15 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
   const issueStories = useMemo(() => {
     if (!selIssue) return [];
+    // Print-side planner — never filters by web-publish state. A story
+    // can be live on the web AND still need print attention.
     let list = stories
-      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue) && (showPublished || !isPublished(s)));
+      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue));
     // Include sibling pub stories when toggled on
     if (showSiblings && siblingCtx) {
       const siblingIds = new Set(siblingCtx.map(sc => sc.issue.id));
       const sibStories = stories
-        .filter(s => siblingIds.has(s.print_issue_id || s.issue_id) && (showPublished || !isPublished(s)))
+        .filter(s => siblingIds.has(s.print_issue_id || s.issue_id))
         .map(s => ({ ...s, _fromSibling: true, _siblingPub: siblingCtx.find(sc => sc.issue.id === (s.print_issue_id || s.issue_id))?.pub?.name }));
       list = [...list, ...sibStories];
     }
@@ -509,7 +510,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [stories, selIssue, showPublished, showSiblings, siblingCtx, sortCol, sortDir]);
+  }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
 
   // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
@@ -786,10 +787,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     Stories for {issues.find(i => i.id === selIssue)?.label || "this issue"}
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: Z.tm, fontFamily: COND, cursor: "pointer" }}>
-                      <input type="checkbox" checked={showPublished} onChange={e => setShowPublished(e.target.checked)} style={{ accentColor: Z.ac }} />
-                      Show Published
-                    </label>
                     {siblingCtx && (
                       <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: showSiblings ? "#3B82F6" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
                         <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "#3B82F6" }} />
