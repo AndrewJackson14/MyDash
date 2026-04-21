@@ -5,9 +5,25 @@
 // media_assets row in one shot. The metadata is the permanent
 // organization — folders are just physical layout.
 // ============================================================
-import { supabase } from "./supabase";
+import { supabase, EDGE_FN_URL } from "./supabase";
 
 export const CDN_BASE = "https://cdn.13stars.media";
+const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
+
+// bunny-storage runs with verify_jwt:true. Supabase's gateway requires
+// BOTH an apikey (anon key) AND an Authorization (user JWT) header on
+// every request. functions.invoke() was returning 401 on GET/DELETE via
+// this project for reasons we couldn't pin down — EditionManager's raw
+// XHR path with explicit headers works reliably, so mirror that here.
+async function bunnyAuthHeaders() {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) throw new Error("Not signed in — please refresh and sign in again");
+  return {
+    apikey: supabase.supabaseKey || "",
+    Authorization: "Bearer " + token,
+  };
+}
 
 // ── Path helpers ────────────────────────────────────────────
 const sanitize = (name) =>
@@ -25,45 +41,58 @@ export function buildStoragePath(file) {
 }
 
 // ── Raw Bunny API via edge-function proxy ──────────────────
-// bunny-storage runs with verify_jwt:true (default + explicit as of
-// the 2026-04-20 security audit). Route through supabase.functions.invoke
-// so the client lib attaches apikey + Authorization correctly — doing
-// it by hand kept missing one header or the other across chunk
-// boundaries and got us stuck in a 401 loop.
 export async function bunnyUpload(file, dir, filename) {
-  const { data, error } = await supabase.functions.invoke("bunny-storage", {
+  const auth = await bunnyAuthHeaders();
+  const res = await fetch(PROXY_URL, {
     method: "POST",
-    body: file,
     headers: {
+      ...auth,
       "Content-Type": file.type || "application/octet-stream",
       "x-action": "upload",
       "x-path": dir,
       "x-filename": encodeURIComponent(filename),
     },
+    body: file,
   });
-  if (error) throw new Error(error.message || "Upload failed");
-  return data;
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}): ${txt || res.statusText}`);
+  }
+  return res.json();
 }
 
 export async function bunnyDelete(dir, filename) {
-  const { error } = await supabase.functions.invoke("bunny-storage", {
+  const auth = await bunnyAuthHeaders();
+  const res = await fetch(PROXY_URL, {
     method: "DELETE",
     headers: {
+      ...auth,
       "x-action": "delete",
       "x-path": dir,
       "x-filename": encodeURIComponent(filename),
     },
   });
-  if (error) throw new Error("Delete failed: " + error.message);
+  if (!res.ok && res.status !== 404) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Delete failed (${res.status}): ${txt || res.statusText}`);
+  }
 }
 
 export async function bunnyList(path) {
-  const { data, error } = await supabase.functions.invoke("bunny-storage", {
+  const auth = await bunnyAuthHeaders();
+  const res = await fetch(PROXY_URL, {
     method: "GET",
-    headers: { "x-action": "list", "x-path": path || "" },
+    headers: {
+      ...auth,
+      "x-action": "list",
+      "x-path": path || "",
+    },
   });
-  if (error) throw new Error("List failed: " + error.message);
-  return data;
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`List failed (${res.status}): ${txt || res.statusText}`);
+  }
+  return res.json();
 }
 
 // ── Image dimension probing (client-side, best-effort) ─────
