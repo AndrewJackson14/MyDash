@@ -54,6 +54,17 @@ async function uploadImage(file, path) {
   return (await res.json()).url;
 }
 
+// Title → URL-safe slug. NFD-normalizes so "Café" survives as "cafe"
+// instead of being stripped to "caf"; collapses all non-alphanumeric
+// runs to a single hyphen; trims leading/trailing hyphens; caps at
+// 120 chars so Postgres / any index + display surface stays safe.
+const slugify = (title) => (title || "")
+  .toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "")
+  .slice(0, 120);
+
 // ── Toolbar components ───────────────────────────────────────────
 const TBtn = ({ onClick, active, children, title }) => (
   <button onClick={onClick} title={title} style={{ padding: "4px 8px", border: "none", borderRadius: Ri, background: active ? Z.ac + "20" : "transparent", color: active ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.base, fontWeight: active ? 700 : 500, display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 28 }}
@@ -386,7 +397,11 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       first_published_at: meta.first_published_at || meta.published_at || now,
       updated_at: now,
     };
-    if (!meta.slug) u.slug = (meta.title || "untitled").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").slice(0, 120);
+    // Always derive slug from title on first publish (slug is the URL
+    // path). If an editor manually set one, preserve it; otherwise
+    // generate from the current title so publishing isn't gated on a
+    // separate slug-entry step.
+    if (!meta.slug || !meta.slug.trim()) u.slug = slugify(meta.title) || "untitled";
     if (!meta.excerpt && editor) u.excerpt = editor.getText().slice(0, 300);
     // Grab the latest editor state synchronously so a click before the
     // 2s autoSave debounce fires still publishes the content the user
