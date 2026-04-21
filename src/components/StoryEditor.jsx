@@ -132,6 +132,9 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [webApproved, setWebApproved] = useState(!!story.web_approved);
   const [republishing, setRepublishing] = useState(false);
   const [republishedFlash, setRepublishedFlash] = useState(0); // timestamp, non-zero while flash is visible
+  const [editingPubDate, setEditingPubDate] = useState(false);
+  const [pubDateDraft, setPubDateDraft] = useState("");
+  const [savingPubDate, setSavingPubDate] = useState(false);
   const [fullContent, setFullContent] = useState(null); // loaded from DB
   const [contentLoading, setContentLoading] = useState(true);
   const saveTimer = useRef(null);
@@ -290,6 +293,49 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     if (!error) { setLastSaved(new Date()); onUpdate(story.id, u); setMeta(m => ({ ...m, ...u })); }
     setSaving(false);
   }, [story.id, editor, onUpdate, meta.published_at]);
+
+  // ── Publication date editing ───────────────────────────────
+  // Editors can override the original publish date — useful for
+  // backdating imported stories or correcting an incorrect auto-stamp.
+  // We write both published_at (the field StellarPress sorts on) and
+  // first_published_at (the displayed "Published" date) to keep them
+  // aligned as a single source of truth.
+  const openPubDateEdit = () => {
+    const existing = meta.first_published_at || meta.published_at;
+    if (existing) {
+      const d = new Date(existing);
+      const pad = n => String(n).padStart(2, "0");
+      setPubDateDraft(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } else {
+      setPubDateDraft("");
+    }
+    setEditingPubDate(true);
+  };
+
+  const savePubDate = async () => {
+    if (!pubDateDraft) { setEditingPubDate(false); return; }
+    const parsed = new Date(pubDateDraft);
+    if (isNaN(parsed.getTime())) { setEditingPubDate(false); return; }
+    setSavingPubDate(true);
+    const iso = parsed.toISOString();
+    const u = {
+      published_at: iso,
+      first_published_at: iso,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("stories").update(u).eq("id", story.id);
+    setSavingPubDate(false);
+    if (!error) {
+      setMeta(m => ({ ...m, ...u }));
+      onUpdate(story.id, u);
+      setLastSaved(new Date());
+      setEditingPubDate(false);
+      if (bus) bus.emit("notification.add", { text: '"' + (meta.title || "Untitled") + '" publish date updated', route: "editorial" });
+    } else {
+      console.error("Pub date update failed:", error);
+      if (bus) bus.emit("notification.add", { text: "Publish date update failed: " + error.message, route: "editorial" });
+    }
+  };
 
   // ── Save metadata ───────────────────────────────────────────
   const saveMeta = useCallback(async (field, value) => {
@@ -498,14 +544,37 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
         {/* Right: Metadata */}
         <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid " + Z.bd, background: Z.sf, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* FIX #1: Published/Updated dates */}
+          {/* FIX #1: Published/Updated dates — editable for editors */}
           {isPublished && (
             <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication Dates</div>
-              {meta.first_published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
-              {!meta.first_published_at && meta.published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
-              {meta.last_significant_edit_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
-              {meta.edit_count > 0 && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Publication Dates</span>
+                {!editingPubDate && (meta.first_published_at || meta.published_at) && (
+                  <button onClick={openPubDateEdit} title="Change the original publish date" style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: 10, fontFamily: COND, fontWeight: 700, padding: 0 }}>Edit</button>
+                )}
+              </div>
+              {editingPubDate ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <input
+                    type="datetime-local"
+                    value={pubDateDraft}
+                    onChange={e => setPubDateDraft(e.target.value)}
+                    style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}
+                  />
+                  <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>Controls the story's chronological slot on the public site.</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Btn sm onClick={savePubDate} disabled={savingPubDate || !pubDateDraft} style={{ flex: 1 }}>{savingPubDate ? "Saving…" : "Save Date"}</Btn>
+                    <Btn sm v="cancel" onClick={() => setEditingPubDate(false)} disabled={savingPubDate}>Cancel</Btn>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {meta.first_published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
+                  {!meta.first_published_at && meta.published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
+                  {meta.last_significant_edit_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
+                  {meta.edit_count > 0 && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
+                </>
+              )}
             </div>
           )}
 
