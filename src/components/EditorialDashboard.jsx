@@ -795,12 +795,43 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
       {/* STORIES VIEW (merged Issue Planning + Stories table) */}
       {tab === "stories" && (
-        <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "1fr" : "260px 1fr", gap: 16, minHeight: 400, transition: "grid-template-columns 0.2s ease" }}>
+        <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "44px 1fr" : "260px 1fr", gap: 16, minHeight: 400, transition: "grid-template-columns 0.2s ease" }}>
+          {/* Collapsed-state rail — always-visible expand chevron so the
+              sidebar can be reopened even when no issue is selected. */}
+          {sidebarCollapsed && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                title="Show Upcoming Issues"
+                style={{
+                  width: 36, height: 36, borderRadius: Ri,
+                  background: Z.sa, border: "1px solid " + Z.bd,
+                  cursor: "pointer", color: Z.tx,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 18, fontWeight: 700, lineHeight: 1, padding: 0,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "18"; e.currentTarget.style.color = Z.ac; }}
+                onMouseLeave={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
+              >›</button>
+            </div>
+          )}
           {/* Issue sidebar — collapsible for distraction-free story view */}
           {!sidebarCollapsed && <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", marginBottom: 4 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND }}>Upcoming Issues</span>
-              <button onClick={() => setSidebarCollapsed(true)} title="Collapse — distraction-free story view" style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: "2px 6px", borderRadius: Ri }}>«</button>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                title="Collapse — distraction-free story view"
+                style={{
+                  width: 32, height: 32, borderRadius: Ri,
+                  background: "transparent", border: "1px solid " + Z.bd,
+                  cursor: "pointer", color: Z.tm,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 18, fontWeight: 700, lineHeight: 1, padding: 0,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.tm; }}
+              >‹</button>
             </div>
             {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
             {futureIssues.map(iss => {
@@ -832,10 +863,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND, display: "flex", alignItems: "center", gap: 8 }}>
-                    {sidebarCollapsed && (
-                      <button onClick={() => setSidebarCollapsed(false)} title="Show issue list" style={{ background: Z.sa, border: "1px solid " + Z.bd, cursor: "pointer", color: Z.tm, fontSize: 12, padding: "2px 8px", borderRadius: Ri }}>»</button>
-                    )}
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND }}>
                     Stories for {issues.find(i => i.id === selIssue)?.label || "this issue"}
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
