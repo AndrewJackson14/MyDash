@@ -361,34 +361,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     return cols;
   }, [filtered]);
 
-  // ── Handle kanban drag-drop ─────────────────────────────────
-  const handleDrop = useCallback((storyId, colKey) => {
-    const col = KANBAN_COLS.find(c => c.key === colKey);
-    if (!col) return;
-    // The 'published' column sits on status=Ready + sent_to_web flag,
-    // not a separate status value. Every other column maps to its
-    // single status string directly.
-    const newStatus = col.statuses[0];
-    const story = stories.find(s => s.id === storyId);
-    const updates = { status: newStatus };
-    if (colKey === "published") {
-      updates.sent_to_web = true;
-      updates.sentToWeb = true;
-      const now = new Date().toISOString();
-      if (!story?.published_at && !story?.publishedAt) updates.published_at = now;
-      if (!story?.first_published_at && !story?.firstPublishedAt) {
-        updates.first_published_at = story?.published_at || story?.publishedAt || now;
-      }
-    } else if (colKey === "ready") {
-      // Moving back to Ready means unflipping any publish flags.
-      updates.sent_to_web = false;
-      updates.sentToWeb = false;
-    }
-    // Route through updateStory so local state AND the DB both move.
-    updateStory(storyId, updates);
-    if (bus) bus.emit("story.statusChanged", { storyId, newStatus, column: colKey });
-  }, [stories, updateStory, bus]);
-
   // ── Story editor ─────────────────────────────────────────
   // Stable refs so memo(StoryCard) isn't invalidated by the kanban re-rendering.
   const openDetail = useCallback((story) => { setSelected(story); setEditorOpen(true); }, []);
@@ -450,6 +422,31 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       supabase.from("stories").update(dbFields).eq("id", id).then(() => {}).catch(() => {});
     }
   };
+
+  // ── Handle kanban drag-drop ─────────────────────────────────
+  // Must be defined after updateStory — its dep array closes over the
+  // updateStory reference, so the TDZ rule would otherwise crash render.
+  const handleDrop = useCallback((storyId, colKey) => {
+    const col = KANBAN_COLS.find(c => c.key === colKey);
+    if (!col) return;
+    const newStatus = col.statuses[0];
+    const story = stories.find(s => s.id === storyId);
+    const updates = { status: newStatus };
+    if (colKey === "published") {
+      updates.sent_to_web = true;
+      updates.sentToWeb = true;
+      const now = new Date().toISOString();
+      if (!story?.published_at && !story?.publishedAt) updates.published_at = now;
+      if (!story?.first_published_at && !story?.firstPublishedAt) {
+        updates.first_published_at = story?.published_at || story?.publishedAt || now;
+      }
+    } else if (colKey === "ready") {
+      updates.sent_to_web = false;
+      updates.sentToWeb = false;
+    }
+    updateStory(storyId, updates);
+    if (bus) bus.emit("story.statusChanged", { storyId, newStatus, column: colKey });
+  }, [stories, bus]);
 
   const publishToWeb = (story) => {
     updateStory(story.id, {
