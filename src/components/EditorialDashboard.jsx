@@ -259,6 +259,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
   const [showSiblings, setShowSiblings] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [addingInlineStory, setAddingInlineStory] = useState(false);
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
 
@@ -518,6 +520,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     });
   }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
 
+  // ── Inline new-story creator scoped to the selected issue ──
+  // Used by the "+ New Story" affordance under the Page Map. Inserts
+  // a blank row tagged with the current issue + its publication so the
+  // user can type the title inline in the data table without leaving
+  // the planner. Mirrors the schema-side behavior of the toolbar
+  // "New Story" button but skips the openDetail call.
+  const addInlineStoryForIssue = useCallback(async () => {
+    if (!selIssue || addingInlineStory) return;
+    const issue = issues.find(i => i.id === selIssue);
+    if (!issue) return;
+    const pubId = issue.publicationId || issue.pubId || null;
+    setAddingInlineStory(true);
+    const row = {
+      title: "", status: "Draft", author: "",
+      publication_id: pubId,
+      issue_id: selIssue, print_issue_id: selIssue,
+      category: "News", priority: "normal",
+      web_status: "none", print_status: "none",
+      site_id: pubId,
+    };
+    const { data, error } = await supabase.from("stories").insert(row).select().single();
+    setAddingInlineStory(false);
+    if (error) { console.error("Inline new story insert failed:", error); return; }
+    if (!data) return;
+    const mapped = {
+      id: data.id, title: "", status: "Draft", author: "",
+      publication_id: pubId, publication: pubId,
+      issueId: selIssue, issue_id: selIssue, print_issue_id: selIssue,
+      category: "News", priority: "normal",
+      web_status: "none", print_status: "none",
+      created_at: data.created_at,
+    };
+    setStories(prev => [mapped, ...prev]);
+  }, [selIssue, issues, addingInlineStory, setStories]);
+
   // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
     return filtered
@@ -758,10 +795,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
 
       {/* STORIES VIEW (merged Issue Planning + Stories table) */}
       {tab === "stories" && (
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, minHeight: 400 }}>
-          {/* Issue sidebar */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, padding: "4px 0", marginBottom: 4 }}>Upcoming Issues</div>
+        <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "1fr" : "260px 1fr", gap: 16, minHeight: 400, transition: "grid-template-columns 0.2s ease" }}>
+          {/* Issue sidebar — collapsible for distraction-free story view */}
+          {!sidebarCollapsed && <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND }}>Upcoming Issues</span>
+              <button onClick={() => setSidebarCollapsed(true)} title="Collapse — distraction-free story view" style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: "2px 6px", borderRadius: Ri }}>«</button>
+            </div>
             {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
             {futureIssues.map(iss => {
               const stCount = stories.filter(s => s.print_issue_id === iss.id || s.issue_id === iss.id).length;
@@ -778,7 +818,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                 </div>
               );
             })}
-          </div>
+          </div>}
 
           {/* Issue detail / story data table */}
           <div>
@@ -789,7 +829,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND, display: "flex", alignItems: "center", gap: 8 }}>
+                    {sidebarCollapsed && (
+                      <button onClick={() => setSidebarCollapsed(false)} title="Show issue list" style={{ background: Z.sa, border: "1px solid " + Z.bd, cursor: "pointer", color: Z.tm, fontSize: 12, padding: "2px 8px", borderRadius: Ri }}>»</button>
+                    )}
                     Stories for {issues.find(i => i.id === selIssue)?.label || "this issue"}
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -834,6 +877,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     </div>
                   </div>;
                 })()}
+                {/* Quick-add: inline story for the currently-selected issue.
+                    Inserts a blank row into the table without leaving the
+                    planner so titles can be batched in. */}
+                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 4 }}>
+                  <Btn sm v="secondary" onClick={addInlineStoryForIssue} disabled={addingInlineStory}>
+                    <Ic.plus size={12} /> {addingInlineStory ? "Adding…" : "New Story"}
+                  </Btn>
+                </div>
                 {/* Data table with inline editing */}
                 <div style={{ overflow: "hidden" }}>
                   <DataTable>
