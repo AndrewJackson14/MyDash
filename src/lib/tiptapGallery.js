@@ -29,36 +29,52 @@ export const Gallery = Node.create({
   },
 
   parseHTML() {
-    return [{
-      tag: "div.story-gallery",
-      getAttrs: (el) => {
-        const anchors = el.querySelectorAll("a[href]");
-        const images = Array.from(anchors).map(a => {
-          const img = a.querySelector("img");
-          return {
-            url: a.getAttribute("href") || img?.getAttribute("src") || "",
-            alt: img?.getAttribute("alt") || "",
-            caption: a.getAttribute("data-title") || img?.getAttribute("title") || "",
-          };
-        }).filter(i => i.url);
-        return {
-          images,
-          columns: Number(el.getAttribute("data-columns")) || 3,
-          galleryId: el.getAttribute("data-gallery-id") || null,
-        };
-      },
-    }];
+    // Accept both the current figure-based markup and the legacy
+    // div.story-gallery so edits on older stories migrate cleanly.
+    const fromEl = (el) => {
+      const anchors = el.querySelectorAll("a[href]");
+      const images = (anchors.length
+        ? Array.from(anchors).map(a => {
+            const img = a.querySelector("img");
+            return {
+              url: a.getAttribute("href") || img?.getAttribute("src") || "",
+              alt: img?.getAttribute("alt") || "",
+              caption: a.getAttribute("data-title") || img?.getAttribute("title") || img?.getAttribute("alt") || "",
+            };
+          })
+        : Array.from(el.querySelectorAll("img")).map(img => ({
+            url: img.getAttribute("src") || "",
+            alt: img.getAttribute("alt") || "",
+            caption: img.getAttribute("title") || "",
+          }))
+      ).filter(i => i.url);
+      return {
+        images,
+        columns: Number(el.getAttribute("data-columns")) || 3,
+        galleryId: el.getAttribute("data-gallery-id") || null,
+      };
+    };
+    return [
+      { tag: "figure.story-gallery", getAttrs: fromEl },
+      { tag: "div.story-gallery", getAttrs: fromEl },
+    ];
   },
 
   renderHTML({ HTMLAttributes, node }) {
     const images = node.attrs.images || [];
     const columns = Math.max(2, Math.min(6, node.attrs.columns || 3));
     const gid = node.attrs.galleryId || newGalleryId();
-    // Inline styles so the mosaic renders even if the consuming site
-    // hasn't added .story-gallery CSS (or strips class attributes in
-    // its HTML sanitizer). GLightbox hydration still depends on the
-    // .glightbox class + data-gallery being allowed through.
-    const containerStyle = `display:grid;grid-template-columns:repeat(${columns},1fr);gap:6px;margin:1.5em 0;`;
+    // Use <figure> instead of <div> — figure is in almost every HTML
+    // sanitizer's default allowlist, while <div class="…"> often gets
+    // dropped subtree-and-all. Each item is also a nested <figure> so
+    // that if the outer wrapper ever does get stripped, each image
+    // still renders stacked rather than vanishing.
+    // Inline styles so the mosaic lays out without any consumer CSS.
+    // GLightbox hydration still depends on the .glightbox class
+    // surviving — if StellarPress drops classes, we still have a
+    // visible clickable-image grid (clicks open the CDN URL directly).
+    const containerStyle = `display:grid;grid-template-columns:repeat(${columns},1fr);gap:6px;margin:1.5em 0;padding:0;`;
+    const itemStyle = "margin:0;padding:0;";
     const anchorStyle = "display:block;overflow:hidden;border-radius:4px;";
     const imgStyle = "width:100%;aspect-ratio:1/1;object-fit:cover;display:block;margin:0;";
     const attrs = mergeAttributes(HTMLAttributes, {
@@ -68,17 +84,21 @@ export const Gallery = Node.create({
       style: containerStyle,
     });
     const children = images.map(img => [
-      "a",
-      {
-        class: "glightbox",
-        "data-gallery": gid,
-        href: img.url,
-        "data-title": img.caption || "",
-        style: anchorStyle,
-      },
-      ["img", { src: img.url, alt: img.alt || "", title: img.caption || "", loading: "lazy", style: imgStyle }],
+      "figure",
+      { class: "story-gallery-item", style: itemStyle },
+      [
+        "a",
+        {
+          class: "glightbox",
+          "data-gallery": gid,
+          href: img.url,
+          "data-title": img.caption || "",
+          style: anchorStyle,
+        },
+        ["img", { src: img.url, alt: img.alt || "", title: img.caption || "", loading: "lazy", style: imgStyle }],
+      ],
     ]);
-    return ["div", attrs, ...children];
+    return ["figure", attrs, ...children];
   },
 
   addCommands() {
