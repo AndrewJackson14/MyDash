@@ -97,8 +97,56 @@
       <g id="i-activity"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></g>
       <g id="i-clock"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2"/></g>
       <g id="i-template"><path d="M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z"/></g>
+
+      <!-- Design Studio alternatives -->
+      <g id="i-palette"><path d="M12 2a10 10 0 00-10 10c0 4 3 7 7 7 1 0 2-.5 2-2v-1a1.5 1.5 0 011.5-1.5H15a6 6 0 006-6c0-3.87-3.13-7-9-7zM7.5 10.5h.01M11 7h.01M15.5 7.5h.01M17 11h.01"/></g>
+      <g id="i-layers"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></g>
+      <g id="i-swatches"><path d="M14 3h6v6h-6zM14 10h6v6h-6zM14 17h6v5h-6zM3 3h9v18H5a2 2 0 01-2-2V3z"/></g>
+      <g id="i-pen"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></g>
+      <g id="i-bezier"><path d="M3 3h4v4H3zM17 17h4v4h-4zM7 5c10 0 10 14 0 14M5 7v10M19 5v10"/></g>
     </defs>
   </svg>
+
+  <div class="wrap" style="padding: 0; margin: 0 auto; max-width: 1100px;">
+  <!-- Design Studio alternatives (pinned above the comparison) -->
+  <section id="design-studio-alts" style="margin-bottom: 32px; padding: 20px; background: var(--chrome); border: 1px solid var(--bd); border-radius: 10px;">
+    <div style="font-weight: 800; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px;">Design Studio — Alternatives</div>
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+      <div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted);"><use href="#i-paint"/></svg>
+        <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">paintbrush</span>
+        <span style="font-size: 10px; color: var(--muted);">current</span>
+      </div>
+      <div style="background: var(--bg); border: 1px solid var(--warn); border-radius: 8px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--warn);"><use href="#i-palette"/></svg>
+        <span style="font-size: 11px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.04em;">palette</span>
+        <span style="font-size: 10px; color: var(--muted);">your idea</span>
+      </div>
+      <div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-layers"/></svg>
+        <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">layers</span>
+        <span style="font-size: 10px; color: var(--muted);">Figma-style</span>
+      </div>
+      <div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-swatches"/></svg>
+        <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">swatches</span>
+        <span style="font-size: 10px; color: var(--muted);">color picker</span>
+      </div>
+      <div style="background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bezier"/></svg>
+        <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">pen tool</span>
+        <span style="font-size: 10px; color: var(--muted);">vector design</span>
+      </div>
+    </div>
+    <div style="margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.6;">
+      <b style="color: var(--fg);">Palette</b> is the warmest, most approachable — reads "creative" to non-designers.
+      <b style="color: var(--fg);">Layers</b> is what professional designers expect (Figma/Photoshop).
+      <b style="color: var(--fg);">Swatches</b> works if color is the focus.
+      <b style="color: var(--fg);">Pen tool</b> is the most technical and also doubles as "edit" — risk of collision with future items.
+      Tell me which one and I'll bake it in.
+    </div>
+  </section>
+  </div>
 
   <div class="wrap">
     <h1>Sidebar Icon Redesign</h1>
