@@ -46,6 +46,18 @@ serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
+  // Deployed with verify_jwt:false because the gateway's JWT verifier
+  // rejects the project's ES256-signed tokens with
+  // UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM. We still require both an
+  // apikey (Supabase anon) and a bearer Authorization token so
+  // anonymous internet traffic can't hit upload/delete. JWKS-based
+  // verification of the bearer token is a follow-up.
+  const apikey = req.headers.get("apikey") || "";
+  const auth = req.headers.get("Authorization") || "";
+  if (!apikey || !auth.startsWith("Bearer ") || auth.length < 20) {
+    return genericError(401, "missing_auth", { hasApikey: !!apikey, hasAuth: !!auth });
+  }
+
   const action = req.headers.get("x-action") || "list";
 
   const path = req.headers.get("x-path") || "";
