@@ -385,6 +385,11 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
     };
     if (!meta.slug) u.slug = (meta.title || "untitled").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").slice(0, 120);
     if (!meta.excerpt && editor) u.excerpt = editor.getText().slice(0, 300);
+    // Grab the latest editor state synchronously so a click before the
+    // 2s autoSave debounce fires still publishes the content the user
+    // actually sees. Without this the first publish could land with a
+    // stale (or empty) body on StellarPress.
+    if (editor) { u.body = editor.getHTML(); u.content_json = editor.getJSON(); }
     const { error } = await supabase.from("stories").update(u).eq("id", story.id);
     if (!error) {
       setMeta(m => ({ ...m, ...u }));
