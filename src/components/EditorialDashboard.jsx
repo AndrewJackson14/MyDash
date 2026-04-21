@@ -369,22 +369,25 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     // not a separate status value. Every other column maps to its
     // single status string directly.
     const newStatus = col.statuses[0];
-    setStories(prev => prev.map(s => {
-      if (s.id !== storyId) return s;
-      const updates = { ...s, status: newStatus };
-      if (colKey === "published") {
-        updates.sent_to_web = true;
-        updates.sentToWeb = true;
-        if (!updates.published_at) updates.published_at = new Date().toISOString();
-      } else if (colKey === "ready") {
-        // Moving back to Ready means unflipping any publish flags.
-        updates.sent_to_web = false;
-        updates.sentToWeb = false;
+    const story = stories.find(s => s.id === storyId);
+    const updates = { status: newStatus };
+    if (colKey === "published") {
+      updates.sent_to_web = true;
+      updates.sentToWeb = true;
+      const now = new Date().toISOString();
+      if (!story?.published_at && !story?.publishedAt) updates.published_at = now;
+      if (!story?.first_published_at && !story?.firstPublishedAt) {
+        updates.first_published_at = story?.published_at || story?.publishedAt || now;
       }
-      return updates;
-    }));
+    } else if (colKey === "ready") {
+      // Moving back to Ready means unflipping any publish flags.
+      updates.sent_to_web = false;
+      updates.sentToWeb = false;
+    }
+    // Route through updateStory so local state AND the DB both move.
+    updateStory(storyId, updates);
     if (bus) bus.emit("story.statusChanged", { storyId, newStatus, column: colKey });
-  }, [setStories, bus]);
+  }, [stories, updateStory, bus]);
 
   // ── Story editor ─────────────────────────────────────────
   // Stable refs so memo(StoryCard) isn't invalidated by the kanban re-rendering.
@@ -408,7 +411,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     if (updates.page !== undefined) dbFields.page = updates.page;
     if (updates.page_number !== undefined) dbFields.page = updates.page_number;
     if (updates.web_status !== undefined) dbFields.web_status = updates.web_status;
+    if (updates.sent_to_web !== undefined) dbFields.sent_to_web = updates.sent_to_web;
     if (updates.published_at !== undefined) dbFields.published_at = updates.published_at;
+    if (updates.first_published_at !== undefined) dbFields.first_published_at = updates.first_published_at;
     if (updates.word_limit !== undefined) dbFields.word_limit = updates.word_limit;
     if (updates.priority !== undefined) dbFields.priority = updates.priority;
     if (Object.keys(dbFields).length === 0) return;
