@@ -8,6 +8,8 @@
 // In-editor: renders the same HTML so writers preview the mosaic;
 // GLightbox isn't loaded in the editor so clicks are no-ops.
 import { Node, mergeAttributes } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import GalleryNodeView from "../components/editor/GalleryNodeView.jsx";
 
 const newGalleryId = () => "gal-" + Math.random().toString(36).slice(2, 9);
 
@@ -82,6 +84,10 @@ export const Gallery = Node.create({
           },
         }),
     };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(GalleryNodeView);
   },
 });
 

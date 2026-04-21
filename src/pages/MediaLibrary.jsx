@@ -71,10 +71,36 @@ const PUB_FOLDERS = [
 // ══════════════════════════════════════════════════════════════════
 // DETAIL PANEL
 // ══════════════════════════════════════════════════════════════════
-const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMode }) => {
+const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMode, onMetaUpdated }) => {
   const dialog = useDialog();
   const [copied, setCopied] = useState(false);
   const url = item.cdnUrl || `${CDN_BASE}/${item.fullPath}`;
+  const meta = item._meta;
+
+  // Local caption + alt mirror so typing feels instant; persist on blur to
+  // avoid thrashing the DB with a write per keystroke.
+  const [caption, setCaption] = useState(meta?.caption || "");
+  const [altText, setAltText] = useState(meta?.altText || "");
+  const [savingMeta, setSavingMeta] = useState(false);
+
+  // When the user clicks a different tile, reset the inputs.
+  useEffect(() => {
+    setCaption(meta?.caption || "");
+    setAltText(meta?.altText || "");
+  }, [meta?.id]);
+
+  const saveMeta = async (patch) => {
+    if (!meta?.id) return;
+    setSavingMeta(true);
+    const { data, error } = await supabase
+      .from("media_assets")
+      .update(patch)
+      .eq("id", meta.id)
+      .select()
+      .single();
+    setSavingMeta(false);
+    if (!error && data && onMetaUpdated) onMetaUpdated(data);
+  };
 
   const copyUrl = () => {
     navigator.clipboard.writeText(url);
@@ -106,6 +132,35 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
         {item.ContentType && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: Z.tm }}>Type: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{item.ContentType}</span></div>}
       </div>
 
+      {meta?.id && (
+        <>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3, display: "flex", justifyContent: "space-between" }}>
+              <span>Caption</span>
+              {savingMeta && <span style={{ color: Z.tm, textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>Saving…</span>}
+            </div>
+            <textarea
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              onBlur={() => { if (caption !== (meta.caption || "")) saveMeta({ caption }); }}
+              placeholder="Photo credit or description…"
+              rows={2}
+              style={{ ...inputStyle, resize: "vertical", minHeight: 50, fontFamily: COND }}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Alt text</div>
+            <input
+              value={altText}
+              onChange={e => setAltText(e.target.value)}
+              onBlur={() => { if (altText !== (meta.altText || "")) saveMeta({ alt_text: altText }); }}
+              placeholder="Describe the image for accessibility"
+              style={inputStyle}
+            />
+          </div>
+        </>
+      )}
+
       <div>
         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>CDN URL</div>
         <div style={{ display: "flex", gap: 4 }}>
@@ -117,7 +172,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-        {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
+        {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName, alt: altText || meta?.altText || "", caption: caption || meta?.caption || "", id: meta?.id })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
         <button onClick={async () => { if (await dialog.confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
           Delete
         </button>
@@ -899,6 +954,19 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
             onDelete={handleDelete}
             onSelect={onSelect ? (data) => { onSelect(data); } : undefined}
             selectMode={!!onSelect}
+            onMetaUpdated={(row) => {
+              // supabase returns the updated row in snake_case; mediaAssets
+              // state elsewhere in the app expects camelCase, so translate
+              // the few fields we touch here before handing it upward.
+              const mapped = {
+                ...(selected._meta || {}),
+                id: row.id,
+                caption: row.caption,
+                altText: row.alt_text,
+              };
+              setSelected(prev => prev ? { ...prev, _meta: mapped } : prev);
+              if (pushMediaAsset) pushMediaAsset(mapped);
+            }}
           />
         )}
       </div>
