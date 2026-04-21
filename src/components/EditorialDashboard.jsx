@@ -495,14 +495,20 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     if (!selIssue) return [];
     // Print-side planner — never filters by web-publish state. A story
     // can be live on the web AND still need print attention.
+    //
+    // Anchor strictly on print_issue_id. The legacy issue_id column
+    // (single-issue model from before print/web were split) sometimes
+    // drifts from print_issue_id, which made stories appear under two
+    // issue dates in the sidebar. print_issue_id is the editor-set
+    // value and the canonical print anchor.
     let list = stories
-      .filter(s => (s.print_issue_id === selIssue || s.issue_id === selIssue));
+      .filter(s => s.print_issue_id === selIssue);
     // Include sibling pub stories when toggled on
     if (showSiblings && siblingCtx) {
       const siblingIds = new Set(siblingCtx.map(sc => sc.issue.id));
       const sibStories = stories
-        .filter(s => siblingIds.has(s.print_issue_id || s.issue_id))
-        .map(s => ({ ...s, _fromSibling: true, _siblingPub: siblingCtx.find(sc => sc.issue.id === (s.print_issue_id || s.issue_id))?.pub?.name }));
+        .filter(s => siblingIds.has(s.print_issue_id))
+        .map(s => ({ ...s, _fromSibling: true, _siblingPub: siblingCtx.find(sc => sc.issue.id === s.print_issue_id)?.pub?.name }));
       list = [...list, ...sibStories];
     }
     return list.sort((a, b) => {
