@@ -57,6 +57,16 @@ const Ic = {
   listBul:   p => <Iv d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" {...p} />,
   listOl:    p => <Iv d="M10 6h11M10 12h11M10 18h11M4 4v4M3 6h2M3 14h3l-3 4h3" {...p} />,
   divider:   p => <Iv d="M3 12h18" {...p} />,
+  // Sidebar redesign — flat line, single stroke, 24x24
+  news:      p => <Iv d="M4 4h14a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zM20 8h2v10a2 2 0 01-2 2M8 8h8M8 12h8M8 16h5" {...p} />,
+  book:      p => <Iv d="M4 4a2 2 0 012-2h6v18H6a2 2 0 00-2 2V4zM20 4a2 2 0 00-2-2h-6v18h6a2 2 0 012 2V4z" {...p} />,
+  brief:     p => <Iv d="M3 8h18v11a2 2 0 01-2 2H5a2 2 0 01-2-2V8zM8 8V5a2 2 0 012-2h4a2 2 0 012 2v3M3 13h18" {...p} />,
+  megaphone: p => <Iv d="M3 11a2 2 0 012-2h2l11-5v16l-11-5H5a2 2 0 01-2-2zM7 9v6M11 19a3 3 0 006 0" {...p} />,
+  bag:       p => <Iv d="M6 2L4 6v14a2 2 0 002 2h12a2 2 0 002-2V6l-2-4zM4 6h16M16 10a4 4 0 01-8 0" {...p} />,
+  truck:     p => <Iv d="M1 4h14v12H1zM15 8h4l4 4v4h-8zM6 20a2 2 0 100-4 2 2 0 000 4zM19 20a2 2 0 100-4 2 2 0 000 4z" {...p} />,
+  activity:  p => <Iv d="M22 12h-4l-3 9L9 3l-3 9H2" {...p} />,
+  template:  p => <Iv d="M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z" {...p} />,
+  palette:   p => <Iv d="M12 2a10 10 0 00-10 10c0 4 3 7 7 7 1 0 2-.5 2-2v-1a1.5 1.5 0 011.5-1.5H15a6 6 0 006-6c0-3.87-3.13-7-9-7zM7.5 10.5h.01M11 7h.01M15.5 7.5h.01M17 11h.01" {...p} />,
 };
 
 export { Iv, Ic };
