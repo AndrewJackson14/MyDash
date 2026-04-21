@@ -130,6 +130,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [categories, setCategories] = useState([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [webApproved, setWebApproved] = useState(!!story.web_approved);
+  const [republishing, setRepublishing] = useState(false);
+  const [republishedFlash, setRepublishedFlash] = useState(0); // timestamp, non-zero while flash is visible
   const [fullContent, setFullContent] = useState(null); // loaded from DB
   const [contentLoading, setContentLoading] = useState(true);
   const saveTimer = useRef(null);
@@ -276,12 +278,18 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const autoSave = useCallback(async (cj, pt) => {
     setSaving(true);
     const wc = pt.trim() ? pt.trim().split(/\s+/).length : 0;
-    const u = { content_json: cj, word_count: wc, updated_at: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const u = { content_json: cj, word_count: wc, updated_at: now };
     if (editor) u.body = editor.getHTML();
+    // Stamp last_significant_edit_at on every content write after the story
+    // has gone live. That's what drives the "Unpublished Changes" badge —
+    // republish clears this field so the badge disappears until the next
+    // real edit.
+    if (meta.published_at) u.last_significant_edit_at = now;
     const { error } = await supabase.from("stories").update(u).eq("id", story.id);
-    if (!error) { setLastSaved(new Date()); onUpdate(story.id, u); }
+    if (!error) { setLastSaved(new Date()); onUpdate(story.id, u); setMeta(m => ({ ...m, ...u })); }
     setSaving(false);
-  }, [story.id, editor, onUpdate]);
+  }, [story.id, editor, onUpdate, meta.published_at]);
 
   // ── Save metadata ───────────────────────────────────────────
   const saveMeta = useCallback(async (field, value) => {
@@ -350,22 +358,29 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   // ── Republish (skip preflight — already published once) ─────
   // Preserve the original published_at so the story stays in its
   // chronological slot on StellarPress (sorted by published_at DESC).
-  // Bump last_significant_edit_at + updated_at so the republish badge
-  // clears and the edit timestamp reflects the new content.
+  // CLEAR last_significant_edit_at so the "Unpublished Changes" badge
+  // disappears — next edit will re-stamp it and flip the badge back on.
   const republishToWeb = async () => {
+    setRepublishing(true);
     const now = new Date().toISOString();
     const u = {
       web_status: "published",
-      last_significant_edit_at: now,
+      last_significant_edit_at: null,
       updated_at: now,
     };
     if (editor) { u.body = editor.getHTML(); u.content_json = editor.getJSON(); }
     const { error } = await supabase.from("stories").update(u).eq("id", story.id);
+    setRepublishing(false);
     if (!error) {
       setMeta(m => ({ ...m, ...u }));
       onUpdate(story.id, u);
       setLastSaved(new Date());
+      setRepublishedFlash(Date.now());
+      setTimeout(() => setRepublishedFlash(0), 2500);
       if (bus) bus.emit("notification.add", { text: '"' + (meta.title || "Untitled") + '" republished to web', route: "editorial" });
+    } else {
+      console.error("Republish failed:", error);
+      if (bus) bus.emit("notification.add", { text: "Republish failed: " + error.message, route: "editorial" });
     }
   };
 
@@ -435,8 +450,9 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           {imageUploading && <span style={{ fontSize: 10, color: Z.wa, fontFamily: COND }}>Uploading\u2026</span>}
           <Badge status={meta.status || "Draft"} small />
           {meta.is_featured && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>{"\u2605"} Featured</span>}
-          {isPublished && !needsRepublish && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
-          {needsRepublish && <Btn sm onClick={republishToWeb} style={{ background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{"\u21bb"} Republish</Btn>}
+          {isPublished && !needsRepublish && !republishedFlash && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
+          {republishedFlash > 0 && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "22", color: ACCENT.green }}>{"\u2713"} Republished</span>}
+          {needsRepublish && !republishedFlash && <Btn sm onClick={republishToWeb} disabled={republishing} style={{ background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{republishing ? "Republishing\u2026" : "\u21bb Republish"}</Btn>}
         </div>
       </div>
 
@@ -507,9 +523,11 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
           <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
             {isPublished && !needsRepublish ? (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>{"\u2713"} Live on Web</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>
+                  {republishedFlash > 0 ? "\u2713 Republished just now" : "\u2713 Live on Web"}
+                </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Btn sm onClick={republishToWeb} style={{ flex: 1 }}>{"\u21bb"} Update Live</Btn>
+                  <Btn sm onClick={republishToWeb} disabled={republishing} style={{ flex: 1 }}>{republishing ? "Republishing\u2026" : "\u21bb Update Live"}</Btn>
                   <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Ready", sent_to_web: false })); onUpdate(story.id, { status: "Ready", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
@@ -517,7 +535,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: Z.wa, fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Btn sm onClick={republishToWeb} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{"\u21bb"} Republish</Btn>
+                  <Btn sm onClick={republishToWeb} disabled={republishing} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{republishing ? "Republishing\u2026" : "\u21bb Republish"}</Btn>
                   <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Ready", sent_to_web: false })); onUpdate(story.id, { status: "Ready", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
                 </div>
               </div>
