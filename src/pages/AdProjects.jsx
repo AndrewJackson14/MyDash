@@ -5,7 +5,9 @@ import { useNav } from "../hooks/useNav";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
+import EntityThread from "../components/EntityThread";
 import AssetPanel from "../components/AssetPanel";
+import { getOrCreateThread, postSystemMessage } from "../lib/threads";
 import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
@@ -280,12 +282,10 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     const clientSlug = cn(form.clientId).toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const assetPath = `clients/${clientSlug}/assets`;
 
-    // Create thread first
-    const { data: thread } = await supabase.from("message_threads").insert({
-      type: "ad_project", title: `Ad: ${cn(form.clientId)} \u2014 ${pn(form.publicationId)}`,
-      participants: [currentUser?.id, form.designerId].filter(Boolean),
-    }).select().single();
-
+    // Create the project first so we have an id to scope the thread by.
+    // Thread gets the polymorphic (ref_type, ref_id) pair via
+    // getOrCreateThread so EntityThread / a future entity-threads view
+    // can find it without depending on ad_projects.thread_id.
     const { data: proj } = await supabase.from("ad_projects").insert({
       sale_id: form._saleId,
       client_id: form.clientId, publication_id: form.publicationId,
@@ -294,20 +294,32 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       salesperson_id: currentUser?.id || null,
       reference_ads: form.referenceAds, client_assets_path: assetPath,
       client_contact_name: form.clientContactName, client_contact_email: form.clientContactEmail,
-      thread_id: thread?.id || null, status: "brief",
+      status: "brief",
     }).select().single();
 
     if (proj) {
-      setProjects(prev => [proj, ...prev]);
+      let thread = null;
+      try {
+        thread = await getOrCreateThread({
+          refType: "ad_project",
+          refId: proj.id,
+          title: `Ad: ${cn(form.clientId)} \u2014 ${pn(form.publicationId)}`,
+          participants: [currentUser?.id, form.designerId].filter(Boolean),
+        });
+      } catch (e) { console.error("Thread create failed:", e); }
       if (thread) {
+        // Backfill legacy thread_id on the project for any consumer
+        // still reading that column.
+        await supabase.from("ad_projects").update({ thread_id: thread.id }).eq("id", proj.id);
+        proj.thread_id = thread.id;
         setThreads(prev => [thread, ...prev]);
-        // System message
-        const { data: msg } = await supabase.from("messages").insert({
-          thread_id: thread.id, sender_name: "System", body: `Ad project created by ${currentUser?.name || "Unknown"}. Assigned to ${tn(form.designerId)}.`,
-          is_system: true,
-        }).select().single();
+        const msg = await postSystemMessage(
+          thread.id,
+          `Ad project created by ${currentUser?.name || "Unknown"}. Assigned to ${tn(form.designerId)}.`,
+        ).catch(() => null);
         if (msg) setMessages(prev => [...prev, msg]);
       }
+      setProjects(prev => [proj, ...prev]);
       setViewId(proj.id);
     }
     setCreateModal(false);
@@ -750,10 +762,19 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           </GlassCard>}
         </div>
 
-        {/* RIGHT: Chat */}
+        {/* RIGHT: Chat — EntityThread handles get-or-create by (ref_type, ref_id) */}
         <GlassCard style={{ display: "flex", flexDirection: "column", maxHeight: 700 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Project Chat</div>
-          <ChatPanel threadId={viewThread?.id} currentUser={currentUser} height={600} placeholder="Message about this project..." />
+          <EntityThread
+            refType="ad_project"
+            refId={viewProject?.id}
+            title={`Ad: ${cn(viewProject?.client_id)} — ${pn(viewProject?.publication_id)}`}
+            participants={[viewProject?.designer_id, viewProject?.salesperson_id].filter(Boolean)}
+            currentUser={currentUser}
+            defaultOpen
+            label="Project Chat"
+            height={560}
+          />
         </GlassCard>
       </div>
 

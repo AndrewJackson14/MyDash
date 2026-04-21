@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { Gallery } from "../lib/tiptapGallery";
+import EntityThread from "./EntityThread";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, TB, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
@@ -877,6 +878,19 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
               })}
             </div>;
           })()}
+
+          {/* Story discussion — collapsible per-story thread */}
+          {story?.id && (
+            <EntityThread
+              refType="story"
+              refId={story.id}
+              title={`Story: ${meta.title || "Untitled"}`}
+              participants={[meta.assigned_to, meta.editor_id].filter(Boolean)}
+              team={team}
+              height={320}
+              label="Discussion"
+            />
+          )}
 
           {activity.length > 0 && <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>
