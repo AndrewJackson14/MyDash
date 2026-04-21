@@ -458,10 +458,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
   };
 
   // ── Issues for planning tab ─────────────────────────────────
+  // Print-side planner — keep sent-to-press issues visible (they're
+  // still relevant context for layout cleanup and post-press lookups).
+  // Date filter still scopes to today-and-forward to keep the sidebar
+  // from filling with archive issues.
   const futureIssues = useMemo(() => {
     const byPub = {};
     (issues || [])
-      .filter(i => !i.sentToPress && i.date >= new Date().toISOString().slice(0, 10) && (fPub === "all" || i.publicationId === fPub || i.pubId === fPub))
+      .filter(i => i.date >= new Date().toISOString().slice(0, 10) && (fPub === "all" || i.publicationId === fPub || i.pubId === fPub))
       .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
       .forEach(i => {
         const pk = i.publicationId || i.pubId;
