@@ -2,7 +2,7 @@ import { Z } from "../lib/theme";
 import { Modal } from "./ui";
 import MediaLibrary from "../pages/MediaLibrary";
 
-export default function MediaModal({ open, onClose, onSelect, pubs, pubFilter }) {
+export default function MediaModal({ open, onClose, onSelect, onSelectMulti, multi, pubs, pubFilter }) {
   if (!open) return null;
 
   const handleSelect = (asset) => {
@@ -13,6 +13,11 @@ export default function MediaModal({ open, onClose, onSelect, pubs, pubFilter })
       fileName: asset.fileName,
       id: asset.id,
     });
+    onClose();
+  };
+
+  const handleSelectMulti = (assets) => {
+    onSelectMulti?.(assets);
     onClose();
   };
 
@@ -33,12 +38,19 @@ export default function MediaModal({ open, onClose, onSelect, pubs, pubFilter })
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: "12px 16px", borderBottom: "1px solid " + Z.bd, flexShrink: 0,
         }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: Z.tx }}>Select Media</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: Z.tx }}>{multi ? "Select Multiple Images for Gallery" : "Select Media"}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 18 }}>{"\u00d7"}</button>
         </div>
         {/* Library */}
         <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-          <MediaLibrary pubs={pubs} embedded onSelect={handleSelect} pubFilter={pubFilter} />
+          <MediaLibrary
+            pubs={pubs}
+            embedded
+            onSelect={handleSelect}
+            onSelectMulti={handleSelectMulti}
+            multi={multi}
+            pubFilter={pubFilter}
+          />
         </div>
       </div>
     </div>

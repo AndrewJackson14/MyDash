@@ -440,7 +440,7 @@ const CATEGORY_OPTIONS = [
   { value: "client_logo", label: "Client Logo" },
 ];
 
-export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset, isActive }) {
+export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSelectMulti, multi, pubFilter, currentUser, mediaAssets, mediaAssetsLoaded, loadMediaAssets, pushMediaAsset, removeMediaAsset, isActive }) {
   // Publish TopBar header only when this is the standalone page (not the
   // embedded picker inside StoryEditor / MySites / etc). When
   // `embedded` is truthy the host page owns the header — bailing out of
@@ -602,7 +602,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
     setUploadModal(null);
     const newUploads = toUpload.map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, done: false, error: null }));
     setUploading(prev => [...prev, ...newUploads]);
-    let firstRow = null;
+    const completedRows = [];
     await uploadMediaBatch(toUpload, {
       publicationId: publicationId || null,
       category,
@@ -612,24 +612,28 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
       onEach: (row, file) => {
         setUploading(prev => prev.map(x => x.file === file ? { ...x, done: true, cdnUrl: row.cdn_url } : x));
         if (pushMediaAsset) pushMediaAsset(row);
-        if (!firstRow) firstRow = row;
+        completedRows.push(row);
       },
       onError: (file, err) => {
         setUploading(prev => prev.map(x => x.file === file ? { ...x, error: err.message } : x));
       },
     });
     setTimeout(() => setUploading(prev => prev.filter(u => !u.done)), 3000);
-    // Embed/picker mode (StoryEditor inline image, Sites logo picker, etc.):
-    // uploading *is* the selection intent, so auto-hand back the first row
-    // instead of making the user click the tile and then "Select This Image".
-    if (onSelect && firstRow) {
-      onSelect({
-        url: firstRow.cdn_url,
-        fileName: firstRow.file_name,
-        alt: firstRow.alt_text || "",
-        caption: firstRow.caption || "",
-        id: firstRow.id,
-      });
+    // Embed/picker mode (StoryEditor inline image, Sites logo picker, gallery
+    // picker, etc.): uploading *is* the selection intent. Hand the new rows
+    // back to the host instead of making the user click each tile.
+    if (completedRows.length === 0) return;
+    const toAsset = (r) => ({
+      url: r.cdn_url,
+      fileName: r.file_name,
+      alt: r.alt_text || "",
+      caption: r.caption || "",
+      id: r.id,
+    });
+    if (multi && onSelectMulti) {
+      onSelectMulti(completedRows.map(toAsset));
+    } else if (onSelect) {
+      onSelect(toAsset(completedRows[0]));
     }
   };
 
@@ -767,6 +771,23 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
       {selectedItems.size > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: Ri, border: "1px solid " + Z.ac + "20" }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
+          {multi && onSelectMulti && (
+            <button
+              onClick={() => {
+                const assets = files.filter(f => selectedItems.has(f.ObjectName)).map(f => ({
+                  url: f.cdnUrl || `${CDN_BASE}/${f.fullPath}`,
+                  fileName: f.ObjectName,
+                  alt: f._meta?.altText || "",
+                  caption: f._meta?.caption || "",
+                  id: f._meta?.id,
+                }));
+                onSelectMulti(assets);
+              }}
+              style={{ padding: "3px 12px", borderRadius: Ri, border: `1px solid ${Z.ac}`, background: Z.ac, color: INV.light, fontSize: 11, fontFamily: COND, fontWeight: 700, cursor: "pointer" }}
+            >
+              Insert {selectedItems.size} as Gallery
+            </button>
+          )}
           <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.da}30`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
           <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
         </div>

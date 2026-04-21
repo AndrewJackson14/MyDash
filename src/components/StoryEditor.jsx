@@ -6,6 +6,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
+import { Gallery } from "../lib/tiptapGallery";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, TB, Modal } from "./ui";
 import { STORY_STATUSES } from "../constants";
@@ -229,6 +230,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       Link.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: "Start writing your story\u2026" }),
       Underline, TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Gallery,
     ],
     content: editorContent,
     editorProps: {
@@ -467,6 +469,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
             <TBtn onClick={() => { setLinkUrl(editor.getAttributes("link").href || ""); setLinkModalOpen(true); }} active={editor.isActive("link")} title="Link">{"\ud83d\udd17"}</TBtn>
             <TBtn onClick={() => fileInput.current?.click()} title="Upload Image">{"\ud83d\udcf7"}</TBtn>
             <TBtn onClick={() => { setMediaPickerMode("inline"); setMediaPickerOpen(true); }} title="From Library">{"\ud83d\uddbc"}</TBtn>
+            <TBtn onClick={() => { setMediaPickerMode("gallery"); setMediaPickerOpen(true); }} title="Insert Gallery">{"\u25a6"}</TBtn>
             <TBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">{"\u2014"}</TBtn>
             <TSep />
             <TBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">{"\u21a9"}</TBtn>
@@ -797,14 +800,28 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
       <Modal open={imageModalOpen} onClose={() => setImageModalOpen(false)} title="Add Image"><div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 360 }}>{pendingImageUrl && <img src={pendingImageUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: Ri, background: Z.sa }} />}<Inp label="Caption (optional)" value={imageCaption} onChange={setImageCaption} placeholder="Photo credit or description\u2026" /><div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn sm v="cancel" onClick={() => setImageModalOpen(false)}>Cancel</Btn><Btn sm onClick={insertImage}>Insert Image</Btn></div></div></Modal>
 
-      <MediaModal open={mediaPickerOpen} onClose={() => setMediaPickerOpen(false)} pubs={pubs} pubFilter={selectedPubs[0] || undefined} onSelect={(media) => {
-        if (mediaPickerMode === "featured") {
-          saveMeta("featured_image_url", media.url);
-          if (media.id) saveMeta("featured_image_id", media.id);
-        } else {
-          if (editor) editor.chain().focus().setImage({ src: media.url, alt: media.alt || "", title: media.caption || "" }).run();
-        }
-      }} />
+      <MediaModal
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        pubs={pubs}
+        pubFilter={selectedPubs[0] || undefined}
+        multi={mediaPickerMode === "gallery"}
+        onSelect={(media) => {
+          if (mediaPickerMode === "featured") {
+            saveMeta("featured_image_url", media.url);
+            if (media.id) saveMeta("featured_image_id", media.id);
+          } else {
+            if (editor) editor.chain().focus().setImage({ src: media.url, alt: media.alt || "", title: media.caption || "" }).run();
+          }
+        }}
+        onSelectMulti={(assets) => {
+          if (!editor || !assets?.length) return;
+          editor.chain().focus().insertGallery({
+            images: assets.map(a => ({ url: a.url, alt: a.alt || "", caption: a.caption || "" })),
+            columns: 3,
+          }).run();
+        }}
+      />
 
       <style>{"\
         .tiptap { outline: none; }\
@@ -819,6 +836,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
         .tiptap a { color: " + Z.ac + "; text-decoration: underline; }\
         .tiptap hr { border: none; border-top: 1px solid " + Z.bd + "; margin: 2em 0; }\
         .tiptap .editor-image { max-width: 100%; border-radius: 4px; margin: 1.5em 0; }\
+        .tiptap .story-gallery { display: grid; gap: 6px; margin: 1.5em 0; grid-template-columns: repeat(3, 1fr); }\
+        .tiptap .story-gallery[data-columns='2'] { grid-template-columns: repeat(2, 1fr); }\
+        .tiptap .story-gallery[data-columns='4'] { grid-template-columns: repeat(4, 1fr); }\
+        .tiptap .story-gallery a { display: block; overflow: hidden; border-radius: 4px; position: relative; cursor: zoom-in; }\
+        .tiptap .story-gallery img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; margin: 0; }\
+        .tiptap .story-gallery.ProseMirror-selectednode { outline: 2px solid " + Z.ac + "; outline-offset: 2px; }\
         .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: " + Z.tm + "; pointer-events: none; height: 0; font-style: italic; }\
       "}</style>
     </div>
