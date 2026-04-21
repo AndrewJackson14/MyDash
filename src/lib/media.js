@@ -5,7 +5,7 @@
 // media_assets row in one shot. The metadata is the permanent
 // organization — folders are just physical layout.
 // ============================================================
-import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "./supabase";
+import { supabase, EDGE_FN_URL } from "./supabase";
 
 export const CDN_BASE = "https://cdn.13stars.media";
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
@@ -35,8 +35,11 @@ export function buildStoragePath(file) {
 async function authHeader() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
+  // supabase.supabaseKey is the anon key passed to createClient — live on
+  // the client instance so we don't have to rely on the bundled
+  // re-export being tree-shaken into every consumer chunk.
   return {
-    apikey: SUPABASE_ANON_KEY,
+    apikey: supabase.supabaseKey || "",
     Authorization: "Bearer " + session.access_token,
   };
 }

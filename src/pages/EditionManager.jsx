@@ -68,7 +68,7 @@ async function bunnyUploadWithProgress(file, path, filename, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", PROXY_URL, true);
-    xhr.setRequestHeader("apikey", import.meta.env.VITE_SUPABASE_ANON_KEY || "");
+    xhr.setRequestHeader("apikey", supabase.supabaseKey || "");
     xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.setRequestHeader("x-action", "upload");
