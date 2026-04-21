@@ -602,6 +602,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
     setUploadModal(null);
     const newUploads = toUpload.map(f => ({ id: Math.random().toString(36).slice(2), file: f, name: f.name, done: false, error: null }));
     setUploading(prev => [...prev, ...newUploads]);
+    let firstRow = null;
     await uploadMediaBatch(toUpload, {
       publicationId: publicationId || null,
       category,
@@ -611,12 +612,25 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, pubFil
       onEach: (row, file) => {
         setUploading(prev => prev.map(x => x.file === file ? { ...x, done: true, cdnUrl: row.cdn_url } : x));
         if (pushMediaAsset) pushMediaAsset(row);
+        if (!firstRow) firstRow = row;
       },
       onError: (file, err) => {
         setUploading(prev => prev.map(x => x.file === file ? { ...x, error: err.message } : x));
       },
     });
     setTimeout(() => setUploading(prev => prev.filter(u => !u.done)), 3000);
+    // Embed/picker mode (StoryEditor inline image, Sites logo picker, etc.):
+    // uploading *is* the selection intent, so auto-hand back the first row
+    // instead of making the user click the tile and then "Select This Image".
+    if (onSelect && firstRow) {
+      onSelect({
+        url: firstRow.cdn_url,
+        fileName: firstRow.file_name,
+        alt: firstRow.alt_text || "",
+        caption: firstRow.caption || "",
+        id: firstRow.id,
+      });
+    }
   };
 
   // Delete — if the item is a DB-backed row, use deleteMedia which cleans both
