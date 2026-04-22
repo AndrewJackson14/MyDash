@@ -664,6 +664,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             issues={issues}
             team={team}
             bus={bus}
+            currentUser={currentUser}
             publishStory={publishStory}
             unpublishStory={unpublishStory}
           />

@@ -123,7 +123,7 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
 // ══════════════════════════════════════════════════════════════════
 // STORY EDITOR
 // ══════════════════════════════════════════════════════════════════
-const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publishStory, unpublishStory }) => {
+const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, currentUser, publishStory, unpublishStory }) => {
   const dialog = useDialog();
   const [meta, setMeta] = useState({ ...story });
   const [saving, setSaving] = useState(false);
@@ -149,6 +149,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   const [savingPubDate, setSavingPubDate] = useState(false);
   const [discussionOpen, setDiscussionOpen] = useState(false);
   const [discussionCount, setDiscussionCount] = useState(null);
+  // Story lock: who (if anyone) is already editing this story. Driven by
+  // Supabase Realtime presence. When non-null + not me, render a blocking
+  // modal so only one editor has the story open at a time.
+  const [lockedBy, setLockedBy] = useState(null);
   const [fullContent, setFullContent] = useState(null); // loaded from DB
   const [contentLoading, setContentLoading] = useState(true);
   const saveTimer = useRef(null);
@@ -299,6 +303,65 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [story.id]);
+
+  // ── Story lock (single-editor presence channel) ────────────
+  // Uses Supabase Realtime presence: each StoryEditor mount joins
+  // `story-lock-${storyId}` and tracks its user. On sync we compare
+  // joinedAt timestamps — the earliest joiner owns the lock; anyone
+  // who arrives later sees a blocking modal and can only back out.
+  //
+  // Automatic cleanup: closing the tab / navigating away / network
+  // drop evicts the presence row (~30s heartbeat timeout), so the
+  // lock releases without manual intervention.
+  useEffect(() => {
+    if (!story?.id) return;
+    // Resolve a stable identity for this session. Prefer the passed-in
+    // currentUser; fall back to the signed-in auth user so we never
+    // register an anonymous lock that nobody can break.
+    let cancelled = false;
+    let channel;
+    const joinedAt = Date.now();
+    (async () => {
+      let me = currentUser;
+      if (!me?.id) {
+        const { data } = await supabase.auth.getUser();
+        const authUser = data?.user;
+        const teamRow = authUser?.email && Array.isArray(team)
+          ? team.find(t => (t.email || "").toLowerCase() === authUser.email.toLowerCase())
+          : null;
+        me = {
+          id: teamRow?.id || authUser?.id || `anon-${joinedAt}`,
+          name: teamRow?.name || authUser?.user_metadata?.name || authUser?.email || "Unknown",
+        };
+      }
+      if (cancelled) return;
+      const key = me.id;
+      channel = supabase.channel(`story-lock-${story.id}`, {
+        config: { presence: { key } },
+      });
+      channel.on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        // Flatten — presenceState returns { key: [ {…meta} ] }.
+        const everyone = Object.values(state).flat();
+        if (everyone.length <= 1) { setLockedBy(null); return; }
+        // Earliest joiner owns the lock; ties broken by user id.
+        const winner = everyone.slice().sort((a, b) =>
+          (a.joinedAt - b.joinedAt) || (a.userId || "").localeCompare(b.userId || "")
+        )[0];
+        if (!winner || winner.userId === me.id) { setLockedBy(null); return; }
+        setLockedBy({ userId: winner.userId, userName: winner.userName || "another editor", joinedAt: winner.joinedAt });
+      });
+      channel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ userId: me.id, userName: me.name || "Editor", joinedAt });
+        }
+      });
+    })();
+    return () => {
+      cancelled = true;
+      try { if (channel) { channel.untrack(); supabase.removeChannel(channel); } } catch (_) {}
+    };
+  }, [story?.id, currentUser?.id, team]);
 
   // ── Auto-save content ───────────────────────────────────────
   const autoSave = useCallback(async (cj, pt) => {
@@ -523,6 +586,25 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
 
   if (contentLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontFamily: COND }}>Loading story content\u2026</div>;
   if (!editor) return null;
+
+  // ── Story-lock blocking modal ──────────────────────────────
+  // If another editor got here first, don't render the editor at
+  // all — show a full-screen notice with a single exit affordance.
+  if (lockedBy) {
+    const since = lockedBy.joinedAt ? new Date(lockedBy.joinedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: Z.bg, padding: 24 }}>
+        <div style={{ maxWidth: 460, textAlign: "center", background: Z.sf, border: "1px solid " + Z.bd, borderRadius: R, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>\ud83d\udd12</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Story is open elsewhere</h2>
+          <p style={{ margin: "0 0 20px", fontSize: 14, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
+            <strong style={{ color: Z.tx }}>{lockedBy.userName}</strong> is editing "{meta.title || "this story"}"{since ? ` since ${since}` : ""}. Only one editor can have a story open at a time to avoid conflicting saves.
+          </p>
+          <Btn onClick={onClose} style={{ width: "100%" }}>Back to Editorial</Btn>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: Z.bg }}>
