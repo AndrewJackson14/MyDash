@@ -302,18 +302,61 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
             </div>
           </div>
         </>}
-        {/* Publication assignments with % */}
+        {/* Publication assignments — click-to-toggle, saves on change */}
         <div style={{ marginTop: 8 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Publication Assignments</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {pubs.map(p => {
-              const isAssigned = (member.pubs || []).includes("all") || (member.pubs || []).includes(p.id);
-              return <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: isAssigned ? Z.go + "08" : Z.sa, borderRadius: Ri, borderLeft: `2px solid ${isAssigned ? Z.go : Z.bd}` }}>
-                <span style={{ flex: 1, fontSize: FS.sm, fontWeight: isAssigned ? FW.bold : FW.normal, color: isAssigned ? Z.tx : Z.td }}>{p.name}</span>
-                <span style={{ fontSize: FS.xs, color: isAssigned ? Z.go : Z.td }}>{isAssigned ? "Assigned" : "—"}</span>
-              </div>;
-            })}
-          </div>
+          {(() => {
+            const current = member.pubs || [];
+            const isAllSelected = current.includes("all");
+            // Optimistic update + persist. Keep both assignedPubs (DB write
+            // key) and pubs (local-state readers) in sync so the UI reflects
+            // the change without a refetch.
+            const savePubs = async (next) => {
+              if (!updateTeamMember) return;
+              await updateTeamMember(member.id, { assignedPubs: next, pubs: next });
+            };
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {/* "All publications" master toggle — when on, per-pub
+                    toggles lock. Turning it off expands to the explicit
+                    list so the admin can uncheck one or two without
+                    having to click every pub on. */}
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: isAllSelected ? Z.go + "08" : Z.sa, borderRadius: Ri, borderLeft: `2px solid ${isAllSelected ? Z.go : Z.bd}`, cursor: "pointer" }}>
+                  <input type="checkbox" checked={isAllSelected}
+                    onChange={() => savePubs(isAllSelected ? pubs.map(p => p.id) : ["all"])}
+                    style={{ cursor: "pointer", accentColor: Z.go }} />
+                  <span style={{ flex: 1, fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>All Publications</span>
+                  <span style={{ fontSize: FS.xs, color: isAllSelected ? Z.go : Z.td }}>{isAllSelected ? "Assigned" : "—"}</span>
+                </label>
+                {pubs.map(p => {
+                  const isAssigned = isAllSelected || current.includes(p.id);
+                  const locked = isAllSelected;
+                  return (
+                    <label key={p.id} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 10px",
+                      background: isAssigned ? Z.go + "08" : Z.sa,
+                      borderRadius: Ri, borderLeft: `2px solid ${isAssigned ? Z.go : Z.bd}`,
+                      cursor: locked ? "not-allowed" : "pointer",
+                      opacity: locked ? 0.6 : 1,
+                    }}>
+                      <input type="checkbox" checked={isAssigned} disabled={locked}
+                        onChange={() => {
+                          if (locked) return;
+                          const next = current.includes(p.id)
+                            ? current.filter(x => x !== p.id)
+                            : [...current, p.id];
+                          savePubs(next);
+                        }}
+                        style={{ cursor: locked ? "not-allowed" : "pointer", accentColor: Z.go }} />
+                      <span style={{ flex: 1, fontSize: FS.sm, fontWeight: isAssigned ? FW.bold : FW.normal, color: isAssigned ? Z.tx : Z.td }}>{p.name}</span>
+                      <span style={{ fontSize: FS.xs, color: isAssigned ? Z.go : Z.td }}>{isAssigned ? "Assigned" : "—"}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
         {/* Freelancer settings */}
         {member.isFreelance && <div style={{ marginTop: 8 }}>
