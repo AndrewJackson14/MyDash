@@ -1,6 +1,11 @@
 // ============================================================
 // send-newsletter — AWS SES SendEmail fan-out for a draft.
 //
+// Deployed with verify_jwt: false. The function does its own
+// getUser(token) check below. With verify_jwt:true the Supabase
+// platform layer was rejecting valid sessions at ~422ms in —
+// same failure mode we hit on gmail-api v6.
+//
 // Flow:
 //   1. Auth user → load draft → validate status=approved
 //   2. Load subscribers for draft.publication_id (status=active)
