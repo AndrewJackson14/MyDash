@@ -1,14 +1,173 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../lib/theme";
 import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, EntityLink } from "../components/ui";
 import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
+import { supabase } from "../lib/supabase";
 import AssetPanel from "../components/AssetPanel";
 import EntityThread from "../components/EntityThread";
 
 // ─── Constants ──────────────────────────────────────────────
+// Publications that qualify as "newspaper of general circulation"
+// and can publish legal notices. Map from pub_id → 3-letter code
+// used in notice numbers (TMT26001, PRP26001, ATN26001).
+const LEGAL_PUB_CODES = {
+  "pub-the-malibu-times":  "TMT",
+  "pub-paso-robles-press": "PRP",
+  "pub-atascadero-news":   "ATN",
+};
+// Siblings ALWAYS run legals together — picking Paso Robles Press
+// auto-runs in Atascadero News and vice-versa. Two separate notice
+// numbers are allocated (one per pub).
+const LEGAL_SIBLING_GROUPS = [
+  ["pub-paso-robles-press", "pub-atascadero-news"],
+];
+const siblingsFor = (pubId) => {
+  const group = LEGAL_SIBLING_GROUPS.find(g => g.includes(pubId));
+  return group ? group.filter(p => p !== pubId) : [];
+};
+
+const RATE_PLANS = [
+  { value: "per_char",          label: "Per Character ($/char)" },
+  { value: "probate_flat",      label: "Probate (flat)" },
+  { value: "name_change_flat",  label: "Name Change (flat)" },
+];
+
+// Strip HTML tags + collapse whitespace for billable-character counting.
+// Legal notices are billed on body text only — HTML formatting doesn't
+// pad the count.
+const htmlToPlainText = (html) => {
+  if (!html) return "";
+  return String(html)
+    .replace(/<\/(p|div|h[1-6]|li|br)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+};
+
+// Resolve the effective rate for a (publication, rate plan) pair from
+// the pub row. Falls back to the statutory default for per_char if the
+// pub has never been configured.
+const resolveRate = (pub, plan) => {
+  if (!pub) return { amount: 0, unit: "" };
+  if (plan === "per_char") return { amount: Number(pub.legalRatePerChar ?? pub.legal_rate_per_char ?? 0.055), unit: "char" };
+  if (plan === "probate_flat")     return { amount: Number(pub.legalProbateFlat     ?? pub.legal_probate_flat     ?? 0), unit: "flat" };
+  if (plan === "name_change_flat") return { amount: Number(pub.legalNameChangeFlat  ?? pub.legal_name_change_flat  ?? 0), unit: "flat" };
+  if (plan === "fbn_flat")         return { amount: Number(pub.legalFbnFlat         ?? pub.legal_fbn_flat         ?? 0), unit: "flat" };
+  return { amount: 0, unit: "" };
+};
+
+// ─── Rich-text body editor (minimal toolbar: B/I/U + lists) ──────────
+function NoticeBodyEditor({ valueHtml, onChange }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: false, codeBlock: false, horizontalRule: false, blockquote: false }),
+      Underline,
+    ],
+    content: valueHtml || "",
+    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+  });
+  // Keep external value changes in sync (e.g. form reset).
+  useEffect(() => {
+    if (!editor) return;
+    if ((editor.getHTML() || "") !== (valueHtml || "")) editor.commands.setContent(valueHtml || "", false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valueHtml, editor]);
+  if (!editor) return null;
+  const TBtn = ({ onClick, active, children, title }) => (
+    <button type="button" onClick={onClick} title={title} style={{
+      padding: "4px 8px", borderRadius: Ri, border: "none",
+      background: active ? Z.ac + "20" : "transparent",
+      color: active ? Z.ac : Z.tm, cursor: "pointer",
+      fontSize: 13, fontWeight: active ? 700 : 500, minWidth: 26, height: 26,
+    }}>{children}</button>
+  );
+  return (
+    <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.sf, overflow: "hidden" }}>
+      <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa }}>
+        <TBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} title="Bold"><strong>B</strong></TBtn>
+        <TBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="Italic"><em>I</em></TBtn>
+        <TBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} title="Underline"><u>U</u></TBtn>
+        <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
+        <TBtn onClick={() => editor.chain().focus().toggleBulletList().run()}  active={editor.isActive("bulletList")}  title="Bullets">• List</TBtn>
+        <TBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Numbered">1. List</TBtn>
+      </div>
+      <div style={{ padding: "10px 12px", minHeight: 180, maxHeight: 360, overflowY: "auto", fontSize: 13, color: Z.tx, lineHeight: 1.55 }}>
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Live client search (contains-match, not prefix) ─────────────────
+function ClientSearch({ clients, value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = value ? (clients || []).find(c => c.id === value) : null;
+  // contains-match on name; case-insensitive. Caps at 12 matches to
+  // keep the dropdown reasonable. Sorts by name for predictability.
+  const matches = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return (clients || [])
+      .filter(c => (c.name || "").toLowerCase().includes(q))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+      .slice(0, 12);
+  }, [clients, query]);
+  if (selected) {
+    return (
+      <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Client</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+          <span style={{ flex: 1, fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{selected.name}</span>
+          <button type="button" onClick={() => { onChange(""); setQuery(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12 }}>Change</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Client</div>
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        placeholder="Type to search clients…"
+        style={{ width: "100%", padding: "8px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.md, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+      />
+      {open && query.trim() && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", zIndex: 50, maxHeight: 280, overflowY: "auto" }}>
+          {matches.length === 0 && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: Z.tm, fontStyle: "italic" }}>
+              No matches — the client will be created from the notice form.
+            </div>
+          )}
+          {matches.map(c => (
+            <div key={c.id} onMouseDown={(e) => { e.preventDefault(); onChange(c.id); setQuery(""); setOpen(false); }}
+              style={{ padding: "8px 12px", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, fontSize: 13 }}
+              onMouseEnter={e => e.currentTarget.style.background = Z.sa}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ fontWeight: FW.bold, color: Z.tx }}>{c.name}</div>
+              {c.city && <div style={{ fontSize: 10, color: Z.tm }}>{c.city}{c.state ? ", " + c.state : ""}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Legacy constant kept for historical reads on already-saved rows ─
 const NOTICE_TYPES = [
   { value: "fictitious_business", label: "Fictitious Business Name" },
   { value: "name_change", label: "Name Change" },
@@ -78,44 +237,48 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   // Pending scan attachment(s) to be uploaded & tagged once the notice is saved
   const [pendingScans, setPendingScans] = useState([]);
 
-  const all = legalNotices || [];
+  // Listing excludes FBNs — they're created + managed from ClientProfile.
+  const all = (legalNotices || []).filter(n => (n.kind || "legal_notice") !== "fbn");
   const allIssueLinks = legalNoticeIssues || [];
-  const newspapers = pubs.filter(p => p.type === "Newspaper");
+  // Only pubs with a legal code + general-circulation status can publish.
+  const newspapers = pubs.filter(p => LEGAL_PUB_CODES[p.id]);
 
   const pn = (pid) => pubs.find(p => p.id === pid)?.name || "";
   const tn = (tid) => team?.find(t => t.id === tid)?.name || "";
 
-  // Legal-notice clients are a small curated set (law firms, trustees,
-  // government agencies) flagged via category === "Legal Notice". Showing
-  // only these in the picker keeps the modal fast and uncluttered.
-  const legalClients = useMemo(
-    () => (clients || [])
-      .filter(c => (c.category || "").toLowerCase() === "legal notice")
-      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
-    [clients]
-  );
-
   // ─── Form ───────────────────────────────────────────────
+  // New shape: title + rich-text body, run_dates array, per-pub rate
+  // plan. Legacy fields retained as empty defaults for back-compat on
+  // save, but the UI no longer surfaces contact/org/email/phone.
   const blank = {
     clientId: "",
-    contactName: "", contactEmail: "", contactPhone: "", organization: "",
-    noticeType: "fictitious_business", status: "received",
-    content: "", publicationId: newspapers[0]?.id || "",
-    issuesRequested: 1,
-    // New per-character billing. Keep legacy ratePerLine / flatRate fields on
-    // existing rows so history reads still work, but new notices use ratePerChar.
-    ratePerChar: 0.09, ratePerLine: 0, lineCount: 0, flatRate: 0, totalAmount: 0,
+    title: "",
+    kind: "legal_notice",
+    status: "received",
+    publicationId: newspapers[0]?.id || "",
+    ratePlan: "per_char",
+    ratePerChar: 0.055,
+    flatRate: 0,
+    runDates: [""],
+    issuesRequested: 1,           // derived from runDates.length, but stored for legacy reads
+    bodyHtml: "",
+    content: "",                  // legacy plain-text for bill-line description
+    totalAmount: 0,
     notes: "",
+    noticeNumber: null,
   };
   const [form, setForm] = useState(blank);
 
-  // Rate × characters (incl. spaces) × runs. Falls back to legacy flat/line
-  // billing only if no ratePerChar set (existing rows).
+  // Rate × characters × runs (per_char), or flatRate × runs (flat plans).
+  // Character count comes from HTML-stripped body so formatting markup
+  // doesn't inflate the bill.
   const calcTotal = (f) => {
-    const chars = (f.content || "").length;
-    if (f.ratePerChar > 0) return Math.round(f.ratePerChar * chars * (f.issuesRequested || 1) * 100) / 100;
-    if (f.flatRate > 0) return f.flatRate * (f.issuesRequested || 1);
-    return (f.ratePerLine || 0) * (f.lineCount || 0) * (f.issuesRequested || 1);
+    const runs = Math.max(1, (f.runDates || []).filter(Boolean).length || f.issuesRequested || 1);
+    if (f.ratePlan === "per_char") {
+      const chars = htmlToPlainText(f.bodyHtml || f.content || "").length;
+      return Math.round(Number(f.ratePerChar || 0) * chars * runs * 100) / 100;
+    }
+    return Math.round(Number(f.flatRate || 0) * runs * 100) / 100;
   };
 
   const updateForm = (updates) => {
@@ -126,25 +289,32 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     });
   };
 
-  // Pick a client from the flagged legal-notice list and auto-fill the
-  // organization + primary contact. Leaves content/rate/publication alone
-  // so the user's in-progress entry doesn't get clobbered.
-  const pickClient = (clientId) => {
-    if (!clientId) {
-      updateForm({ clientId: "", organization: "", contactName: "", contactEmail: "", contactPhone: "" });
-      return;
-    }
-    const c = (clients || []).find(x => x.id === clientId);
-    if (!c) return;
-    const primary = (c.contacts || []).find(ct => ct.is_primary) || (c.contacts || [])[0] || {};
-    updateForm({
-      clientId: c.id,
-      organization: c.name || "",
-      contactName: primary.name || "",
-      contactEmail: primary.email || "",
-      contactPhone: primary.phone || "",
+  // Just stores the selected client id; contact fields are gone.
+  const pickClient = (clientId) => updateForm({ clientId: clientId || "" });
+
+  // Resolve the effective pricing for (publication, plan) and push the
+  // values into the form whenever either changes — so the rate field
+  // auto-populates with the configured per-pub flat or per-char rate.
+  useEffect(() => {
+    const pub = (pubs || []).find(p => p.id === form.publicationId);
+    const { amount, unit } = resolveRate(pub, form.ratePlan);
+    if (unit === "char") updateForm({ ratePerChar: amount });
+    else                 updateForm({ flatRate: amount });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.publicationId, form.ratePlan]);
+
+  // Keep runDates array length in sync with issuesRequested — if the
+  // user bumps it from 1 → 3, two blank date slots appear.
+  useEffect(() => {
+    setForm(f => {
+      const target = Math.max(1, Number(f.issuesRequested) || 1);
+      if ((f.runDates || []).length === target) return f;
+      const next = [...(f.runDates || [])];
+      while (next.length < target) next.push("");
+      next.length = target;
+      return { ...f, runDates: next };
     });
-  };
+  }, [form.issuesRequested]);
 
   // ─── Stats ──────────────────────────────────────────────
   const active = all.filter(n => !["published", "billed"].includes(n.status));
@@ -167,33 +337,65 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   };
 
   const saveNotice = async () => {
-    if (!form.contactName || !form.content) return;
-    const total = calcTotal(form);
+    // New required fields: client + title + body + publication + at
+    // least one run date. Contact fields are gone.
+    const hasBody = (htmlToPlainText(form.bodyHtml) || form.content || "").trim().length > 0;
+    const runDates = (form.runDates || []).filter(Boolean);
+    if (!form.clientId || !form.title?.trim() || !hasBody || !form.publicationId || runDates.length === 0) return;
+
+    const total = calcTotal({ ...form, runDates });
     const nowIso = new Date().toISOString();
 
-    // On create (not edit): use the picked client if any, otherwise find or
-    // create one. The legal-notice flag is managed manually on the client
-    // profile — we no longer auto-tag here. Fictitious business filings
-    // still auto-flag the client as a Lead per the sales policy.
-    let clientId = form.clientId || null;
-    if (!editId && !clientId) {
-      const orgName = form.organization || form.contactName;
-      const existing = (clients || []).find(c => (c.name || "").toLowerCase() === orgName.toLowerCase());
-      if (existing) {
-        clientId = existing.id;
-      } else if (insertClient) {
-        const isFbn = form.noticeType === "fictitious_business";
-        const created = await insertClient({
-          name: orgName,
-          status: isFbn ? "Lead" : "Active",
-          totalSpend: 0,
-          contacts: [{ name: form.contactName, email: form.contactEmail, phone: form.contactPhone, role: "Business Owner" }],
-        });
-        clientId = created?.id || null;
+    // Allocate per-pub-per-year notice numbers for the primary pub +
+    // any siblings that auto-run together. Only do this on create.
+    let noticeNumber = form.noticeNumber || null;
+    let siblingNumbers = {};
+    if (!editId) {
+      const year = new Date().getFullYear();
+      const yy = String(year).slice(-2);
+      const primaryCode = LEGAL_PUB_CODES[form.publicationId];
+      try {
+        const { data } = await supabase.rpc("next_legal_notice_number", { p_pub_id: form.publicationId, p_year: year });
+        if (data != null && primaryCode) noticeNumber = `${primaryCode}${yy}${String(data).padStart(3, "0")}`;
+      } catch (err) { console.error("notice_number allocation failed:", err); }
+      // Siblings get their own sequence allocation (PRP ↔ ATN always
+      // run together). Captured here so the appended body + invoice
+      // line can reference both.
+      for (const sibId of siblingsFor(form.publicationId)) {
+        const sibCode = LEGAL_PUB_CODES[sibId];
+        if (!sibCode) continue;
+        try {
+          const { data } = await supabase.rpc("next_legal_notice_number", { p_pub_id: sibId, p_year: year });
+          if (data != null) siblingNumbers[sibId] = `${sibCode}${yy}${String(data).padStart(3, "0")}`;
+        } catch (err) { console.error("sibling notice_number allocation failed:", err); }
       }
     }
 
-    const noticeRow = { ...form, totalAmount: total, clientId, updatedAt: nowIso };
+    // Append run-date lines + pub codes to the printed body. Pure-text
+    // block appended to the HTML as a <div> so rich-text preserves it.
+    const allNumbers = [noticeNumber, ...Object.values(siblingNumbers)].filter(Boolean);
+    const runDateLines = runDates
+      .map(d => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+    const appendBlock = noticeNumber ? (
+      `<hr /><div style="font-family: monospace; font-size: 11px; color: #525e72; margin-top: 12px;">` +
+      `<div>Notice ID: ${allNumbers.join(" / ")}</div>` +
+      runDateLines.map(l => `<div>Run date: ${l}</div>`).join("") +
+      `</div>`
+    ) : "";
+    const finalHtml = (form.bodyHtml || "") + (editId ? "" : appendBlock);
+    const finalText = htmlToPlainText(finalHtml);
+
+    const noticeRow = {
+      ...form,
+      noticeNumber,
+      runDates,
+      issuesRequested: runDates.length,
+      bodyHtml: finalHtml,
+      content: finalText,
+      totalAmount: total,
+      clientId: form.clientId,
+      updatedAt: nowIso,
+    };
 
     if (editId) {
       setLegalNotices(prev => (prev || []).map(n => n.id === editId ? { ...n, ...noticeRow } : n));
@@ -203,7 +405,6 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       if (insertLegalNotice) insertLegalNotice(newNotice);
 
       // Upload any attached scan files and tag them to this legal notice.
-      // Best-effort: a failed upload logs but doesn't roll back the notice save.
       if (pendingScans.length > 0) {
         for (const f of pendingScans) {
           try {
@@ -211,21 +412,23 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
               category: "legal_scan",
               legalNoticeId: newNotice.id,
               publicationId: form.publicationId || null,
-              clientId,
+              clientId: form.clientId,
               uploadedBy: currentUser?.id || null,
-              caption: `Legal Notice — ${form.organization || form.contactName}`,
+              caption: `Legal Notice — ${form.title || noticeNumber || ""}`,
             });
           } catch (err) { console.error("Legal scan upload failed:", err); }
         }
         setPendingScans([]);
       }
 
-      // Auto-invoice: skipped if "Save as Draft" was used (skipInvoice flag).
-      // When invoicing, mark sent so it appears on client AR immediately.
-      if (insertInvoice && clientId && total > 0 && !form.skipInvoice) {
+      // Auto-invoice: skipped if "Save as Draft" was used.
+      if (insertInvoice && form.clientId && total > 0 && !form.skipInvoice) {
         const due = new Date(); due.setDate(due.getDate() + 30);
+        const lineDesc = form.ratePlan === "per_char"
+          ? `${form.title} — ${finalText.length} chars × ${runDates.length} run${runDates.length > 1 ? "s" : ""} @ $${Number(form.ratePerChar).toFixed(4)}/char${allNumbers.length ? ` (${allNumbers.join(" / ")})` : ""}`
+          : `${form.title} — $${Number(form.flatRate).toFixed(2)} × ${runDates.length} run${runDates.length > 1 ? "s" : ""}${allNumbers.length ? ` (${allNumbers.join(" / ")})` : ""}`;
         await insertInvoice({
-          clientId,
+          clientId: form.clientId,
           status: "sent",
           billingSchedule: "lump_sum",
           subtotal: total,
@@ -233,9 +436,9 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
           balanceDue: total,
           issueDate: nowIso.slice(0, 10),
           dueDate: due.toISOString().slice(0, 10),
-          notes: `Legal Notice — ${form.organization || form.contactName}`,
+          notes: `Legal Notice — ${form.title}${allNumbers.length ? ` (${allNumbers.join(" / ")})` : ""}`,
           lines: [{
-            description: `${NOTICE_TYPES.find(t => t.value === form.noticeType)?.label || "Legal Notice"} — ${(form.content || "").length} chars × ${form.issuesRequested} run${form.issuesRequested > 1 ? "s" : ""} @ $${form.ratePerChar}/char`,
+            description: lineDesc,
             productType: "legal_notice",
             legalNoticeId: newNotice.id,
             quantity: 1,
@@ -548,69 +751,86 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       onSubmit={saveNotice}
       actions={<>
         <Btn v="cancel" onClick={() => setNoticeModal(false)}>Cancel</Btn>
-        {!editId && <Btn v="secondary" onClick={() => { updateForm({ skipInvoice: true }); saveNotice(); }} disabled={!form.contactName || !form.content}>Save as Draft</Btn>}
-        <Btn onClick={saveNotice} disabled={!form.contactName || !form.content}>{editId ? "Save Changes" : "Save & Invoice"}</Btn>
+        {!editId && <Btn v="secondary" onClick={() => { updateForm({ skipInvoice: true }); saveNotice(); }} disabled={!form.clientId || !form.title?.trim()}>Save as Draft</Btn>}
+        <Btn onClick={saveNotice} disabled={!form.clientId || !form.title?.trim() || (form.runDates || []).filter(Boolean).length === 0}>{editId ? "Save Changes" : "Save & Invoice"}</Btn>
       </>}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-        {/* Client picker — filtered to the curated "Legal Notice" client list */}
-        {!editId && <Sel
-          label={`Client${legalClients.length ? ` (${legalClients.length} flagged)` : ""}`}
-          value={form.clientId}
-          onChange={e => pickClient(e.target.value)}
-          options={[
-            { value: "", label: legalClients.length ? "— Select client or add new below —" : "— No legal-notice clients yet; fill in below —" },
-            ...legalClients.map(c => ({ value: c.id, label: c.name })),
-          ]}
-        />}
+        {/* Client — live contains-match search (replaces prior curated dropdown) */}
+        {!editId && <ClientSearch clients={clients} value={form.clientId} onChange={pickClient} />}
+
+        <Inp label="Notice Title" value={form.title} onChange={e => updateForm({ title: e.target.value })} placeholder="e.g. Notice of Trustee's Sale — 123 Main St" />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Sel label="Notice Type" value={form.noticeType} onChange={e => updateForm({ noticeType: e.target.value })} options={NOTICE_TYPES} />
-          <Sel label="Publication" value={form.publicationId} onChange={e => updateForm({ publicationId: e.target.value })} options={newspapers.map(p => ({ value: p.id, label: p.name }))} />
+          <Sel label="Publication" value={form.publicationId} onChange={e => updateForm({ publicationId: e.target.value })} options={newspapers.map(p => ({ value: p.id, label: p.name + (siblingsFor(p.id).length ? " (+sibling)" : "") }))} />
+          <Sel label="Rate Plan" value={form.ratePlan} onChange={e => updateForm({ ratePlan: e.target.value })} options={RATE_PLANS} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Inp label="Contact Name" value={form.contactName} onChange={e => updateForm({ contactName: e.target.value })} placeholder="John Smith" />
-          <Inp label="Organization" value={form.organization} onChange={e => updateForm({ organization: e.target.value })} placeholder="Law firm, agency, etc." />
+        {/* Notice body — rich text with minimal toolbar (B/I/U + lists) */}
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Notice Text</div>
+          <NoticeBodyEditor valueHtml={form.bodyHtml} onChange={html => updateForm({ bodyHtml: html, content: htmlToPlainText(html) })} />
+          <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>
+            {htmlToPlainText(form.bodyHtml || "").length.toLocaleString()} characters · {(form.bodyHtml || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length} words
+          </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Inp label="Email" type="email" value={form.contactEmail} onChange={e => updateForm({ contactEmail: e.target.value })} />
-          <Inp label="Phone" value={form.contactPhone} onChange={e => updateForm({ contactPhone: e.target.value })} />
+        {/* Run dates — one picker per issue. Incrementing issuesRequested
+            adds blank slots automatically via the sync effect. */}
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Issues to Run</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <input type="number" min="1" max="12" value={form.issuesRequested} onChange={e => updateForm({ issuesRequested: Math.max(1, Number(e.target.value) || 1) })}
+              style={{ width: 80, padding: "6px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.md, outline: "none" }} />
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{siblingsFor(form.publicationId).length > 0 ? "Runs in " + [form.publicationId, ...siblingsFor(form.publicationId)].map(id => pn(id)).join(" + ") : `Runs in ${pn(form.publicationId)}`}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+            {(form.runDates || []).map((d, i) => (
+              <div key={i}>
+                <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Run #{i + 1}</div>
+                <input type="date" value={d || ""} onChange={e => updateForm({ runDates: form.runDates.map((x, j) => j === i ? e.target.value : x) })}
+                  style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
         </div>
 
-        <TA label="Notice Text" value={form.content} onChange={e => {
-          updateForm({ content: e.target.value, lineCount: e.target.value.split("\n").length });
-        }} rows={8} placeholder="Paste or type the full legal notice text..." />
-
-        <div style={{ fontSize: FS.xs, color: Z.td }}>{(form.content || "").length.toLocaleString()} characters · {form.content?.split("\n").length || 0} lines · {form.content?.split(/\s+/).filter(Boolean).length || 0} words</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Inp label="Issues to Run" type="number" min="1" value={form.issuesRequested} onChange={e => updateForm({ issuesRequested: Number(e.target.value) || 1 })} />
-          <Inp label="Rate per Character ($)" type="number" step="0.01" min="0" value={form.ratePerChar} onChange={e => updateForm({ ratePerChar: Number(e.target.value) || 0 })} placeholder="0.09" />
-        </div>
-
-        {/* Live invoice preview — rate × characters × runs */}
+        {/* Auto-Calculated Total + rate field directly below it */}
         {(() => {
-          const chars = (form.content || "").length;
-          const runs = form.issuesRequested || 1;
+          const runs = (form.runDates || []).filter(Boolean).length || 1;
+          const chars = htmlToPlainText(form.bodyHtml || "").length;
           const total = calcTotal(form);
-          return <div style={{ padding: "12px 16px", background: Z.sa, borderRadius: R }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Auto-Calculated Total</span>
-              <span style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(total)}</span>
+          const isPerChar = form.ratePlan === "per_char";
+          return (
+            <div style={{ padding: "12px 16px", background: Z.sa, borderRadius: R }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>Auto-Calculated Total</span>
+                <span style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(total)}</span>
+              </div>
+              <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, marginBottom: 8 }}>
+                {isPerChar
+                  ? <>${Number(form.ratePerChar || 0).toFixed(4)}/char × {chars.toLocaleString()} char{chars === 1 ? "" : "s"} × {runs} run{runs > 1 ? "s" : ""}</>
+                  : <>${Number(form.flatRate || 0).toFixed(2)} flat × {runs} run{runs > 1 ? "s" : ""}</>
+                }
+              </div>
+              {/* Rate field — moved below the total per spec; replaces the
+                  prior per-row rate input. Default is the pub's configured
+                  legal_rate_per_char ($0.055) or the matching flat rate. */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 4 }}>
+                {isPerChar ? (
+                  <Inp label="Rate per Character ($)" type="number" step="0.001" min="0" value={form.ratePerChar}
+                    onChange={e => updateForm({ ratePerChar: Number(e.target.value) || 0 })} />
+                ) : (
+                  <Inp label="Flat Rate ($)" type="number" step="0.01" min="0" value={form.flatRate}
+                    onChange={e => updateForm({ flatRate: Number(e.target.value) || 0 })} />
+                )}
+              </div>
             </div>
-            <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>
-              ${Number(form.ratePerChar || 0).toFixed(2)}/char × {chars.toLocaleString()} char{chars === 1 ? "" : "s"} × {runs} run{runs > 1 ? "s" : ""}
-            </div>
-            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 6, fontStyle: "italic" }}>
-              "Save & Invoice" creates the invoice immediately. "Save as Draft" saves the order for layout first.
-            </div>
-          </div>;
+          );
         })()}
 
-        <TA label="Notes" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
+        <TA label="Notes (internal)" value={form.notes} onChange={e => updateForm({ notes: e.target.value })} rows={2} />
 
         {/* Scan attachments — uploaded + tagged to this notice on save */}
         {!editId && <div>
