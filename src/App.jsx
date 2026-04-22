@@ -414,7 +414,7 @@ export default function App() {
     { id: "_operations", section: true, label: "Operations" },
     { id: "circulation", label: "Circulation", icon: Ic.truck, badge: subExpiring || null },
     { id: "servicedesk", label: "Service Desk", icon: Ic.bell, badge: openTickets || null, badgeColor: escalatedTickets > 0 ? Z.da : null },
-    { id: "legalnotices", label: "Legal Notices", icon: Ic.gavel, badge: activeLegal || null },
+    { id: "legalnotices", label: "Legal Notices", icon: Ic.scroll, badge: activeLegal || null },
     { id: "performance", label: "Performance", icon: Ic.activity },
     { id: "_revenue_analytics", section: true, label: "Revenue" },
     { id: "analytics", label: "Reports", icon: Ic.barChart },
