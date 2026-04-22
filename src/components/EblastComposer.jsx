@@ -15,26 +15,55 @@ import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { mergeAttributes } from "@tiptap/core";
 
-// ─── Image with width attribute + hard max-width clamp ────
-// The default @tiptap/extension-image has no width attr; advertisers
-// need to size their logos/photos without the image blowing through
-// the 520px email body cell. renderHTML always injects max-width:100%
-// so we never overflow even if the user forgets to set a width.
+// ─── Image with width + href + hard max-width clamp ──────
+// Wraps the <img> in an <a> when href is set so ad images can be
+// click-targets (very common in eBlasts — logo clicks to advertiser
+// homepage, etc). The rendered anchor gets tracked through the
+// email-click redirector by the trackifyLinks pass in eblastTemplate.
+// On reload, href survives via a data-href attribute we write alongside
+// the wrapping anchor, plus a fallback that reads the parent <a>.
 const ResizableImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      width: { default: null, parseHTML: el => el.getAttribute("data-width") || null, renderHTML: () => ({}) },
+      width: {
+        default: null,
+        parseHTML: el => el.getAttribute("data-width") || null,
+        renderHTML: () => ({}),
+      },
+      href: {
+        default: null,
+        parseHTML: el => {
+          const dh = el.getAttribute("data-href");
+          if (dh) return dh;
+          const parent = el.parentElement;
+          if (parent && parent.tagName === "A" && parent.getAttribute("href")) {
+            return parent.getAttribute("href");
+          }
+          return null;
+        },
+        renderHTML: () => ({}),
+      },
     };
   },
   renderHTML({ HTMLAttributes, node }) {
     const w = node.attrs.width;
+    const href = node.attrs.href;
     const styleParts = ["max-width:100%", "height:auto", "display:block", "border-radius:4px"];
     if (w) styleParts.push(`width:${w}`);
-    return ["img", mergeAttributes(HTMLAttributes, {
+    const imgAttrs = mergeAttributes(HTMLAttributes, {
       style: styleParts.join(";"),
       "data-width": w || null,
-    })];
+      "data-href": href || null,
+    });
+    if (href) {
+      return [
+        "a",
+        { href, target: "_blank", rel: "noopener noreferrer", style: "display:block;text-decoration:none;" },
+        ["img", imgAttrs],
+      ];
+    }
+    return ["img", imgAttrs];
   },
 });
 
@@ -85,7 +114,18 @@ function EblastToolbar({ editor, onImageClick, imageUploading }) {
   };
   const imageActive = editor.isActive("image");
   const currentImgWidth = imageActive ? editor.getAttributes("image").width : null;
+  const currentImgHref = imageActive ? editor.getAttributes("image").href : null;
   const setImgWidth = (w) => editor.chain().focus().updateAttributes("image", { width: w }).run();
+  const setImgHref = () => {
+    const prev = editor.getAttributes("image").href || "";
+    const url = window.prompt("Link URL for this image (leave empty to remove):", prev);
+    if (url === null) return;
+    const cleaned = url.trim();
+    const final = cleaned
+      ? (cleaned.startsWith("http") ? cleaned : "https://" + cleaned)
+      : null;
+    editor.chain().focus().updateAttributes("image", { href: final }).run();
+  };
   return (
     <div>
       <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa, flexWrap: "wrap" }}>
@@ -120,6 +160,16 @@ function EblastToolbar({ editor, onImageClick, imageUploading }) {
             }}>{w}</button>
           ))}
           <button type="button" onClick={() => setImgWidth(null)} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Auto</button>
+          <div style={{ width: 1, height: 20, background: Z.bd, margin: "0 6px" }} />
+          <button type="button" onClick={setImgHref} style={{
+            padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd,
+            background: currentImgHref ? Z.ac + "20" : Z.sf,
+            color: currentImgHref ? Z.ac : Z.tm,
+            fontSize: 11, fontWeight: currentImgHref ? 700 : 500,
+            fontFamily: COND, cursor: "pointer", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }} title={currentImgHref || "Add a click-through URL"}>
+            {currentImgHref ? `🔗 ${currentImgHref.replace(/^https?:\/\//, "")}` : "🔗 Link to URL…"}
+          </button>
         </div>
       )}
     </div>
