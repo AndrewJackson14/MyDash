@@ -24,8 +24,10 @@ const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SES_SECRET_ACCESS_KEY") || "";
 const AWS_REGION = Deno.env.get("AWS_SES_REGION") || "us-east-1";
 const PUBLIC_APP_URL = Deno.env.get("PUBLIC_APP_URL") || "https://mydash.media";
 
-const CONCURRENCY = 20;
-const PROGRESS_EVERY_BATCH = 3; // update recipient_count every 3 batches (~60 emails)
+const CONCURRENCY = 10;
+const RATE_LIMIT_PER_SEC = 10;  // hard cap — SES production accounts default to 14/s, we stay under
+const MAX_RETRIES_ON_429 = 3;
+const PROGRESS_EVERY_BATCH = 5; // update recipient_count every 5 batches (~50 emails)
 const SUB_PAGE_SIZE = 1000;
 
 const corsHeaders = {
@@ -47,6 +49,25 @@ async function signingKey(secret: string, date: string, region: string, service:
   let k: Uint8Array = new TextEncoder().encode("AWS4" + secret);
   k = await hmac(k, date); k = await hmac(k, region); k = await hmac(k, service); k = await hmac(k, "aws4_request");
   return k;
+}
+
+// Retry SES 429s with exponential backoff before surfacing the error.
+// SES's "Maximum sending rate exceeded" is transient — the quota
+// refills on the next second. Retrying lets us stay close to the
+// rate limit without losing recipients to throttle errors.
+async function sesSendWithRetry(params: Parameters<typeof sesSendEmail>[0], attempt = 0): Promise<{ messageId: string }> {
+  try {
+    return await sesSendEmail(params);
+  } catch (err: any) {
+    const msg = String(err?.message || "");
+    const throttled = msg.includes("429") || msg.includes("rate exceeded") || msg.includes("Throttling");
+    if (throttled && attempt < MAX_RETRIES_ON_429) {
+      const backoffMs = 500 * Math.pow(2, attempt); // 500, 1000, 2000
+      await new Promise(r => setTimeout(r, backoffMs));
+      return sesSendWithRetry(params, attempt + 1);
+    }
+    throw err;
+  }
 }
 
 async function sesSendEmail(params: {
@@ -309,12 +330,19 @@ serve(async (req) => {
     let sent = 0, failed = 0;
     const errors: string[] = [];
 
+    // Pace batches so we never exceed RATE_LIMIT_PER_SEC. With
+    // CONCURRENCY=10 and RATE=10, each batch should take ≥1 second
+    // wall-clock regardless of how fast SES responds.
+    const minBatchMs = Math.ceil((CONCURRENCY / RATE_LIMIT_PER_SEC) * 1000);
+
     for (let batchStart = 0; batchStart < recipients.length; batchStart += CONCURRENCY) {
       const batch = recipients.slice(batchStart, batchStart + CONCURRENCY);
+      const batchStartMs = Date.now();
 
       // Fire SES for every recipient in parallel. Pre-generate a UUID
       // so the open-pixel/click-tracking URLs have a stable id that
-      // matches the email_sends row we'll insert after.
+      // matches the email_sends row we'll insert after. sesSendWithRetry
+      // absorbs transient 429s with exponential backoff.
       const results = await Promise.all(batch.map(async (r) => {
         const sendRowId = crypto.randomUUID();
         const html = (draft.html_body || "")
@@ -322,7 +350,7 @@ serve(async (req) => {
           .replace(/{{UNSUB_TOKEN}}/g, encodeURIComponent(r.token || ""))
           .replace(/{{RECIPIENT_EMAIL}}/g, r.email);
         try {
-          const { messageId } = await sesSendEmail({
+          const { messageId } = await sesSendWithRetry({
             from: fromHeader, replyTo, to: r.email, subject: draft.subject, html,
           });
           return { ok: true as const, recipient: r, sendRowId, messageId };
@@ -330,6 +358,13 @@ serve(async (req) => {
           return { ok: false as const, recipient: r, sendRowId, error: String(err.message).slice(0, 500) };
         }
       }));
+
+      // Throttle pacing: wait out the remainder of this batch's time
+      // slice before firing the next one.
+      const batchElapsed = Date.now() - batchStartMs;
+      if (batchElapsed < minBatchMs) {
+        await new Promise(r => setTimeout(r, minBatchMs - batchElapsed));
+      }
 
       // Bulk insert email_sends rows for this batch (test sends skip
       // bookkeeping entirely). One round trip per batch instead of
