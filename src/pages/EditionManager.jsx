@@ -597,8 +597,24 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         // synced folders, throwing NotReadableError on the second read. Wrap
         // the bytes in an in-memory File so every downstream .arrayBuffer()
         // call hits RAM, not the OS.
+        //
+        // The FIRST read can also stall indefinitely — iCloud especially
+        // silently downloads placeholder files on access and the promise
+        // never resolves if the download doesn't complete. Timeout at 60s
+        // with a clear error; 10s nudge warns the user before giving up.
         setCompressionStatus("Reading source PDF...");
-        const sourceBytes = await pdfFile.arrayBuffer();
+        console.time("[edition-upload] read source file");
+        const nudgeTimer = setTimeout(() => {
+          setCompressionStatus("Still reading source PDF… if it's in iCloud / Dropbox / OneDrive, try copying it to your Desktop first.");
+        }, 10000);
+        const sourceBytes = await Promise.race([
+          pdfFile.arrayBuffer(),
+          new Promise((_, reject) => setTimeout(
+            () => reject(new Error("Reading the source PDF timed out after 60 seconds. If the file lives in a cloud-synced folder (iCloud, Dropbox, OneDrive), the OS may be waiting to download it. Copy the PDF to Desktop and try again.")),
+            60000,
+          )),
+        ]).finally(() => clearTimeout(nudgeTimer));
+        console.timeEnd("[edition-upload] read source file");
         const sourceFile = new File([sourceBytes], pdfFile.name, { type: "application/pdf" });
 
         let fileToUpload = sourceFile;
