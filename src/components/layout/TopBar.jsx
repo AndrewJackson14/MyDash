@@ -20,6 +20,7 @@ export default function TopBar({
   // Notifications: when provided, TopBar renders the bell + popover.
   notifications,
   setNotifications,
+  onMarkAllRead,
   onNavigate,
   // Back nav: when provided, render a back button on the far left.
   // App.jsx passes this for every non-dashboard page so users who
@@ -44,7 +45,13 @@ export default function TopBar({
   const initials = user?.initials || (user?.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const unreadCount = (notifications || []).filter(n => !n.read).length;
-  const markAllRead = () => setNotifications?.(ns => (ns || []).map(n => ({ ...n, read: true })));
+  // Persist to DB when available (notifications table), otherwise just
+  // update local state. Previously this was state-only, so reloads
+  // resurrected every unread notification from the DB.
+  const markAllRead = () => {
+    if (onMarkAllRead) onMarkAllRead();
+    else setNotifications?.(ns => (ns || []).map(n => ({ ...n, read: true })));
+  };
 
   return (
     <header

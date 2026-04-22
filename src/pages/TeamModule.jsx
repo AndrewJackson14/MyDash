@@ -478,6 +478,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
 
   const filtered = (team || []).filter(t => {
     if (t.isHidden || t.is_hidden) return false;
+    if (t.isActive === false) return false;   // archived/inactive stay out of the department grid + header count
     if (!sr) return true;
     const q = sr.toLowerCase();
     return (t.name || "").toLowerCase().includes(q) || (t.role || "").toLowerCase().includes(q) || (t.email || "").toLowerCase().includes(q);

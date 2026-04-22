@@ -527,6 +527,7 @@ export default function App() {
         onUserClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }}
         notifications={notifications}
         setNotifications={setNotifications}
+        onMarkAllRead={appData.markAllNotificationsRead}
         onNavigate={handleNav}
         onBack={pg !== "dashboard" ? goBack : null}
         onSearchSubmit={(q) => { const t = (q || "").trim(); if (t) handleNav("/editorial?q=" + encodeURIComponent(t)); }}

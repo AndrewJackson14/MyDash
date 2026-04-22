@@ -1731,6 +1731,15 @@ export function DataProvider({ children, localData }) {
     if (isOnline() && changes.read !== undefined) await supabase.from('notifications').update({ read: changes.read }).eq('id', id);
   }, []);
 
+  // Bulk "mark all read" — persists to the notifications table so the
+  // bell badge count survives a refresh. Previously the TopBar handler
+  // only updated in-memory state; on reload the DB still had read=false
+  // rows so the badge re-appeared.
+  const markAllNotificationsRead = useCallback(async () => {
+    setNotifications(n => (n || []).map(x => ({ ...x, read: true })));
+    if (isOnline()) await supabase.from('notifications').update({ read: true }).eq('read', false);
+  }, []);
+
   const logActivity = useCallback(async (text, type, clientId, clientName) => {
     if (isOnline()) await supabase.from('activity_log').insert({ text, type, client_id: clientId, client_name: clientName });
   }, []);
@@ -2591,7 +2600,7 @@ export function DataProvider({ children, localData }) {
     updatePubGoal, updateIssueGoal,
     updateStory, insertStory, deleteStory, publishStory, unpublishStory,
     updateSale, insertSale, deleteSale,
-    updateProposal, insertProposal, convertProposal, addComm, addNotification, updateNotification, logActivity,
+    updateProposal, insertProposal, convertProposal, addComm, addNotification, updateNotification, markAllNotificationsRead, logActivity,
     // Phase 2 write helpers
     insertInvoice, updateInvoice, insertPayment,
     insertSubscriber, updateSubscriber,
