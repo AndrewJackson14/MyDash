@@ -195,6 +195,23 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
       .then(({ data }) => { if (data) setCategories(data); });
   }, [selectedPubs.join(",")]);
 
+  // ── Story Library (images tagged with this story) ──────────
+  // Designers pick the featured image by clicking one of these tiles;
+  // they also drive the "Download Originals" bulk action. Re-queried
+  // after each upload so the grid stays live.
+  const [storyImages, setStoryImages] = useState([]);
+  const loadStoryImages = useCallback(async () => {
+    if (!story?.id) { setStoryImages([]); return; }
+    const { data } = await supabase
+      .from("media_assets")
+      .select("id, cdn_url, original_url, thumbnail_url, file_name, created_at, width, height")
+      .eq("story_id", story.id)
+      .like("mime_type", "image/%")
+      .order("created_at", { ascending: false });
+    setStoryImages(data || []);
+  }, [story?.id]);
+  useEffect(() => { loadStoryImages(); }, [loadStoryImages]);
+
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
     const roles = ["Publisher", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
@@ -538,14 +555,20 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   // ── Image upload ────────────────────────────────────────────
   const handleImageUpload = async (file) => {
     if (!file) return;
+    if (!selectedPubs[0]) {
+      await dialog.alert("Please choose a publication first.");
+      return;
+    }
     setImageUploading(true);
     try {
       const row = await uploadMedia(file, {
-        category: "story_image",
+        category: meta.story_type === "obituary" ? "obituary" : "story_image",
+        storyType: meta.story_type || "article",
         storyId: story?.id || null,
-        publicationId: selectedPubs[0] || null,
+        publicationId: selectedPubs[0],
       });
       setPendingImageUrl(row.cdn_url); setImageCaption(""); setImageModalOpen(true);
+      loadStoryImages();
     } catch (err) { console.error("Image upload failed:", err); await dialog.alert("Image upload failed: " + err.message); }
     setImageUploading(false);
   };
@@ -557,23 +580,69 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
     setImageModalOpen(false); setPendingImageUrl(""); setImageCaption("");
   };
 
-  const setFeaturedImage = async () => {
-    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
-    inp.onchange = async (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      setImageUploading(true);
-      try {
-        const row = await uploadMedia(f, {
-          category: "story_image",
+  // Upload one or more files to the Story Library. Enforces the pub
+  // guard up front so we don't hit uploadMedia with a failing state.
+  const uploadToStoryLibrary = async (files) => {
+    const list = Array.from(files || []).filter(f => f.type?.startsWith("image/"));
+    if (!list.length) return;
+    if (!selectedPubs[0]) {
+      await dialog.alert("Please choose a publication first.");
+      return;
+    }
+    setImageUploading(true);
+    try {
+      for (const f of list) {
+        await uploadMedia(f, {
+          category: meta.story_type === "obituary" ? "obituary" : "story_image",
+          storyType: meta.story_type || "article",
           storyId: story?.id || null,
-          publicationId: selectedPubs[0] || null,
-          caption: "Featured image",
+          publicationId: selectedPubs[0],
         });
-        await saveMeta("featured_image_url", row.cdn_url);
-      } catch (err) { await dialog.alert("Upload failed: " + err.message); }
-      setImageUploading(false);
-    };
+      }
+      await loadStoryImages();
+    } catch (err) {
+      await dialog.alert("Upload failed: " + err.message);
+    }
+    setImageUploading(false);
+  };
+
+  const pickStoryLibraryUpload = () => {
+    if (!selectedPubs[0]) {
+      dialog.alert("Please choose a publication first.");
+      return;
+    }
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*"; inp.multiple = true;
+    inp.onchange = (e) => uploadToStoryLibrary(e.target.files);
     inp.click();
+  };
+
+  const setAsFeatured = async (img) => {
+    await saveMeta("featured_image_url", img.cdn_url);
+    if (img.id) await saveMeta("featured_image_id", img.id);
+  };
+
+  // Sequential downloads with a small gap — browsers will silently drop
+  // some of them if fired synchronously.
+  const [downloadingOriginals, setDownloadingOriginals] = useState(false);
+  const downloadOriginals = async () => {
+    if (!storyImages.length) return;
+    setDownloadingOriginals(true);
+    try {
+      for (const img of storyImages) {
+        const url = img.original_url || img.cdn_url;
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = img.file_name || "image";
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 250));
+      }
+    } finally {
+      setDownloadingOriginals(false);
+    }
   };
 
   const insertLink = () => { if (!linkUrl || !editor) return; editor.chain().focus().setLink({ href: linkUrl.startsWith("http") ? linkUrl : "https://" + linkUrl }).run(); setLinkModalOpen(false); setLinkUrl(""); };
@@ -846,23 +915,69 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             </div>
           )}
 
-          {/* Featured image */}
+          {/* Featured image (preview only — picked by clicking a tile below). */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Featured Image</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Featured Image</div>
+              {meta.featured_image_url && (
+                <button onClick={() => { saveMeta("featured_image_url", null); saveMeta("featured_image_id", null); }} style={{ background: "none", border: "none", color: Z.da, fontSize: 10, cursor: "pointer", fontFamily: COND, fontWeight: 700 }}>Clear</button>
+              )}
+            </div>
             {meta.featured_image_url ? (
-              <div>
-                <div style={{ position: "relative" }}><img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: Ri, border: "1px solid " + Z.bd }} /></div>
-                <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                  <button onClick={setFeaturedImage} style={{ flex: 1, padding: "4px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Upload New</button>
-                  <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, padding: "4px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Library</button>
-                  <button onClick={() => saveMeta("featured_image_url", null)} style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.da + "30", background: "transparent", color: Z.da, fontSize: 10, cursor: "pointer", fontFamily: COND }}>Remove</button>
-                </div>
+              <img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: Ri, border: "1px solid " + Z.bd }} />
+            ) : (
+              <div style={{ width: "100%", height: 80, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "center", padding: "0 12px" }}>
+                Click a Story Library tile below to set featured
+              </div>
+            )}
+          </div>
+
+          {/* Story Library — all images uploaded to this story. Click a
+              tile to promote it to featured. Designers pull originals
+              via "Download Originals" for print layout. */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Story Library · {storyImages.length}</div>
+              <button
+                onClick={pickStoryLibraryUpload}
+                disabled={imageUploading}
+                style={{ padding: "3px 10px", borderRadius: Ri, border: "none", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
+              >
+                {imageUploading ? "Uploading…" : "+ Upload"}
+              </button>
+            </div>
+            {storyImages.length === 0 ? (
+              <div style={{ width: "100%", padding: "16px 12px", border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center" }}>
+                No images yet. Upload above to get started.
               </div>
             ) : (
-              <div style={{ display: "flex", gap: 4 }}>
-                <button onClick={setFeaturedImage} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>+ Upload</button>
-                <button onClick={() => { setMediaPickerMode("featured"); setMediaPickerOpen(true); }} style={{ flex: 1, height: 60, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND }}>From Library</button>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+                {storyImages.map(img => {
+                  const isFeatured = meta.featured_image_url === img.cdn_url;
+                  return (
+                    <button
+                      key={img.id}
+                      onClick={() => setAsFeatured(img)}
+                      title={isFeatured ? "Currently featured" : "Click to set as featured"}
+                      style={{ position: "relative", padding: 0, border: isFeatured ? `2px solid ${Z.ac}` : `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.sa, cursor: "pointer", overflow: "hidden", aspectRatio: "1 / 1" }}
+                    >
+                      <img src={img.thumbnail_url || img.cdn_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      {isFeatured && (
+                        <div style={{ position: "absolute", top: 2, right: 2, background: Z.ac, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: Ri, fontFamily: COND }}>★ Featured</div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
+            )}
+            {storyImages.length > 0 && (
+              <button
+                onClick={downloadOriginals}
+                disabled={downloadingOriginals}
+                style={{ marginTop: 6, width: "100%", padding: "5px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: downloadingOriginals ? "default" : "pointer", opacity: downloadingOriginals ? 0.6 : 1 }}
+              >
+                {downloadingOriginals ? "Downloading…" : `↓ Download Originals (${storyImages.length})`}
+              </button>
             )}
           </div>
 

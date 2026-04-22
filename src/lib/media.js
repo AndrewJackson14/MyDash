@@ -145,6 +145,9 @@ export async function compressImageIfLarge(file, {
   maxWidth = 2000,
   targetBytes = 500 * 1024,
   minQuality = 0.5,
+  grayscale = false,
+  forceRecode = false,
+  suffix = "",
 } = {}) {
   if (!file?.type?.startsWith("image/")) return file;
   if (file.type === "image/svg+xml" || file.type === "image/gif") return file;
@@ -157,9 +160,8 @@ export async function compressImageIfLarge(file, {
   const srcH = img.naturalHeight;
   const needsResize = srcW > maxWidth;
   const needsRecompress = file.size > targetBytes;
-  if (!needsResize && !needsRecompress) return file;
+  if (!needsResize && !needsRecompress && !grayscale && !forceRecode) return file;
 
-  // Work out the resize ratio.
   const scale = needsResize ? maxWidth / srcW : 1;
   const outW = Math.round(srcW * scale);
   const outH = Math.round(srcH * scale);
@@ -170,6 +172,17 @@ export async function compressImageIfLarge(file, {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, outW, outH);
 
+  // Luminance-weighted greyscale (Rec. 601) before encode — for obits,
+  // prints correctly on B&W pages.
+  if (grayscale) {
+    const d = ctx.getImageData(0, 0, outW, outH);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const g = Math.round(0.299 * d.data[i] + 0.587 * d.data[i + 1] + 0.114 * d.data[i + 2]);
+      d.data[i] = g; d.data[i + 1] = g; d.data[i + 2] = g;
+    }
+    ctx.putImageData(d, 0, 0);
+  }
+
   // Iteratively lower JPEG quality until we hit the target size.
   let quality = 0.85;
   let blob = await canvasToBlob(canvas, "image/jpeg", quality);
@@ -177,18 +190,14 @@ export async function compressImageIfLarge(file, {
     quality = Math.max(minQuality, quality - 0.1);
     blob = await canvasToBlob(canvas, "image/jpeg", quality);
   }
-  if (!blob) return file;   // toBlob failed — upload original
+  if (!blob) return file;
 
-  // If the compressed result is somehow larger than the source (small
-  // PNG screenshots can round-trip larger as JPEG), keep the source.
-  if (blob.size >= file.size && !needsResize) return file;
+  if (blob.size >= file.size && !needsResize && !grayscale && !forceRecode) return file;
 
-  // Free the canvas memory.
   canvas.width = 1; canvas.height = 1;
 
-  // Replace extension with .jpg since we re-encoded to JPEG.
-  const baseName = file.name.replace(/\.(png|webp|jpe?g|bmp|heic|avif)$/i, "");
-  return new File([blob], baseName + ".jpg", {
+  const baseName = file.name.replace(/\.(png|webp|jpe?g|bmp|heic|avif|tiff?)$/i, "");
+  return new File([blob], baseName + (suffix || "") + ".jpg", {
     type: "image/jpeg",
     lastModified: Date.now(),
   });
@@ -234,32 +243,122 @@ export async function convertToGreyscale(file, { quality = 0.9 } = {}) {
   });
 }
 
-// ── Main upload helper ─────────────────────────────────────
-// Uploads a single file to Bunny at /media/YYYY/MM/<uniq>-<name>
-// and writes a media_assets row with the provided metadata.
-// Returns the inserted row (with cdn_url + id).
-export async function uploadMedia(file, metadata = {}) {
-  // Shrink oversize raster images before upload unless the caller opts
-  // out (skipCompress: true). Targets 2000 px / 500 KB; pass-through if
-  // already within spec.
-  let uploadFile = metadata.skipCompress
-    ? file
-    : await compressImageIfLarge(file);
+// ── Size thresholds ────────────────────────────────────────
+const SKIP_COMPRESS_BYTES = 200 * 1024;        // <200 KB → don't touch
+const ORIGINAL_CAP_BYTES  = 8 * 1024 * 1024;   // 8 MB max for "original" variant
+const THUMBNAIL_MAX_WIDTH = 400;
+const THUMBNAIL_TARGET_BYTES = 60 * 1024;
 
-  // Obituary category → convert to grayscale for print fidelity.
-  // Runs after compression so the pixel loop operates on the smaller
-  // bitmap. Caller can override with skipGreyscale: true.
-  if (metadata.category === "obituary" && !metadata.skipGreyscale) {
-    uploadFile = await convertToGreyscale(uploadFile);
+// Build a distinct filename in a sibling folder. Keeps the uniq prefix
+// consistent across the three variants so you can eyeball related files.
+function variantPath(basePath, folder) {
+  const parts = basePath.split("/");
+  const filename = parts.pop();
+  const year = parts[parts.length - 2];
+  const month = parts[parts.length - 1];
+  return { dir: `${folder}/${year}/${month}`, filename };
+}
+
+// ── Main upload helper ─────────────────────────────────────
+// Uploads a single image to Bunny as THREE variants:
+//   1. /media/YYYY/MM/…       reduced main (2000 px / 500 KB, grayscale
+//                              if obituary) — this is the cdn_url.
+//   2. /originals/YYYY/MM/…   untouched source, capped at 8 MB. Used by
+//                              "Download Originals" in Story Editor.
+//   3. /thumbnails/YYYY/MM/…  ~400 px wide thumbnail for list UIs.
+// Writes a media_assets row with all three URLs. Non-image files skip
+// the variant logic and upload once to /media/.
+//
+// Guards:
+// - Files <200 KB skip the main-variant resize (no point re-encoding
+//   an already-small asset).
+// - Story uploads require a publication_id: the error message is what
+//   the UI surfaces to the user.
+// - Obituary category/story_type → all three variants go grayscale so
+//   the print + web + thumbnail stay consistent.
+export async function uploadMedia(file, metadata = {}) {
+  // Publication guard — applies only to story-attached uploads. Other
+  // surfaces (client profile, ad projects) may legitimately lack a pub.
+  if (metadata.storyId && !metadata.publicationId) {
+    throw new Error("Please choose a publication first.");
   }
 
-  const { dir, filename } = buildStoragePath(uploadFile);
-  const result = await bunnyUpload(uploadFile, dir, filename);
-  const storagePath = `${dir}/${filename}`;
-  const cdnUrl = result.cdnUrl || `${CDN_BASE}/${storagePath}`;
+  const isImage = !!file?.type?.startsWith("image/")
+    && file.type !== "image/svg+xml"
+    && file.type !== "image/gif";
+  const grayscale = !metadata.skipGreyscale &&
+    (metadata.category === "obituary" || metadata.storyType === "obituary");
 
+  // Non-image (or vector/gif) → original legacy path, single upload.
+  if (!isImage || metadata.skipCompress) {
+    const { dir, filename } = buildStoragePath(file);
+    const result = await bunnyUpload(file, dir, filename);
+    const storagePath = `${dir}/${filename}`;
+    const cdnUrl = result.cdnUrl || `${CDN_BASE}/${storagePath}`;
+    return insertMediaRow({
+      file, uploadFile: file, storagePath, cdnUrl,
+      originalUrl: cdnUrl, thumbnailUrl: cdnUrl, metadata,
+    });
+  }
+
+  // ─── 3-variant image upload ────────────────────────────
+  // Main variant: 2000 px / 500 KB. Files <200 KB bypass the recode
+  // unless grayscale is needed (obits must still be desaturated).
+  const skipMainResize = file.size < SKIP_COMPRESS_BYTES && !grayscale;
+  const mainFile = skipMainResize
+    ? file
+    : await compressImageIfLarge(file, { grayscale });
+
+  // Original variant: keep bytes as-is if under the 8 MB cap, otherwise
+  // scale down to fit while preserving the highest resolution we can.
+  let originalFile = file;
+  if (file.size > ORIGINAL_CAP_BYTES || grayscale) {
+    originalFile = await compressImageIfLarge(file, {
+      maxWidth: 4000,
+      targetBytes: ORIGINAL_CAP_BYTES,
+      minQuality: 0.7,
+      grayscale,
+      forceRecode: grayscale,
+      suffix: grayscale ? "-bw" : "",
+    });
+  }
+
+  // Thumbnail variant: tiny JPEG for grid UIs.
+  const thumbFile = await compressImageIfLarge(file, {
+    maxWidth: THUMBNAIL_MAX_WIDTH,
+    targetBytes: THUMBNAIL_TARGET_BYTES,
+    minQuality: 0.6,
+    grayscale,
+    forceRecode: true,
+    suffix: "-thumb",
+  });
+
+  // Use the main file's path as the canonical location; derive the two
+  // sibling paths from it so all three share the same uniq prefix.
+  const { dir: mainDir, filename: mainName } = buildStoragePath(mainFile);
+  const mainStorage = `${mainDir}/${mainName}`;
+  const origVariant  = variantPath(mainStorage, "originals");
+  const thumbVariant = variantPath(mainStorage, "thumbnails");
+
+  // Fire all three uploads in parallel.
+  const [mainRes, origRes, thumbRes] = await Promise.all([
+    bunnyUpload(mainFile,     mainDir,           mainName),
+    bunnyUpload(originalFile, origVariant.dir,   origVariant.filename),
+    bunnyUpload(thumbFile,    thumbVariant.dir,  thumbVariant.filename),
+  ]);
+
+  const cdnUrl       = mainRes.cdnUrl  || `${CDN_BASE}/${mainStorage}`;
+  const originalUrl  = origRes.cdnUrl  || `${CDN_BASE}/${origVariant.dir}/${origVariant.filename}`;
+  const thumbnailUrl = thumbRes.cdnUrl || `${CDN_BASE}/${thumbVariant.dir}/${thumbVariant.filename}`;
+
+  return insertMediaRow({
+    file, uploadFile: mainFile, storagePath: mainStorage,
+    cdnUrl, originalUrl, thumbnailUrl, metadata,
+  });
+}
+
+async function insertMediaRow({ file, uploadFile, storagePath, cdnUrl, originalUrl, thumbnailUrl, metadata }) {
   const dims = await probeImageDims(uploadFile);
-
   const row = {
     file_name: uploadFile.name,
     mime_type: uploadFile.type || null,
@@ -268,6 +367,8 @@ export async function uploadMedia(file, metadata = {}) {
     storage_path: storagePath,
     cdn_url: cdnUrl,
     file_url: cdnUrl,
+    original_url: originalUrl,
+    thumbnail_url: thumbnailUrl,
     width: dims.width,
     height: dims.height,
     category: metadata.category || "general",
@@ -291,8 +392,6 @@ export async function uploadMedia(file, metadata = {}) {
     .single();
 
   if (error) {
-    // Upload succeeded but DB write failed — surface both so we don't
-    // silently create orphans on disk.
     console.error("media_assets insert failed:", error);
     throw new Error(`Upload succeeded but metadata insert failed: ${error.message}`);
   }
