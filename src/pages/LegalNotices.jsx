@@ -73,6 +73,15 @@ function NoticeBodyEditor({ valueHtml, onChange }) {
       Underline,
     ],
     content: valueHtml || "",
+    // ProseMirror draws a default browser focus outline on the
+    // contenteditable. Kill it + make the editable fill its wrapper
+    // so clicks anywhere in the scroll box focus + place the caret.
+    editorProps: {
+      attributes: {
+        class: "notice-body-tiptap",
+        style: "outline: none; min-height: 160px; width: 100%;",
+      },
+    },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
   // Keep external value changes in sync (e.g. form reset).
@@ -92,6 +101,16 @@ function NoticeBodyEditor({ valueHtml, onChange }) {
   );
   return (
     <div style={{ border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.sf, overflow: "hidden" }}>
+      {/* Scoped CSS — lists flush to the left margin (default ul/ol
+          padding-left was 40px, pushing bullets past the text start)
+          and a belt-and-suspenders outline-none on the editable. */}
+      <style>{`
+        .notice-body-tiptap { outline: none !important; }
+        .notice-body-tiptap p { margin: 0 0 6px; }
+        .notice-body-tiptap ul, .notice-body-tiptap ol { padding-left: 18px; margin: 0 0 6px; }
+        .notice-body-tiptap li { margin: 0; }
+        .notice-body-tiptap li > p { margin: 0; }
+      `}</style>
       <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa }}>
         <TBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} title="Bold"><strong>B</strong></TBtn>
         <TBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="Italic"><em>I</em></TBtn>
@@ -100,7 +119,12 @@ function NoticeBodyEditor({ valueHtml, onChange }) {
         <TBtn onClick={() => editor.chain().focus().toggleBulletList().run()}  active={editor.isActive("bulletList")}  title="Bullets">• List</TBtn>
         <TBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} title="Numbered">1. List</TBtn>
       </div>
-      <div style={{ padding: "10px 12px", minHeight: 180, maxHeight: 360, overflowY: "auto", fontSize: 13, color: Z.tx, lineHeight: 1.55 }}>
+      {/* Click anywhere in this scroll box → focus the editor so the
+          caret lands where the user clicked (empty region included). */}
+      <div
+        onClick={() => editor.chain().focus().run()}
+        style={{ padding: "10px 12px", minHeight: 180, maxHeight: 360, overflowY: "auto", fontSize: 13, color: Z.tx, lineHeight: 1.55, cursor: "text" }}
+      >
         <EditorContent editor={editor} />
       </div>
     </div>
