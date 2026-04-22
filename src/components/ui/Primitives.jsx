@@ -113,6 +113,11 @@ export const TB = ({ tabs, active, onChange }) => {
     position: "relative",
     display: "inline-flex",
     alignItems: "center",
+    // When rendered inside a flex-direction:column parent (e.g. the
+    // Today tab's publication row), inline-flex alone doesn't prevent
+    // cross-axis stretch. alignSelf:flex-start keeps the pill-group
+    // hugging its content so the active indicator measures correctly.
+    alignSelf: "flex-start",
     gap: 2,
     padding: 4,
     borderRadius: 999,
