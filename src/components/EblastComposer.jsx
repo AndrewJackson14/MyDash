@@ -14,7 +14,7 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
-import { Btn, Inp, TA, Sel, GlassCard } from "./ui";
+import { Btn, Inp, TA, Sel, GlassCard, Modal } from "./ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { generateEblastHtml } from "../utils/eblastTemplate";
@@ -79,6 +79,9 @@ export default function EblastComposer({ pubs, currentUser }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [newDraftOpen, setNewDraftOpen] = useState(false);
+  const [newDraftPub, setNewDraftPub] = useState(NEWSLETTER_PUBS[0].value);
+  const [creating, setCreating] = useState(false);
   const previewRef = useRef(null);
 
   // ─── Load eblast drafts + subscriber counts ──────────────
@@ -154,15 +157,17 @@ export default function EblastComposer({ pubs, currentUser }) {
   }, [previewHtml]);
 
   // ─── Mutations ────────────────────────────────────────────
-  const newDraft = async () => {
-    const pubId = await dialog.prompt("Which publication?", {
-      defaultValue: "pub-the-malibu-times",
-      hint: NEWSLETTER_PUBS.map(p => `${p.value} — ${p.label}`).join("\n"),
-    });
-    if (!pubId || !NEWSLETTER_PUBS.find(p => p.value === pubId)) return;
+  const openNewDraftModal = () => {
+    setNewDraftPub(NEWSLETTER_PUBS[0].value);
+    setNewDraftOpen(true);
+  };
+
+  const createDraft = async () => {
+    if (!newDraftPub) return;
+    setCreating(true);
     const row = {
       draft_type: "eblast",
-      publication_id: pubId,
+      publication_id: newDraftPub,
       subject: "Dedicated send",
       preheader: "",
       advertiser_name: "",
@@ -177,9 +182,11 @@ export default function EblastComposer({ pubs, currentUser }) {
       created_by: currentUser?.authId || null,
     };
     const { data, error } = await supabase.from("newsletter_drafts").insert(row).select().single();
+    setCreating(false);
     if (error) { await dialog.alert("Create failed: " + error.message); return; }
     setDrafts(prev => [data, ...prev]);
     setDraft(data);
+    setNewDraftOpen(false);
   };
 
   const updateField = (key, value) => {
@@ -303,7 +310,7 @@ export default function EblastComposer({ pubs, currentUser }) {
           }))]}
           style={{ minWidth: 320 }}
         />
-        <Btn sm onClick={newDraft}>+ New eBlast</Btn>
+        <Btn sm onClick={openNewDraftModal}>+ New eBlast</Btn>
       </div>
 
       {!draft ? (
@@ -414,6 +421,35 @@ export default function EblastComposer({ pubs, currentUser }) {
           </GlassCard>
         </div>
       )}
+
+      {/* New eBlast modal — proper dropdown instead of a raw text
+          prompt. onSubmit wires Enter-to-create. */}
+      <Modal
+        open={newDraftOpen}
+        onClose={() => !creating && setNewDraftOpen(false)}
+        title="Start a new eBlast"
+        width={480}
+        onSubmit={createDraft}
+        actions={<>
+          <Btn sm v="secondary" onClick={() => setNewDraftOpen(false)} disabled={creating}>Cancel</Btn>
+          <Btn sm onClick={createDraft} disabled={creating}>{creating ? "Creating…" : "Create Draft"}</Btn>
+        </>}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
+            Pick the publication that will send this eBlast. Subscriber count is the active newsletter list for that pub — you'll confirm before anything goes out.
+          </div>
+          <Sel
+            label="Publication"
+            value={newDraftPub}
+            onChange={e => setNewDraftPub(e.target.value)}
+            options={NEWSLETTER_PUBS.map(p => ({
+              value: p.value,
+              label: `${p.label} — ${(subCounts[p.value] || 0).toLocaleString()} subscribers`,
+            }))}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
