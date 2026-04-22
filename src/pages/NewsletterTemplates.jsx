@@ -6,6 +6,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Btn, Inp, TA, Sel, GlassCard, Toggle } from "../components/ui";
 import { supabase, isOnline } from "../lib/supabase";
 import { renderNewsletter } from "../utils/newsletterRenderer";
+import { useDialog } from "../hooks/useDialog";
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 
@@ -73,6 +74,7 @@ const SectionEditor = ({ section, idx, onUpdate, onRemove, onMove, canMoveUp, ca
 // TEMPLATE EDITOR MAIN
 // ════════════════════════════════════════════════════════════
 const NewsletterTemplates = ({ pubs }) => {
+  const dialog = useDialog();
   const [selPub, setSelPub] = useState(NEWSLETTER_PUBS[0]);
   const [templates, setTemplates] = useState([]);
   const [selTemplate, setSelTemplate] = useState(null);
@@ -219,6 +221,47 @@ const NewsletterTemplates = ({ pubs }) => {
     setSaving(false);
   };
 
+  // Create a new blank template for the selected pub. Keeps the user in
+  // place — the new row becomes the active draft so they can edit it
+  // immediately. The canned 4 (daily/weekly_top/breaking/sponsored) are
+  // already seeded per pub; this is for anything beyond those.
+  const createTemplate = async () => {
+    const name = await dialog.prompt("Template name?", { defaultValue: "Custom Newsletter" });
+    if (!name?.trim()) return;
+    const row = {
+      publication_id: selPub,
+      name: name.trim(),
+      template_type: "custom",
+      subject: `${pub?.name || "Newsletter"} — {{date}}`,
+      preheader: "",
+      intro: "",
+      footer: "",
+      sections: [
+        { heading: "Featured", source: "featured", limit: 3, lookback_hours: 48, layout: "hero" },
+        { heading: "Latest", source: "latest", limit: 4, lookback_hours: 24, layout: "list" },
+      ],
+    };
+    const { data, error } = await supabase.from("newsletter_templates").insert(row).select().single();
+    if (error) { alert("Create failed: " + error.message); return; }
+    setTemplates(prev => [...prev, data]);
+    setSelTemplate(data.id);
+    setDraft(data);
+  };
+
+  // Guard custom deletes behind a confirm. Canned types can also be
+  // removed if an admin chooses — the seed is not load-bearing.
+  const deleteTemplate = async () => {
+    if (!draft) return;
+    const ok = await dialog.confirm(`Delete template "${draft.name}"?`, { confirmText: "Delete", variant: "danger" });
+    if (!ok) return;
+    const { error } = await supabase.from("newsletter_templates").delete().eq("id", draft.id);
+    if (error) { alert("Delete failed: " + error.message); return; }
+    const remaining = templates.filter(t => t.id !== draft.id);
+    setTemplates(remaining);
+    setDraft(remaining[0] || null);
+    setSelTemplate(remaining[0]?.id || null);
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading templates...</div>;
 
   return (
@@ -240,9 +283,13 @@ const NewsletterTemplates = ({ pubs }) => {
             );
           })}
         </div>
-        <Btn sm onClick={save} disabled={saving || !draft}>
-          {saving ? "Saving..." : saved ? "\u2713 Saved" : "Save Template"}
-        </Btn>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn sm v="ghost" onClick={createTemplate}>+ New Template</Btn>
+          {draft && <Btn sm v="ghost" onClick={deleteTemplate} style={{ color: Z.da }}>Delete</Btn>}
+          <Btn sm onClick={save} disabled={saving || !draft}>
+            {saving ? "Saving..." : saved ? "\u2713 Saved" : "Save Template"}
+          </Btn>
+        </div>
       </div>
 
       {/* Template type tabs */}
