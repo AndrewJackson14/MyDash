@@ -41,6 +41,12 @@ const DEFAULT_AD_LOCATIONS = [
   { slug: "in-article", name: "In-Article", width: 300, height: 250 },
 ];
 
+// Per-zone cap on house ad slots in the editor. Hero is a 4-up rotating
+// row that randomly samples on each refresh, so a deep pool helps.
+// Other zones are single-slot — 2 is plenty.
+const HOUSE_AD_CAP = { "hero-ads": 12 };
+const houseAdCap = (slug) => HOUSE_AD_CAP[slug] || 2;
+
 // ── Helpers ──────────────────────────────────────────────────────
 const toSlug = (s) => (s || "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/^-|-$/g, "");
 
@@ -119,6 +125,9 @@ const ImageField = ({ value, onChange, uploadPath, publicationId, category, labe
           category: category || "pub_asset",
           publicationId: publicationId || null,
           caption: label || null,
+          // Logos / favicons / branding need alpha preserved — the
+          // shared compressor flattens to JPEG (= black background).
+          skipCompress: true,
         });
         onChange(row.cdn_url);
       }
@@ -1067,8 +1076,9 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                   });
                   setSaved(false);
                 };
+                const cap = houseAdCap(loc.slug);
                 const addAd = () => {
-                  if (ads.length >= 2) return;
+                  if (ads.length >= cap) return;
                   setHouseAds(prev => ({
                     ...prev,
                     [loc.slug]: [...(prev[loc.slug] || []), { creative_url: "", click_url: "", alt_text: "" }],
@@ -1081,7 +1091,7 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                       <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>
                         {loc.name} <span style={{ fontWeight: 400, color: Z.tm }}>({loc.width}×{loc.height})</span>
                       </div>
-                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{ads.length}/2</span>
+                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{ads.length}/{cap}</span>
                     </div>
                     {ads.map((ad, i) => {
                       const uploadKey = loc.slug + ":" + i;
@@ -1139,7 +1149,7 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                       </div>
                       );
                     })}
-                    {ads.length < 2 && (
+                    {ads.length < cap && (
                       <button onClick={addAd} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>+ Add House Ad</button>
                     )}
                   </div>
