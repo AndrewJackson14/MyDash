@@ -11,6 +11,7 @@ import { generateNewsletterHtml, getPubConfig } from "../utils/newsletterTemplat
 import { fmtDate, fmtTime } from "../lib/formatters";
 import NewsletterTemplates from "./NewsletterTemplates";
 import EblastComposer from "../components/EblastComposer";
+import CampaignReport from "../components/CampaignReport";
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 const STATUS_BADGE = { draft: "Draft", approved: "Approved", sent: "Sent", failed: "Failed" };
@@ -68,6 +69,10 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   const [addStoryResults, setAddStoryResults] = useState([]);
   const [history, setHistory] = useState([]);
   const [historyPub, setHistoryPub] = useState("all");
+  // Selected campaign: when non-null, we render CampaignReport in place of
+  // the tab content. Kept as a sibling of `tab` (not a real route) to
+  // match MyDash's existing tab-state pattern.
+  const [campaignId, setCampaignId] = useState(null);
   const [previewDraft, setPreviewDraft] = useState(null);
   const [subCounts, setSubCounts] = useState({});
   const previewRef = useRef(null);
@@ -324,10 +329,13 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   };
 
   // ── Load history ────────────────────────────────────────
+  // Order by updated_at since generated_at can be null on eBlasts —
+  // sorting on a null-laden column was pushing old drafts to the top.
   useEffect(() => {
     if (tab !== "History" || !isOnline()) return;
-    supabase.from("newsletter_drafts").select("id, publication_id, subject, stories, status, generated_at, sent_at, recipient_count, open_count, click_count, html_body")
-      .order("generated_at", { ascending: false }).limit(100)
+    supabase.from("newsletter_drafts")
+      .select("id, publication_id, subject, stories, status, draft_type, generated_at, sent_at, created_at, updated_at, recipient_count, open_count, click_count, html_body")
+      .order("updated_at", { ascending: false }).limit(100)
       .then(({ data }) => setHistory(data || []));
   }, [tab]);
 
@@ -344,6 +352,15 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   };
 
   // ════════════════════════════════════════════════════════
+  // If a campaign is selected, show its full report in place of the tabs.
+  // The report has its own header + Back button; we return early so the
+  // rest of the page (tabs, today/eblast/templates/history) isn't rendered.
+  if (campaignId) {
+    return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <CampaignReport mode="internal" draftId={campaignId} onBack={() => setCampaignId(null)} />
+    </div>;
+  }
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -468,20 +485,32 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
       </div>
       <DataTable>
         <thead><tr>
-          {["Date", "Publication", "Subject", "Stories", "Recipients", "Status"].map(h => <th key={h}>{h}</th>)}
+          {["Date", "Type", "Publication", "Subject", "Recipients", "Opens", "Clicks", "Status"].map(h => <th key={h}>{h}</th>)}
         </tr></thead>
         <tbody>
-          {filteredHistory.map(h => (
-            <tr key={h.id} onClick={() => setPreviewDraft(h)} style={{ cursor: "pointer" }}>
-              <td style={{ color: Z.tm, fontSize: FS.sm }}>{fmtDate(h.generated_at)}</td>
-              <td style={{ fontWeight: FW.semi, color: Z.tx }}>{getPubConfig(h.publication_id).name}</td>
-              <td style={{ color: Z.tx, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.subject}</td>
-              <td style={{ color: Z.tm }}>{(h.stories || []).filter(s => s.included !== false).length}</td>
-              <td style={{ color: Z.tm }}>{h.recipient_count || "\u2014"}</td>
-              <td><Badge status={STATUS_BADGE[h.status] || h.status} small /></td>
-            </tr>
-          ))}
-          {filteredHistory.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No newsletters sent yet</td></tr>}
+          {filteredHistory.map(h => {
+            // Prefer sent_at for sent campaigns; fall back to created_at.
+            // generated_at was often null on eBlast rows which is why the
+            // column read "Invalid Date".
+            const dateSource = h.sent_at || h.created_at || h.generated_at || h.updated_at;
+            const openRate  = h.recipient_count > 0 ? Math.round((h.open_count  || 0) * 100 / h.recipient_count) : 0;
+            const clickRate = h.recipient_count > 0 ? Math.round((h.click_count || 0) * 100 / h.recipient_count) : 0;
+            return (
+              <tr key={h.id} onClick={() => setCampaignId(h.id)} style={{ cursor: "pointer" }}>
+                <td style={{ color: Z.tm, fontSize: FS.sm }}>{dateSource ? fmtDate(dateSource) : "\u2014"}</td>
+                <td style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: h.draft_type === "eblast" ? (Z.pu || Z.ac) : Z.tm, textTransform: "uppercase", fontFamily: COND }}>
+                  {h.draft_type === "eblast" ? "eBlast" : "Newsletter"}
+                </td>
+                <td style={{ fontWeight: FW.semi, color: Z.tx }}>{getPubConfig(h.publication_id).name}</td>
+                <td style={{ color: Z.tx, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.subject}</td>
+                <td style={{ color: Z.tm }}>{h.recipient_count ? h.recipient_count.toLocaleString() : "\u2014"}</td>
+                <td style={{ color: Z.tm }}>{h.status === "sent" && h.recipient_count ? `${(h.open_count || 0).toLocaleString()} \u00B7 ${openRate}%` : "\u2014"}</td>
+                <td style={{ color: Z.tm }}>{h.status === "sent" && h.recipient_count ? `${(h.click_count || 0).toLocaleString()} \u00B7 ${clickRate}%` : "\u2014"}</td>
+                <td><Badge status={STATUS_BADGE[h.status] || h.status} small /></td>
+              </tr>
+            );
+          })}
+          {filteredHistory.length === 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No newsletters sent yet</td></tr>}
         </tbody>
       </DataTable>
     </>}

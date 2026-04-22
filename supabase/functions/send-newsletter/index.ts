@@ -1,27 +1,13 @@
 // ============================================================
 // send-newsletter — AWS SES SendEmail fan-out for a draft.
 //
-// Deployed with verify_jwt: false. The function does its own
-// getUser(token) check below. With verify_jwt:true the Supabase
-// platform layer was rejecting valid sessions at ~422ms in —
-// same failure mode we hit on gmail-api v6.
-//
-// Flow:
-//   1. Auth user → load draft → validate status=approved
-//   2. Load subscribers for draft.publication_id (status=active)
-//      If x-test-email header is set, skip subscribers and send
-//      a single test to that address instead.
-//   3. For each recipient, render per-recipient HTML by
-//      substituting {{SEND_ID}} and {{UNSUB_TOKEN}}. The compose
-//      step should have already injected the open pixel +
-//      rewritten <a hrefs> to the email-click redirector.
-//   4. POST to SES v2 with SigV4 signing. Persist an
-//      email_sends row with the ses_message_id.
-//   5. Update the draft's recipient_count and status=sent.
-//
-// SES is rate-limited (per-sender quota + max send rate).
-// We chunk sends at 10/sec and let the SDK's native retry
-// backoff handle 429-equivalents.
+// v7 notes:
+//  - Subscriber query paginates in 1000-row chunks (Supabase
+//    default cap silently truncated the 5,340-row Malibu list).
+//  - Re-send is allowed past status='sent' if remaining>0, so a
+//    resumable retry can clear the tail.
+//  - Advertiser analytics email (share link) only fires when
+//    the campaign has genuinely reached every active subscriber.
 // ============================================================
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -31,10 +17,11 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_SES_ACCESS_KEY_ID") || "";
 const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SES_SECRET_ACCESS_KEY") || "";
 const AWS_REGION = Deno.env.get("AWS_SES_REGION") || "us-east-1";
-const EDGE_FN_BASE = Deno.env.get("EDGE_FN_BASE_URL") || `${SUPABASE_URL}/functions/v1`;
+const PUBLIC_APP_URL = Deno.env.get("PUBLIC_APP_URL") || "https://mydash.media";
 
-const SEND_RATE_PER_SEC = 25; // Production SES accounts typically allow 40-50/s; 25 stays safely under.
-const PROGRESS_EVERY = 50;    // Update newsletter_drafts.recipient_count every N successful sends so the UI polling loop can show progress.
+const SEND_RATE_PER_SEC = 25;
+const PROGRESS_EVERY = 50;
+const SUB_PAGE_SIZE = 1000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,24 +29,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-draft-id, x-test-email",
 };
 
-// ── SigV4 (minimal, for POST JSON to SES v2) ───────────────
 async function sha256Hex(s: string) {
   const buf = new TextEncoder().encode(s);
   const h = await crypto.subtle.digest("SHA-256", buf);
   return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 async function hmac(key: ArrayBuffer | Uint8Array, msg: string) {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw", key as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-  );
+  const cryptoKey = await crypto.subtle.importKey("raw", key as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(msg)));
 }
 async function signingKey(secret: string, date: string, region: string, service: string) {
   let k: Uint8Array = new TextEncoder().encode("AWS4" + secret);
-  k = await hmac(k, date);
-  k = await hmac(k, region);
-  k = await hmac(k, service);
-  k = await hmac(k, "aws4_request");
+  k = await hmac(k, date); k = await hmac(k, region); k = await hmac(k, service); k = await hmac(k, "aws4_request");
   return k;
 }
 
@@ -71,30 +52,20 @@ async function sesSendEmail(params: {
   const body = JSON.stringify({
     FromEmailAddress: params.from,
     Destination: { ToAddresses: [params.to] },
-    Content: {
-      Simple: {
-        Subject: { Data: params.subject, Charset: "UTF-8" },
-        Body: { Html: { Data: params.html, Charset: "UTF-8" } },
-      },
-    },
+    Content: { Simple: {
+      Subject: { Data: params.subject, Charset: "UTF-8" },
+      Body: { Html: { Data: params.html, Charset: "UTF-8" } },
+    } },
     ...(params.replyTo ? { ReplyToAddresses: [params.replyTo] } : {}),
   });
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
   const date = amzDate.slice(0, 8);
   const payloadHash = await sha256Hex(body);
 
-  const canonical = [
-    "POST",
-    path,
-    "",
-    `content-type:application/json`,
-    `host:${host}`,
-    `x-amz-content-sha256:${payloadHash}`,
-    `x-amz-date:${amzDate}`,
-    "",
-    "content-type;host;x-amz-content-sha256;x-amz-date",
-    payloadHash,
+  const canonical = ["POST", path, "",
+    `content-type:application/json`, `host:${host}`,
+    `x-amz-content-sha256:${payloadHash}`, `x-amz-date:${amzDate}`, "",
+    "content-type;host;x-amz-content-sha256;x-amz-date", payloadHash,
   ].join("\n");
   const canonicalHash = await sha256Hex(canonical);
   const scope = `${date}/${AWS_REGION}/ses/aws4_request`;
@@ -107,28 +78,82 @@ async function sesSendEmail(params: {
   const res = await fetch(`https://${host}${path}`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "Host": host,
-      "X-Amz-Date": amzDate,
-      "X-Amz-Content-Sha256": payloadHash,
+      "Content-Type": "application/json", "Host": host,
+      "X-Amz-Date": amzDate, "X-Amz-Content-Sha256": payloadHash,
       "Authorization": auth,
     },
     body,
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`SES ${res.status}: ${text}`);
-  const parsed = JSON.parse(text);
-  return { messageId: parsed.MessageId };
+  return { messageId: JSON.parse(text).MessageId };
 }
 
-// ── Request handler ────────────────────────────────────────
+// Paginate past Supabase's default 1000-row cap. Without this, the
+// 5,340-subscriber Malibu list was silently truncated to the first
+// 1,000, which is why the Wings campaign stopped at 1,107.
+async function loadAllActiveSubscribers(admin: any, pubId: string) {
+  const all: any[] = [];
+  for (let from = 0; ; from += SUB_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("newsletter_subscribers")
+      .select("id, email, unsubscribe_token")
+      .eq("publication_id", pubId).eq("status", "active")
+      .order("id")
+      .range(from, from + SUB_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const page = data || [];
+    all.push(...page);
+    if (page.length < SUB_PAGE_SIZE) break;
+  }
+  return all;
+}
+
+// Advertiser analytics email — one shot, only when the campaign has
+// reached every active subscriber. client_id points at a clients row
+// whose billing_email we email; silently no-ops if either is missing.
+async function maybeEmailAdvertiserReport(admin: any, draft: any, fromHeader: string, replyTo?: string) {
+  if (!draft.client_id) return;
+  const { data: client } = await admin
+    .from("clients").select("name, billing_email").eq("id", draft.client_id).single();
+  if (!client?.billing_email) return;
+
+  const url = `${PUBLIC_APP_URL}/r/${draft.share_token}`;
+  const subject = `Your ${draft.subject || "campaign"} performance report`;
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:24px auto;padding:28px;background:#f7f7f5;border-radius:12px;color:#1a1a1a;line-height:1.55">
+      <h1 style="font-size:22px;margin:0 0 12px;font-weight:700">Your campaign is out</h1>
+      <p style="margin:0 0 12px">Hi ${client.name ? String(client.name).replace(/[&<>"']/g, "") : "there"},</p>
+      <p style="margin:0 0 12px">
+        Your message — <strong>${String(draft.subject || "").replace(/[&<>"']/g, "")}</strong> — has been delivered to our
+        newsletter subscribers. Opens and clicks are tracked live and you can
+        revisit the report any time.
+      </p>
+      <p style="margin:20px 0">
+        <a href="${url}" style="display:inline-block;padding:12px 22px;background:#1B3A5C;color:#fff;text-decoration:none;border-radius:6px;font-weight:700">View your report</a>
+      </p>
+      <p style="margin:0 0 12px;font-size:13px;color:#555">
+        Or copy this link: <a href="${url}">${url}</a>
+      </p>
+      <p style="margin:20px 0 0;font-size:12px;color:#888">
+        — 13 Stars Media
+      </p>
+    </div>`;
+
+  try {
+    await sesSendEmail({ from: fromHeader, replyTo, to: client.billing_email, subject, html });
+    await admin.from("newsletter_drafts").update({ advertiser_notified_at: new Date().toISOString() }).eq("id", draft.id);
+  } catch (e: any) {
+    console.error("advertiser report email failed:", e?.message || e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Auth check — require a signed-in user before we spend SES quota
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader) return json({ error: "Not authenticated" }, 401);
   const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || "", {
@@ -141,16 +166,18 @@ serve(async (req) => {
   const testEmail = req.headers.get("x-test-email");
   if (!draftId) return json({ error: "Missing x-draft-id" }, 400);
 
-  // Load draft
   const { data: draft, error: draftErr } = await admin
     .from("newsletter_drafts").select("*").eq("id", draftId).single();
   if (draftErr || !draft) return json({ error: "Draft not found" }, 404);
 
-  if (!testEmail && draft.status !== "approved") {
-    return json({ error: `Draft must be approved before sending (status=${draft.status})` }, 400);
+  // v7: allow sending from any status as long as recipients remain
+  // after dedup — this lets the user resume a campaign whose prior
+  // waitUntil was killed mid-loop without manually unsticking.
+  // Test sends bypass all status gating.
+  if (!testEmail && draft.status === "draft") {
+    return json({ error: "Approve the draft before sending." }, 400);
   }
 
-  // Resolve pub + from address
   const { data: pub } = await admin
     .from("publications").select("id, name, site_settings").eq("id", draft.publication_id).single();
   if (!pub) return json({ error: "Publication not found" }, 404);
@@ -162,53 +189,54 @@ serve(async (req) => {
   }
   const fromHeader = `${fromName} <${fromEmail}>`;
 
-  // Mark draft as sending
   await admin.from("newsletter_drafts").update({ status: "sending", last_error: null }).eq("id", draftId);
 
-  // Build recipient list
   type Rec = { id: string | null; email: string; token: string };
   let recipients: Rec[] = [];
   if (testEmail) {
-    // Test send — don't touch email_sends or subscriber bookkeeping
     recipients = [{ id: null, email: testEmail, token: "test" }];
   } else {
-    const { data: subs } = await admin
-      .from("newsletter_subscribers")
-      .select("id, email, unsubscribe_token")
-      .eq("publication_id", draft.publication_id)
-      .eq("status", "active");
+    const allSubs = await loadAllActiveSubscribers(admin, draft.publication_id);
 
-    // Dedup pass: skip subscribers who already have a sent/delivered
-    // email_sends row for this draft. Handles the recoverable-retry
-    // case where a previous run hit the HTTP timeout and only partially
-    // completed — the admin can click Send again and we'll finish the
-    // tail without double-mailing the 509 who got it the first time.
-    const { data: alreadySent } = await admin
-      .from("email_sends")
-      .select("recipient_email")
-      .eq("draft_id", draftId)
-      .in("status", ["sent", "delivered"]);
-    const sentSet = new Set((alreadySent || []).map(r => r.recipient_email.toLowerCase()));
+    // Dedup against already-delivered recipients. Paginated because
+    // email_sends can also exceed 1000 for big lists.
+    const sentSet = new Set<string>();
+    for (let from = 0; ; from += SUB_PAGE_SIZE) {
+      const { data } = await admin
+        .from("email_sends").select("recipient_email")
+        .eq("draft_id", draftId).in("status", ["sent", "delivered"])
+        .range(from, from + SUB_PAGE_SIZE - 1);
+      const page = data || [];
+      for (const r of page) sentSet.add((r.recipient_email || "").toLowerCase());
+      if (page.length < SUB_PAGE_SIZE) break;
+    }
 
-    recipients = (subs || [])
+    recipients = allSubs
       .filter(s => !sentSet.has((s.email || "").toLowerCase()))
       .map(s => ({ id: s.id, email: s.email, token: s.unsubscribe_token }));
   }
 
   if (recipients.length === 0) {
-    await admin.from("newsletter_drafts").update({ status: "approved", last_error: "No active subscribers (or all already sent)" }).eq("id", draftId);
-    return json({ error: "No active subscribers to send to — all already received this draft." }, 400);
+    // Everyone already got it — finalize + advertiser email if not yet notified.
+    const totalActive = (await loadAllActiveSubscribers(admin, draft.publication_id)).length;
+    await admin.from("newsletter_drafts").update({
+      status: "sent",
+      recipient_count: totalActive,
+      last_error: null,
+    }).eq("id", draftId);
+    const { data: fresh } = await admin.from("newsletter_drafts").select("*").eq("id", draftId).single();
+    if (fresh && !fresh.advertiser_notified_at) {
+      await maybeEmailAdvertiserReport(admin, fresh, fromHeader, replyTo);
+    }
+    return json({ queued: false, sent: 0, failed: 0, complete: true, message: "All active subscribers already received this draft." });
   }
 
-  // The actual send loop. Extracted so it can run either synchronously
-  // (for test sends / tiny lists) or via EdgeRuntime.waitUntil for bulk.
   const runSend = async () => {
     let sent = 0, failed = 0;
     const errors: string[] = [];
 
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
-      // Rate limiting — chunk SES calls at SEND_RATE_PER_SEC
       if (i > 0 && i % SEND_RATE_PER_SEC === 0) {
         await new Promise(res => setTimeout(res, 1000));
       }
@@ -249,9 +277,6 @@ serve(async (req) => {
         }
       }
 
-      // Live progress heartbeat so the UI's polling loop can render an
-      // accurate "Sent N of 5,340" even while the background worker is
-      // still running.
       if (!testEmail && (sent + failed) % PROGRESS_EVERY === 0) {
         const { count: cumulative } = await admin
           .from("email_sends").select("id", { count: "exact", head: true })
@@ -260,18 +285,30 @@ serve(async (req) => {
       }
     }
 
-    // Finalize — recipient_count reflects the all-time total for this
-    // draft (including any previous partial runs), not just this pass.
     if (!testEmail) {
       const { count: allTimeSent } = await admin
         .from("email_sends").select("id", { count: "exact", head: true })
         .eq("draft_id", draftId).in("status", ["sent", "delivered"]);
+
+      const totalActive = (await loadAllActiveSubscribers(admin, draft.publication_id)).length;
+      const reachedEveryone = (allTimeSent || 0) >= totalActive;
+
       await admin.from("newsletter_drafts").update({
-        status: failed === 0 ? "sent" : (sent === 0 ? "failed" : "sent"),
-        sent_at: (allTimeSent || sent) > 0 ? new Date().toISOString() : null,
+        // Only call it 'sent' if everyone got it. Otherwise 'approved'
+        // so the Send button remains actionable for the user to click
+        // again and resume.
+        status: reachedEveryone ? "sent" : (sent === 0 ? "failed" : "approved"),
+        sent_at: reachedEveryone ? new Date().toISOString() : null,
         recipient_count: allTimeSent ?? sent,
         last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
       }).eq("id", draftId);
+
+      if (reachedEveryone) {
+        const { data: fresh } = await admin.from("newsletter_drafts").select("*").eq("id", draftId).single();
+        if (fresh && !fresh.advertiser_notified_at) {
+          await maybeEmailAdvertiserReport(admin, fresh, fromHeader, replyTo);
+        }
+      }
     } else {
       await admin.from("newsletter_drafts").update({ status: "approved" }).eq("id", draftId);
     }
@@ -279,31 +316,22 @@ serve(async (req) => {
     return { sent, failed, errors };
   };
 
-  // Test sends + tiny lists run synchronously so the UI response carries
-  // the result. Anything larger would blow through Supabase's 150s HTTP
-  // request timeout, so we hand the work to EdgeRuntime.waitUntil and
-  // return 202 immediately; the UI polls newsletter_drafts.status.
   const isBulk = !testEmail && recipients.length > 1;
   const SYNC_THRESHOLD = 10;
-  // @ts-ignore — EdgeRuntime is exposed by the Supabase Deno runtime.
+  // @ts-ignore
   const waitUntil: ((p: Promise<any>) => void) | undefined = (globalThis as any).EdgeRuntime?.waitUntil;
 
   if (isBulk && recipients.length > SYNC_THRESHOLD && typeof waitUntil === "function") {
-    // Report the draft's list-wide total, not just this run's backlog,
-    // so the UI's "Sending X / TOTAL" progress counter reflects the
-    // full newsletter list even during retries.
-    const { count: listTotal } = await admin
-      .from("newsletter_subscribers").select("id", { count: "exact", head: true })
-      .eq("publication_id", draft.publication_id).eq("status", "active");
+    const totalActive = (await loadAllActiveSubscribers(admin, draft.publication_id)).length;
     waitUntil(runSend().catch(async (err) => {
       await admin.from("newsletter_drafts").update({
-        status: "failed",
+        status: "approved",
         last_error: String(err?.message || err).slice(0, 500),
       }).eq("id", draftId);
     }));
     return json({
       queued: true,
-      total: listTotal ?? recipients.length,
+      total: totalActive,
       remaining: recipients.length,
       message: "Send started in background",
     }, 202);
