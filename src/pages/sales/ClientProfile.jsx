@@ -229,6 +229,35 @@ const ClientProfile = ({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0, fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, fontFamily: serif }}>{primaryContact.name || vc.name}</h2>
           <span style={{ display: "inline-flex", padding: "3px 10px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.heavy, background: stColor.bg, color: stColor.text, letterSpacing: 0.5, textTransform: "uppercase" }}>{clientStatus}</span>
+          {/* Credit Hold toggle — sits alongside the status badge. Red
+              solid when active, subtle outline when off. Click always
+              routes through the same reason-prompt modal flow. */}
+          <button
+            type="button"
+            onClick={async () => {
+              const hold = !vc.creditHold;
+              let reason = null;
+              if (hold) {
+                reason = window.prompt("Credit hold reason (e.g. 60+ days past due, bounced payment):");
+                if (reason === null) return; // cancelled
+              }
+              setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: hold, creditHoldReason: reason } : c));
+              if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: hold, creditHoldReason: reason });
+            }}
+            title={vc.creditHold ? (vc.creditHoldReason ? `Credit Hold — ${vc.creditHoldReason}. Click to release.` : "Credit Hold Active — click to release") : "Toggle Credit Hold"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "3px 10px", borderRadius: Ri, cursor: "pointer",
+              fontSize: FS.xs, fontWeight: FW.heavy, fontFamily: COND,
+              letterSpacing: 0.5, textTransform: "uppercase",
+              background: vc.creditHold ? Z.da : "transparent",
+              color: vc.creditHold ? INV.light : Z.td,
+              border: `1px solid ${vc.creditHold ? Z.da : Z.bd}`,
+              transition: "background 0.15s, color 0.15s",
+            }}
+          >
+            Credit Hold
+          </button>
         </div>
         <div style={{ fontSize: 15, fontWeight: FW.semi, color: Z.tm, fontFamily: COND, marginTop: 1 }}>{vc.name}{primaryContact.name ? ` · ${primaryContact.role || "Contact"}` : ""}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
@@ -260,43 +289,6 @@ const ClientProfile = ({
             <option value="duplicate">Duplicate</option>
             <option value="other">Other</option>
           </select>
-          {/* Legal Notices flag — controls whether this client appears in the
-              Legal Notices modal client picker. Stored in clients.category. */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "3px 8px", background: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac + "15" : Z.bg, border: `1px solid ${(vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.bd}`, borderRadius: Ri }}>
-            <input
-              type="checkbox"
-              checked={(vc.category || "").toLowerCase() === "legal notice"}
-              onChange={e => {
-                const next = e.target.checked ? "Legal Notice" : "";
-                setClients(cl => cl.map(c => c.id === vc.id ? { ...c, category: next } : c));
-                if (appData?.updateClient) appData.updateClient(vc.id, { category: next });
-              }}
-              style={{ cursor: "pointer", margin: 0 }}
-            />
-            <span style={{ fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, color: (vc.category || "").toLowerCase() === "legal notice" ? Z.ac : Z.td }}>Legal Notices Client</span>
-          </label>
-          {/* Credit Hold toggle — sits on the same row as Legal Notices. */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "3px 8px", background: vc.creditHold ? Z.da + "15" : Z.bg, border: `1px solid ${vc.creditHold ? Z.da : Z.bd}`, borderRadius: Ri }}>
-            <input
-              type="checkbox"
-              checked={!!vc.creditHold}
-              onChange={async e => {
-                const hold = e.target.checked;
-                let reason = null;
-                if (hold) {
-                  reason = window.prompt("Credit hold reason (e.g. 60+ days past due, bounced payment):");
-                  if (reason === null) return; // cancelled
-                }
-                setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: hold, creditHoldReason: reason } : c));
-                if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: hold, creditHoldReason: reason });
-              }}
-              style={{ cursor: "pointer", margin: 0, accentColor: Z.da }}
-            />
-            <span style={{ fontSize: FS.xs, fontWeight: FW.bold, fontFamily: COND, color: vc.creditHold ? Z.da : Z.td }}>Credit Hold</span>
-          </label>
-          {vc.creditHold && vc.creditHoldReason && (
-            <span style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{vc.creditHoldReason}</span>
-          )}
         </div>
       </div>
     </div>
