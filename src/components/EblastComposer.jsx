@@ -453,20 +453,25 @@ export default function EblastComposer({ pubs, currentUser }) {
   // draft.recipient_count heartbeat the edge function writes every 50.
   const [sendProgress, setSendProgress] = useState(null); // { sent, total } or null
   const pollDraftUntilDone = async (id, total) => {
-    setSendProgress({ sent: 0, total });
+    // Seed with the current value so the counter doesn't flash 0 → 4,296
+    // each time auto-resume kicks off a new polling round.
+    const { data: seed } = await supabase.from("newsletter_drafts")
+      .select("recipient_count").eq("id", id).single();
+    setSendProgress({ sent: seed?.recipient_count || 0, total });
     for (let i = 0; i < 600; i++) { // max ~30min at 3s ticks
       await new Promise(r => setTimeout(r, 3000));
       const { data } = await supabase.from("newsletter_drafts")
         .select("status, recipient_count, last_error")
         .eq("id", id).single();
       if (!data) break;
-      setSendProgress({ sent: data.recipient_count || 0, total });
+      setSendProgress(prev => ({ sent: Math.max(prev?.sent || 0, data.recipient_count || 0), total }));
       if (data.status !== "sending") {
-        setSendProgress(null);
+        // Don't clear progress here — the auto-resume loop may immediately
+        // start another round; clearing would flash empty state. The
+        // outer sendNow clears it after the final round.
         return data;
       }
     }
-    setSendProgress(null);
     return null;
   };
 
@@ -523,6 +528,7 @@ export default function EblastComposer({ pubs, currentUser }) {
       await dialog.alert("Send failed: " + err.message);
     }
     setSending(false);
+    setSendProgress(null);
   };
 
   const selectedClient = draft?.client_id ? { id: draft.client_id } : null;

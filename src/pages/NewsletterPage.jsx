@@ -223,20 +223,20 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   // Progress tracker for bulk sends (set while polling, cleared after).
   const [sendProgress, setSendProgress] = useState(null);
   const pollDraftUntilDone = useCallback(async (id, total) => {
-    setSendProgress({ sent: 0, total });
+    // Seed with the current value so the counter doesn't flash 0 → 4,296
+    // each time auto-resume kicks off a new polling round.
+    const { data: seed } = await supabase.from("newsletter_drafts")
+      .select("recipient_count").eq("id", id).single();
+    setSendProgress({ sent: seed?.recipient_count || 0, total });
     for (let i = 0; i < 600; i++) { // 30 minutes at 3s ticks
       await new Promise(r => setTimeout(r, 3000));
       const { data } = await supabase.from("newsletter_drafts")
         .select("status, recipient_count, last_error")
         .eq("id", id).single();
       if (!data) break;
-      setSendProgress({ sent: data.recipient_count || 0, total });
-      if (data.status !== "sending") {
-        setSendProgress(null);
-        return data;
-      }
+      setSendProgress(prev => ({ sent: Math.max(prev?.sent || 0, data.recipient_count || 0), total }));
+      if (data.status !== "sending") return data;
     }
-    setSendProgress(null);
     return null;
   }, []);
 
@@ -293,6 +293,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
       await dialog.alert("Send failed: " + err.message);
     }
     setSending(false);
+    setSendProgress(null);
   }, [draft, selPub, pub, subCounts, dialog, persistSendReady, runSendWithAutoResume]);
 
   // Scheduling — freezes the rendered HTML, flips status to 'scheduled'
