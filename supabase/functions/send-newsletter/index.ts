@@ -177,12 +177,27 @@ serve(async (req) => {
       .select("id, email, unsubscribe_token")
       .eq("publication_id", draft.publication_id)
       .eq("status", "active");
-    recipients = (subs || []).map(s => ({ id: s.id, email: s.email, token: s.unsubscribe_token }));
+
+    // Dedup pass: skip subscribers who already have a sent/delivered
+    // email_sends row for this draft. Handles the recoverable-retry
+    // case where a previous run hit the HTTP timeout and only partially
+    // completed — the admin can click Send again and we'll finish the
+    // tail without double-mailing the 509 who got it the first time.
+    const { data: alreadySent } = await admin
+      .from("email_sends")
+      .select("recipient_email")
+      .eq("draft_id", draftId)
+      .in("status", ["sent", "delivered"]);
+    const sentSet = new Set((alreadySent || []).map(r => r.recipient_email.toLowerCase()));
+
+    recipients = (subs || [])
+      .filter(s => !sentSet.has((s.email || "").toLowerCase()))
+      .map(s => ({ id: s.id, email: s.email, token: s.unsubscribe_token }));
   }
 
   if (recipients.length === 0) {
-    await admin.from("newsletter_drafts").update({ status: "approved", last_error: "No active subscribers" }).eq("id", draftId);
-    return json({ error: "No active subscribers for this publication" }, 400);
+    await admin.from("newsletter_drafts").update({ status: "approved", last_error: "No active subscribers (or all already sent)" }).eq("id", draftId);
+    return json({ error: "No active subscribers to send to — all already received this draft." }, 400);
   }
 
   // The actual send loop. Extracted so it can run either synchronously
@@ -238,16 +253,23 @@ serve(async (req) => {
       // accurate "Sent N of 5,340" even while the background worker is
       // still running.
       if (!testEmail && (sent + failed) % PROGRESS_EVERY === 0) {
-        await admin.from("newsletter_drafts").update({ recipient_count: sent }).eq("id", draftId);
+        const { count: cumulative } = await admin
+          .from("email_sends").select("id", { count: "exact", head: true })
+          .eq("draft_id", draftId).in("status", ["sent", "delivered"]);
+        await admin.from("newsletter_drafts").update({ recipient_count: cumulative ?? sent }).eq("id", draftId);
       }
     }
 
-    // Finalize
+    // Finalize — recipient_count reflects the all-time total for this
+    // draft (including any previous partial runs), not just this pass.
     if (!testEmail) {
+      const { count: allTimeSent } = await admin
+        .from("email_sends").select("id", { count: "exact", head: true })
+        .eq("draft_id", draftId).in("status", ["sent", "delivered"]);
       await admin.from("newsletter_drafts").update({
         status: failed === 0 ? "sent" : (sent === 0 ? "failed" : "sent"),
-        sent_at: sent > 0 ? new Date().toISOString() : null,
-        recipient_count: sent,
+        sent_at: (allTimeSent || sent) > 0 ? new Date().toISOString() : null,
+        recipient_count: allTimeSent ?? sent,
         last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
       }).eq("id", draftId);
     } else {
@@ -267,13 +289,24 @@ serve(async (req) => {
   const waitUntil: ((p: Promise<any>) => void) | undefined = (globalThis as any).EdgeRuntime?.waitUntil;
 
   if (isBulk && recipients.length > SYNC_THRESHOLD && typeof waitUntil === "function") {
+    // Report the draft's list-wide total, not just this run's backlog,
+    // so the UI's "Sending X / TOTAL" progress counter reflects the
+    // full newsletter list even during retries.
+    const { count: listTotal } = await admin
+      .from("newsletter_subscribers").select("id", { count: "exact", head: true })
+      .eq("publication_id", draft.publication_id).eq("status", "active");
     waitUntil(runSend().catch(async (err) => {
       await admin.from("newsletter_drafts").update({
         status: "failed",
         last_error: String(err?.message || err).slice(0, 500),
       }).eq("id", draftId);
     }));
-    return json({ queued: true, total: recipients.length, message: "Send started in background" }, 202);
+    return json({
+      queued: true,
+      total: listTotal ?? recipients.length,
+      remaining: recipients.length,
+      message: "Send started in background",
+    }, 202);
   }
 
   const result = await runSend();
