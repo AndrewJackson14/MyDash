@@ -346,7 +346,7 @@ export default function EblastComposer({ pubs, currentUser }) {
 
   const sendTest = async () => {
     if (!draft) return;
-    const address = await dialog.prompt("Send a test to which email?", { defaultValue: currentUser?.email || "" });
+    const address = await dialog.prompt("Send a test to which email?", currentUser?.email || "");
     if (!address) return;
     setSending(true);
     try {
@@ -363,8 +363,7 @@ export default function EblastComposer({ pubs, currentUser }) {
     if (!draft) return;
     const count = subCounts[draft.publication_id] || 0;
     const ok = await dialog.confirm(
-      `Send this eBlast to ${count.toLocaleString()} subscribers?`,
-      { confirmText: "Send to All", variant: "warning" }
+      `Send this eBlast to ${count.toLocaleString()} subscribers?`
     );
     if (!ok) return;
     setSending(true);

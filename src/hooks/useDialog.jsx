@@ -59,7 +59,7 @@ function DialogHost({ dialog, close }) {
       </div>
       {dialog.type === "prompt" && (
         <div style={{ padding: "0 24px 12px" }}>
-          <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") close(inputVal); if (e.key === "Escape") close(null); }} style={{ width: "100%", padding: "8px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+          <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") close(inputVal); if (e.key === "Escape") close(null); }} style={{ width: "100%", padding: "10px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, color: Z.tx, fontSize: FS.base, fontWeight: FW.semi, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 24px 20px" }}>

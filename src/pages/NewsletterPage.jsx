@@ -218,8 +218,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     if (!draft || !isOnline()) return;
     const count = subCounts[selPub] || 0;
     const ok = await dialog.confirm(
-      `Send this newsletter to ${count.toLocaleString()} ${pub.name} subscribers now?`,
-      { confirmText: "Send to All", variant: "warning" }
+      `Send this newsletter to ${count.toLocaleString()} ${pub.name} subscribers now?`
     );
     if (!ok) return;
     setSending(true);
@@ -243,7 +242,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   // touch subscriber or email_sends bookkeeping.
   const sendTest = useCallback(async () => {
     if (!draft || !isOnline()) return;
-    const address = await dialog.prompt("Send a test to which email?", { placeholder: currentUser?.email || "test@example.com", defaultValue: currentUser?.email || "" });
+    const address = await dialog.prompt("Send a test to which email?", currentUser?.email || "");
     if (!address) return;
     setSending(true);
     try {

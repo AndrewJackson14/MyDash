@@ -226,7 +226,7 @@ const NewsletterTemplates = ({ pubs }) => {
   // immediately. The canned 4 (daily/weekly_top/breaking/sponsored) are
   // already seeded per pub; this is for anything beyond those.
   const createTemplate = async () => {
-    const name = await dialog.prompt("Template name?", { defaultValue: "Custom Newsletter" });
+    const name = await dialog.prompt("Template name?", "Custom Newsletter");
     if (!name?.trim()) return;
     const row = {
       publication_id: selPub,
@@ -252,7 +252,7 @@ const NewsletterTemplates = ({ pubs }) => {
   // removed if an admin chooses — the seed is not load-bearing.
   const deleteTemplate = async () => {
     if (!draft) return;
-    const ok = await dialog.confirm(`Delete template "${draft.name}"?`, { confirmText: "Delete", variant: "danger" });
+    const ok = await dialog.confirm(`Delete template "${draft.name}"?`);
     if (!ok) return;
     const { error } = await supabase.from("newsletter_templates").delete().eq("id", draft.id);
     if (error) { alert("Delete failed: " + error.message); return; }
