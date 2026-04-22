@@ -193,7 +193,11 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, publis
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
     const roles = ["Publisher", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
-    return team.filter(t => !t.is_freelance && (roles.some(r => (t.role || "").includes(r)) || t.stellarpress_roles));
+    // Only active team members — excludes archived / import-only byline rows
+    // that were seeded to keep historical stories.author_id FKs valid.
+    return team.filter(t => t.isActive !== false
+      && !t.is_freelance
+      && (roles.some(r => (t.role || "").includes(r)) || t.stellarpress_roles));
   }, [team]);
 
   // ── Freelance contributors ─────────────────────────────────
