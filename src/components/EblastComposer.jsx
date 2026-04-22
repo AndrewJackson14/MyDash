@@ -409,6 +409,28 @@ export default function EblastComposer({ pubs, currentUser }) {
     setSending(false);
   };
 
+  // Poll the draft until status leaves 'sending'. Updates draft state in
+  // place so the UI can show a live "Sent N of TOTAL" counter off the
+  // draft.recipient_count heartbeat the edge function writes every 50.
+  const [sendProgress, setSendProgress] = useState(null); // { sent, total } or null
+  const pollDraftUntilDone = async (id, total) => {
+    setSendProgress({ sent: 0, total });
+    for (let i = 0; i < 600; i++) { // max ~30min at 3s ticks
+      await new Promise(r => setTimeout(r, 3000));
+      const { data } = await supabase.from("newsletter_drafts")
+        .select("status, recipient_count, last_error")
+        .eq("id", id).single();
+      if (!data) break;
+      setSendProgress({ sent: data.recipient_count || 0, total });
+      if (data.status !== "sending") {
+        setSendProgress(null);
+        return data;
+      }
+    }
+    setSendProgress(null);
+    return null;
+  };
+
   const sendNow = async () => {
     if (!draft) return;
     const count = subCounts[draft.publication_id] || 0;
@@ -420,9 +442,25 @@ export default function EblastComposer({ pubs, currentUser }) {
     try {
       const id = await persistSendReady();
       const res = await invokeSend(id, null);
-      await dialog.alert(`Sent to ${res.sent} of ${res.sent + res.failed}${res.failed ? ` — ${res.failed} failed` : ""}.`);
-      const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
-      if (data) setDraft(data);
+      if (res.queued) {
+        // Background send — poll for progress + completion.
+        const final = await pollDraftUntilDone(id, res.total);
+        if (final) {
+          await dialog.alert(
+            final.status === "failed"
+              ? `Send failed: ${final.last_error || "unknown error"}`
+              : `Sent to ${final.recipient_count || 0} of ${res.total} subscribers.`
+          );
+          const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
+          if (data) setDraft(data);
+        } else {
+          await dialog.alert("Send is taking longer than expected. Check back in a few minutes — it's still running in the background.");
+        }
+      } else {
+        await dialog.alert(`Sent to ${res.sent} of ${res.sent + res.failed}${res.failed ? ` — ${res.failed} failed` : ""}.`);
+        const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
+        if (data) setDraft(data);
+      }
     } catch (err) {
       await dialog.alert("Send failed: " + err.message);
     }
@@ -542,7 +580,9 @@ export default function EblastComposer({ pubs, currentUser }) {
               </Btn>
               <Btn sm v="ghost" onClick={sendTest} disabled={sending || draft.status === "sent"}>Send Test</Btn>
               <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}>
-                {sending ? "Sending…" : `Send to ${(subCounts[draft.publication_id] || 0).toLocaleString()}`}
+                {sendProgress
+                  ? `Sending ${sendProgress.sent.toLocaleString()} / ${sendProgress.total.toLocaleString()}…`
+                  : sending ? "Sending…" : `Send to ${(subCounts[draft.publication_id] || 0).toLocaleString()}`}
               </Btn>
               {draft.status === "sent" && <span style={{ fontSize: FS.xs, color: Z.su, fontWeight: FW.bold, fontFamily: COND }}>Sent · {draft.recipient_count} recipients</span>}
             </div>

@@ -33,7 +33,8 @@ const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SES_SECRET_ACCESS_KEY") || "";
 const AWS_REGION = Deno.env.get("AWS_SES_REGION") || "us-east-1";
 const EDGE_FN_BASE = Deno.env.get("EDGE_FN_BASE_URL") || `${SUPABASE_URL}/functions/v1`;
 
-const SEND_RATE_PER_SEC = 10; // SES default new-account limit is 14/s; stay under
+const SEND_RATE_PER_SEC = 25; // Production SES accounts typically allow 40-50/s; 25 stays safely under.
+const PROGRESS_EVERY = 50;    // Update newsletter_drafts.recipient_count every N successful sends so the UI polling loop can show progress.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,69 +185,104 @@ serve(async (req) => {
     return json({ error: "No active subscribers for this publication" }, 400);
   }
 
-  let sent = 0, failed = 0;
-  const errors: string[] = [];
+  // The actual send loop. Extracted so it can run either synchronously
+  // (for test sends / tiny lists) or via EdgeRuntime.waitUntil for bulk.
+  const runSend = async () => {
+    let sent = 0, failed = 0;
+    const errors: string[] = [];
 
-  for (let i = 0; i < recipients.length; i++) {
-    const r = recipients[i];
-    // Rate limiting — chunk SES calls at SEND_RATE_PER_SEC
-    if (i > 0 && i % SEND_RATE_PER_SEC === 0) {
-      await new Promise(res => setTimeout(res, 1000));
+    for (let i = 0; i < recipients.length; i++) {
+      const r = recipients[i];
+      // Rate limiting — chunk SES calls at SEND_RATE_PER_SEC
+      if (i > 0 && i % SEND_RATE_PER_SEC === 0) {
+        await new Promise(res => setTimeout(res, 1000));
+      }
+
+      let sendRowId: string | null = null;
+      if (!testEmail && r.id) {
+        const { data: sendRow } = await admin.from("email_sends").insert({
+          draft_id: draftId, subscriber_id: r.id, recipient_email: r.email, status: "queued",
+        }).select("id").single();
+        sendRowId = sendRow?.id || null;
+      }
+
+      const html = (draft.html_body || "")
+        .replace(/{{SEND_ID}}/g, sendRowId || "test")
+        .replace(/{{UNSUB_TOKEN}}/g, encodeURIComponent(r.token || ""))
+        .replace(/{{RECIPIENT_EMAIL}}/g, r.email);
+
+      try {
+        const { messageId } = await sesSendEmail({
+          from: fromHeader, replyTo, to: r.email, subject: draft.subject, html,
+        });
+        sent++;
+        if (sendRowId) {
+          await admin.from("email_sends").update({
+            status: "sent", sent_at: new Date().toISOString(), ses_message_id: messageId,
+          }).eq("id", sendRowId);
+        }
+        if (r.id) {
+          await admin.from("newsletter_subscribers").update({ last_sent_at: new Date().toISOString() }).eq("id", r.id);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${r.email}: ${err.message}`);
+        if (sendRowId) {
+          await admin.from("email_sends").update({
+            status: "failed", error_message: String(err.message).slice(0, 500),
+          }).eq("id", sendRowId);
+        }
+      }
+
+      // Live progress heartbeat so the UI's polling loop can render an
+      // accurate "Sent N of 5,340" even while the background worker is
+      // still running.
+      if (!testEmail && (sent + failed) % PROGRESS_EVERY === 0) {
+        await admin.from("newsletter_drafts").update({ recipient_count: sent }).eq("id", draftId);
+      }
     }
 
-    // Create the per-recipient email_sends row FIRST so we know its id
-    // before substituting placeholders.
-    let sendRowId: string | null = null;
-    if (!testEmail && r.id) {
-      const { data: sendRow } = await admin.from("email_sends").insert({
-        draft_id: draftId, subscriber_id: r.id, recipient_email: r.email, status: "queued",
-      }).select("id").single();
-      sendRowId = sendRow?.id || null;
+    // Finalize
+    if (!testEmail) {
+      await admin.from("newsletter_drafts").update({
+        status: failed === 0 ? "sent" : (sent === 0 ? "failed" : "sent"),
+        sent_at: sent > 0 ? new Date().toISOString() : null,
+        recipient_count: sent,
+        last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
+      }).eq("id", draftId);
+    } else {
+      await admin.from("newsletter_drafts").update({ status: "approved" }).eq("id", draftId);
     }
 
-    // Personalize body (tracking pixel + unsubscribe link)
-    const html = (draft.html_body || "")
-      .replace(/{{SEND_ID}}/g, sendRowId || "test")
-      .replace(/{{UNSUB_TOKEN}}/g, encodeURIComponent(r.token || ""))
-      .replace(/{{RECIPIENT_EMAIL}}/g, r.email);
+    return { sent, failed, errors };
+  };
 
-    try {
-      const { messageId } = await sesSendEmail({
-        from: fromHeader, replyTo, to: r.email, subject: draft.subject, html,
-      });
-      sent++;
-      if (sendRowId) {
-        await admin.from("email_sends").update({
-          status: "sent", sent_at: new Date().toISOString(), ses_message_id: messageId,
-        }).eq("id", sendRowId);
-      }
-      if (r.id) {
-        await admin.from("newsletter_subscribers").update({ last_sent_at: new Date().toISOString() }).eq("id", r.id);
-      }
-    } catch (err: any) {
-      failed++;
-      errors.push(`${r.email}: ${err.message}`);
-      if (sendRowId) {
-        await admin.from("email_sends").update({
-          status: "failed", error_message: String(err.message).slice(0, 500),
-        }).eq("id", sendRowId);
-      }
-    }
+  // Test sends + tiny lists run synchronously so the UI response carries
+  // the result. Anything larger would blow through Supabase's 150s HTTP
+  // request timeout, so we hand the work to EdgeRuntime.waitUntil and
+  // return 202 immediately; the UI polls newsletter_drafts.status.
+  const isBulk = !testEmail && recipients.length > 1;
+  const SYNC_THRESHOLD = 10;
+  // @ts-ignore — EdgeRuntime is exposed by the Supabase Deno runtime.
+  const waitUntil: ((p: Promise<any>) => void) | undefined = (globalThis as any).EdgeRuntime?.waitUntil;
+
+  if (isBulk && recipients.length > SYNC_THRESHOLD && typeof waitUntil === "function") {
+    waitUntil(runSend().catch(async (err) => {
+      await admin.from("newsletter_drafts").update({
+        status: "failed",
+        last_error: String(err?.message || err).slice(0, 500),
+      }).eq("id", draftId);
+    }));
+    return json({ queued: true, total: recipients.length, message: "Send started in background" }, 202);
   }
 
-  // Finalize draft status
-  if (!testEmail) {
-    await admin.from("newsletter_drafts").update({
-      status: failed === 0 ? "sent" : (sent === 0 ? "failed" : "sent"),
-      sent_at: sent > 0 ? new Date().toISOString() : null,
-      recipient_count: sent,
-      last_error: errors.length ? errors.slice(0, 5).join(" | ") : null,
-    }).eq("id", draftId);
-  } else {
-    await admin.from("newsletter_drafts").update({ status: "approved" }).eq("id", draftId);
-  }
-
-  return json({ sent, failed, errors: errors.slice(0, 20) }, failed === 0 ? 200 : 207);
+  const result = await runSend();
+  return json({
+    queued: false,
+    sent: result.sent,
+    failed: result.failed,
+    errors: result.errors.slice(0, 20),
+  }, result.failed === 0 ? 200 : 207);
 });
 
 function json(body: unknown, status = 200) {

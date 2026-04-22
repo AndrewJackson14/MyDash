@@ -213,6 +213,26 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     return data;
   }, []);
 
+  // Progress tracker for bulk sends (set while polling, cleared after).
+  const [sendProgress, setSendProgress] = useState(null);
+  const pollDraftUntilDone = useCallback(async (id, total) => {
+    setSendProgress({ sent: 0, total });
+    for (let i = 0; i < 600; i++) { // 30 minutes at 3s ticks
+      await new Promise(r => setTimeout(r, 3000));
+      const { data } = await supabase.from("newsletter_drafts")
+        .select("status, recipient_count, last_error")
+        .eq("id", id).single();
+      if (!data) break;
+      setSendProgress({ sent: data.recipient_count || 0, total });
+      if (data.status !== "sending") {
+        setSendProgress(null);
+        return data;
+      }
+    }
+    setSendProgress(null);
+    return null;
+  }, []);
+
   // ── Send Now (fires SES via edge function) ──────────────
   const sendNow = useCallback(async () => {
     if (!draft || !isOnline()) return;
@@ -225,8 +245,21 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     try {
       const draftId = await persistSendReady();
       const result = await invokeSend(draftId, null);
-      await dialog.alert(`Sent to ${result.sent} of ${result.sent + result.failed} subscribers${result.failed ? ` — ${result.failed} failed` : ""}.`);
-      // Reload this draft so status=sent shows through.
+      if (result.queued) {
+        const final = await pollDraftUntilDone(draftId, result.total);
+        if (final) {
+          await dialog.alert(
+            final.status === "failed"
+              ? `Send failed: ${final.last_error || "unknown error"}`
+              : `Sent to ${final.recipient_count || 0} of ${result.total} subscribers.`
+          );
+        } else {
+          await dialog.alert("Send is still running in the background — check back in a few minutes.");
+        }
+      } else {
+        await dialog.alert(`Sent to ${result.sent} of ${result.sent + result.failed} subscribers${result.failed ? ` — ${result.failed} failed` : ""}.`);
+      }
+      // Reload the draft either way so status shows through.
       const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", draftId).single();
       if (data) {
         setDraft(data);
@@ -236,7 +269,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
       await dialog.alert("Send failed: " + err.message);
     }
     setSending(false);
-  }, [draft, selPub, pub, subCounts, dialog, persistSendReady, invokeSend]);
+  }, [draft, selPub, pub, subCounts, dialog, persistSendReady, invokeSend, pollDraftUntilDone]);
 
   // Test send — goes to a single address the user types, doesn't
   // touch subscriber or email_sends bookkeeping.
@@ -410,7 +443,12 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
             <Btn sm v="secondary" onClick={saveDraft} disabled={saving || draft.status === "sent"}>{saving ? "Saving..." : "Save Draft"}</Btn>
             <Btn sm onClick={approveDraft} disabled={saving || draft.status === "sent"}><Ic.check size={12} /> Approve</Btn>
             <Btn sm v="ghost" onClick={sendTest} disabled={sending || draft.status === "sent"}>Send Test</Btn>
-            <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}><Ic.send size={12} /> {sending ? "Sending..." : `Send to ${(subCounts[selPub] || 0).toLocaleString()}`}</Btn>
+            <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}>
+              <Ic.send size={12} />{" "}
+              {sendProgress
+                ? `${sendProgress.sent.toLocaleString()} / ${sendProgress.total.toLocaleString()}…`
+                : sending ? "Sending..." : `Send to ${(subCounts[selPub] || 0).toLocaleString()}`}
+            </Btn>
           </div>
 
           {/* Last saved */}
