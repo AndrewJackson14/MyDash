@@ -42,6 +42,25 @@ const ClientProfile = ({
     return () => { cancelled = true; };
   }, [clientId]);
 
+  // Advertiser eBlasts attached to this client (newsletter_drafts with
+  // draft_type='eblast' and client_id=us). Surfaces the campaign status
+  // + open/click performance right on the client profile.
+  const [clientEblasts, setClientEblasts] = useState([]);
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("newsletter_drafts")
+        .select("id, publication_id, subject, advertiser_name, status, sent_at, recipient_count, open_count, click_count, updated_at")
+        .eq("draft_type", "eblast")
+        .eq("client_id", clientId)
+        .order("updated_at", { ascending: false });
+      if (!cancelled) setClientEblasts(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
+
   const vc = (clients || []).find(x => x.id === clientId);
   if (!vc) return null;
 
@@ -740,6 +759,31 @@ const ClientProfile = ({
         />
       </div>
     )}
+
+    {/* ── eBLAST CAMPAIGNS — newsletter_drafts linked to this client ── */}
+    {clientEblasts.length > 0 && <Card style={{ borderLeft: `3px solid ${Z.pu}`, marginBottom: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>eBlast Campaigns</span>
+        <span style={{ fontSize: FS.xs, color: Z.td }}>{clientEblasts.length} campaign{clientEblasts.length !== 1 ? "s" : ""}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {clientEblasts.map(e => {
+          const openRate = e.recipient_count > 0 ? Math.round((e.open_count / e.recipient_count) * 100) : 0;
+          const clickRate = e.recipient_count > 0 ? Math.round((e.click_count / e.recipient_count) * 100) : 0;
+          const statusColor = e.status === "sent" ? Z.su : e.status === "failed" ? Z.da : e.status === "approved" ? Z.ac : Z.tm;
+          return <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 90px 90px", gap: 10, alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+            <div>
+              <div style={{ fontWeight: FW.bold, color: Z.tx }}>{e.subject || "(no subject)"}</div>
+              <div style={{ fontSize: FS.xs, color: Z.td }}>{pn(e.publication_id)}{e.sent_at ? ` · ${e.sent_at.slice(0, 10)}` : ""}</div>
+            </div>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: statusColor, textTransform: "uppercase", fontFamily: COND }}>{e.status}</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{(e.recipient_count || 0).toLocaleString()} sent</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{e.status === "sent" ? `${openRate}% open` : "—"}</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm }}>{e.status === "sent" ? `${clickRate}% click` : "—"}</span>
+          </div>;
+        })}
+      </div>
+    </Card>}
 
     {/* ── PURCHASE TIMELINE — contracts, standalone ads, orphan proposals grouped by year ── */}
     {(timelineYears.length > 0 || clientProposals.length > 0) && <Card style={{ borderLeft: `3px solid ${Z.ac}`, marginBottom: 0 }}>

@@ -10,6 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { generateNewsletterHtml, getPubConfig } from "../utils/newsletterTemplate";
 import { fmtDate, fmtTime } from "../lib/formatters";
 import NewsletterTemplates from "./NewsletterTemplates";
+import EblastComposer from "../components/EblastComposer";
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 const STATUS_BADGE = { draft: "Draft", approved: "Approved", sent: "Sent", failed: "Failed" };
@@ -315,8 +316,11 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     </div>
 
     <TabRow>
-      <TB tabs={["Today", "Templates", "History"]} active={tab} onChange={setTab} />
+      <TB tabs={["Today", "eBlast", "Templates", "History"]} active={tab} onChange={setTab} />
     </TabRow>
+
+    {/* ════════ eBLAST TAB ════════ */}
+    {tab === "eBlast" && <EblastComposer pubs={pubs} currentUser={currentUser} />}
 
     {/* ════════ TEMPLATES TAB ════════ */}
     {tab === "Templates" && <NewsletterTemplates pubs={pubs} />}
