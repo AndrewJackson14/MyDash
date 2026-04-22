@@ -85,6 +85,7 @@ import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { generateEblastHtml } from "../utils/eblastTemplate";
 import { uploadMedia } from "../lib/media";
+import ScheduleModal from "./ScheduleModal";
 
 const NEWSLETTER_PUBS = [
   { value: "pub-the-malibu-times",  label: "The Malibu Times" },
@@ -193,6 +194,7 @@ export default function EblastComposer({ pubs, currentUser }) {
   const [newDraftPub, setNewDraftPub] = useState(NEWSLETTER_PUBS[0].value);
   const [creating, setCreating] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const previewRef = useRef(null);
   const imageFileRef = useRef(null);
 
@@ -394,6 +396,43 @@ export default function EblastComposer({ pubs, currentUser }) {
     return data;
   };
 
+  // Scheduling — stamps scheduled_at + recurrence + status, same HTML
+  // rendering as sendNow. The pg_cron tick fires it at go-time.
+  const scheduleSend = async ({ scheduled_at, recurrence }) => {
+    if (!draft) return;
+    // Build the send-ready HTML now so the content is frozen at schedule time.
+    const html = generateEblastHtml({ ...draft, pubId: draft.publication_id, forSending: true });
+    const { error } = await supabase.from("newsletter_drafts").update({
+      subject: draft.subject, preheader: draft.preheader,
+      advertiser_name: draft.advertiser_name, advertiser_website: draft.advertiser_website,
+      advertiser_logo_url: draft.advertiser_logo_url,
+      advertiser_address: draft.advertiser_address, advertiser_phone: draft.advertiser_phone,
+      body_html: draft.body_html,
+      cta_text: draft.cta_text, cta_url: draft.cta_url,
+      client_id: draft.client_id || null,
+      html_body: html,
+      status: "scheduled",
+      scheduled_at,
+      recurrence,
+    }).eq("id", draft.id);
+    if (error) { await dialog.alert("Schedule failed: " + error.message); return; }
+    const { data: fresh } = await supabase.from("newsletter_drafts").select("*").eq("id", draft.id).single();
+    if (fresh) setDraft(fresh);
+  };
+
+  const cancelSchedule = async () => {
+    if (!draft) return;
+    const ok = await dialog.confirm("Cancel the scheduled send?");
+    if (!ok) return;
+    await supabase.from("newsletter_drafts").update({
+      status: "approved",
+      scheduled_at: null,
+      recurrence: null,
+    }).eq("id", draft.id);
+    const { data: fresh } = await supabase.from("newsletter_drafts").select("*").eq("id", draft.id).single();
+    if (fresh) setDraft(fresh);
+  };
+
   const sendTest = async () => {
     if (!draft) return;
     const address = await dialog.prompt("Send a test to which email?", currentUser?.email || "");
@@ -573,12 +612,29 @@ export default function EblastComposer({ pubs, currentUser }) {
               </div>
             </GlassCard>
 
+            {/* Scheduled-send banner */}
+            {draft.status === "scheduled" && draft.scheduled_at && (
+              <div style={{ padding: "10px 14px", borderRadius: Ri, background: Z.ac + "18", border: `1px solid ${Z.ac}40`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: FS.sm, color: Z.ac, fontFamily: COND }}>
+                  <strong>Scheduled</strong> for {new Date(draft.scheduled_at).toLocaleString("en-US", {
+                    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                    timeZone: "America/Los_Angeles", timeZoneName: "short",
+                  })}
+                  {draft.recurrence?.type && <span style={{ marginLeft: 6, opacity: 0.75 }}>· repeats {draft.recurrence.type}</span>}
+                </div>
+                <Btn sm v="ghost" onClick={cancelSchedule} style={{ color: Z.da }}>Cancel schedule</Btn>
+              </div>
+            )}
+
             {/* Actions */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <Btn sm v="secondary" onClick={saveOnly} disabled={saving || draft.status === "sent"}>
                 {saving ? "Saving…" : saved ? "✓ Saved" : "Save Draft"}
               </Btn>
               <Btn sm v="ghost" onClick={sendTest} disabled={sending || draft.status === "sent"}>Send Test</Btn>
+              <Btn sm v="ghost" onClick={() => setScheduleOpen(true)} disabled={sending || draft.status === "sent"}>
+                {draft.status === "scheduled" ? "Reschedule" : "Schedule"}
+              </Btn>
               <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}>
                 {sendProgress
                   ? `Sending ${sendProgress.sent.toLocaleString()} / ${sendProgress.total.toLocaleString()}…`
@@ -598,6 +654,16 @@ export default function EblastComposer({ pubs, currentUser }) {
           </GlassCard>
         </div>
       )}
+
+      {/* Schedule modal */}
+      <ScheduleModal
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        onSchedule={scheduleSend}
+        currentScheduledAt={draft?.scheduled_at}
+        currentRecurrence={draft?.recurrence}
+        draftLabel={draft?.subject || "this eBlast"}
+      />
 
       {/* New eBlast modal — proper dropdown instead of a raw text
           prompt. onSubmit wires Enter-to-create. */}

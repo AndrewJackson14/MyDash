@@ -12,6 +12,7 @@ import { fmtDate, fmtTime } from "../lib/formatters";
 import NewsletterTemplates from "./NewsletterTemplates";
 import EblastComposer from "../components/EblastComposer";
 import CampaignReport from "../components/CampaignReport";
+import ScheduleModal from "../components/ScheduleModal";
 
 const NEWSLETTER_PUBS = ["pub-paso-robles-press", "pub-atascadero-news", "pub-the-malibu-times"];
 const STATUS_BADGE = { draft: "Draft", approved: "Approved", sent: "Sent", failed: "Failed" };
@@ -73,6 +74,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   // the tab content. Kept as a sibling of `tab` (not a real route) to
   // match MyDash's existing tab-state pattern.
   const [campaignId, setCampaignId] = useState(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [previewDraft, setPreviewDraft] = useState(null);
   const [subCounts, setSubCounts] = useState({});
   const previewRef = useRef(null);
@@ -276,6 +278,41 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     setSending(false);
   }, [draft, selPub, pub, subCounts, dialog, persistSendReady, invokeSend, pollDraftUntilDone]);
 
+  // Scheduling — freezes the rendered HTML, flips status to 'scheduled'
+  // with scheduled_at + recurrence. pg_cron tick (every 2 min) fires it.
+  const scheduleSend = useCallback(async ({ scheduled_at, recurrence }) => {
+    if (!draft) return;
+    const html = generateNewsletterHtml({
+      stories: draft.stories, pubId: selPub, subject: draft.subject,
+      introText: draft.intro_text, forSending: true,
+    });
+    await supabase.from("newsletter_drafts").update({
+      subject: draft.subject, intro_text: draft.intro_text, stories: draft.stories,
+      html_body: html,
+      status: "scheduled",
+      scheduled_at, recurrence,
+    }).eq("id", draft.id);
+    const { data: fresh } = await supabase.from("newsletter_drafts").select("*").eq("id", draft.id).single();
+    if (fresh) {
+      setDraft(fresh);
+      setDrafts(prev => prev.map(d => d.id === fresh.id ? fresh : d));
+    }
+  }, [draft, selPub]);
+
+  const cancelSchedule = useCallback(async () => {
+    if (!draft) return;
+    const ok = await dialog.confirm("Cancel the scheduled send?");
+    if (!ok) return;
+    await supabase.from("newsletter_drafts").update({
+      status: "approved", scheduled_at: null, recurrence: null,
+    }).eq("id", draft.id);
+    const { data: fresh } = await supabase.from("newsletter_drafts").select("*").eq("id", draft.id).single();
+    if (fresh) {
+      setDraft(fresh);
+      setDrafts(prev => prev.map(d => d.id === fresh.id ? fresh : d));
+    }
+  }, [draft, dialog]);
+
   // Test send — goes to a single address the user types, doesn't
   // touch subscriber or email_sends bookkeeping.
   const sendTest = useCallback(async () => {
@@ -455,11 +492,28 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
             </div>
           </div>
 
+          {/* Scheduled-send banner */}
+          {draft.status === "scheduled" && draft.scheduled_at && (
+            <div style={{ padding: "10px 14px", borderRadius: Ri, background: Z.ac + "18", border: `1px solid ${Z.ac}40`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: FS.sm, color: Z.ac, fontFamily: COND }}>
+                <strong>Scheduled</strong> for {new Date(draft.scheduled_at).toLocaleString("en-US", {
+                  weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                  timeZone: "America/Los_Angeles", timeZoneName: "short",
+                })}
+                {draft.recurrence?.type && <span style={{ marginLeft: 6, opacity: 0.75 }}>· repeats {draft.recurrence.type}</span>}
+              </div>
+              <Btn sm v="ghost" onClick={cancelSchedule} style={{ color: Z.da }}>Cancel schedule</Btn>
+            </div>
+          )}
+
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <Btn sm v="secondary" onClick={saveDraft} disabled={saving || draft.status === "sent"}>{saving ? "Saving..." : "Save Draft"}</Btn>
             <Btn sm onClick={approveDraft} disabled={saving || draft.status === "sent"}><Ic.check size={12} /> Approve</Btn>
             <Btn sm v="ghost" onClick={sendTest} disabled={sending || draft.status === "sent"}>Send Test</Btn>
+            <Btn sm v="ghost" onClick={() => setScheduleOpen(true)} disabled={sending || draft.status === "sent"}>
+              {draft.status === "scheduled" ? "Reschedule" : "Schedule"}
+            </Btn>
             <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}>
               <Ic.send size={12} />{" "}
               {sendProgress
@@ -514,6 +568,16 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
         </tbody>
       </DataTable>
     </>}
+
+    {/* Schedule Modal */}
+    <ScheduleModal
+      open={scheduleOpen}
+      onClose={() => setScheduleOpen(false)}
+      onSchedule={scheduleSend}
+      currentScheduledAt={draft?.scheduled_at}
+      currentRecurrence={draft?.recurrence}
+      draftLabel={draft?.subject || "this newsletter"}
+    />
 
     {/* Add Story Modal */}
     <Modal open={addStoryOpen} onClose={() => { setAddStoryOpen(false); setAddStorySr(""); }} title="Add Story" width={500}>
