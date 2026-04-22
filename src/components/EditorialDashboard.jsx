@@ -503,8 +503,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     // drifts from print_issue_id, which made stories appear under two
     // issue dates in the sidebar. print_issue_id is the editor-set
     // value and the canonical print anchor.
+    //
+    // Also include stories linked to this issue as a sibling placement
+    // via also_in_issue_ids (see migration 090). Those render with a
+    // "↔ [Primary Pub]" badge so editors know they're the shared copy.
     let list = stories
-      .filter(s => s.print_issue_id === selIssue);
+      .filter(s => s.print_issue_id === selIssue
+                || (Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(selIssue)))
+      .map(s => s.print_issue_id === selIssue ? s : { ...s, _mirroredFrom: s.print_issue_id });
     // Include sibling pub stories when toggled on
     if (showSiblings && siblingCtx) {
       const siblingIds = new Set(siblingCtx.map(sc => sc.issue.id));
@@ -519,6 +525,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
+
+  // ── Sibling issue resolver for a given story ──
+  // Returns every sibling-pub issue that shares the story's primary
+  // issue date. Siblings come from publications.settings.shared_content_with
+  // (seeded in migration 033). One story may have 0 or many siblings.
+  const siblingIssuesFor = useCallback((story) => {
+    const primary = issues.find(i => i.id === story.print_issue_id);
+    if (!primary) return [];
+    const primaryPubId = primary.publicationId || primary.pubId;
+    const primaryPub = (pubs || []).find(p => p.id === primaryPubId);
+    const siblings = primaryPub?.settings?.shared_content_with || [];
+    return siblings.map(sibPubId => {
+      const sibPub = (pubs || []).find(p => p.id === sibPubId);
+      const sibIss = issues.find(i => (i.publicationId || i.pubId) === sibPubId && i.date === primary.date);
+      return sibIss && sibPub ? { issue: sibIss, pub: sibPub } : null;
+    }).filter(Boolean);
+  }, [issues, pubs]);
+
+  // ── Toggle a sibling-issue link on a story ──
+  // Flips the sibling issue id in/out of stories.also_in_issue_ids,
+  // persists, and updates local state. One canonical row — the planner
+  // surfaces it under the sibling issue via the array-contains filter.
+  const toggleSiblingLink = useCallback(async (story, siblingIssueId) => {
+    const current = Array.isArray(story.also_in_issue_ids) ? story.also_in_issue_ids : [];
+    const next = current.includes(siblingIssueId)
+      ? current.filter(x => x !== siblingIssueId)
+      : [...current, siblingIssueId];
+    setStories(prev => prev.map(s => s.id === story.id
+      ? { ...s, also_in_issue_ids: next, alsoInIssueIds: next }
+      : s));
+    const { error } = await supabase.from("stories")
+      .update({ also_in_issue_ids: next, updated_at: new Date().toISOString() })
+      .eq("id", story.id);
+    if (error) console.error("Sibling link toggle failed:", error);
+  }, [setStories]);
 
   // ── Inline new-story creator scoped to the selected issue ──
   // Used by the "+ New Story" affordance under the Page Map. Inserts
@@ -835,10 +876,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
             </div>
             {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
             {futureIssues.map(iss => {
-              // Anchor on print_issue_id only — must match the issueStories
-              // filter so the sidebar count matches what's actually rendered
-              // when the issue is opened.
-              const stCount = stories.filter(s => s.print_issue_id === iss.id).length;
+              // Count matches the issueStories filter — primary placement
+              // plus any sibling links (also_in_issue_ids contains iss.id).
+              const stCount = stories.filter(s => s.print_issue_id === iss.id
+                || (Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(iss.id))).length;
               const isSelected = selIssue === iss.id;
               return (
                 <div key={iss.id} onClick={() => setSelIssue(iss.id)} style={{
@@ -947,13 +988,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                         const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
                         const hasSavedTitle = s.title && s.title !== "";
                         const isSibling = s._fromSibling;
+                        const isMirror = !!s._mirroredFrom; // rendered here because the current issue is in s.also_in_issue_ids
+                        const siblingOptions = !isMirror && !isSibling ? siblingIssuesFor(s) : [];
+                        const primaryPubName = isMirror ? (pubs.find(p => p.id === (issues.find(i => i.id === s._mirroredFrom)?.publicationId || issues.find(i => i.id === s._mirroredFrom)?.pubId))?.name || "primary") : null;
                         return <tr key={s.id} style={{ borderBottom: `1px solid ${Z.bd}`, opacity: isSibling ? 0.6 : 1 }}>
-                          <td style={{ padding: "5px 8px", maxWidth: 260 }}>
+                          <td style={{ padding: "5px 8px", maxWidth: 280 }}>
                             {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "#3B82F6", background: "rgba(59,130,246,0.1)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
+                            {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "#3B82F6", background: "rgba(59,130,246,0.1)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
                             {hasSavedTitle
                               ? <span onClick={() => !isSibling && openDetail(s)} style={{ fontWeight: 700, color: isSibling ? Z.tm : Z.ac, cursor: isSibling ? "default" : "pointer", display: "inline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
                               : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => updateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
                             }
+                            {/* Sibling-link chips — only on primary rows, one per declared sibling pub. */}
+                            {siblingOptions.length > 0 && hasSavedTitle && (
+                              <div style={{ marginTop: 3, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                {siblingOptions.map(({ issue: sibIss, pub: sibPub }) => {
+                                  const linked = Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(sibIss.id);
+                                  return (
+                                    <button
+                                      key={sibIss.id}
+                                      onClick={() => toggleSiblingLink(s, sibIss.id)}
+                                      title={linked ? `Unlink from ${sibPub.name}` : `Also publish in ${sibPub.name} (${new Date(sibIss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })})`}
+                                      style={{
+                                        fontSize: 9, fontWeight: 700, fontFamily: COND, letterSpacing: 0.3,
+                                        padding: "2px 7px", borderRadius: 10, cursor: "pointer",
+                                        background: linked ? "rgba(59,130,246,0.15)" : Z.sa,
+                                        color: linked ? "#3B82F6" : Z.tm,
+                                        border: `1px solid ${linked ? "rgba(59,130,246,0.4)" : Z.bd}`,
+                                      }}
+                                    >
+                                      {linked ? "↔" : "⊕"} {sibPub.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: "5px 8px" }}>
                             <Sel value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} options={[{ value: "", label: "—" }, ...[...new Set(stories.map(x => x.author).filter(Boolean))].sort().map(a => ({ value: a, label: a }))]} style={{ padding: "3px 24px 3px 6px" }} />

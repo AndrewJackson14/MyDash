@@ -459,7 +459,7 @@ export function DataProvider({ children, localData }) {
     // those from the bulk select cuts payload ~95%.
     const STORY_LIST_COLS = [
       "id", "title", "author", "status",
-      "publication_id", "issue_id", "print_issue_id",
+      "publication_id", "issue_id", "print_issue_id", "also_in_issue_ids",
       "category", "category_id", "page", "print_page",
       "word_count", "word_limit", "priority", "story_type", "source",
       "due_date", "scheduled_at",
@@ -499,6 +499,8 @@ export function DataProvider({ children, localData }) {
       issueId: s.issue_id || '',
       issue_id: s.issue_id || '',
       print_issue_id: s.print_issue_id || '',
+      also_in_issue_ids: s.also_in_issue_ids || [],
+      alsoInIssueIds: s.also_in_issue_ids || [],
       // Destination flags — single source of truth for "is this live"
       sent_to_web: s.sent_to_web === true,
       sent_to_print: s.sent_to_print === true,
