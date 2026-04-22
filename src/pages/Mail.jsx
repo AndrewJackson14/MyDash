@@ -596,7 +596,7 @@ const Mail = ({ isActive } = {}) => {
         const activeOpt = labelOptions.find(o => o.value === activeLabel);
         return <>
           <Btn sm v={foldersOpen ? "primary" : "ghost"} onClick={() => setFoldersOpen(o => !o)}>
-            <Ic.menu size={12} /> Folders{activeOpt ? `: ${activeOpt.label}` : ""} {foldersOpen ? "▴" : "▾"}
+            <Ic.list size={12} /> Folders{activeOpt ? `: ${activeOpt.label}` : ""} {foldersOpen ? "▴" : "▾"}
           </Btn>
           {foldersOpen && (
             <FilterPillStrip
