@@ -184,7 +184,7 @@ export function DataProvider({ children, localData }) {
 
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
-        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,site_settings';
+        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
@@ -216,6 +216,12 @@ export function DataProvider({ children, localData }) {
             dormant: !!p.dormant,
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
             sharedContentWith: Array.isArray(p.site_settings?.shared_content_with) ? p.site_settings.shared_content_with : [],
+            // Legal-notice pricing (migration 091). null = unconfigured; the
+            // form falls back to statutory default ($0.055/char) for per-char.
+            legalRatePerChar: p.legal_rate_per_char != null ? Number(p.legal_rate_per_char) : null,
+            legalProbateFlat: p.legal_probate_flat != null ? Number(p.legal_probate_flat) : null,
+            legalNameChangeFlat: p.legal_name_change_flat != null ? Number(p.legal_name_change_flat) : null,
+            legalFbnFlat: p.legal_fbn_flat != null ? Number(p.legal_fbn_flat) : null,
             adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
               rate: a.rate, rate6: a.rate_6, rate12: a.rate_12, rate18: a.rate_18,
@@ -1076,6 +1082,14 @@ export function DataProvider({ children, localData }) {
       invoiceId: n.invoice_id, notes: n.notes, createdAt: n.created_at,
       attachments: n.attachments || [],
       body: n.body || null,
+      // Migration 091 fields — new model
+      kind: n.kind || 'legal_notice',
+      title: n.title || '',
+      runDates: Array.isArray(n.run_dates) ? n.run_dates : [],
+      noticeNumber: n.notice_number || null,
+      bodyHtml: n.body_html || '',
+      ratePlan: n.rate_plan || 'per_char',
+      ratePerChar: Number(n.rate_per_char ?? 0.055),
     })));
     if (legalIssueRes.data) setLegalNoticeIssues(legalIssueRes.data.map(li => ({
       id: li.id, legalNoticeId: li.legal_notice_id, issueId: li.issue_id, pageNumber: li.page_number,
@@ -1880,15 +1894,24 @@ export function DataProvider({ children, localData }) {
   // ─── Legal Notices ──────────────────────────────────────
   const insertLegalNotice = useCallback(async (notice) => {
     if (isOnline()) {
-      const { data } = await supabase.from('legal_notices').insert({
-        client_id: notice.clientId || null, contact_name: notice.contactName,
-        contact_email: notice.contactEmail || '', contact_phone: notice.contactPhone || '',
-        organization: notice.organization || '', notice_type: notice.noticeType, status: notice.status || 'received',
-        content: notice.content, publication_id: notice.publicationId,
-        issues_requested: notice.issuesRequested || 1,
-        rate_per_line: notice.ratePerLine || 0, line_count: notice.lineCount || 0,
-        flat_rate: notice.flatRate || 0, total_amount: notice.totalAmount || 0, notes: notice.notes || '',
+      const { data, error } = await supabase.from('legal_notices').insert({
+        client_id: notice.clientId || null,
+        status: notice.status || 'received',
+        publication_id: notice.publicationId,
+        total_amount: notice.totalAmount || 0,
+        notes: notice.notes || '',
+        // Migration 091 fields — new model
+        kind: notice.kind || 'legal_notice',
+        title: notice.title || '',
+        body_html: notice.bodyHtml || '',
+        content: notice.content || '',
+        run_dates: Array.isArray(notice.runDates) ? notice.runDates : [],
+        issues_requested: Array.isArray(notice.runDates) ? notice.runDates.length : (notice.issuesRequested || 1),
+        notice_number: notice.noticeNumber || null,
+        rate_plan: notice.ratePlan || 'per_char',
+        flat_rate: notice.flatRate || 0,
       }).select().single();
+      if (error) { console.error('insertLegalNotice failed:', error); return { ...notice, id: notice.id || 'ln-' + Date.now() }; }
       if (data) return { ...notice, id: data.id, createdAt: data.created_at };
     }
     return { ...notice, id: notice.id || 'ln-' + Date.now() };

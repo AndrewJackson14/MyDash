@@ -424,9 +424,15 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     if (editId) {
       setLegalNotices(prev => (prev || []).map(n => n.id === editId ? { ...n, ...noticeRow } : n));
     } else {
-      const newNotice = { ...noticeRow, id: "ln-" + Date.now(), createdAt: nowIso };
+      // Insert via the app-data helper so we get a real DB-generated
+      // UUID back — critical for downstream features (EntityThread,
+      // ad_project FKs, etc.) that reject non-UUID string ids.
+      let newNotice = null;
+      if (insertLegalNotice) {
+        try { newNotice = await insertLegalNotice({ ...noticeRow, createdAt: nowIso }); } catch (err) { console.error("insertLegalNotice threw:", err); }
+      }
+      if (!newNotice) newNotice = { ...noticeRow, id: "ln-" + Date.now(), createdAt: nowIso };
       setLegalNotices(prev => [...(prev || []), newNotice]);
-      if (insertLegalNotice) insertLegalNotice(newNotice);
 
       // Upload any attached scan files and tag them to this legal notice.
       if (pendingScans.length > 0) {
@@ -530,53 +536,60 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     const nextStatus = NOTICE_STATUSES[NOTICE_STATUSES.indexOf(viewNotice.status) + 1];
     const availableIssues = issues.filter(i => i.pubId === viewNotice.publicationId && i.date >= today).slice(0, 12);
 
+    const clientName = (clients || []).find(c => c.id === viewNotice.clientId)?.name || "(no client)";
+    const isUuid = typeof viewNotice.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(viewNotice.id);
     return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <button onClick={() => setViewId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: FS.base, fontWeight: FW.bold, fontFamily: COND, textAlign: "left", padding: 0 }}>← Back to Legal Notices</button>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>{NOTICE_TYPES.find(t => t.value === viewNotice.noticeType)?.label}</div>
-          <h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewNotice.organization || viewNotice.contactName}</h2>
-          <div style={{ fontSize: FS.sm, color: Z.tm }}>
-            {viewNotice.contactName}{viewNotice.contactEmail ? ` · ${viewNotice.contactEmail}` : ""}{viewNotice.contactPhone ? ` · ${viewNotice.contactPhone}` : ""}
-          </div>
-          <div style={{ fontSize: FS.sm, color: Z.ac, marginTop: 2 }}>{pn(viewNotice.publicationId)} · {viewNotice.issuesRequested} issue{viewNotice.issuesRequested > 1 ? "s" : ""}</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(viewNotice.totalAmount)}</div>
-          <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 2 }}>
-            {viewNotice.ratePerChar > 0
-              ? `${((viewNotice.content || "").length).toLocaleString()} chars × $${viewNotice.ratePerChar}/char × ${viewNotice.issuesRequested} runs`
-              : viewNotice.flatRate > 0
-                ? "Flat rate"
-                : `${viewNotice.lineCount} lines × ${fmtCurrency(viewNotice.ratePerLine)}/line × ${viewNotice.issuesRequested} issues`}
-          </div>
-        </div>
-      </div>
+      {/* 75 / 25 two-column layout — everything on the left, Discussion
+          pinned to the right rail full-height. */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
 
-      {/* Workflow stepper */}
-      <GlassCard style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <StepBar current={viewNotice.status} />
-        <div style={{ display: "flex", gap: 6 }}>
-          {NOTICE_STATUSES.indexOf(viewNotice.status) > 0 && <Btn sm v="ghost" onClick={() => revertStatus(viewNotice.id)}>← Back</Btn>}
-          {nextStatus && <Btn sm onClick={() => advanceStatus(viewNotice.id)}>
-            {nextStatus === "proofing" ? "Send to Proofing" :
-             nextStatus === "approved" ? "Mark Approved" :
-             nextStatus === "placed" ? "Mark Placed" :
-             nextStatus === "published" ? "Mark Published" :
-             nextStatus === "billed" ? "Mark Billed" : "Advance"} →
-          </Btn>}
-          <Btn sm v="ghost" onClick={() => openEdit(viewNotice)}>Edit</Btn>
-        </div>
-      </GlassCard>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{clientName}</h2>
+              {viewNotice.title && <div style={{ fontSize: FS.md, color: Z.tm, marginBottom: 4 }}>{viewNotice.title}</div>}
+              <div style={{ fontSize: FS.sm, color: Z.ac }}>{pn(viewNotice.publicationId)} · {viewNotice.issuesRequested} issue{viewNotice.issuesRequested > 1 ? "s" : ""}{viewNotice.noticeNumber ? ` · ${viewNotice.noticeNumber}` : ""}</div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(viewNotice.totalAmount)}</div>
+              <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 2 }}>
+                {viewNotice.ratePlan === "per_char"
+                  ? `${htmlToPlainText(viewNotice.bodyHtml || viewNotice.content || "").length.toLocaleString()} chars × $${Number(viewNotice.ratePerChar || 0.055).toFixed(4)}/char × ${viewNotice.issuesRequested} run${viewNotice.issuesRequested > 1 ? "s" : ""}`
+                  : `$${Number(viewNotice.flatRate || 0).toFixed(2)} flat × ${viewNotice.issuesRequested} run${viewNotice.issuesRequested > 1 ? "s" : ""}`}
+              </div>
+            </div>
+          </div>
 
-      {/* Notice Content */}
-      <GlassCard>
-        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Notice Text</div>
-        <div style={{ fontSize: FS.base, color: Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }}>{viewNotice.content}</div>
-        <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 6 }}>{viewNotice.content?.split("\n").length || 0} lines · {viewNotice.content?.split(/\s+/).length || 0} words</div>
-      </GlassCard>
+          {/* Workflow stepper */}
+          <GlassCard style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <StepBar current={viewNotice.status} />
+            <div style={{ display: "flex", gap: 6 }}>
+              {NOTICE_STATUSES.indexOf(viewNotice.status) > 0 && <Btn sm v="ghost" onClick={() => revertStatus(viewNotice.id)}>← Back</Btn>}
+              {nextStatus && <Btn sm onClick={() => advanceStatus(viewNotice.id)}>
+                {nextStatus === "proofing" ? "Send to Proofing" :
+                 nextStatus === "approved" ? "Mark Approved" :
+                 nextStatus === "placed" ? "Mark Placed" :
+                 nextStatus === "published" ? "Mark Published" :
+                 nextStatus === "billed" ? "Mark Billed" : "Advance"} →
+              </Btn>}
+              <Btn sm v="ghost" onClick={() => { setViewId(null); openEdit(viewNotice); }}>Edit</Btn>
+            </div>
+          </GlassCard>
+
+          {/* Notice Content — rich text render (body_html), plain-text fallback */}
+          <GlassCard>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Notice Text</div>
+            {viewNotice.bodyHtml
+              ? <div style={{ fontSize: FS.base, color: Z.tx, lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }} dangerouslySetInnerHTML={{ __html: viewNotice.bodyHtml }} />
+              : <div style={{ fontSize: FS.base, color: Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }}>{viewNotice.content}</div>
+            }
+            <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 6 }}>
+              {htmlToPlainText(viewNotice.bodyHtml || viewNotice.content || "").length.toLocaleString()} characters
+            </div>
+          </GlassCard>
 
       {/* Issue Assignments */}
       <GlassCard>
@@ -618,27 +631,36 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         {viewNotice.notes && <div style={{ marginTop: 10 }}><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Notes</div><div style={{ fontSize: FS.base, color: Z.tm, marginTop: 2 }}>{viewNotice.notes}</div></div>}
       </GlassCard>
 
-      {/* Attached scans — the pendingScans uploads at create time
-          landed in media_assets tagged with legal_notice_id. This
-          panel surfaces them on the notice detail view so the
-          scans are actually visible after save. */}
-      <GlassCard>
-        <AssetPanel
-          legalNoticeId={viewNotice.id}
-          title="Attached Scans"
-          allowUpload={false}
-        />
-      </GlassCard>
+          {/* Attached scans — the pendingScans uploads at create time
+              landed in media_assets tagged with legal_notice_id. This
+              panel surfaces them on the notice detail view so the
+              scans are actually visible after save. */}
+          <GlassCard>
+            <AssetPanel
+              legalNoticeId={viewNotice.id}
+              title="Attached Scans"
+              allowUpload={false}
+            />
+          </GlassCard>
+        </div>
 
-      {/* Per-notice discussion — keeps legal / sales / accounting aligned */}
-      <EntityThread
-        refType="legal_notice"
-        refId={viewNotice.id}
-        title={`Legal notice: ${viewNotice.title || viewNotice.case_number || viewNotice.id}`}
-        team={team}
-        currentUser={currentUser}
-        height={320}
-      />
+        {/* Right rail (25%) — Discussion. Guard against non-UUID legacy
+            notice ids; EntityThread writes to message_threads.ref_id which
+            is uuid-typed and would 500 on "ln-…" keys. */}
+        <div style={{ minWidth: 0 }}>
+          {isUuid
+            ? <EntityThread
+                refType="legal_notice"
+                refId={viewNotice.id}
+                title={`Legal notice: ${viewNotice.title || viewNotice.noticeNumber || clientName}`}
+                team={team}
+                currentUser={currentUser}
+                height={600}
+                defaultOpen
+              />
+            : <GlassCard><div style={{ fontSize: FS.sm, color: Z.td, padding: 8 }}>Discussion unavailable on legacy notices — save this notice again to enable threading.</div></GlassCard>}
+        </div>
+      </div>
     </div>;
   }
 

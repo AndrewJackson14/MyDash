@@ -43,7 +43,14 @@ async function gmailCall(action, headers = {}, body = null) {
 function decodeBase64Url(str) {
   if (!str) return "";
   const padded = str.replace(/-/g, "+").replace(/_/g, "/");
-  try { return atob(padded); } catch { return ""; }
+  try {
+    // atob returns a latin-1 "binary string" — Gmail payloads are UTF-8,
+    // so NBSP (0xC2 0xA0) and other multi-byte glyphs render as "Â " unless
+    // we explicitly decode the bytes as UTF-8.
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch { return ""; }
 }
 
 function getHeader(msg, name) {
@@ -358,6 +365,11 @@ const Mail = ({ isActive } = {}) => {
   const [replyAll, setReplyAll] = useState(false);
   const [forwardMsg, setForwardMsg] = useState(null);
 
+  // Folder bar — collapsed by default. Resets to collapsed every time the
+  // user navigates into Mail so it's always the same starting state.
+  const [foldersOpen, setFoldersOpen] = useState(false);
+  useEffect(() => { if (isActive) setFoldersOpen(false); }, [isActive]);
+
   // ── Check connection ─────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -514,6 +526,21 @@ const Mail = ({ isActive } = {}) => {
     URL.revokeObjectURL(url);
   };
 
+  // Download all — sequential with a short gap so the browser doesn't
+  // collapse rapid-fire saves into a single prompt / block some of them.
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const downloadAllAttachments = async (msgId, atts) => {
+    setDownloadingAll(true);
+    try {
+      for (const att of atts) {
+        await downloadAttachment(msgId, att);
+        await new Promise(r => setTimeout(r, 200));
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
   // ── Search ───────────────────────────────────────────────
   const handleSearch = () => { setSearchActive(search); };
 
@@ -556,21 +583,29 @@ const Mail = ({ isActive } = {}) => {
       </div>
     </div>
 
-    {/* Label bar */}
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0, alignItems: "center" }}>
+    {/* Label bar — default-collapsed behind a "Folders" button. Shows the
+        currently-active folder name so the user knows where they are without
+        expanding. */}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0, alignItems: "center" }}>
       {(() => {
         const sysIcons = { INBOX: Ic.mail, SENT: Ic.send, STARRED: Ic.star, DRAFT: Ic.edit, TRASH: Ic.trash, SPAM: Ic.close };
         const labelOptions = [
           ...SYSTEM_LABELS.map(l => ({ value: l.id, label: l.name, icon: sysIcons[l.id] || Ic.tag })),
           ...customLabels.map(l => ({ value: l.id, label: l.name, icon: Ic.tag })),
         ];
-        return (
-          <FilterPillStrip
-            value={activeLabel}
-            onChange={next => { setActiveLabel(next); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); }}
-            options={labelOptions}
-          />
-        );
+        const activeOpt = labelOptions.find(o => o.value === activeLabel);
+        return <>
+          <Btn sm v={foldersOpen ? "primary" : "ghost"} onClick={() => setFoldersOpen(o => !o)}>
+            <Ic.menu size={12} /> Folders{activeOpt ? `: ${activeOpt.label}` : ""} {foldersOpen ? "▴" : "▾"}
+          </Btn>
+          {foldersOpen && (
+            <FilterPillStrip
+              value={activeLabel}
+              onChange={next => { setActiveLabel(next); setSearchActive(""); setSearch(""); setSelectedMsg(null); setSelectedFull(null); setFoldersOpen(false); }}
+              options={labelOptions}
+            />
+          )}
+        </>;
       })()}
       {searchActive && (
         <span style={{ padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: FW.bold, background: Z.wa + "22", color: Z.wa, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>
@@ -663,13 +698,19 @@ const Mail = ({ isActive } = {}) => {
               {(() => {
                 const atts = getAttachments(selectedFull);
                 if (atts.length === 0) return null;
-                return <div style={{ padding: "8px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                return <div style={{ padding: "8px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   {atts.map((att, i) => (
                     <button key={i} onClick={() => downloadAttachment(selectedFull.id, att)}
                       style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: Ri, fontSize: FS.xs, fontFamily: COND, fontWeight: FW.semi, background: Z.sa, color: Z.ac, border: `1px solid ${Z.bd}`, cursor: "pointer" }}>
                       {att.filename} <span style={{ color: Z.tm }}>{fmtSize(att.size)}</span>
                     </button>
                   ))}
+                  {atts.length >= 2 && (
+                    <button onClick={() => downloadAllAttachments(selectedFull.id, atts)} disabled={downloadingAll}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: Ri, fontSize: FS.xs, fontFamily: COND, fontWeight: FW.bold, background: Z.ac, color: "#fff", border: "none", cursor: downloadingAll ? "default" : "pointer", opacity: downloadingAll ? 0.6 : 1 }}>
+                      {downloadingAll ? "Downloading…" : `↓ Download all (${atts.length})`}
+                    </button>
+                  )}
                 </div>;
               })()}
 
