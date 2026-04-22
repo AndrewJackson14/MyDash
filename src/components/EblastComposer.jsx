@@ -106,8 +106,9 @@ export default function EblastComposer({ pubs, currentUser }) {
     if (!clientSearch || clientSearch.length < 2) { setClients([]); return; }
     const t = setTimeout(() => {
       supabase.from("clients")
-        .select("id, name, organization, contact_name, city")
-        .or(`name.ilike.%${clientSearch}%,organization.ilike.%${clientSearch}%,contact_name.ilike.%${clientSearch}%`)
+        .select("id, name, city, category")
+        .ilike("name", `%${clientSearch}%`)
+        .order("name")
         .limit(8)
         .then(({ data }) => setClients(data || []));
     }, 250);
@@ -196,7 +197,7 @@ export default function EblastComposer({ pubs, currentUser }) {
 
   const attachClient = (c) => {
     updateField("client_id", c.id);
-    if (!draft.advertiser_name) updateField("advertiser_name", c.organization || c.name);
+    if (!draft.advertiser_name) updateField("advertiser_name", c.name);
     setClientSearch("");
     setClients([]);
   };
@@ -351,8 +352,8 @@ export default function EblastComposer({ pubs, currentUser }) {
                     <div style={{ position: "absolute", zIndex: 10, top: "100%", left: 0, right: 0, marginTop: 2, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, boxShadow: "0 4px 12px rgba(0,0,0,0.12)", maxHeight: 240, overflowY: "auto" }}>
                       {clients.map(c => (
                         <button key={c.id} type="button" onClick={() => attachClient(c)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", background: "transparent", border: "none", cursor: "pointer", borderBottom: `1px solid ${Z.bd}20`, fontFamily: COND }}>
-                          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{c.organization || c.name}</div>
-                          {c.contact_name && <div style={{ fontSize: FS.xs, color: Z.tm }}>{c.contact_name}{c.city ? ` · ${c.city}` : ""}</div>}
+                          <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{c.name}</div>
+                          {(c.city || c.category) && <div style={{ fontSize: FS.xs, color: Z.tm }}>{[c.category, c.city].filter(Boolean).join(" · ")}</div>}
                         </button>
                       ))}
                     </div>
