@@ -2,7 +2,17 @@
 // Newsletter HTML Template Generator
 // Pure function: stories + pub config → complete HTML email
 // Runs client-side for instant preview, stored in html_body
+//
+// Tracking integration:
+// - Pass `forSending: true` to inject the open pixel, rewrite
+//   every outbound <a href> through the email-click redirector,
+//   and replace the unsubscribe footer with a tokenised link.
+//   The send-newsletter edge function substitutes {{SEND_ID}}
+//   and {{UNSUB_TOKEN}} per recipient at send time.
+// - Preview mode (forSending=false) leaves URLs clean so stories
+//   preview exactly as the reader would see them minus tracking.
 // ============================================================
+import { EDGE_FN_URL } from "../lib/supabase";
 
 const PUB_CONFIG = {
   "pub-paso-robles-press": { name: "Paso Robles Press", color: "#1B3A5C", domain: "pasoroblespress.com", from: "publisher@pasoroblespress.com" },
@@ -14,11 +24,20 @@ export function getPubConfig(pubId) {
   return PUB_CONFIG[pubId] || { name: "Newsletter", color: "#333333", domain: "13stars.media", from: "news@13stars.media" };
 }
 
+// Wrap every http(s) <a href> in the tracking redirector. Internal
+// anchors (#…) and mailto:/tel: schemes pass through untouched. We
+// use {{SEND_ID}} which the send function replaces per recipient.
+function trackifyLinks(html) {
+  return html.replace(/href="(https?:\/\/[^"]+)"/g, (_, url) => {
+    return `href="${EDGE_FN_URL}/email-click?s={{SEND_ID}}&u=${encodeURIComponent(url)}"`;
+  });
+}
+
 function escHtml(s) {
   return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function generateNewsletterHtml({ stories, pubId, subject, introText, adSlots = [] }) {
+export function generateNewsletterHtml({ stories, pubId, subject, introText, adSlots = [], forSending = false }) {
   const pub = getPubConfig(pubId);
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const included = (stories || []).filter(s => s.included !== false).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -47,7 +66,7 @@ export function generateNewsletterHtml({ stories, pubId, subject, introText, adS
       </tr></table>
     </td></tr>`;
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escHtml(subject)}</title></head>
@@ -108,12 +127,20 @@ export function generateNewsletterHtml({ stories, pubId, subject, introText, adS
       <div style="font-size: 12px; color: #999; line-height: 1.5; text-align: center;">
         &copy; ${new Date().getFullYear()} ${escHtml(pub.name)} &middot; 13 Stars Media Group<br>
         <a href="https://${pub.domain}" style="color: ${pub.color}; text-decoration: none;">${pub.domain}</a><br>
-        <a href="https://${pub.domain}/unsubscribe" style="color: #999; text-decoration: underline; font-size: 11px;">Unsubscribe</a>
+        ${forSending
+          ? `<a href="${EDGE_FN_URL}/unsubscribe?t={{UNSUB_TOKEN}}" style="color: #999; text-decoration: underline; font-size: 11px;">Unsubscribe</a>`
+          : `<span style="color: #999; font-size: 11px;">Unsubscribe link will appear here</span>`}
       </div>
     </td></tr>
 
   </table>
 </td></tr>
 </table>
+${forSending ? `<img src="${EDGE_FN_URL}/email-open?s={{SEND_ID}}" width="1" height="1" alt="" style="display:none" />` : ""}
 </body></html>`;
+
+  // When rendering for send, rewrite outbound links through the
+  // email-click tracker. Keep preview HTML untouched so the compose
+  // preview iframe mirrors what the reader will see sans tracking.
+  return forSending ? trackifyLinks(html) : html;
 }

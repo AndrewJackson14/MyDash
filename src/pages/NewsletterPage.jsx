@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, Toggle, DataTable, SB } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
-import { supabase, isOnline } from "../lib/supabase";
+import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
+import { useDialog } from "../hooks/useDialog";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -46,6 +47,7 @@ const SortableStory = ({ story, onUpdate, onRemove }) => {
 // ════════════════════════════════════════════════════════════
 const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   const { setHeader, clearHeader } = usePageHeader();
+  const dialog = useDialog();
   useEffect(() => {
     if (isActive) {
       setHeader({ breadcrumb: [{ label: "Home" }, { label: "Newsletters" }], title: "Newsletters" });
@@ -85,10 +87,10 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
         setDraft(d || null);
         setLoading(false);
       });
-    // Subscriber counts
+    // Subscriber counts — drive the Send Now confirmation dialog.
     NEWSLETTER_PUBS.forEach(pid => {
-      supabase.from("subscriptions").select("id", { count: "exact", head: true })
-        .eq("publication_id", pid).eq("tier", "newsletter").eq("status", "active")
+      supabase.from("newsletter_subscribers").select("id", { count: "exact", head: true })
+        .eq("publication_id", pid).eq("status", "active")
         .then(({ count }) => setSubCounts(prev => ({ ...prev, [pid]: count || 0 })));
     });
   }, []);
@@ -168,11 +170,16 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     setSaving(false);
   }, [draft, selPub, currentUser]);
 
-  // ── Send Now (set status for Wednesday to pick up) ──────
-  const sendNow = useCallback(async () => {
-    if (!draft || !isOnline()) return;
-    setSending(true);
-    const html = generateNewsletterHtml({ stories: draft.stories, pubId: selPub, subject: draft.subject, introText: draft.intro_text });
+  // Render + persist the send-ready HTML (tracking pixel + click-
+  // tracker + unsubscribe footer), then flip the draft to approved.
+  // Returns the saved draft id so the send flow can hand it to the
+  // edge function.
+  const persistSendReady = useCallback(async () => {
+    if (!draft) return null;
+    const html = generateNewsletterHtml({
+      stories: draft.stories, pubId: selPub, subject: draft.subject,
+      introText: draft.intro_text, forSending: true,
+    });
     await supabase.from("newsletter_drafts").update({
       subject: draft.subject, intro_text: draft.intro_text, stories: draft.stories,
       html_body: html, status: "approved", approved_at: new Date().toISOString(),
@@ -180,8 +187,70 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     }).eq("id", draft.id);
     setDraft(d => d ? { ...d, status: "approved", html_body: html } : d);
     setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, status: "approved" } : d));
-    setSending(false);
+    return draft.id;
   }, [draft, selPub, currentUser]);
+
+  // Invoke the send-newsletter edge function. Either test=address
+  // (single send, subscribers untouched) or the full subscriber list
+  // for the selected publication.
+  const invokeSend = useCallback(async (draftId, testAddress) => {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+    if (!token) throw new Error("Not signed in");
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + token,
+      "x-draft-id": draftId,
+    };
+    if (testAddress) headers["x-test-email"] = testAddress;
+    const res = await fetch(EDGE_FN_URL + "/send-newsletter", { method: "POST", headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && res.status !== 207) throw new Error(data.error || `Send failed (${res.status})`);
+    return data;
+  }, []);
+
+  // ── Send Now (fires SES via edge function) ──────────────
+  const sendNow = useCallback(async () => {
+    if (!draft || !isOnline()) return;
+    const count = subCounts[selPub] || 0;
+    const ok = await dialog.confirm(
+      `Send this newsletter to ${count.toLocaleString()} ${pub.name} subscribers now?`,
+      { confirmText: "Send to All", variant: "warning" }
+    );
+    if (!ok) return;
+    setSending(true);
+    try {
+      const draftId = await persistSendReady();
+      const result = await invokeSend(draftId, null);
+      await dialog.alert(`Sent to ${result.sent} of ${result.sent + result.failed} subscribers${result.failed ? ` — ${result.failed} failed` : ""}.`);
+      // Reload this draft so status=sent shows through.
+      const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", draftId).single();
+      if (data) {
+        setDraft(data);
+        setDrafts(prev => prev.map(d => d.id === data.id ? data : d));
+      }
+    } catch (err) {
+      await dialog.alert("Send failed: " + err.message);
+    }
+    setSending(false);
+  }, [draft, selPub, pub, subCounts, dialog, persistSendReady, invokeSend]);
+
+  // Test send — goes to a single address the user types, doesn't
+  // touch subscriber or email_sends bookkeeping.
+  const sendTest = useCallback(async () => {
+    if (!draft || !isOnline()) return;
+    const address = await dialog.prompt("Send a test to which email?", { placeholder: currentUser?.email || "test@example.com", defaultValue: currentUser?.email || "" });
+    if (!address) return;
+    setSending(true);
+    try {
+      const draftId = await persistSendReady();
+      const result = await invokeSend(draftId, address.trim());
+      await dialog.alert(result.sent === 1 ? `Test sent to ${address}.` : `Test failed: ${result.errors?.[0] || "unknown"}`);
+    } catch (err) {
+      await dialog.alert("Test failed: " + err.message);
+    }
+    setSending(false);
+  }, [draft, currentUser, dialog, persistSendReady, invokeSend]);
 
   // ── Preview in new tab ──────────────────────────────────
   const openPreview = () => {
@@ -331,10 +400,11 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
           </div>
 
           {/* Actions */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <Btn sm v="secondary" onClick={saveDraft} disabled={saving || draft.status === "sent"}>{saving ? "Saving..." : "Save Draft"}</Btn>
             <Btn sm onClick={approveDraft} disabled={saving || draft.status === "sent"}><Ic.check size={12} /> Approve</Btn>
-            <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}><Ic.send size={12} /> {sending ? "Sending..." : "Send Now"}</Btn>
+            <Btn sm v="ghost" onClick={sendTest} disabled={sending || draft.status === "sent"}>Send Test</Btn>
+            <Btn sm v="warning" onClick={sendNow} disabled={sending || draft.status === "sent"}><Ic.send size={12} /> {sending ? "Sending..." : `Send to ${(subCounts[selPub] || 0).toLocaleString()}`}</Btn>
           </div>
 
           {/* Last saved */}
