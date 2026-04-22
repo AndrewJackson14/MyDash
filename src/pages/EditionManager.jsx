@@ -592,12 +592,21 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
       // If we have a new PDF file, compress + upload it (and generate cover)
       if (pdfFile) {
-        let fileToUpload = pdfFile;
+        // Read the picked file ONCE into memory. The File reference from the
+        // OS picker becomes stale across awaits on iCloud / Dropbox / OneDrive
+        // synced folders, throwing NotReadableError on the second read. Wrap
+        // the bytes in an in-memory File so every downstream .arrayBuffer()
+        // call hits RAM, not the OS.
+        setCompressionStatus("Reading source PDF...");
+        const sourceBytes = await pdfFile.arrayBuffer();
+        const sourceFile = new File([sourceBytes], pdfFile.name, { type: "application/pdf" });
+
+        let fileToUpload = sourceFile;
 
         // Compress if not "none"
         if (compPreset !== "none") {
           setCompressionStatus("Compressing PDF...");
-          const { blob, numPages } = await compressPdf(pdfFile, {
+          const { blob, numPages } = await compressPdf(sourceFile, {
             dpi: compDpi,
             quality: compQuality,
             targetMB: compTargetMB,
@@ -618,11 +627,9 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
           finalPageCount = numPages;
           fileToUpload = new File([blob], pdfFile.name, { type: "application/pdf" });
         } else {
-          setCompressionStatus("Reading PDF...");
-          const ab = await pdfFile.arrayBuffer();
-          const pdf = await openPdf(new Uint8Array(ab));
+          const pdf = await openPdf(new Uint8Array(sourceBytes));
           finalPageCount = pdf.numPages;
-          setCompressedSize(pdfFile.size);
+          setCompressedSize(sourceFile.size);
         }
 
         // Upload PDF
@@ -633,7 +640,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
 
         // Generate + upload cover
         setCompressionStatus("Generating cover image...");
-        const { blob: coverBlob } = await renderPdfCoverFromFile(pdfFile);
+        const { blob: coverBlob } = await renderPdfCoverFromFile(sourceFile);
         const coverFilename = `${finalSlug}-cover.jpg`;
         await bunnyUploadWithProgress(
           new File([coverBlob], coverFilename, { type: "image/jpeg" }),
@@ -646,8 +653,7 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
         // at {path}/pages/page-001.webp and {path}/thumbs/thumb-001.webp.
         setCompressionStatus("Extracting page images...");
         const pageImagesBasePath = `${path}`;
-        const ab2 = await pdfFile.arrayBuffer();
-        const pdf2 = await openPdf(new Uint8Array(ab2));
+        const pdf2 = await openPdf(new Uint8Array(sourceBytes));
         for (let p = 1; p <= pdf2.numPages; p++) {
           setCompressionStatus(`Extracting page ${p} of ${pdf2.numPages}...`);
           const pg = await pdf2.getPage(p);
