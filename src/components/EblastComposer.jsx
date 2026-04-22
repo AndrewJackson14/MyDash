@@ -13,6 +13,43 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
+import { mergeAttributes } from "@tiptap/core";
+
+// ─── Image with width attribute + hard max-width clamp ────
+// The default @tiptap/extension-image has no width attr; advertisers
+// need to size their logos/photos without the image blowing through
+// the 520px email body cell. renderHTML always injects max-width:100%
+// so we never overflow even if the user forgets to set a width.
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: { default: null, parseHTML: el => el.getAttribute("data-width") || null, renderHTML: () => ({}) },
+    };
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    const w = node.attrs.width;
+    const styleParts = ["max-width:100%", "height:auto", "display:block", "border-radius:4px"];
+    if (w) styleParts.push(`width:${w}`);
+    return ["img", mergeAttributes(HTMLAttributes, {
+      style: styleParts.join(";"),
+      "data-width": w || null,
+    })];
+  },
+});
+
+// Pre-built column block — email-safe (<table>) with placeholder cells
+// the user can click into and overwrite. Gutter + padding match the
+// rendered email so the editor preview looks like the outbox.
+const colBlock = (n) => {
+  const cellW = (100 / n).toFixed(2);
+  const cells = Array.from({ length: n }).map(() =>
+    `<td style="width:${cellW}%;padding:8px;vertical-align:top;"><p>Column content…</p></td>`
+  ).join("");
+  return `<table data-layout="cols-${n}" style="width:100%;border-collapse:collapse;margin:12px 0;"><tbody><tr>${cells}</tr></tbody></table><p></p>`;
+};
+const dividerBlock = `<hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;" />`;
+const spacerBlock = `<div style="height:32px;" aria-hidden="true">&nbsp;</div>`;
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Btn, Inp, TA, Sel, GlassCard, Modal } from "./ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
@@ -46,20 +83,45 @@ function EblastToolbar({ editor, onImageClick, imageUploading }) {
     if (url === "") editor.chain().focus().unsetLink().run();
     else editor.chain().focus().setLink({ href: url.startsWith("http") ? url : "https://" + url }).run();
   };
+  const imageActive = editor.isActive("image");
+  const currentImgWidth = imageActive ? editor.getAttributes("image").width : null;
+  const setImgWidth = (w) => editor.chain().focus().updateAttributes("image", { width: w }).run();
   return (
-    <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa, flexWrap: "wrap" }}>
-      {btn(editor.isActive("bold"),      () => editor.chain().focus().toggleBold().run(),      <strong>B</strong>)}
-      {btn(editor.isActive("italic"),    () => editor.chain().focus().toggleItalic().run(),    <em>I</em>)}
-      {btn(editor.isActive("underline"), () => editor.chain().focus().toggleUnderline().run(), <u>U</u>)}
-      <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
-      {btn(editor.isActive("heading", { level: 2 }), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "H2")}
-      {btn(editor.isActive("heading", { level: 3 }), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "H3")}
-      <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
-      {btn(editor.isActive("bulletList"),  () => editor.chain().focus().toggleBulletList().run(),  "• List")}
-      {btn(editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), "1. List")}
-      <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
-      {btn(editor.isActive("link"), setLink, "Link")}
-      {btn(false, onImageClick, imageUploading ? "Uploading…" : "+ Image", imageUploading)}
+    <div>
+      <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa, flexWrap: "wrap" }}>
+        {btn(editor.isActive("bold"),      () => editor.chain().focus().toggleBold().run(),      <strong>B</strong>)}
+        {btn(editor.isActive("italic"),    () => editor.chain().focus().toggleItalic().run(),    <em>I</em>)}
+        {btn(editor.isActive("underline"), () => editor.chain().focus().toggleUnderline().run(), <u>U</u>)}
+        <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
+        {btn(editor.isActive("heading", { level: 2 }), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "H2")}
+        {btn(editor.isActive("heading", { level: 3 }), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "H3")}
+        <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
+        {btn(editor.isActive("bulletList"),  () => editor.chain().focus().toggleBulletList().run(),  "• List")}
+        {btn(editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), "1. List")}
+        <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
+        {btn(editor.isActive("link"), setLink, "Link")}
+        {btn(false, onImageClick, imageUploading ? "Uploading…" : "+ Image", imageUploading)}
+        <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
+        {btn(false, () => editor.chain().focus().insertContent(colBlock(2)).run(),   "+ 2 Cols")}
+        {btn(false, () => editor.chain().focus().insertContent(colBlock(3)).run(),   "+ 3 Cols")}
+        {btn(false, () => editor.chain().focus().insertContent(dividerBlock).run(), "+ Divider")}
+        {btn(false, () => editor.chain().focus().insertContent(spacerBlock).run(),  "+ Spacer")}
+      </div>
+      {imageActive && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", borderBottom: `1px solid ${Z.bd}`, background: Z.bg, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, color: Z.td, fontFamily: COND, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Image size:</span>
+          {["25%", "50%", "75%", "100%"].map(w => (
+            <button key={w} type="button" onClick={() => setImgWidth(w)} style={{
+              padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd,
+              background: currentImgWidth === w ? Z.ac : Z.sf,
+              color: currentImgWidth === w ? "#fff" : Z.tm,
+              fontSize: 11, fontWeight: currentImgWidth === w ? 700 : 500,
+              fontFamily: COND, cursor: "pointer",
+            }}>{w}</button>
+          ))}
+          <button type="button" onClick={() => setImgWidth(null)} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Auto</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -121,7 +183,7 @@ export default function EblastComposer({ pubs, currentUser }) {
       StarterKit.configure({ heading: { levels: [2, 3] }, horizontalRule: false, codeBlock: false }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
-      Image.configure({ inline: false }),
+      ResizableImage.configure({ inline: false }),
     ],
     content: draft?.body_html || "<p>Write the advertiser's message here…</p>",
     editorProps: {

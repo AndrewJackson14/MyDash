@@ -75,8 +75,15 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1
         : `<img src="${escHtml(advertiser_logo_url)}" alt="${escHtml(advName)}" style="max-width: 220px; max-height: 100px; display: block; margin: 0 auto;" />`}
     </td></tr>` : ""}
 
-    <!-- Body (tiptap HTML) -->
+    <!-- Body (tiptap HTML). The img clamp is belt-and-suspenders —
+         our ResizableImage extension already stamps max-width:100%
+         on every img, but some mail clients strip inline-style attrs
+         the tiptap renderer writes, so a <style> rule matches them. -->
     <tr><td style="padding: 24px 40px; font-size: 16px; line-height: 1.65; color: #1a1a1a;">
+      <style>
+        td img { max-width: 100% !important; height: auto !important; display: block; }
+        td table { width: 100% !important; border-collapse: collapse; }
+      </style>
       ${body_html || `<p style="color:#999;font-style:italic;">Body content goes here.</p>`}
     </td></tr>
 

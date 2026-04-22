@@ -33,7 +33,7 @@ const SEND_RATE_PER_SEC = 10; // SES default new-account limit is 14/s; stay und
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-draft-id, x-test-email",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-draft-id, x-test-email",
 };
 
 // ── SigV4 (minimal, for POST JSON to SES v2) ───────────────
