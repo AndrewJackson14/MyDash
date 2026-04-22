@@ -428,7 +428,14 @@ const Mail = ({ isActive } = {}) => {
   }, [connected]);
 
   // ── Load messages ────────────────────────────────────────
+  // Two-phase paint: the list call returns just IDs quickly, so we set
+  // skeleton rows (id only) immediately and the user sees a full list
+  // structure right away. Then we fire metadata fetches in parallel and
+  // patch each row in place as it resolves. A loadGen ref guards against
+  // stale responses clobbering a newer label/search switch.
+  const loadGen = useRef(0);
   const loadMessages = useCallback(async (label, query, token) => {
+    const gen = ++loadGen.current;
     setLoading(true);
     try {
       const headers = { "x-max-results": "25" };
@@ -437,6 +444,7 @@ const Mail = ({ isActive } = {}) => {
       if (token) headers["x-page-token"] = token;
 
       const listData = await gmailCall("list", headers);
+      if (loadGen.current !== gen) return;
       const msgIds = listData.messages || [];
       setPageToken(listData.nextPageToken || null);
 
@@ -446,22 +454,31 @@ const Mail = ({ isActive } = {}) => {
         return;
       }
 
-      // Fetch metadata for each message
-      const msgPromises = msgIds.map(m =>
-        gmailCall("get", { "x-message-id": m.id, "x-format": "metadata" })
-      );
-      const msgs = await Promise.all(msgPromises);
-
+      // Seed skeleton rows — renders an empty list structure instantly so
+      // the user isn't staring at "Loading..." while metadata fetches.
+      const skeletons = msgIds.map(m => ({ id: m.id, threadId: m.threadId, _skeleton: true, snippet: "", labelIds: [], payload: { headers: [] } }));
       if (token) {
-        setMessages(prev => [...prev, ...msgs]);
+        setMessages(prev => [...prev, ...skeletons]);
       } else {
-        setMessages(msgs);
+        setMessages(skeletons);
       }
+      setLoading(false);
+
+      // Fire metadata fetches in parallel; patch each row as it lands so
+      // rows fill in progressively instead of all-at-once at the tail.
+      msgIds.forEach(m => {
+        gmailCall("get", { "x-message-id": m.id, "x-format": "metadata" })
+          .then(full => {
+            if (loadGen.current !== gen) return;
+            setMessages(prev => prev.map(msg => msg.id === m.id ? full : msg));
+          })
+          .catch(() => {});
+      });
     } catch (err) {
       console.error("loadMessages error:", err);
-      if (!token) setMessages([]);
+      if (loadGen.current === gen && !token) setMessages([]);
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -570,6 +587,7 @@ const Mail = ({ isActive } = {}) => {
 
   // ── Connected — show mail ────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "calc(100vh - 80px)" }}>
+    <style>{`@keyframes mailSkelPulse { 0%,100% { opacity: 0.25 } 50% { opacity: 0.55 } }`}</style>
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
       <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{googleEmail}</span>
@@ -622,6 +640,19 @@ const Mail = ({ isActive } = {}) => {
         {loading && messages.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.tm, fontFamily: COND }}>Loading...</div>}
         {!loading && messages.length === 0 && <div style={{ padding: 24, textAlign: "center", color: Z.tm, fontFamily: COND }}>No messages</div>}
         {messages.map(msg => {
+          // Skeleton rows render a pulse placeholder until their metadata
+          // fetch resolves — keeps the list height stable so the reader
+          // doesn't jump as rows fill in.
+          if (msg._skeleton) {
+            return <div key={msg.id} style={{ padding: "10px 14px", borderBottom: `1px solid ${Z.bd}20` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ height: 10, width: 120, background: Z.bd, borderRadius: 4, opacity: 0.5, animation: "mailSkelPulse 1.2s ease-in-out infinite" }} />
+                <div style={{ height: 8, width: 36, background: Z.bd, borderRadius: 4, opacity: 0.35, animation: "mailSkelPulse 1.2s ease-in-out infinite" }} />
+              </div>
+              <div style={{ height: 10, width: "70%", background: Z.bd, borderRadius: 4, opacity: 0.45, marginBottom: 4, animation: "mailSkelPulse 1.2s ease-in-out infinite" }} />
+              <div style={{ height: 8, width: "90%", background: Z.bd, borderRadius: 4, opacity: 0.3, animation: "mailSkelPulse 1.2s ease-in-out infinite" }} />
+            </div>;
+          }
           const from = shortenName(getHeader(msg, "From"));
           const subject = getHeader(msg, "Subject") || "(no subject)";
           const snippet = msg.snippet || "";
