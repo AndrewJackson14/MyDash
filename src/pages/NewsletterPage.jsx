@@ -198,8 +198,11 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     const { data: sess } = await supabase.auth.getSession();
     const token = sess?.session?.access_token;
     if (!token) throw new Error("Not signed in");
+    // Supabase's edge gateway requires BOTH apikey (anon) AND Authorization
+    // (user JWT). Omit either and the platform layer 401s before our code runs.
     const headers = {
       "Content-Type": "application/json",
+      "apikey": supabase.supabaseKey || "",
       "Authorization": "Bearer " + token,
       "x-draft-id": draftId,
     };

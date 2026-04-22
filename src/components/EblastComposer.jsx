@@ -18,6 +18,7 @@ import { Btn, Inp, TA, Sel, GlassCard, Modal } from "./ui";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { generateEblastHtml } from "../utils/eblastTemplate";
+import { uploadMedia } from "../lib/media";
 
 const NEWSLETTER_PUBS = [
   { value: "pub-the-malibu-times",  label: "The Malibu Times" },
@@ -26,15 +27,16 @@ const NEWSLETTER_PUBS = [
 ];
 
 // ─── Mini tiptap toolbar ────────────────────────────────────
-function EblastToolbar({ editor }) {
+function EblastToolbar({ editor, onImageClick, imageUploading }) {
   if (!editor) return null;
-  const btn = (active, onClick, label) => (
-    <button type="button" onClick={onClick} style={{
+  const btn = (active, onClick, label, disabled) => (
+    <button type="button" onClick={onClick} disabled={disabled} style={{
       padding: "4px 8px", borderRadius: Ri, border: "none",
       background: active ? Z.ac + "20" : "transparent",
-      color: active ? Z.ac : Z.tm, cursor: "pointer",
+      color: active ? Z.ac : Z.tm,
+      cursor: disabled ? "default" : "pointer",
       fontSize: 12, fontWeight: active ? 700 : 500, minHeight: 26,
-      fontFamily: COND,
+      fontFamily: COND, opacity: disabled ? 0.5 : 1,
     }}>{label}</button>
   );
   const setLink = () => {
@@ -43,10 +45,6 @@ function EblastToolbar({ editor }) {
     if (url === null) return;
     if (url === "") editor.chain().focus().unsetLink().run();
     else editor.chain().focus().setLink({ href: url.startsWith("http") ? url : "https://" + url }).run();
-  };
-  const insertImage = () => {
-    const url = window.prompt("Image URL:");
-    if (url) editor.chain().focus().setImage({ src: url }).run();
   };
   return (
     <div style={{ display: "flex", gap: 2, padding: "4px 6px", borderBottom: `1px solid ${Z.bd}`, background: Z.sa, flexWrap: "wrap" }}>
@@ -61,7 +59,7 @@ function EblastToolbar({ editor }) {
       {btn(editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), "1. List")}
       <div style={{ width: 1, background: Z.bd, margin: "0 4px" }} />
       {btn(editor.isActive("link"), setLink, "Link")}
-      {btn(false, insertImage, "Image")}
+      {btn(false, onImageClick, imageUploading ? "Uploading…" : "+ Image", imageUploading)}
     </div>
   );
 }
@@ -82,7 +80,9 @@ export default function EblastComposer({ pubs, currentUser }) {
   const [newDraftOpen, setNewDraftOpen] = useState(false);
   const [newDraftPub, setNewDraftPub] = useState(NEWSLETTER_PUBS[0].value);
   const [creating, setCreating] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const previewRef = useRef(null);
+  const imageFileRef = useRef(null);
 
   // ─── Load eblast drafts + subscriber counts ──────────────
   useEffect(() => {
@@ -202,6 +202,27 @@ export default function EblastComposer({ pubs, currentUser }) {
     setClients([]);
   };
 
+  // Inline image upload — pipes through uploadMedia so the image lands
+  // on Bunny CDN (and gets stored in media_assets tagged to this pub
+  // for reuse). The compressed main variant is what gets inserted.
+  const handleImagePick = () => imageFileRef.current?.click();
+  const handleImageFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editor) return;
+    setImageUploading(true);
+    try {
+      const row = await uploadMedia(file, {
+        category: "eblast_image",
+        publicationId: draft.publication_id,
+      });
+      editor.chain().focus().setImage({ src: row.cdn_url, alt: file.name }).run();
+    } catch (err) {
+      await dialog.alert("Image upload failed: " + err.message);
+    }
+    setImageUploading(false);
+  };
+
   // Build send-ready HTML (with tracking), persist html_body, flip
   // to approved. Returns draft.id for the send call.
   const persistSendReady = useCallback(async () => {
@@ -246,8 +267,11 @@ export default function EblastComposer({ pubs, currentUser }) {
     const { data: sess } = await supabase.auth.getSession();
     const token = sess?.session?.access_token;
     if (!token) throw new Error("Not signed in");
+    // Supabase's edge gateway requires BOTH apikey (anon) AND Authorization
+    // (user JWT). Omit either and the platform layer 401s before our code runs.
     const headers = {
       "Content-Type": "application/json",
+      "apikey": supabase.supabaseKey || "",
       "Authorization": "Bearer " + token,
       "x-draft-id": draftId,
     };
@@ -385,7 +409,8 @@ export default function EblastComposer({ pubs, currentUser }) {
                 <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Message Body</span>
                 <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>Rich text · images ok</span>
               </div>
-              <EblastToolbar editor={editor} />
+              <EblastToolbar editor={editor} onImageClick={handleImagePick} imageUploading={imageUploading} />
+              <input ref={imageFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageFile} />
               <div style={{ background: Z.sf, cursor: "text" }} onClick={() => editor?.chain().focus().run()}>
                 <EditorContent editor={editor} />
               </div>
