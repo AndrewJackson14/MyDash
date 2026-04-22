@@ -24,8 +24,8 @@ const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SES_SECRET_ACCESS_KEY") || "";
 const AWS_REGION = Deno.env.get("AWS_SES_REGION") || "us-east-1";
 const PUBLIC_APP_URL = Deno.env.get("PUBLIC_APP_URL") || "https://mydash.media";
 
-const CONCURRENCY = 10;
-const PROGRESS_EVERY_BATCH = 4; // update recipient_count every 4 batches (~40 emails)
+const CONCURRENCY = 20;
+const PROGRESS_EVERY_BATCH = 3; // update recipient_count every 3 batches (~60 emails)
 const SUB_PAGE_SIZE = 1000;
 
 const corsHeaders = {
@@ -266,17 +266,26 @@ serve(async (req) => {
   if (testEmail) {
     recipients = [{ id: null, email: testEmail, token: "test" }];
   } else {
-    const allSubs = await loadAllActiveSubscribers(admin, draft.publication_id);
-    const sentSet = new Set<string>();
-    for (let from = 0; ; from += SUB_PAGE_SIZE) {
-      const { data } = await admin
-        .from("email_sends").select("recipient_email")
-        .eq("draft_id", draftId).in("status", ["sent", "delivered"])
-        .range(from, from + SUB_PAGE_SIZE - 1);
-      const page = data || [];
-      for (const r of page) sentSet.add((r.recipient_email || "").toLowerCase());
-      if (page.length < SUB_PAGE_SIZE) break;
-    }
+    // Load subscriber list AND already-sent dedup set in parallel.
+    // Each pagination loop is ~1-2s sequentially; running concurrently
+    // saves ~2s of pre-work per invocation.
+    const loadAlreadySent = async () => {
+      const set = new Set<string>();
+      for (let from = 0; ; from += SUB_PAGE_SIZE) {
+        const { data } = await admin
+          .from("email_sends").select("recipient_email")
+          .eq("draft_id", draftId).in("status", ["sent", "delivered"])
+          .range(from, from + SUB_PAGE_SIZE - 1);
+        const page = data || [];
+        for (const r of page) set.add((r.recipient_email || "").toLowerCase());
+        if (page.length < SUB_PAGE_SIZE) break;
+      }
+      return set;
+    };
+    const [allSubs, sentSet] = await Promise.all([
+      loadAllActiveSubscribers(admin, draft.publication_id),
+      loadAlreadySent(),
+    ]);
     recipients = allSubs
       .filter(s => !sentSet.has((s.email || "").toLowerCase()))
       .map(s => ({ id: s.id, email: s.email, token: s.unsubscribe_token }));

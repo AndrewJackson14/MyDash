@@ -240,6 +240,28 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     return null;
   }, []);
 
+  // Auto-chain send invocations. Each Supabase edge function run caps
+  // at ~150s wall clock which clears ~2,000 emails. Larger lists need
+  // multiple back-to-back runs — we fire another when the previous
+  // completes with status='approved' (incomplete).
+  const runSendWithAutoResume = useCallback(async (draftId, totalExpected) => {
+    const MAX_ROUNDS = 10;
+    let lastFinal = null;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const res = await invokeSend(draftId, null);
+      if (!res.queued) {
+        const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", draftId).single();
+        lastFinal = data;
+        break;
+      }
+      const final = await pollDraftUntilDone(draftId, totalExpected);
+      if (!final) return null;
+      lastFinal = final;
+      if (final.status === "sent" || final.status === "failed") break;
+    }
+    return lastFinal;
+  }, [invokeSend, pollDraftUntilDone]);
+
   // ── Send Now (fires SES via edge function) ──────────────
   const sendNow = useCallback(async () => {
     if (!draft || !isOnline()) return;
@@ -251,22 +273,17 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
     setSending(true);
     try {
       const draftId = await persistSendReady();
-      const result = await invokeSend(draftId, null);
-      if (result.queued) {
-        const final = await pollDraftUntilDone(draftId, result.total);
-        if (final) {
-          await dialog.alert(
-            final.status === "failed"
-              ? `Send failed: ${final.last_error || "unknown error"}`
-              : `Sent to ${final.recipient_count || 0} of ${result.total} subscribers.`
-          );
-        } else {
-          await dialog.alert("Send is still running in the background — check back in a few minutes.");
-        }
+      const final = await runSendWithAutoResume(draftId, count);
+      if (final) {
+        await dialog.alert(
+          final.status === "failed"
+            ? `Send failed: ${final.last_error || "unknown error"}`
+            : `Sent to ${final.recipient_count || 0} of ${count} subscribers.`
+        );
       } else {
-        await dialog.alert(`Sent to ${result.sent} of ${result.sent + result.failed} subscribers${result.failed ? ` — ${result.failed} failed` : ""}.`);
+        await dialog.alert("Send is still running in the background — check back in a few minutes.");
       }
-      // Reload the draft either way so status shows through.
+      // Reload the draft so status shows through.
       const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", draftId).single();
       if (data) {
         setDraft(data);
@@ -276,7 +293,7 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
       await dialog.alert("Send failed: " + err.message);
     }
     setSending(false);
-  }, [draft, selPub, pub, subCounts, dialog, persistSendReady, invokeSend, pollDraftUntilDone]);
+  }, [draft, selPub, pub, subCounts, dialog, persistSendReady, runSendWithAutoResume]);
 
   // Scheduling — freezes the rendered HTML, flips status to 'scheduled'
   // with scheduled_at + recurrence. pg_cron tick (every 2 min) fires it.

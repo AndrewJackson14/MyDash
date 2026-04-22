@@ -470,6 +470,33 @@ export default function EblastComposer({ pubs, currentUser }) {
     return null;
   };
 
+  // Auto-chain sends: Supabase edge functions cap at ~150s wall clock.
+  // One invocation clears ~2,000 emails at our throughput, so larger
+  // lists need multiple back-to-back invocations. When a run finishes
+  // with status='approved' (incomplete — send function's dedup path),
+  // we fire another invocation and keep the polling UI alive.
+  const runSendWithAutoResume = async (id, totalExpected) => {
+    const MAX_ROUNDS = 10;
+    let lastFinal = null;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const res = await invokeSend(id, null);
+      if (!res.queued) {
+        // Synchronous result (small list or test path).
+        const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
+        lastFinal = data;
+        break;
+      }
+      const final = await pollDraftUntilDone(id, totalExpected);
+      if (!final) return null; // polling timed out
+      lastFinal = final;
+      // 'approved' means the send function ran out of wall clock time
+      // with work remaining. Fire another round.
+      const done = final.status === "sent" || final.status === "failed";
+      if (done) break;
+    }
+    return lastFinal;
+  };
+
   const sendNow = async () => {
     if (!draft) return;
     const count = subCounts[draft.publication_id] || 0;
@@ -480,25 +507,17 @@ export default function EblastComposer({ pubs, currentUser }) {
     setSending(true);
     try {
       const id = await persistSendReady();
-      const res = await invokeSend(id, null);
-      if (res.queued) {
-        // Background send — poll for progress + completion.
-        const final = await pollDraftUntilDone(id, res.total);
-        if (final) {
-          await dialog.alert(
-            final.status === "failed"
-              ? `Send failed: ${final.last_error || "unknown error"}`
-              : `Sent to ${final.recipient_count || 0} of ${res.total} subscribers.`
-          );
-          const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
-          if (data) setDraft(data);
-        } else {
-          await dialog.alert("Send is taking longer than expected. Check back in a few minutes — it's still running in the background.");
-        }
-      } else {
-        await dialog.alert(`Sent to ${res.sent} of ${res.sent + res.failed}${res.failed ? ` — ${res.failed} failed` : ""}.`);
+      const final = await runSendWithAutoResume(id, count);
+      if (final) {
+        await dialog.alert(
+          final.status === "failed"
+            ? `Send failed: ${final.last_error || "unknown error"}`
+            : `Sent to ${final.recipient_count || 0} of ${count} subscribers.`
+        );
         const { data } = await supabase.from("newsletter_drafts").select("*").eq("id", id).single();
         if (data) setDraft(data);
+      } else {
+        await dialog.alert("Send is taking longer than expected. Check back in a few minutes — it's still running in the background.");
       }
     } catch (err) {
       await dialog.alert("Send failed: " + err.message);
