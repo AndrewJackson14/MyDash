@@ -128,7 +128,7 @@ export default function EntityThread({
           {loading && <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading discussion…</div>}
           {error && <div style={{ padding: 12, color: Z.da, fontSize: FS.sm, fontFamily: COND }}>Thread failed: {error}</div>}
           {!loading && !error && thread && (
-            <ChatPanel threadId={thread.id} currentUser={resolvedUser} height={height} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
+            <ChatPanel threadId={thread.id} currentUser={resolvedUser} team={team} height={height} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
           )}
         </div>
       )}

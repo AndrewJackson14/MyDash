@@ -484,6 +484,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
               <ChatPanel
                 threadId={activeThread.id}
                 currentUser={currentUser}
+                team={team}
                 height="100%"
                 placeholder="Message this thread..."
                 onNewMessage={(m) => setEntityPreviews(prev => ({ ...prev, [activeThread.id]: m }))}
