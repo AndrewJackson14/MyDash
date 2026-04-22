@@ -482,7 +482,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     const iss = issues.find(i => i.id === selIssue);
     if (!iss) return null;
     const pub = (pubs || []).find(p => p.id === iss.pubId);
-    const siblings = pub?.settings?.shared_content_with || [];
+    // Mapper exposes site_settings.shared_content_with as sharedContentWith;
+    // fall back to settings.shared_content_with for any older code paths.
+    const siblings = pub?.sharedContentWith || pub?.settings?.shared_content_with || [];
     if (siblings.length === 0) return null;
     // Find sibling issues with the same date
     const siblingIssues = siblings.map(sibId => {
@@ -535,7 +537,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
     if (!primary) return [];
     const primaryPubId = primary.publicationId || primary.pubId;
     const primaryPub = (pubs || []).find(p => p.id === primaryPubId);
-    const siblings = primaryPub?.settings?.shared_content_with || [];
+    const siblings = primaryPub?.sharedContentWith || primaryPub?.settings?.shared_content_with || [];
     return siblings.map(sibPubId => {
       const sibPub = (pubs || []).find(p => p.id === sibPubId);
       const sibIss = issues.find(i => (i.publicationId || i.pubId) === sibPubId && i.date === primary.date);

@@ -501,6 +501,10 @@ export function DataProvider({ children, localData }) {
       print_issue_id: s.print_issue_id || '',
       also_in_issue_ids: s.also_in_issue_ids || [],
       alsoInIssueIds: s.also_in_issue_ids || [],
+      // Featured-image presence drives the Issue Planner's IMG column
+      // marker. Was missing from the mapper, so the * never appeared.
+      featured_image_url: s.featured_image_url || null,
+      featuredImageUrl: s.featured_image_url || null,
       // Destination flags — single source of truth for "is this live"
       sent_to_web: s.sent_to_web === true,
       sent_to_print: s.sent_to_print === true,
