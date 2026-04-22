@@ -10,7 +10,7 @@ const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-action, x-message-id, x-label-id, x-query, x-page-token, x-max-results, x-label-ids, x-add-labels, x-remove-labels, x-thread-id, x-draft-id, x-format",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, x-action, x-message-id, x-label-id, x-query, x-page-token, x-max-results, x-label-ids, x-add-labels, x-remove-labels, x-thread-id, x-draft-id, x-format, x-attachment-id",
 };
 
 function getAdmin() {
