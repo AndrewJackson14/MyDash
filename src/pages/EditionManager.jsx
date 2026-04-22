@@ -174,6 +174,12 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
   const renderPages = async (q) => {
     const pages = [];
     for (let i = 1; i <= numPages; i++) {
+      // Announce BEFORE the slow work so the user sees which page we're on
+      // (page 1 of a large newspaper at 150-200 DPI can take 10+ seconds;
+      // without this the status stays on "Compressing PDF" until page 1
+      // completes, which reads as "stalled").
+      if (onProgress) onProgress({ phase: "render", page: i, total: numPages, quality: q });
+
       const page = await pdf.getPage(i);
       const scale = dpi / 72;
       const viewport = page.getViewport({ scale });
@@ -184,17 +190,13 @@ async function compressPdf(file, { dpi = 150, quality = 0.75, targetMB = 0, onPr
       const ctx = canvas.getContext("2d");
       await page.render({ canvasContext: ctx, viewport }).promise;
 
-      // Original page dimensions in points for the output PDF
       const origViewport = page.getViewport({ scale: 1 });
 
       const jpegBuffer = await canvasToJpegBuffer(canvas, q);
       pages.push({ jpegBuffer, widthPt: origViewport.width, heightPt: origViewport.height });
 
-      // Clean up canvas memory
       canvas.width = 1;
       canvas.height = 1;
-
-      if (onProgress) onProgress({ phase: "render", page: i, total: numPages, quality: q });
     }
     return pages;
   };
@@ -600,7 +602,9 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
             quality: compQuality,
             targetMB: compTargetMB,
             onProgress: (p) => {
-              if (p.phase === "render") {
+              if (p.phase === "start") {
+                setCompressionStatus(`Compressing PDF (${p.total} pages)...`);
+              } else if (p.phase === "render") {
                 setCompressionStatus(`Compressing page ${p.page} of ${p.total}...`);
               } else if (p.phase === "assemble") {
                 setCompressionStatus("Assembling compressed PDF...");
