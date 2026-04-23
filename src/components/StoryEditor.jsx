@@ -223,10 +223,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   }, [team]);
 
   // ── Freelance contributors ─────────────────────────────────
+  // Only surface active freelancers; inactive/archived rows stay in the
+  // DB to keep historical FKs valid but should not appear in the picker.
   const [freelancers, setFreelancers] = useState([]);
   useEffect(() => {
-    supabase.from("team_members").select("id, name, role, is_freelance, specialty")
-      .eq("is_freelance", true).order("name")
+    supabase.from("team_members").select("id, name, role, is_freelance, specialty, is_active")
+      .eq("is_freelance", true).eq("is_active", true).order("name")
       .then(({ data }) => { if (data) setFreelancers(data); });
   }, []);
 
@@ -995,6 +997,11 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
             <select value={meta.author || ""} onChange={async e => { if (e.target.value === "__custom") { const name = await dialog.prompt("Enter author name:"); if (name) saveMeta("author", name); } else saveMeta("author", e.target.value); }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
               <option value="">Select author...</option>
+              {/* Ghost option so an inactive/legacy byline that no longer
+                  matches any active author or freelancer still renders the
+                  currently-saved value in the select (otherwise the field
+                  visually blanks even though the DB value is intact). */}
+              {meta.author && !authors.some(a => a.name === meta.author) && !freelancers.some(f => f.name === meta.author) && <option value={meta.author}>{meta.author} (inactive)</option>}
               {authors.map(a => <option key={a.id} value={a.name}>{(a.name || "").replace(/[\u2013\u2014]/g, "-")} ({a.is_freelance ? "Freelance" : "Staff"}{a.role ? ", " + a.role : ""})</option>)}
               {freelancers.map(f => <option key={f.id} value={f.name}>{f.name} (Freelance{f.specialty ? ", " + f.specialty : ""})</option>)}
               <option value="__custom">Other (type name)...</option>
