@@ -1090,8 +1090,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
           pagination show up here identically. `isActive={false}` suppresses
           Flatplan's own TopBar header override so "Production" stays the title. */}
       {tab === "flatplan" && (() => {
-        const seedPub = lastFlatplanPub || (selIssue ? issues.find(i => i.id === selIssue)?.pubId : null);
-        const seedIssue = lastFlatplanIssue || selIssue;
+        // Issue Planning selection wins — that's the view the user is
+        // working against, so the Flatplan tab should mirror it even
+        // when lastFlatplanPub/Issue points at a different issue from
+        // a prior top-level Flatplan session.
+        const seedPub = (selIssue ? issues.find(i => i.id === selIssue)?.pubId : null) || lastFlatplanPub;
+        const seedIssue = selIssue || lastFlatplanIssue;
         return (
           <Suspense fallback={<LazyFallback />}>
             <Flatplan

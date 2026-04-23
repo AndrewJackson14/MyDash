@@ -310,6 +310,20 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     setInitialized(true);
   }, [issues, pubs, lastPub, lastIssue, initialized]);
 
+  // Re-sync when the embedder pushes a new seed (e.g., user picks a
+  // different issue in the Production page's Issue Planning tab while
+  // the embedded Flatplan is already mounted). Skips when the seed
+  // matches local state so picking issues directly inside Flatplan
+  // (which calls onSelectionChange and rebounds lastPub/lastIssue) is
+  // a no-op rather than a stomp.
+  useEffect(() => {
+    if (!lastPub || !lastIssue) return;
+    if (lastPub === selPub && lastIssue === selIssue) return;
+    setSelPub(lastPub);
+    setSelIssue(lastIssue);
+    setSelPage(null);
+  }, [lastPub, lastIssue]);
+
   const pub = pubs.find(p => p.id === selPub);
   const today = new Date().toISOString().slice(0, 10);
   const allPubIssues = issues.filter(i => i.pubId === selPub).sort((a, b) => a.date.localeCompare(b.date));
