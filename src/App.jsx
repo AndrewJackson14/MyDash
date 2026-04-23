@@ -18,6 +18,8 @@ import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
 // Eagerly loaded (always needed on boot)
 import { NotificationPopover } from "./components/NotificationPopover";
+import { GmailNotifPopover } from "./components/GmailNotifPopover";
+import { useGmailUnread } from "./hooks/useGmailUnread";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import MyHelperLauncher from "./components/MyHelperLauncher";
 import IssueDetail from "./pages/IssueDetail";
@@ -379,6 +381,9 @@ export default function App() {
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [currentUser?.id]);
 
+  // ─── Gmail unread (polls every 60s, feeds badge + toast) ───
+  const { unreadCount: gmailUnread, onNewUnread: onNewGmail } = useGmailUnread(!!currentUser);
+
   // ─── Nav Config (with permission keys) ────────────────
   // Map nav IDs to module permission keys
   // Each nav item is its own permission — granular control
@@ -394,7 +399,7 @@ export default function App() {
     { id: "dashboard", label: "My Dash", icon: Ic.dash },
     { id: "calendar", label: "Calendar", icon: Ic.cal },
     { id: "messaging", label: "Messages", icon: Ic.chat, badge: unreadDMs || null, badgeColor: unreadDMs > 0 ? Z.ac : null },
-    { id: "mail", label: "Mail", icon: Ic.mail },
+    { id: "mail", label: "Mail", icon: Ic.mail, badge: gmailUnread || null, badgeColor: gmailUnread > 0 ? Z.ac : null },
     { id: "_revenue", section: true, label: "Revenue" },
     { id: "sales", label: "Sales", icon: Ic.sale, badge: (salesActive || 0) + (newInquiries || 0) || null, badgeColor: newInquiries > 0 ? Z.ac : null },
     { id: "contracts", label: "Contracts", icon: Ic.sign },
@@ -495,6 +500,9 @@ export default function App() {
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
     <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
+    {/* Gmail inbox notifications — polls every 60s via useGmailUnread,
+        fires a toast for newly-arrived unread messages. Click jumps to Mail. */}
+    <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
     <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     <link href={FONT_URL} rel="stylesheet" />
 

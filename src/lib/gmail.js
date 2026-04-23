@@ -128,6 +128,73 @@ export async function initiateGmailAuth(teamMemberId) {
   return { error: result.error || "Failed to get auth URL" };
 }
 
+// ── Incoming-mail helpers (polling, notifications, badge) ──
+// Mirrors the inline gmailCall in src/pages/Mail.jsx so the
+// app shell can poll without touching that page's local state.
+async function getAuthHeader() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ? `Bearer ${session.access_token}` : "";
+}
+
+export async function gmailCall(action, headers = {}, body = null) {
+  const auth = await getAuthHeader();
+  if (!auth) throw new Error("Not authenticated");
+  const opts = {
+    method: body ? "POST" : "GET",
+    headers: { Authorization: auth, "x-action": action, ...headers },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${EDGE_FN_URL}/gmail-api`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Gmail API error");
+  return data;
+}
+
+export function gmailHeader(msg, name) {
+  const h = msg?.payload?.headers?.find(h => h.name.toLowerCase() === name.toLowerCase());
+  return h?.value || "";
+}
+
+// "Firstname Lastname" <foo@bar.com> → "Firstname Lastname"
+export function shortenGmailFrom(str) {
+  if (!str) return "";
+  const match = str.match(/^"?([^"<]+)/);
+  return (match ? match[1] : str).trim();
+}
+
+// Fetch the N most recent UNREAD inbox messages as lightweight
+// metadata. Used by the notification popover + the sidebar badge.
+// Each poll is bounded: 1 list call + at most N metadata fetches.
+export async function fetchUnreadInbox(maxResults = 10) {
+  const list = await gmailCall("list", {
+    "x-label-ids": "INBOX",
+    "x-query": "is:unread",
+    "x-max-results": String(maxResults),
+  });
+  const ids = list.messages || [];
+  if (ids.length === 0) return [];
+  const msgs = await Promise.all(
+    ids.map(m => gmailCall("get", { "x-message-id": m.id, "x-format": "metadata" }))
+  );
+  return msgs;
+}
+
+// Status check — does the current user have a connected Gmail
+// account? We skip polling entirely if not connected, so the shell
+// calls this once on mount before starting the interval.
+export async function checkGmailConnected() {
+  const auth = await getAuthHeader();
+  if (!auth) return false;
+  try {
+    const res = await fetch(`${EDGE_FN_URL}/gmail-auth?action=status`, {
+      headers: { Authorization: auth },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data.connected;
+  } catch { return false; }
+}
+
 export function buildProposalEmailHtml({ message, lineItems, total }) {
   const lineRows = lineItems.map(li =>
     `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${li.pubName}</td>` +
