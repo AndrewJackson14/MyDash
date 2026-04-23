@@ -502,6 +502,14 @@ export function DataProvider({ children, localData }) {
       editedBy: s.edited_by || null,
       dueDate: s.due_date,
       images: s.images, wordCount: s.word_count, category: s.category,
+      // Issue Planner columns — selected above but were missing from the mapper,
+      // so values typed into the planner persisted in the DB but vanished on
+      // reload because the in-memory `stories` array had no `page` / `priority`
+      // / `word_limit` field for the dropdowns to read back.
+      page: s.page,
+      page_number: s.page,
+      priority: s.priority,
+      word_limit: s.word_limit,
       issueId: s.issue_id || '',
       issue_id: s.issue_id || '',
       print_issue_id: s.print_issue_id || '',
