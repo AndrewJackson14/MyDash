@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 import { fmtTimeRelative as fmtTime } from "../lib/formatters";
 import { tokenizeMessage, activeMentionAtCaret, insertMention, parseMentions } from "../lib/mentions";
 
-const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder = "Type a message...", onNewMessage }) => {
+const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder = "Type a message...", onNewMessage, emailContext }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -105,9 +105,22 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
           title: `${currentUser?.name || "Someone"} mentioned you`,
           detail: preview,
           type: "mention",
-          link: "",
+          link: emailContext?.contextUrl || "",
         }));
         supabase.from("notifications").insert(rows).then(() => {}).catch(() => {});
+
+        // Email side — fire-and-forget. Silent failure if SES env is
+        // missing (edge function returns 200 { skipped: true }); in-app
+        // bell badge still works regardless.
+        supabase.functions.invoke("notify-mention", {
+          body: {
+            mentionedUserIds: mentioned,
+            senderName: currentUser?.name || "Someone",
+            body,
+            contextLabel: emailContext?.contextLabel || "a discussion",
+            contextUrl: emailContext?.contextUrl || "",
+          },
+        }).then(() => {}).catch(() => {});
       }
     }
     setSending(false);

@@ -32,6 +32,14 @@ export default function EntityThread({
   // external chrome (top-bar button, sidebar pill) can surface it.
   onMsgCount,
 }) {
+  // Email context for @mention alerts. Title doubles as the subject-line
+  // context; URL falls back to the app root if the embedder didn't set
+  // a deep-link. Derived inline so ChatPanel never has to know about
+  // the refType/refId structure.
+  const emailContext = {
+    contextLabel: title || `${label}${refType ? ` · ${refType}` : ""}`,
+    contextUrl: typeof window !== "undefined" ? window.location.href : "",
+  };
   const [thread, setThread] = useState(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(defaultOpen);
@@ -101,7 +109,7 @@ export default function EntityThread({
         {loading && <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading discussion…</div>}
         {error && <div style={{ padding: 12, color: Z.da, fontSize: FS.sm, fontFamily: COND }}>Thread failed: {error}</div>}
         {!loading && !error && thread && (
-          <ChatPanel threadId={thread.id} currentUser={resolvedUser} height={height} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
+          <ChatPanel threadId={thread.id} currentUser={resolvedUser} team={team} height={height} emailContext={emailContext} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
         )}
       </div>
     );
@@ -128,7 +136,7 @@ export default function EntityThread({
           {loading && <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading discussion…</div>}
           {error && <div style={{ padding: 12, color: Z.da, fontSize: FS.sm, fontFamily: COND }}>Thread failed: {error}</div>}
           {!loading && !error && thread && (
-            <ChatPanel threadId={thread.id} currentUser={resolvedUser} team={team} height={height} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
+            <ChatPanel threadId={thread.id} currentUser={resolvedUser} team={team} height={height} emailContext={emailContext} onNewMessage={() => setMsgCount(c => (c == null ? 1 : c + 1))} />
           )}
         </div>
       )}

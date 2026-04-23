@@ -28,7 +28,11 @@ const ENTITY_TYPE_LABELS = {
   contract: "Contracts",
   legal_notice: "Legal Notices",
   sale: "Sales",
+  issue: "Issues",
 };
+// "issue" is intentionally excluded from the Entity tab — it lives in
+// its own tab (see view === "issue" below) so editors can separate
+// issue-wide chatter from per-story/per-client discussion.
 const ENTITY_TYPE_ORDER = ["story", "ad_project", "client", "contract", "legal_notice", "sale"];
 
 const Messaging = memo(({ team, currentUser, isActive }) => {
@@ -50,7 +54,8 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
   const scrollRef = useRef(null);
 
   // "dm" = direct messages (team_notes). "entity" = per-entity threads
-  // (message_threads with a ref_type set). Switching tabs keeps each
+  // (message_threads with ref_type in the non-issue set). "issue" =
+  // message_threads with ref_type='issue'. Switching tabs keeps each
   // pane's own selection so you don't lose context toggling back.
   const [view, setView] = useState("dm");
   const [entityThreads, setEntityThreads] = useState([]);
@@ -134,7 +139,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
   // most recent message per thread (small extra query — keeps previews
   // accurate without subscribing to every thread).
   useEffect(() => {
-    if (view !== "entity") return;
+    if (view !== "entity" && view !== "issue") return;
     let cancelled = false;
     setEntityLoading(true);
     (async () => {
@@ -177,7 +182,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
 
   // ─── Realtime: bubble new entity-thread messages into the preview map
   useEffect(() => {
-    if (view !== "entity") return;
+    if (view !== "entity" && view !== "issue") return;
     const ch = supabase.channel("entity-thread-previews")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const m = payload.new;
@@ -187,15 +192,24 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
     return () => { supabase.removeChannel(ch); };
   }, [view]);
 
+  // threadsByType partitions the loaded threads per tab:
+  //   - view === "entity" → everything EXCEPT ref_type='issue'
+  //   - view === "issue"  → only ref_type='issue'
+  // Threads with no messages (entityPreviews[id] is undefined) are
+  // filtered out so empty lazily-created rows don't pollute the UI —
+  // e.g., the Lawrence Wayne story thread that ships empty.
   const threadsByType = useMemo(() => {
     const groups = {};
     entityThreads.forEach(t => {
+      if (!entityPreviews[t.id]) return; // hide empty threads
+      if (view === "issue" && t.ref_type !== "issue") return;
+      if (view === "entity" && t.ref_type === "issue") return;
       const key = t.ref_type || "other";
       if (!groups[key]) groups[key] = [];
       groups[key].push(t);
     });
     return groups;
-  }, [entityThreads]);
+  }, [entityThreads, entityPreviews, view]);
 
   const filteredThreadsByType = useMemo(() => {
     if (!search.trim()) return threadsByType;
@@ -322,11 +336,13 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
           )}
         </div>
 
-        {/* View tabs — Direct (team_notes DMs) vs Entity (ad_project / story / client / etc threads) */}
+        {/* View tabs — Direct (team_notes DMs), Entity (ad_project / story /
+            client / contract / legal_notice / sale), Issue (ref_type='issue'). */}
         <div style={{ display: "flex", borderBottom: `1px solid ${Z.bd}`, background: Z.sf }}>
           {[
             { id: "dm", label: "Direct" },
-            { id: "entity", label: "Entity threads" },
+            { id: "entity", label: "Entity" },
+            { id: "issue", label: "Issue" },
           ].map(t => {
             const active = view === t.id;
             return (
@@ -358,14 +374,15 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {view === "entity" && (
+          {(view === "entity" || view === "issue") && (
             <>
               {entityLoading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading threads...</div>}
-              {!entityLoading && entityThreads.length === 0 && (
-                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>No entity threads yet. Threads appear here as stories, ad projects, clients, contracts, and legal notices get discussion activity.</div>
-              )}
-              {!entityLoading && Object.keys(filteredThreadsByType).length === 0 && entityThreads.length > 0 && (
-                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>No matches</div>
+              {!entityLoading && Object.keys(filteredThreadsByType).length === 0 && (
+                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>
+                  {view === "issue"
+                    ? "No issue threads with messages yet. Start one from an issue detail view."
+                    : "No entity threads with messages yet. Threads appear here once stories, ad projects, clients, contracts, or legal notices get discussion activity."}
+                </div>
               )}
               {ENTITY_TYPE_ORDER.concat(
                 Object.keys(filteredThreadsByType).filter(k => !ENTITY_TYPE_ORDER.includes(k))
@@ -469,7 +486,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
 
       {/* ─── Right: active conversation / thread ─── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {view === "entity" && activeThread ? (
+        {(view === "entity" || view === "issue") && activeThread ? (
           <>
             <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, textTransform: "uppercase" }}>
@@ -487,6 +504,10 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                 team={team}
                 height="100%"
                 placeholder="Message this thread..."
+                emailContext={{
+                  contextLabel: activeThread.title || `${ENTITY_TYPE_LABELS[activeThread.ref_type] || activeThread.ref_type || "thread"}`,
+                  contextUrl: typeof window !== "undefined" ? window.location.href : "",
+                }}
                 onNewMessage={(m) => setEntityPreviews(prev => ({ ...prev, [activeThread.id]: m }))}
               />
             </div>
@@ -581,10 +602,14 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
             <Ic.chat size={48} color={Z.bd} />
             <div style={{ fontSize: 16, fontWeight: FW.bold, color: Z.td }}>
-              {view === "entity" ? "Select an entity thread" : "Select a conversation"}
+              {view === "issue" ? "Select an issue thread" : view === "entity" ? "Select an entity thread" : "Select a conversation"}
             </div>
             <div style={{ fontSize: 13, color: Z.td }}>
-              {view === "entity" ? "Threads from stories, ad projects, clients, contracts, and legal notices." : "or start a new one"}
+              {view === "issue"
+                ? "Per-issue discussion threads."
+                : view === "entity"
+                  ? "Threads from stories, ad projects, clients, contracts, and legal notices."
+                  : "or start a new one"}
             </div>
             {view === "dm" && (
               <button
