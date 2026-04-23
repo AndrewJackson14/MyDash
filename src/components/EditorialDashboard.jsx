@@ -643,6 +643,14 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     return ids.map(id => ({ id, name: tn(id, team) }));
   }, [stories, team]);
 
+  // Inactive author names — used to prune the author dropdown so ex-staff
+  // can't be picked for new stories. A story already assigned to an
+  // inactive author keeps the name in its row's dropdown (see row render)
+  // so the value doesn't appear to vanish.
+  const inactiveAuthorNames = useMemo(() => new Set(
+    (team || []).filter(m => m.isActive === false).map(m => m.name).filter(Boolean)
+  ), [team]);
+
   // ── Stats ───────────────────────────────────────────────────
   const stats = useMemo(() => {
     const now = new Date();
@@ -1049,7 +1057,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             )}
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <Sel value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} options={[{ value: "", label: "—" }, ...[...new Set(stories.map(x => x.author).filter(Boolean))].sort().map(a => ({ value: a, label: a }))]} style={{ padding: "3px 24px 3px 6px" }} />
+                            <Sel value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} options={[{ value: "", label: "—" }, ...[...new Set(stories.map(x => x.author).filter(Boolean))].sort().filter(a => !inactiveAuthorNames.has(a) || a === s.author).map(a => ({ value: a, label: a }))]} style={{ padding: "3px 24px 3px 6px" }} />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
