@@ -63,8 +63,10 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       if (occupied[r][c]) return null;
       return <div key={`${r}-${c}`} onDragOver={e => { e.preventDefault(); e.stopPropagation(); }} onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragId) onDropToCell(dragId, pageNum, r, c); }} style={{ position: "absolute", left: `${c * cellW}%`, top: `${r * cellH}%`, width: `${cellW}%`, height: `${cellH}%`, background: dragId ? "rgba(138,149,168,0.08)" : "transparent", border: `1px solid rgba(138,149,168,${dragId ? 0.2 : 0.06})`, boxSizing: "border-box", zIndex: 1 }} />;
     }))}
-    {/* Editorial stories — always visible, ordered by priority (top story first). */}
-    {editorialStories.length > 0 && <div style={{ position: "absolute", top: 2, left: 3, right: 3, zIndex: 3, pointerEvents: "none", display: "flex", flexDirection: "column", gap: 0 }}>{editorialStories.map((s, idx) => <div key={s.id} style={{ fontSize: idx === 0 ? fsSmall : Math.max(6, fsSmall - 2), fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: pageW - 6, opacity: idx === 0 ? 1 : 0.75 }}>{s.title}</div>)}</div>}
+    {/* Editorial stories — always visible, ordered by priority. Uniform
+        size + weight for every title so the list reads as an index, not
+        a hierarchy (priority order is what conveys rank). */}
+    {editorialStories.length > 0 && <div style={{ position: "absolute", top: 3, left: 4, right: 4, zIndex: 3, pointerEvents: "none", display: "flex", flexDirection: "column", gap: 1 }}>{editorialStories.map(s => <div key={s.id} style={{ fontSize: Math.max(10, pageW * 0.1), fontWeight: 700, color: Z.ac, lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: pageW - 8 }}>{s.title}</div>)}</div>}
     {/* Ads on page */}
     {placements.map(p => {
       const isPH = p.isPlaceholder;
