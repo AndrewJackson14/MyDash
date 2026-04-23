@@ -835,32 +835,41 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
     if (!error) {
       setSites(prev => prev.map(s => s.id === selectedId ? { ...s, logo_url: draft.logo_url, favicon_url: draft.favicon_url, settings: merged } : s));
 
-      // Save house ads — only for zones that have placements edited
+      // Save house ads. Reconciles each zone with its current local
+      // state: soft-deletes (is_active=false) any active placement that
+      // was removed in the UI, then updates kept rows and inserts new
+      // ones. Soft-delete preserves impression/click history.
       try {
-        const hasAnyAds = Object.values(houseAds).some(arr => arr?.length > 0);
-        if (hasAnyAds) {
-          await Promise.all(adLocations.map(async (loc) => {
-            const ads = houseAds[loc.slug] || [];
+        await Promise.all(adLocations.map(async (loc) => {
+          const ads = houseAds[loc.slug] || [];
+
+          // Find or create the zone. Skip cleanup if neither exists.
+          let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
+          if (!zone) {
             if (!ads.length) return;
-            // Ensure zone exists
-            let { data: zone } = await supabase.from("ad_zones").select("id").eq("publication_id", selectedId).eq("slug", loc.slug).maybeSingle();
-            if (!zone) {
-              const { data: newZone, error: zErr } = await supabase.from("ad_zones").insert({ publication_id: selectedId, name: loc.name, slug: loc.slug, zone_type: "display", is_active: true }).select("id").single();
-              if (zErr) { console.error("Zone create error:", zErr); return; }
-              zone = newZone;
+            const { data: newZone, error: zErr } = await supabase.from("ad_zones").insert({ publication_id: selectedId, name: loc.name, slug: loc.slug, zone_type: "display", is_active: true }).select("id").single();
+            if (zErr) { console.error("Zone create error:", zErr); return; }
+            zone = newZone;
+          }
+
+          // Soft-delete any active placement in this zone that's not in
+          // the current local list (= user removed it in the UI).
+          const keptIds = ads.filter(a => a.id).map(a => a.id);
+          let delQ = supabase.from("ad_placements").update({ is_active: false }).eq("ad_zone_id", zone.id).eq("is_active", true);
+          if (keptIds.length) delQ = delQ.not("id", "in", `(${keptIds.join(",")})`);
+          const { error: delErr } = await delQ;
+          if (delErr) console.error("Placement deactivate error:", delErr);
+
+          // Update kept + insert new
+          await Promise.all(ads.map(async (ad) => {
+            if (ad.id) {
+              await supabase.from("ad_placements").update({ creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text }).eq("id", ad.id);
+            } else if (ad.creative_url) {
+              await supabase.from("ad_placements").insert({ ad_zone_id: zone.id, creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text, start_date: new Date().toISOString().split("T")[0], end_date: "2027-12-31", is_active: true });
             }
-            if (!zone) return;
-            // Upsert placements
-            await Promise.all(ads.map(async (ad) => {
-              if (ad.id) {
-                await supabase.from("ad_placements").update({ creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text }).eq("id", ad.id);
-              } else if (ad.creative_url) {
-                await supabase.from("ad_placements").insert({ ad_zone_id: zone.id, creative_url: ad.creative_url, click_url: ad.click_url, alt_text: ad.alt_text, start_date: new Date().toISOString().split("T")[0], end_date: "2027-12-31", is_active: true });
-              }
-            }));
           }));
-          loadHouseAds(selectedId);
-        }
+        }));
+        loadHouseAds(selectedId);
       } catch (e) { console.error("House ads save error:", e); }
 
       setSaved(true);
