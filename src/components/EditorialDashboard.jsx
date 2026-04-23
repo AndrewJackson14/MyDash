@@ -961,7 +961,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                         const hasContent = pgStories.length > 0;
                         return <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: Z.td }}>{pg}</div>
-                          {pgStories.slice(0, 3).map(s => <div key={s.id} style={{ fontSize: 8, fontWeight: 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center" }}>{(s.title || "").slice(0, 12)}</div>)}
+                          {pgStories.slice(0, 3).map((s, idx) => <div key={s.id} title={`P${priVal(s)} — ${s.title}`} style={{ fontSize: 8, fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center", opacity: idx === 0 ? 1 : 0.75 }}>{(s.title || "").slice(0, 12)}</div>)}
                         </div>;
                       })}
                     </div>

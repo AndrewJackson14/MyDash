@@ -725,15 +725,22 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, marginTop: 4 }}>My Stories</div>
         <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 2 }}>Click a page, then assign stories from this list</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {[...pubStories].sort((a,b) => { const pa = parseInt(a.page) || 999; const pb = parseInt(b.page) || 999; return pa - pb; }).map(s => {
+          {[...pubStories].sort((a,b) => {
+            const pa = parseInt(a.page) || 999; const pb = parseInt(b.page) || 999;
+            if (pa !== pb) return pa - pb;
+            return priVal(a) - priVal(b);
+          }).map(s => {
             const assignedPage = storyPageMap[s.id];
             const isAssigned = assignedPage != null;
+            const pri = parseInt(s.priority);
+            const hasPri = !isNaN(pri);
             return <div key={s.id} onClick={() => { if (selPage) toggleStoryOnPage(selPage, s.id); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: isAssigned ? Z.as : Z.bg, border: `1px solid ${Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)"}`, borderRadius: R, cursor: selPage ? "pointer" : "default" }}>
               <Badge status={s.status} small />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                 <div style={{ fontSize: FS.sm, color: Z.tm }}>{s.wordCount}w · {s.author}</div>
               </div>
+              {hasPri && <span title={`Priority ${pri}`} style={{ fontSize: 10, fontWeight: FW.black, color: pri === 1 ? Z.da : pri === 2 ? Z.wa : Z.tm, background: pri === 1 ? Z.da + "20" : pri === 2 ? Z.wa + "20" : Z.sa, padding: "2px 6px", borderRadius: 10, flexShrink: 0 }}>P{pri}</span>}
               {isAssigned && <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac, flexShrink: 0 }}>p.{assignedPage}</span>}
             </div>;
           })}
