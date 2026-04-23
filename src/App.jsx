@@ -400,7 +400,7 @@ export default function App() {
         const { data: sess } = await supabase.auth.getSession();
         const token = sess?.session?.access_token;
         if (!token) return;
-        await fetch(`${EDGE_FN_URL}/gmail-watch-init`, {
+        const res = await fetch(`${EDGE_FN_URL}/gmail-watch-init`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -409,6 +409,10 @@ export default function App() {
           },
           body: JSON.stringify({}),
         });
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          console.warn("gmail-watch-init failed:", res.status, body);
+        }
       } catch (e) { console.warn("gmail-watch-init failed:", e); }
     })();
   }, [gmailConnected, gmailUserId]);
