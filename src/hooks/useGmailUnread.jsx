@@ -1,21 +1,25 @@
 // ============================================================
-// useGmailUnread — app-shell hook that polls Gmail every 60s for
-// unread inbox messages. Surfaces:
+// useGmailUnread — app-shell hook that keeps an unread-inbox
+// count live. Two channels of updates:
+//   1. Supabase realtime channel gmail_inbox_<userId>, fed by the
+//      gmail-push-webhook edge function on Pub/Sub delivery.
+//      Latency: ~1 second end-to-end.
+//   2. 60-second polling as a safety net in case the realtime
+//      connection drops or the Gmail watch lapses before cron
+//      renewal catches up.
+//
+// Surfaces:
 //   - unreadCount (number, renders as sidebar badge on Mail)
 //   - unreadMessages (array, lightweight metadata)
-//   - onNew (subscribe callback, fires once per newly-arrived id)
-//
-// Gmail doesn't push to Supabase, so this is polling — cheap and
-// bounded (1 list call + <=10 metadata fetches per tick). The
-// `seenIds` ref diffs poll-to-poll so the toast only fires for
-// NEW unread messages, not every message that's still unread.
+//   - onNewUnread (subscribe callback, fires per newly-arrived id)
 // ============================================================
 import { useEffect, useState, useRef, useCallback } from "react";
 import { checkGmailConnected, fetchUnreadInbox } from "../lib/gmail";
+import { supabase } from "../lib/supabase";
 
 const POLL_MS = 60_000;
 
-export function useGmailUnread(enabled = true) {
+export function useGmailUnread(enabled = true, userId = null) {
   const [connected, setConnected] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState([]);
   const seenIds = useRef(null); // null until first fetch so we don't pop all existing on load
@@ -63,21 +67,36 @@ export function useGmailUnread(enabled = true) {
     if (!enabled) return;
     let cancelled = false;
     let timer;
+    let channel;
 
     (async () => {
       const ok = await checkGmailConnected();
       if (cancelled) return;
       setConnected(ok);
       if (!ok) return;
+
       await poll();
       timer = setInterval(poll, POLL_MS);
+
+      // Realtime push: gmail-push-webhook broadcasts on this channel
+      // for each Pub/Sub delivery. We just refresh on any event — the
+      // poll() call already diffs against seenIds so only genuinely
+      // new messages fire toasts. End-to-end latency drops from
+      // up-to-60s to ~1s.
+      if (userId) {
+        channel = supabase.channel(`gmail_inbox_${userId}`);
+        channel
+          .on("broadcast", { event: "inbox_changed" }, () => { poll(); })
+          .subscribe();
+      }
     })();
 
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      if (channel) { try { supabase.removeChannel(channel); } catch {} }
     };
-  }, [enabled, poll]);
+  }, [enabled, userId, poll]);
 
   return {
     connected,

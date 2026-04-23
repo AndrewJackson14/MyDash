@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense, memo
 import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
-import { supabase, isOnline } from "./lib/supabase";
+import { supabase, isOnline, EDGE_FN_URL } from "./lib/supabase";
 import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
 import {
@@ -381,8 +381,37 @@ export default function App() {
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [currentUser?.id]);
 
-  // ─── Gmail unread (polls every 60s, feeds badge + toast) ───
-  const { unreadCount: gmailUnread, onNewUnread: onNewGmail } = useGmailUnread(!!currentUser);
+  // ─── Gmail unread (realtime push + 60s fallback) ───
+  // The userId arg subscribes the hook to the gmail_inbox_<userId>
+  // realtime channel that gmail-push-webhook broadcasts on.
+  const gmailUserId = currentUser?.authId || currentUser?.id || null;
+  const { unreadCount: gmailUnread, connected: gmailConnected, onNewUnread: onNewGmail } = useGmailUnread(!!currentUser, gmailUserId);
+
+  // Fire gmail-watch-init once per session the first time we see the
+  // user has a connected Gmail account. Idempotent on the server side
+  // (users.watch upserts by user_id, so re-running just refreshes
+  // the expiration).
+  const watchInitFired = useRef(false);
+  useEffect(() => {
+    if (watchInitFired.current || !gmailConnected || !gmailUserId) return;
+    watchInitFired.current = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess?.session?.access_token;
+        if (!token) return;
+        await fetch(`${EDGE_FN_URL}/gmail-watch-init`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": supabase.supabaseKey || "",
+            "Authorization": "Bearer " + token,
+          },
+          body: JSON.stringify({}),
+        });
+      } catch (e) { console.warn("gmail-watch-init failed:", e); }
+    })();
+  }, [gmailConnected, gmailUserId]);
 
   // ─── Nav Config (with permission keys) ────────────────
   // Map nav IDs to module permission keys
