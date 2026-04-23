@@ -63,8 +63,8 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       if (occupied[r][c]) return null;
       return <div key={`${r}-${c}`} onDragOver={e => { e.preventDefault(); e.stopPropagation(); }} onDrop={e => { e.preventDefault(); e.stopPropagation(); if (dragId) onDropToCell(dragId, pageNum, r, c); }} style={{ position: "absolute", left: `${c * cellW}%`, top: `${r * cellH}%`, width: `${cellW}%`, height: `${cellH}%`, background: dragId ? "rgba(138,149,168,0.08)" : "transparent", border: `1px solid rgba(138,149,168,${dragId ? 0.2 : 0.06})`, boxSizing: "border-box", zIndex: 1 }} />;
     }))}
-    {/* Editorial stories — only when page is selected */}
-    {isSelected && editorialStories.length > 0 && <div style={{ position: "absolute", top: 2, left: 3, right: 3, zIndex: 3, pointerEvents: "none", display: "flex", flexDirection: "column", gap: 0 }}>{editorialStories.map((s, idx) => <div key={s.id} style={{ fontSize: idx === 0 ? fsSmall : Math.max(6, fsSmall - 2), fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: pageW - 6, opacity: idx === 0 ? 1 : 0.6 }}>{s.title}</div>)}</div>}
+    {/* Editorial stories — always visible, ordered by priority (top story first). */}
+    {editorialStories.length > 0 && <div style={{ position: "absolute", top: 2, left: 3, right: 3, zIndex: 3, pointerEvents: "none", display: "flex", flexDirection: "column", gap: 0 }}>{editorialStories.map((s, idx) => <div key={s.id} style={{ fontSize: idx === 0 ? fsSmall : Math.max(6, fsSmall - 2), fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: pageW - 6, opacity: idx === 0 ? 1 : 0.75 }}>{s.title}</div>)}</div>}
     {/* Ads on page */}
     {placements.map(p => {
       const isPH = p.isPlaceholder;
@@ -423,6 +423,11 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   // Auto-placement: if a story's Issue-Planner page column points at a page,
   // render it there automatically. Manual toggleStoryOnPage assignments still
   // win when both exist (same-story dedup below).
+  // Priority drives top-of-page ordering. Lower number = higher priority
+  // (1 is the top story on the page, 2 is second, etc.). Stories without
+  // a numeric priority fall to the bottom.
+  const priVal = (s) => { const n = parseInt(s.priority); return isNaN(n) ? 999 : n; };
+
   const getPageStories = (pg) => {
     const manualIds = pageStories[pageStoryKey(pg)] || [];
     const manualStories = manualIds.map(sid => pubStories.find(s => s.id === sid)).filter(Boolean);
@@ -432,7 +437,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       const storyPage = parseInt(s.page ?? s.page_number);
       return !isNaN(storyPage) && storyPage === pg;
     });
-    return [...manualStories, ...autoStories];
+    return [...manualStories, ...autoStories].sort((a, b) => priVal(a) - priVal(b));
   };
 
   // storyPageMap drives the "p.N" chip in the My Stories list. Merge manual

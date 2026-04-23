@@ -951,7 +951,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                   const mfIssue = issues.find(i => i.id === selIssue);
                   if (!mfIssue) return null;
                   const mfPages = Array.from({ length: mfIssue.pageCount || 16 }, (_, i) => i + 1);
-                  const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); });
+                  const priVal = (s) => { const n = parseInt(s.priority); return isNaN(n) ? 999 : n; };
+                  const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); }).sort((a, b) => priVal(a) - priVal(b));
                   return <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 13px", marginBottom: 10 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 5 }}>Page Map</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
