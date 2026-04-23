@@ -411,12 +411,40 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const placed = issSales.filter(s => !!pRef[s.id]);
 
   const baseW = Math.max(70, Math.min(120, 700 / Math.ceil(Math.sqrt(issue?.pageCount || 16)))) * zoom;
-  const pubStories = (stories || []).filter(s => s.publication === selPub);
+  // My Stories list is scoped to the selected pub AND the selected issue.
+  // `issueId` comes from useAppData's camelCase mapper; `print_issue_id` is
+  // the raw DB column — check both so data round-trips cleanly.
+  const pubStories = (stories || []).filter(s =>
+    s.publication === selPub &&
+    (s.issueId === selIssue || s.print_issue_id === selIssue)
+  );
   const pageStoryKey = (pg) => `${selIssue}_${pg}`;
-  const getPageStories = (pg) => (pageStories[pageStoryKey(pg)] || []).map(sid => pubStories.find(s => s.id === sid)).filter(Boolean);
 
+  // Auto-placement: if a story's Issue-Planner page column points at a page,
+  // render it there automatically. Manual toggleStoryOnPage assignments still
+  // win when both exist (same-story dedup below).
+  const getPageStories = (pg) => {
+    const manualIds = pageStories[pageStoryKey(pg)] || [];
+    const manualStories = manualIds.map(sid => pubStories.find(s => s.id === sid)).filter(Boolean);
+    const manualIdSet = new Set(manualIds);
+    const autoStories = pubStories.filter(s => {
+      if (manualIdSet.has(s.id)) return false;
+      const storyPage = parseInt(s.page ?? s.page_number);
+      return !isNaN(storyPage) && storyPage === pg;
+    });
+    return [...manualStories, ...autoStories];
+  };
+
+  // storyPageMap drives the "p.N" chip in the My Stories list. Merge manual
+  // pageStores assignments with auto-placements from the page column so the
+  // indicator reflects whichever surface placed the story.
   const storyPageMap = {};
   Object.entries(pageStories).forEach(([key, sids]) => { const pg = parseInt(key.split("_").pop()); sids.forEach(sid => { if (key.startsWith(selIssue + "_")) storyPageMap[sid] = pg; }); });
+  pubStories.forEach(s => {
+    if (storyPageMap[s.id] != null) return; // manual wins
+    const pg = parseInt(s.page ?? s.page_number);
+    if (!isNaN(pg)) storyPageMap[s.id] = pg;
+  });
 
   const handlePubChange = (pubId) => { setSelPub(pubId); if (onSelectionChange) onSelectionChange(pubId, null); setSelPage(null); const t = new Date().toISOString().slice(0, 10); const pubIss = issues.filter(i => i.pubId === pubId).sort((a,b) => a.date.localeCompare(b.date)); const nextUp = pubIss.find(i => i.date >= t) || pubIss[pubIss.length - 1]; setSelIssue(nextUp?.id || ""); if (nextUp && onSelectionChange) onSelectionChange(pubId, nextUp.id); };
 

@@ -419,8 +419,22 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
         }
       }).catch(err => console.error("Story insert error:", err));
     } else {
+      // Surface errors. `.catch(() => {})` was hiding RLS rejections —
+      // writes silently returned 0 rows and the local optimistic update
+      // "stuck" until page reload revealed the DB hadn't changed.
+      // We .select() back the affected rows so 0-rows-affected is
+      // detectable and loggable (PostgREST doesn't throw on RLS — it
+      // just returns an empty array).
       dbFields.updated_at = new Date().toISOString();
-      supabase.from("stories").update(dbFields).eq("id", id).then(() => {}).catch(() => {});
+      supabase.from("stories").update(dbFields).eq("id", id).select("id").then(({ data, error }) => {
+        if (error) {
+          console.error("[Issue Planner] stories update failed:", error.message, dbFields);
+          return;
+        }
+        if (!data || data.length === 0) {
+          console.error("[Issue Planner] stories update affected 0 rows (likely RLS). Fields:", Object.keys(dbFields));
+        }
+      });
     }
   };
 
@@ -932,21 +946,21 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
                     );
                   })}
                 </div>
-                {/* Mini flatplan */}
+                {/* Mini flatplan — enlarged 30% from the original 40×48 */}
                 {(() => {
                   const mfIssue = issues.find(i => i.id === selIssue);
                   if (!mfIssue) return null;
                   const mfPages = Array.from({ length: mfIssue.pageCount || 16 }, (_, i) => i + 1);
                   const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); });
-                  return <div style={{ background: Z.sa, borderRadius: Ri, padding: "8px 10px", marginBottom: 8 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Page Map</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                  return <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 13px", marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 5 }}>Page Map</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                       {mfPages.map(pg => {
                         const pgStories = getStories(pg);
                         const hasContent = pgStories.length > 0;
-                        return <div key={pg} style={{ width: 40, height: 48, border: `1px solid ${Z.bd}`, borderRadius: 2, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 1, overflow: "hidden" }}>
-                          <div style={{ fontSize: 8, fontWeight: 700, color: Z.td }}>{pg}</div>
-                          {pgStories.slice(0, 2).map(s => <div key={s.id} style={{ fontSize: 6, fontWeight: 600, color: Z.ac, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center" }}>{(s.title || "").slice(0, 10)}</div>)}
+                        return <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.td }}>{pg}</div>
+                          {pgStories.slice(0, 3).map(s => <div key={s.id} style={{ fontSize: 8, fontWeight: 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center" }}>{(s.title || "").slice(0, 12)}</div>)}
                         </div>;
                       })}
                     </div>
