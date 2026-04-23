@@ -908,7 +908,7 @@ const RoleDashboard = memo(({
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <Btn sm v="secondary" onClick={() => onNavigate?.("stories")} style={{ justifyContent: "flex-start" }}>Stories</Btn>
-              <Btn sm v="secondary" onClick={() => onNavigate?.("editorial")} style={{ justifyContent: "flex-start" }}>Editorial</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("editorial")} style={{ justifyContent: "flex-start" }}>Production</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("schedule")} style={{ justifyContent: "flex-start" }}>Issue Schedule</Btn>
             </div>
           </div>

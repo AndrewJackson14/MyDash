@@ -9,6 +9,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 // Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
 const StoryEditor = lazy(() => import("./StoryEditor"));
 const EditionManager = lazy(() => import("../pages/EditionManager"));
+const Flatplan = lazy(() => import("../pages/Flatplan"));
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: 13 }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -61,6 +62,7 @@ const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community
 const TABS = [
   { id: "workflow", label: "Workflow", icon: "flat" },
   { id: "stories", label: "Issue Planning", icon: "pub" },
+  { id: "flatplan", label: "Flatplan", icon: "flat" },
   { id: "web", label: "Web Queue", icon: "send" },
   { id: "editions", label: "Editions", icon: "pub" },
 ];
@@ -201,15 +203,19 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive, deepLink }) => {
+const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, setIssues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive, deepLink,
+  // Flatplan-tab props — forwarded straight through so the embedded Flatplan
+  // uses the same shared state (sales, placements, page-story map) as the
+  // top-level Flatplan route.
+  jurisdiction, sales, setSales, updateSale, clients, contracts, globalPageStories, setGlobalPageStories, lastFlatplanIssue, lastFlatplanPub, onFlatplanSelectionChange, onNavigate }) => {
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
       setHeader({
-        breadcrumb: [{ label: "Home" }, { label: "Editorial" }],
-        title: "Editorial",
+        breadcrumb: [{ label: "Home" }, { label: "Production" }],
+        title: "Production",
       });
     } else {
       clearHeader();
@@ -1076,6 +1082,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, tea
           </div>
         </div>
       )}
+
+      {/* FLATPLAN — embedded, seeded from the currently-selected Issue Planning
+          issue (selIssue). The outer Flatplan route lives at src/pages/Flatplan
+          and is a full module; this tab reuses the exact same component + shared
+          state (sales, page-story map, placements) so ad placement and story
+          pagination show up here identically. `isActive={false}` suppresses
+          Flatplan's own TopBar header override so "Production" stays the title. */}
+      {tab === "flatplan" && (() => {
+        const seedPub = lastFlatplanPub || (selIssue ? issues.find(i => i.id === selIssue)?.pubId : null);
+        const seedIssue = lastFlatplanIssue || selIssue;
+        return (
+          <Suspense fallback={<LazyFallback />}>
+            <Flatplan
+              isActive={false}
+              jurisdiction={jurisdiction}
+              pubs={pubs}
+              issues={issues}
+              setIssues={setIssues}
+              sales={sales || []}
+              setSales={setSales}
+              updateSale={updateSale}
+              clients={clients || []}
+              contracts={contracts || []}
+              stories={storiesRaw}
+              globalPageStories={globalPageStories}
+              setGlobalPageStories={setGlobalPageStories}
+              lastIssue={seedIssue}
+              lastPub={seedPub}
+              onSelectionChange={onFlatplanSelectionChange}
+              currentUser={currentUser}
+              onNavigate={onNavigate}
+            />
+          </Suspense>
+        );
+      })()}
 
       {/* WEB PUBLISHING QUEUE */}
       {tab === "web" && (
