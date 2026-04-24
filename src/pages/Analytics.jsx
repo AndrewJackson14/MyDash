@@ -1002,13 +1002,16 @@ const Analytics = ({
 };
 
 // ── Web Analytics Tab ──────────────────────────────────────────
+// Bar default colour is success-green (Z.su) so the website analytics
+// graphs read consistently across MySites SiteAnalytics + this tab.
+// Pass `color` to override per-call (e.g. red bars for error rates).
 const WBar = ({ value, max, color, label, sub }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0" }}>
     {label && <span style={{ fontSize: FS.base, fontWeight: FW.semi, fontFamily: COND, color: Z.tx, width: 200, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>}
     <div style={{ flex: 1, height: 8, background: Z.bg, borderRadius: R }}>
-      <div style={{ height: "100%", borderRadius: R, width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%`, background: color || Z.ac, transition: "width 0.3s" }} />
+      <div style={{ height: "100%", borderRadius: R, width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%`, background: color || Z.su || "#22c55e", transition: "width 0.3s" }} />
     </div>
-    <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: color || Z.ac, width: 60, textAlign: "right", flexShrink: 0 }}>{(value || 0).toLocaleString()}</span>
+    <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: color || Z.su || "#22c55e", width: 60, textAlign: "right", flexShrink: 0 }}>{(value || 0).toLocaleString()}</span>
     {sub && <span style={{ fontSize: FS.xs, color: Z.td, width: 40, textAlign: "right", flexShrink: 0 }}>{sub}</span>}
   </div>
 );
@@ -1023,7 +1026,10 @@ const WebAnalyticsTab = ({ pubs }) => {
 
   async function loadWebData() {
     setLoading(true);
-    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+    // 24h reuses p_days=1 — RPC's since_ts is a rolling 24-hour window
+    // so totals + top pages reflect the last day. Daily chart shows
+    // 1–2 bars when the window straddles UTC midnight.
+    const days = range === "24h" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : 90;
     const siteIds = webPub !== "all"
       ? [webPub]
       : (pubs || []).filter(p => p.hasWebsite).map(p => p.id);
@@ -1065,12 +1071,12 @@ const WebAnalyticsTab = ({ pubs }) => {
     {/* Filters */}
     <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
       <Sel value={webPub} onChange={e => setWebPub(e.target.value)} options={[{ value: "all", label: "All Sites" }, ...pubOptions.map(p => ({ value: p.id, label: p.name }))]} />
-      {["7d", "30d", "90d"].map(r => (
+      {["24h", "7d", "30d", "90d"].map(r => (
         <button key={r} onClick={() => setRange(r)} style={{
           padding: "4px 12px", borderRadius: 3, fontSize: FS.sm, fontWeight: range === r ? FW.heavy : FW.normal,
           border: "1px solid " + (range === r ? Z.ac : Z.bd), background: range === r ? Z.ac + "18" : "transparent",
           color: range === r ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
-        }}>{r === "7d" ? "7 Days" : r === "30d" ? "30 Days" : "90 Days"}</button>
+        }}>{r === "24h" ? "24 Hours" : r === "7d" ? "7 Days" : r === "30d" ? "30 Days" : "90 Days"}</button>
       ))}
     </div>
 
@@ -1093,7 +1099,7 @@ const WebAnalyticsTab = ({ pubs }) => {
           const showLabel = data.dailyData.length <= 14 || i % Math.ceil(data.dailyData.length / 14) === 0;
           return <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
             {d.count > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: Z.tx, fontFamily: COND, marginBottom: 2 }}>{d.count}</span>}
-            <div style={{ width: "100%", height: h + "%", background: Z.ac, borderRadius: 2, minHeight: 2, transition: "height 0.3s" }} />
+            <div style={{ width: "100%", height: h + "%", background: Z.su || "#22c55e", borderRadius: 2, minHeight: 2, transition: "height 0.3s" }} />
             {showLabel && <span style={{ fontSize: 8, color: Z.td, fontFamily: COND, marginTop: 3 }}>{d.date.slice(5)}</span>}
           </div>;
         })}

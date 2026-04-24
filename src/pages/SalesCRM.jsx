@@ -106,12 +106,6 @@ const SalesCRM = (props) => {
   // digital line; the proposal can mix print + digital freely. Cadence is
   // set once per proposal, only shown when at least one digital line exists.
   const [propDigitalLines, setPropDigitalLines] = useState([]);
-  // Pending product staged from MySites' Digital Catalog "Send to
-  // Proposal" button. When set, we surface a modal client-picker; on
-  // pick we open a fresh proposal with this product pre-seeded as a
-  // digital line. Cleared after the proposal modal opens.
-  const [pendingProposalProduct, setPendingProposalProduct] = useState(null);
-  const [pendingProductSearch, setPendingProductSearch] = useState("");
   const [propDeliveryCadence, setPropDeliveryCadence] = useState("monthly");
   const [propDeliveryContactId, setPropDeliveryContactId] = useState(null);
   const [propEmailRecipients, setPropEmailRecipients] = useState([]);
@@ -178,14 +172,6 @@ const SalesCRM = (props) => {
       setTab("Pipeline");
       // Sale-row highlight handled inline by Pipeline rendering via
       // props.deepLink.saleId — no extra state needed here.
-      return;
-    }
-    // From MySites' Digital Catalog → Send to Proposal: stage the
-    // product, route to Clients, and let the picker modal handle the
-    // hand-off into a fresh proposal.
-    if (dl.proposalProductId) {
-      setPendingProposalProduct({ id: dl.proposalProductId, name: dl.proposalProductName || "Digital product" });
-      setTab("Clients");
       return;
     }
   }, [props.deepLink]);
@@ -461,26 +447,6 @@ const SalesCRM = (props) => {
   }, [propClient]);
 
   const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropDigitalLines([]); setPropDeliveryCadence("monthly"); setPropDeliveryContactId(null); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropArtSource("we_design"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); if (loadDigitalAdProducts) loadDigitalAdProducts(); };
-  // Open a fresh proposal pre-seeded with one digital line — used by
-  // the MySites Digital Catalog "Send to Proposal" hand-off. Resolves
-  // the product from digitalAdProducts so we can stamp pubId + a
-  // sensible default flight (start today, monthly cadence + the
-  // catalog's monthly rate).
-  const openProposalWithProduct = (clientId, productId) => {
-    const product = (digitalAdProducts || []).find(p => p.id === productId);
-    openProposal(clientId);
-    if (!product) return;
-    const start = new Date().toISOString().slice(0, 10);
-    const end = new Date(); end.setMonth(end.getMonth() + 1);
-    setPropDigitalLines([{
-      pubId: product.pub_id || product.pubId,
-      digitalProductId: product.id,
-      flightStartDate: start,
-      flightEndDate: end.toISOString().slice(0, 10),
-      flightMonths: 1,
-      price: Number(product.rate_monthly) || 0,
-    }]);
-  };
 
   // Open renewal proposal pre-populated from client's previous closed sales
   const openRenewalProposal = (clientId) => {
@@ -1695,57 +1661,6 @@ const SalesCRM = (props) => {
       </div>
     </Modal>
 
-    {/* Pending-product picker — fired by MySites Digital Catalog. Lets
-        the publisher pick which client this digital product gets
-        proposed to; on pick, opens a fresh proposal with the product
-        pre-added as a digital line. */}
-    <Modal
-      open={!!pendingProposalProduct}
-      onClose={() => { setPendingProposalProduct(null); setPendingProductSearch(""); }}
-      title="Pick a client"
-      width={520}
-    >
-      {pendingProposalProduct && (() => {
-        const q = pendingProductSearch.trim().toLowerCase();
-        const list = (clients || [])
-          .filter(c => !q || (c.name || "").toLowerCase().includes(q) || (c.organization || "").toLowerCase().includes(q))
-          .slice(0, 80);
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 460 }}>
-            <div style={{ fontSize: 12, color: "#3b82f6", padding: "6px 10px", background: "rgba(59,130,246,0.08)", borderRadius: 4 }}>
-              Pick a client to start a new proposal with: <strong>{pendingProposalProduct.name}</strong>
-            </div>
-            <input
-              autoFocus
-              placeholder="Search clients..."
-              value={pendingProductSearch}
-              onChange={e => setPendingProductSearch(e.target.value)}
-              style={{ width: "100%", padding: "8px 12px", borderRadius: 20, border: "1px solid #ddd", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-            />
-            <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
-              {list.length === 0 && <div style={{ padding: 16, textAlign: "center", color: "#888", fontSize: 12 }}>No matches.</div>}
-              {list.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    const productId = pendingProposalProduct.id;
-                    setPendingProposalProduct(null);
-                    setPendingProductSearch("");
-                    openProposalWithProduct(c.id, productId);
-                  }}
-                  style={{ textAlign: "left", padding: "8px 12px", borderRadius: 4, border: "none", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", gap: 2 }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.04)"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</span>
-                  {c.organization && c.organization !== c.name && <span style={{ fontSize: 11, color: "#777" }}>{c.organization}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-    </Modal>
   </div>;
 };
 

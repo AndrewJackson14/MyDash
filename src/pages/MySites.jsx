@@ -163,7 +163,11 @@ const SiteAnalytics = ({ siteId }) => {
 
   async function loadStats() {
     try {
-      const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+      // 24h reuses p_days=1 — RPC's since_ts is a rolling 24-hour
+      // window so totals + top pages reflect the last day. The "daily"
+      // bucket may produce 1–2 bars when the window straddles UTC
+      // midnight, which is fine for a glance.
+      const days = range === "24h" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : 90;
       // Server-side aggregation via get_site_analytics RPC. Returns one
       // JSON blob with totals + previous-period totals + daily timeseries
       // + top 5 pages + top 5 referrers + device split. Replaces the old
@@ -207,7 +211,7 @@ const SiteAnalytics = ({ siteId }) => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Web Analytics</div>
         <div style={{ display: "flex", gap: 4 }}>
-          {["7d", "30d", "90d"].map(r => (
+          {["24h", "7d", "30d", "90d"].map(r => (
             <button key={r} onClick={() => setRange(r)} style={{
               padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: range === r ? 700 : 500,
               border: "1px solid " + (range === r ? Z.ac : Z.bd), background: range === r ? Z.ac + "18" : "transparent",
@@ -239,7 +243,7 @@ const SiteAnalytics = ({ siteId }) => {
       <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 48, marginBottom: 12 }}>
         {stats.daily.map(d => {
           const h = maxDaily > 0 ? Math.max(4, (d.count / maxDaily) * 100) : 4;
-          return <div key={d.date} title={`${d.date}: ${d.count} views`} style={{ flex: 1, height: h + "%", background: Z.ac, borderRadius: 1, minHeight: 2, transition: "height 0.3s", cursor: "default" }} />;
+          return <div key={d.date} title={`${d.date}: ${d.count} views`} style={{ flex: 1, height: h + "%", background: Z.su || "#22c55e", borderRadius: 1, minHeight: 2, transition: "height 0.3s", cursor: "default" }} />;
         })}
       </div>
 
@@ -251,9 +255,9 @@ const SiteAnalytics = ({ siteId }) => {
             <div key={p.path} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
               <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</span>
               <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
-                <div style={{ height: "100%", borderRadius: 2, width: `${(p.count / maxPage) * 100}%`, background: Z.ac }} />
+                <div style={{ height: "100%", borderRadius: 2, width: `${(p.count / maxPage) * 100}%`, background: Z.su || "#22c55e" }} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: Z.ac, fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{p.count}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{p.count}</span>
             </div>
           )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
         </div>
@@ -263,9 +267,9 @@ const SiteAnalytics = ({ siteId }) => {
             <div key={r.host} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
               <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.host}</span>
               <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
-                <div style={{ height: "100%", borderRadius: 2, width: `${(r.count / maxRef) * 100}%`, background: Z.ac }} />
+                <div style={{ height: "100%", borderRadius: 2, width: `${(r.count / maxRef) * 100}%`, background: Z.su || "#22c55e" }} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: Z.ac, fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{r.count}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{r.count}</span>
             </div>
           )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
         </div>
@@ -613,19 +617,29 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
   const updateRow = (idx, patch) => setDraft(d => d.map((r, i) => i === idx ? { ...r, ...patch } : r));
   const removeRow = (idx) => setDraft(d => d.filter((_, i) => i !== idx));
 
+  // Auto-cascade — 6mo and 12mo per-month rates derive from monthly:
+  // 6mo = 15% off, 12mo = 30% off. Computed on Save, never edited
+  // separately, so the publisher only ever touches monthly.
+  const deriveTier = (monthly, pct) => {
+    const m = Number(monthly) || 0;
+    if (m <= 0) return null;
+    return Math.round(m * (1 - pct) * 100) / 100;
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       for (const r of draft) {
+        const monthly = Number(r.rate_monthly) || 0;
         const payload = {
           pub_id: pubId,
           zone_id: r.zone_id || null,
           name: (r.name || "").trim(),
           slug: slugify(r.slug) || slugify(r.name),
           product_type: r.product_type || "web_ad",
-          rate_monthly: Number(r.rate_monthly) || 0,
-          rate_6mo: r.rate_6mo === "" || r.rate_6mo == null ? null : Number(r.rate_6mo),
-          rate_12mo: r.rate_12mo === "" || r.rate_12mo == null ? null : Number(r.rate_12mo),
+          rate_monthly: monthly,
+          rate_6mo: deriveTier(monthly, 0.15),
+          rate_12mo: deriveTier(monthly, 0.30),
           width: r.width ? Number(r.width) : null,
           height: r.height ? Number(r.height) : null,
           sort_order: Number(r.sort_order) || 0,
@@ -655,33 +669,26 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     }
   };
 
-  // Send-to-Proposal: navigate to SalesCRM/Clients with the product
-  // staged in the deep-link. The clerk picks a client and the new
-  // proposal opens with this product pre-added as a digital line.
-  const sendToProposal = (row) => {
-    if (!onNavigate) return;
-    if (row._isZonePlaceholder || row._new) {
-      dialog.alert("Save the catalog first so the product gets an ID, then click Send to Proposal again.");
-      return;
-    }
-    if (!row.id) return;
-    onNavigate("sales", { tab: "clients", proposalProductId: row.id, proposalProductName: row.name });
-  };
-
   // Split for rendering: zone-bound first, then "other" digital products.
   const zoneRows = draft.filter(r => r.zone_id);
   const otherRows = draft.filter(r => !r.zone_id);
 
-  const headerCols = "1.4fr 0.9fr 1.1fr 0.65fr 0.65fr 0.65fr 0.55fr 110px 24px";
+  // Single editable rate column (monthly). 6mo/12mo are derived on
+  // save and shown inline as a "tier" hint so the publisher sees the
+  // cascaded discounts without a separate input each.
+  const headerCols = "1.4fr 0.9fr 1.1fr 0.7fr 1.5fr 0.55fr 24px";
   const headerCells = (
     <div style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "6px 8px", background: Z.sa, fontSize: 10, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
-      <div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>6mo $</div><div>12mo $</div><div>Sort</div><div></div><div></div>
+      <div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>Discount Tiers (auto)</div><div>Sort</div><div></div>
     </div>
   );
 
   const renderRow = (r, idx, kind) => {
     const houseAds = r.zone_id ? (houseAdCounts[r.zone_id] || 0) : null;
-    const priced = (Number(r.rate_monthly) || 0) > 0 || r.rate_6mo || r.rate_12mo;
+    const monthly = Number(r.rate_monthly) || 0;
+    const priced = monthly > 0;
+    const mo6 = priced ? deriveTier(monthly, 0.15) : null;
+    const mo12 = priced ? deriveTier(monthly, 0.30) : null;
     return (
       <div key={r.id || `_n${idx}_${kind}`} style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center", borderLeft: priced ? `2px solid ${Z.su}` : (r.zone_id ? `2px solid ${Z.wa}` : "2px solid transparent") }}>
         <Inp value={r.name || ""} onChange={e => updateRow(draft.indexOf(r), { name: e.target.value })} />
@@ -696,12 +703,12 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
           { value: "programmatic", label: "Programmatic" },
         ]} disabled={!!r.zone_id} />
         <Inp type="number" value={r.rate_monthly ?? 0} onChange={e => updateRow(draft.indexOf(r), { rate_monthly: e.target.value })} />
-        <Inp type="number" value={r.rate_6mo ?? ""} onChange={e => updateRow(draft.indexOf(r), { rate_6mo: e.target.value })} />
-        <Inp type="number" value={r.rate_12mo ?? ""} onChange={e => updateRow(draft.indexOf(r), { rate_12mo: e.target.value })} />
+        <div style={{ fontSize: 11, color: priced ? Z.tx : Z.td, fontFamily: COND, lineHeight: 1.3 }}>
+          {priced
+            ? <span><strong>6mo:</strong> ${mo6.toLocaleString()}/mo · <strong>12mo:</strong> ${mo12.toLocaleString()}/mo</span>
+            : <span style={{ fontStyle: "italic" }}>Set monthly rate</span>}
+        </div>
         <Inp type="number" value={r.sort_order ?? 0} onChange={e => updateRow(draft.indexOf(r), { sort_order: e.target.value })} />
-        <Btn sm v="secondary" onClick={() => sendToProposal(r)} disabled={!r.id || !priced} title={!r.id ? "Save first" : !priced ? "Set a rate" : "Open in Sales / new proposal"}>
-          Send to Proposal
-        </Btn>
         {!r.zone_id ? (
           <button onClick={() => removeRow(draft.indexOf(r))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
         ) : <div />}
@@ -712,7 +719,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>
-        Auto-built from this site's ad zones. Add pricing per zone, then Send to Proposal lands the product in a fresh Sales proposal.
+        Auto-built from this site's ad zones. Set the monthly rate per zone — 6-month and 12-month tiers cascade automatically (15% off / 30% off). Priced products surface in the Sales proposal builder.
       </div>
       <Btn sm onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Catalog"}</Btn>
     </div>
