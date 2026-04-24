@@ -603,6 +603,7 @@ const DashboardV2 = (props) => {
             invoices={_inv}
             payments={props.payments || []}
             clients={_clients}
+            uninvoicedContracts={revenueCommand?.uninvoicedContracts || 0}
             userId={currentUser?.id}
             onOpenInvoice={(invoiceId) => onNavigate?.(`/billing?invoiceId=${invoiceId}`)}
             onOpenBilling={() => onNavigate?.("billing")}
