@@ -251,6 +251,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   // issue in localStorage so the editor's open/closed shape survives
   // tab switches and reloads.
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  // Drag-and-drop state (Phase 3b/3c — story reorder across page groups).
+  // draggingId = the story currently held by the cursor; dropTarget
+  // = where it would land if released right now (group key + the row
+  // it would insert above, or null for "append to end of group").
+  const [draggingId, setDraggingId] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
 
   const [sr, setSr] = useState("");
   const [selected, setSelected] = useState(null);
@@ -621,6 +627,61 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     });
   }, [issueStories]);
 
+  // Reorder via drag-drop (Phase 3b/3c). Drop semantics:
+  //   - Different group  → page changes to destination, priority resets
+  //                        to the new in-group position (1..N, capped 6).
+  //   - Same group       → page stays, priority renumbered to match
+  //                        the new visual order.
+  //   - Unassigned drop  → page cleared (null), priority renumbered.
+  // Every story in the destination group gets renumbered so visual
+  // order = priority order in perpetuity. Cross-group drops also
+  // renumber the source group so it stays sequential after extraction.
+  const reorderStories = useCallback((targetGroupKey, dropBeforeId) => {
+    const draggedId = draggingId;
+    setDraggingId(null);
+    setDropTarget(null);
+    if (!draggedId) return;
+    const dragged = issueStories.find(s => s.id === draggedId);
+    if (!dragged) return;
+    const targetPage = targetGroupKey === "unassigned" ? null : Number(targetGroupKey);
+
+    // Source group key as it currently lives.
+    const currentPage = (dragged.page ?? null);
+    const sourceGroupKey = currentPage == null ? "unassigned" : String(currentPage);
+
+    // Build destination order with the dragged story inserted at the
+    // requested position (or appended).
+    const destGroup = pageGroups.find(g => g.key === targetGroupKey);
+    const destStories = (destGroup?.stories || []).filter(s => s.id !== draggedId);
+    let insertIdx = dropBeforeId == null ? destStories.length : destStories.findIndex(s => s.id === dropBeforeId);
+    if (insertIdx < 0) insertIdx = destStories.length;
+    const newDest = [
+      ...destStories.slice(0, insertIdx),
+      { ...dragged, page: targetPage },
+      ...destStories.slice(insertIdx),
+    ];
+    newDest.forEach((s, idx) => {
+      const newPriority = String(Math.min(6, idx + 1));
+      const updates = {};
+      const sPage = s.page ?? null;
+      if (sPage !== targetPage) updates.page = targetPage;
+      if (String(s.priority || "") !== newPriority) updates.priority = newPriority;
+      if (Object.keys(updates).length > 0) updateStory(s.id, updates);
+    });
+
+    // If we crossed groups, renumber what's left in the source.
+    if (sourceGroupKey !== targetGroupKey) {
+      const srcGroup = pageGroups.find(g => g.key === sourceGroupKey);
+      const remaining = (srcGroup?.stories || []).filter(s => s.id !== draggedId);
+      remaining.forEach((s, idx) => {
+        const newPriority = String(Math.min(6, idx + 1));
+        if (String(s.priority || "") !== newPriority) {
+          updateStory(s.id, { priority: newPriority });
+        }
+      });
+    }
+  }, [draggingId, issueStories, pageGroups]);
+
   // ── Sibling issue resolver for a given story ──
   // Returns every sibling-pub issue that shares the story's primary
   // issue date. Siblings come from publications.settings.shared_content_with
@@ -667,12 +728,21 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     const issue = issues.find(i => i.id === selIssue);
     if (!issue) return;
     const pubId = issue.publicationId || issue.pubId || null;
+    // Auto-priority: take the highest numeric priority used in this
+    // issue and add 1 (capped at 6 — the spec's max priority bucket).
+    // Lets editors hit "+ New Story" repeatedly and get an ordered
+    // priority stack without touching the dropdown each time.
+    const usedPriorities = (stories || [])
+      .filter(s => s.print_issue_id === selIssue)
+      .map(s => parseInt(s.priority))
+      .filter(n => !isNaN(n));
+    const nextPriority = Math.min(6, (usedPriorities.length ? Math.max(...usedPriorities) : 0) + 1);
     setAddingInlineStory(true);
     const row = {
       title: "", status: "Draft", author: "",
       publication_id: pubId,
       issue_id: selIssue, print_issue_id: selIssue,
-      category: "News", priority: "normal",
+      category: "News", priority: String(nextPriority),
       web_status: "none", print_status: "none",
       site_id: pubId,
     };
@@ -684,12 +754,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       id: data.id, title: "", status: "Draft", author: "",
       publication_id: pubId, publication: pubId,
       issueId: selIssue, issue_id: selIssue, print_issue_id: selIssue,
-      category: "News", priority: "normal",
+      category: "News", priority: String(nextPriority),
       web_status: "none", print_status: "none",
       created_at: data.created_at,
     };
     setStories(prev => [mapped, ...prev]);
-  }, [selIssue, issues, addingInlineStory, setStories]);
+  }, [selIssue, issues, addingInlineStory, setStories, stories]);
 
   // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
@@ -1021,6 +1091,30 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
                   </div>
                 </div>
+                {/* Quick-stat strip (spec §4.1). Five at-a-glance counters
+                    across the issue: stories, pages assigned, ads placed,
+                    stories flagged for images, stories with jumps. */}
+                {(() => {
+                  const pagesAssigned = new Set(issueStories.map(s => s.page).filter(p => p != null && p !== "")).size;
+                  const adsPlaced = (sales || []).filter(s => s.issueId === selIssue && s.page != null && s.page > 0).length;
+                  const withImages = issueStories.filter(s => s.has_images).length;
+                  const withJumps = issueStories.filter(s => s.jump_to_page != null).length;
+                  const stat = (val, label, color) => (
+                    <div style={{ flex: 1, padding: "6px 10px", background: Z.sa, borderRadius: Ri, textAlign: "center" }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: color || Z.tx, fontFamily: DISPLAY }}>{val}</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{label}</div>
+                    </div>
+                  );
+                  return (
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {stat(issueStories.length, "Stories")}
+                      {stat(pagesAssigned, "Pages assigned")}
+                      {stat(adsPlaced, "Ads placed")}
+                      {stat(withImages, "With images", withImages > 0 ? Z.su : null)}
+                      {stat(withJumps, "Jumps", withJumps > 0 ? Z.wa : null)}
+                    </div>
+                  );
+                })()}
                 {/* Issue-level discussion thread (Phase 2 of editorial→production
                     spec). One thread per issue, shared across surfaces — same
                     underlying message_threads row as the Messages page Issue
@@ -1081,6 +1175,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     <thead>
                       <tr>
                         {[
+                          { key: "_drag", label: "" },
                           { key: "title", label: "Title" },
                           { key: "author", label: "Author" },
                           { key: "category", label: "Section" },
@@ -1091,27 +1186,43 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                           { key: "word_limit", label: "Limit" },
                           { key: "_img", label: "Img" },
                           { key: "_delete", label: "" },
-                        ].map(col => (
-                          <th key={col.key} onClick={col.key !== "_delete" ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: col.key !== "_delete" ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: col.key === "_delete" ? 32 : undefined }}>
+                        ].map(col => {
+                          const noSort = col.key === "_delete" || col.key === "_drag";
+                          return (
+                          <th key={col.key} onClick={!noSort ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: !noSort ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: noSort ? 18 : undefined }}>
                             {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
                           </th>
-                        ))}
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {issueStories.length === 0 && (
-                        <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                        <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
                       {pageGroups.map(g => {
                         const groupCollapsed = collapsedGroups.has(g.key);
                         const wordSum = g.stories.reduce((sum, s) => sum + (Number(s.word_count || s.wordCount) || 0), 0);
+                        const isAppendTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId == null;
                         return <Fragment key={g.key}>
-                          <tr style={{ background: Z.sa }}>
-                            <td colSpan={10} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
+                          <tr
+                            style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s" }}
+                            onDragOver={(e) => {
+                              if (!draggingId) return;
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                              if (!dropTarget || dropTarget.groupKey !== g.key || dropTarget.beforeId !== null) {
+                                setDropTarget({ groupKey: g.key, beforeId: null });
+                              }
+                            }}
+                            onDrop={(e) => { e.preventDefault(); if (draggingId) reorderStories(g.key, null); }}
+                          >
+                            <td colSpan={11} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: 11, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 <span style={{ width: 12, color: Z.tm }}>{groupCollapsed ? "▸" : "▾"}</span>
                                 <span>{g.label}</span>
                                 <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>{g.stories.length} {g.stories.length === 1 ? "story" : "stories"}{wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}{g.jumpsIn.length ? ` · ${g.jumpsIn.length} jumping in` : ""}</span>
+                                {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: 10, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
                               </div>
                             </td>
                           </tr>
@@ -1123,7 +1234,41 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                         const isMirror = !!s._mirroredFrom; // rendered here because the current issue is in s.also_in_issue_ids
                         const siblingOptions = !isMirror && !isSibling ? siblingIssuesFor(s) : [];
                         const primaryPubName = isMirror ? (pubs.find(p => p.id === (issues.find(i => i.id === s._mirroredFrom)?.publicationId || issues.find(i => i.id === s._mirroredFrom)?.pubId))?.name || "primary") : null;
-                        return <tr key={s.id} style={{ borderBottom: `1px solid ${Z.bd}`, opacity: isSibling ? 0.6 : 1 }}>
+                        const isDragging = draggingId === s.id;
+                        const isDropTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId === s.id;
+                        return <tr
+                          key={s.id}
+                          style={{
+                            borderTop: isDropTarget ? `2px solid ${Z.ac}` : "none",
+                            borderBottom: `1px solid ${Z.bd}`,
+                            opacity: isSibling ? 0.6 : (isDragging ? 0.4 : 1),
+                            background: isDragging ? Z.sa : undefined,
+                          }}
+                          onDragOver={(e) => {
+                            if (!draggingId) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (!dropTarget || dropTarget.groupKey !== g.key || dropTarget.beforeId !== s.id) {
+                              setDropTarget({ groupKey: g.key, beforeId: s.id });
+                            }
+                          }}
+                          onDrop={(e) => { e.preventDefault(); if (draggingId) reorderStories(g.key, s.id); }}
+                        >
+                          {/* Drag handle ☰ — only this cell is draggable so the
+                              field cells don't fight with input edits/text
+                              selection. Sibling/mirror rows are read-only. */}
+                          <td
+                            draggable={!isSibling && !isMirror}
+                            onDragStart={(e) => {
+                              if (isSibling || isMirror) { e.preventDefault(); return; }
+                              setDraggingId(s.id);
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", s.id);
+                            }}
+                            onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                            style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", fontSize: 14, userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1 }}
+                            title={(isSibling || isMirror) ? "" : "Drag to reorder"}
+                          >☰</td>
                           <td style={{ padding: "5px 8px", maxWidth: 280 }}>
                             {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "#3B82F6", background: "rgba(59,130,246,0.1)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
                             {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "#3B82F6", background: "rgba(59,130,246,0.1)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
@@ -1209,7 +1354,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                           open the origin story in the editor. */}
                       {!groupCollapsed && g.jumpsIn.map(s => (
                         <tr key={`jump-${s.id}`} style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
-                          <td colSpan={10} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: 12 }}>
+                          <td colSpan={11} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: 12 }}>
                             <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
                             <span onClick={() => openDetail(s)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{s.title || "Untitled"}</span>
                             <span style={{ color: Z.td }}>(cont. from p.{s.jump_from_page ?? s.page})</span>

@@ -8,6 +8,7 @@ import { sendGmailEmail } from "../lib/gmail";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { deriveTransactionType } from "../lib/qboTransactionType";
 import { useNav } from "../hooks/useNav";
+import { rasterizePdfFirstPage } from "../lib/pdfRender";
 
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
@@ -137,7 +138,19 @@ const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace,
   const [removing, setRemoving] = useState(false);
   const fileRef = useRef(null);
 
+  // Image: downscale to ≤1200px long edge via canvas (saves CDN egress
+  // and keeps the upload body small). PDF: rasterize page 1 via pdf.js,
+  // already a JPEG at 1200px long edge — same payload shape downstream.
+  // Anything else passes through untouched.
   const downscale = async (file) => {
+    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name || "")) {
+      try {
+        const r = await rasterizePdfFirstPage(file, 1200, 0.86);
+        return { blob: r.blob, w: r.width, h: r.height };
+      } catch (e) {
+        throw new Error(`PDF rasterize failed: ${e?.message || e}`);
+      }
+    }
     if (!file.type?.startsWith("image/")) return { blob: file, w: null, h: null };
     try {
       const bm = await createImageBitmap(file);
@@ -162,7 +175,13 @@ const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace,
       const fd = new FormData();
       fd.append("issue_id", issueId);
       fd.append("page_number", String(pageNumber));
-      const named = blob instanceof File ? blob : new File([blob], file.name || `page-${pageNumber}.jpg`, { type: blob.type || file.type });
+      // PDFs round-trip as JPEG after rasterize, so name and type land
+      // as image/jpeg downstream.
+      const wasPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+      const targetName = wasPdf
+        ? (file.name || `page-${pageNumber}`).replace(/\.pdf$/i, "") + ".jpg"
+        : (file.name || `page-${pageNumber}.jpg`);
+      const named = blob instanceof File ? blob : new File([blob], targetName, { type: blob.type || (wasPdf ? "image/jpeg" : file.type) });
       fd.append("file", named, named.name);
       if (w) fd.append("width", String(w));
       if (h) fd.append("height", String(h));
