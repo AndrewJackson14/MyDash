@@ -518,6 +518,12 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
   const [pdfUrl, setPdfUrl] = useState(edition?.pdfUrl || "");
   const [coverImageUrl, setCoverImageUrl] = useState(edition?.coverImageUrl || "");
   const [embedUrl] = useState(edition?.embedUrl || "");
+  // Optional legals-page hint (spec §10.1). If provided, the affidavit
+  // workspace pre-selects the first legals page on open. Stored on the
+  // owning issue, not the edition, so the same hint applies regardless
+  // of which edition file backs the issue.
+  const [legalsPageStart, setLegalsPageStart] = useState("");
+  const [legalsPageEnd, setLegalsPageEnd] = useState("");
 
   // Upload & compression state
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -744,6 +750,28 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
       if (!result.data) throw new Error("Save returned no data — check database permissions");
 
       const savedRow = result.data;
+
+      // Optional: write the legals_page hint onto the owning issue
+      // (matched by publication_id + publish_date). Skipped silently if
+      // no issue row exists for the date — issues are managed
+      // separately and may not be there yet.
+      const lps = parseInt(legalsPageStart);
+      const lpe = parseInt(legalsPageEnd);
+      if (!isNaN(lps) || !isNaN(lpe)) {
+        try {
+          await supabase.from("issues")
+            .update({
+              legals_page_start: !isNaN(lps) ? lps : null,
+              legals_page_end:   !isNaN(lpe) ? lpe : null,
+            })
+            .eq("pub_id", pubId)
+            .eq("date", publishDate);
+        } catch (hintErr) {
+          // Non-fatal — Cami can still pick the page manually in the workspace.
+          console.warn("Legals page hint update failed:", hintErr?.message || hintErr);
+        }
+      }
+
       onSave({
         id: savedRow.id,
         publicationId: savedRow.publication_id,
@@ -833,6 +861,18 @@ const EditionModal = ({ open, onClose, edition, pubs, editions, onSave }) => {
       <Sel label="Publication" value={pubId} onChange={e => setPubId(e.target.value)} options={pubOptions} />
 
       <Inp label="Publish Date" type="date" value={publishDate} onChange={e => setPublishDate(e.target.value)} />
+
+      {/* Optional legals page hint — pre-selects the page in the
+          Affidavit Workspace. Saved on the owning issue, not the
+          edition. Skip if you don't know the range yet; Cami can pick
+          the page manually in the workspace. */}
+      <details style={{ background: "rgba(138,149,168,0.05)", padding: "6px 10px", borderRadius: 4 }}>
+        <summary style={{ cursor: "pointer", fontSize: FS.xs, color: Z.tm, fontWeight: FW.semi, fontFamily: COND }}>Legals page hint (optional)</summary>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+          <Inp label="First legals page" type="number" min={1} value={legalsPageStart} onChange={e => setLegalsPageStart(e.target.value)} />
+          <Inp label="Last legals page" type="number" min={1} value={legalsPageEnd} onChange={e => setLegalsPageEnd(e.target.value)} />
+        </div>
+      </details>
 
       {/* Featured toggle */}
       <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx }}>

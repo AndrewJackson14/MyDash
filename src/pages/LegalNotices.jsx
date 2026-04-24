@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -264,6 +264,222 @@ const StepBar = ({ current }) => {
 };
 
 // ─── Module ─────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// Helpers + sub-views for the Schedule + This-Issue tabs.
+// Spec §6.4 / §6.5 — replace Cami's .numbers file + APRIL LEGALS.pages.
+// ────────────────────────────────────────────────────────────
+
+// Derive a human-readable Legal Type from the notice title. Cami's
+// type taxonomy is wider than the kind/rate_plan enum can express, so
+// this regex mapper handles the 20+ variants she actually files.
+function deriveLegalType(notice) {
+  const t = (notice.title || "").toLowerCase();
+  if (/fictitious business name|\bfbn\b/.test(t)) return "FBN";
+  if (/abandonment/.test(t)) return "ABANDONMENT OF FBN";
+  if (/order to show cause|name change/.test(t)) return "NAME CHANGE";
+  if (/trustee.*sale|notice of sale|t\.s\.|servicelink/.test(t)) return "TRUSTEE SALE";
+  if (/petition.*probate|probate/.test(t)) return "PROBATE";
+  if (/summons/.test(t)) return "SUMMONS";
+  if (/public hearing/.test(t)) return "PUBLIC HEARING";
+  if (/city of malibu/.test(t)) return "CITY OF MALIBU";
+  if (/lien sale/.test(t)) return "LIEN SALE";
+  if (/storage|self-storage|mini-storage/.test(t)) return "STORAGE LIEN";
+  if (/bid|invitation to bid|rfp|request for proposal/.test(t)) return "BID / RFP";
+  if (/ordinance/.test(t)) return "ORDINANCE";
+  if (/election/.test(t)) return "ELECTION";
+  if (/daily journal/.test(t)) return "DAILY JOURNAL";
+  return (notice.kind || notice.noticeType || "OTHER").toUpperCase().replace(/_/g, " ");
+}
+
+function pubGroupOf(pubId, pubs) {
+  const p = (pubs || []).find(x => x.id === pubId);
+  return p?.legal_pub_group || p?.legalPubGroup || null;
+}
+
+function ScheduleView({ notices, pubs }) {
+  const [groupFilter, setGroupFilter] = useState("all"); // all | prp_atn | malibu
+
+  const rows = useMemo(() => {
+    const list = notices
+      .filter(n => (n.kind || "legal_notice") !== "fbn")
+      .filter(n => {
+        if (groupFilter === "all") return true;
+        return pubGroupOf(n.publicationId, pubs) === groupFilter;
+      })
+      .map(n => {
+        const dates = (n.run_dates || n.runDates || []).filter(Boolean).slice().sort();
+        return {
+          id: n.id,
+          legalType: deriveLegalType(n),
+          fileNumber: n.file_number || n.fileNumber || "",
+          name: n.title || n.organization || n.contactName || "",
+          startDate: dates[0] || "",
+          endDate: dates[dates.length - 1] || dates[0] || "",
+          legalNumber: n.notice_number || n.noticeNumber || "",
+          delivered: n.status === "delivered" || n.affidavit_status === "delivered" || n.affidavitStatus === "delivered",
+          group: pubGroupOf(n.publicationId, pubs) || "—",
+        };
+      })
+      .sort((a, b) => (a.startDate || "").localeCompare(b.startDate || ""));
+    return list;
+  }, [notices, pubs, groupFilter]);
+
+  // Group by start-date week (Sun-anchored) for the visual separator
+  // rows that match Cami's spreadsheet layout.
+  const weekOf = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso + "T12:00:00");
+    const day = d.getDay();
+    d.setDate(d.getDate() - day);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const exportCsv = () => {
+    const header = ["Legal Type", "FILE #", "Name", "Start Date", "End Date", "Legal#", "Delivered"];
+    const lines = [header.join(",")];
+    rows.forEach(r => {
+      const cells = [r.legalType, r.fileNumber, r.name, r.startDate, r.endDate, r.legalNumber, r.delivered ? "Y" : ""];
+      lines.push(cells.map(csvCell).join(","));
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `legal-schedule-${groupFilter}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  let lastWeek = null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {[
+          { k: "all", l: "All" },
+          { k: "prp_atn", l: "PRP / ATN" },
+          { k: "malibu", l: "Malibu" },
+        ].map(opt => (
+          <button key={opt.k} onClick={() => setGroupFilter(opt.k)} style={{
+            padding: "5px 12px", borderRadius: 14,
+            border: `1px solid ${groupFilter === opt.k ? Z.ac : Z.bd}`,
+            background: groupFilter === opt.k ? Z.ac + "15" : "transparent",
+            color: groupFilter === opt.k ? Z.ac : Z.tx,
+            cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: COND,
+          }}>{opt.l}</button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{rows.length} notice{rows.length === 1 ? "" : "s"}</span>
+        <Btn sm v="secondary" onClick={exportCsv}>Export CSV</Btn>
+      </div>
+      <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: Z.sa, borderBottom: `1px solid ${Z.bd}` }}>
+              {["Legal Type", "FILE #", "Name", "Start Date", "End Date", "Legal#", "✓"].map(h => (
+                <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 800, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: Z.td }}>No notices match this filter.</td></tr>
+            )}
+            {rows.map((r, i) => {
+              const wk = weekOf(r.startDate);
+              const sep = wk !== lastWeek;
+              lastWeek = wk;
+              return (
+                <Fragment key={r.id}>
+                  {sep && i > 0 && (
+                    <tr><td colSpan={7} style={{ padding: 0 }}><div style={{ height: 6, background: Z.bg }} /></td></tr>
+                  )}
+                  <tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
+                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>{r.legalType}</td>
+                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap", color: Z.tm }}>{r.fileNumber}</td>
+                    <td style={{ padding: "6px 10px", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</td>
+                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>{r.startDate}</td>
+                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>{r.endDate}</td>
+                    <td style={{ padding: "6px 10px", whiteSpace: "nowrap", fontWeight: 700 }}>{r.legalNumber}</td>
+                    <td style={{ padding: "6px 10px", color: r.delivered ? Z.su : Z.td }}>{r.delivered ? "✓" : ""}</td>
+                  </tr>
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </GlassCard>
+    </div>
+  );
+}
+
+function csvCell(v) {
+  const s = String(v == null ? "" : v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function ThisIssueView({ notices, pubs, issues }) {
+  const newspapers = (pubs || []).filter(p => LEGAL_PUB_CODES[p.id]);
+  const [pubId, setPubId] = useState(newspapers[0]?.id || "");
+  const pubIssues = useMemo(() => (issues || []).filter(i => i.pubId === pubId).sort((a, b) => a.date.localeCompare(b.date)), [issues, pubId]);
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = pubIssues.find(i => i.date >= today) || pubIssues[pubIssues.length - 1];
+  const [issueId, setIssueId] = useState(upcoming?.id || "");
+
+  useEffect(() => {
+    if (!pubIssues.length) { setIssueId(""); return; }
+    const has = pubIssues.find(i => i.id === issueId);
+    if (!has) setIssueId((pubIssues.find(i => i.date >= today) || pubIssues[pubIssues.length - 1])?.id || "");
+  }, [pubIssues, issueId, today]);
+
+  const issue = pubIssues.find(i => i.id === issueId);
+  const matched = useMemo(() => {
+    if (!issue) return [];
+    return notices
+      .filter(n => n.publicationId === pubId)
+      .filter(n => (n.run_dates || n.runDates || []).includes(issue.date))
+      .sort((a, b) => String(a.notice_number || "").localeCompare(String(b.notice_number || ""), undefined, { numeric: true }));
+  }, [notices, pubId, issue]);
+
+  const copyAll = async () => {
+    const text = matched.map(n => `${n.title || ""}\n\n${htmlToPlainText(n.body_html || n.bodyHtml || "")}\n\nLEGAL ${n.notice_number || ""}`).join("\n\n———\n\n");
+    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Sel value={pubId} onChange={e => setPubId(e.target.value)} options={newspapers.map(p => ({ value: p.id, label: p.name }))} style={{ minWidth: 200 }} />
+        <Sel value={issueId} onChange={e => setIssueId(e.target.value)} options={pubIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}` }))} style={{ minWidth: 220 }} disabled={!pubIssues.length} />
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{matched.length} notice{matched.length === 1 ? "" : "s"}</span>
+        <Btn sm v="secondary" onClick={copyAll} disabled={!matched.length}>Copy All</Btn>
+      </div>
+      {!matched.length ? (
+        <GlassCard style={{ padding: 24, textAlign: "center", color: Z.td }}>
+          {issue ? "No notices run in this issue." : "Select a publication + issue."}
+        </GlassCard>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {matched.map(n => (
+            <GlassCard key={n.id} style={{ padding: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {deriveLegalType(n)} · {n.notice_number || ""}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: Z.tx, marginTop: 4 }}>{n.title}</div>
+              <div style={{ fontSize: 12, color: Z.tx, lineHeight: 1.5, marginTop: 8, whiteSpace: "pre-wrap" }}>
+                {htmlToPlainText(n.body_html || n.bodyHtml || "")}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: Z.tm, marginTop: 10, fontFamily: COND }}>
+                LEGAL {n.notice_number || ""}
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLegalNoticeIssues, pubs, issues, team, bus, clients, insertClient, insertInvoice, insertLegalNotice, currentUser, isActive, onNavigate }) => {
   const nav = useNav(onNavigate);
   const { setHeader, clearHeader } = usePageHeader();
@@ -307,6 +523,40 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     })();
     return () => { cancelled = true; };
   }, [affidavitNoticeId, legalNotices]);
+
+  // Generate All queue — { ids[], index } when active, null otherwise.
+  // No DB row backs the queue; on Exit / page change the queue clears
+  // and individual notice statuses are the only persisted state.
+  const [queue, setQueue] = useState(null);
+  const queueCurrentId = queue ? queue.ids[queue.index] : null;
+  const startQueue = (notices) => {
+    // Order: oldest run_date first, then by notice_number ascending.
+    const eligible = notices.filter(n => ["published", "affidavit_draft"].includes(n.status));
+    if (!eligible.length) return;
+    const sorted = [...eligible].sort((a, b) => {
+      const ad = (a.run_dates || a.runDates || [])[0] || "";
+      const bd = (b.run_dates || b.runDates || [])[0] || "";
+      if (ad !== bd) return ad.localeCompare(bd);
+      return String(a.notice_number || "").localeCompare(String(b.notice_number || ""), undefined, { numeric: true });
+    });
+    const ids = sorted.map(n => n.id);
+    setQueue({ ids, index: 0 });
+    setAffidavitNoticeId(ids[0]);
+  };
+  const queueAdvance = () => {
+    if (!queue) return;
+    if (queue.index + 1 >= queue.ids.length) { setQueue(null); setAffidavitNoticeId(null); setDeliveryNoticeId(null); return; }
+    setQueue({ ...queue, index: queue.index + 1 });
+    setDeliveryNoticeId(null);
+    setAffidavitNoticeId(queue.ids[queue.index + 1]);
+  };
+  const queueBack = () => {
+    if (!queue || queue.index <= 0) return;
+    setQueue({ ...queue, index: queue.index - 1 });
+    setDeliveryNoticeId(null);
+    setAffidavitNoticeId(queue.ids[queue.index - 1]);
+  };
+  const queueExit = () => { setQueue(null); setAffidavitNoticeId(null); setDeliveryNoticeId(null); };
 
   // Action handler: routes a row to the right next surface based on
   // its current status. Used by the row-level affidavit button + the
@@ -721,42 +971,77 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   }
 
   // ─── Main Render ────────────────────────────────────────
+  // Sticky queue bar — rendered above the takeover AND above the list
+  // when the user is in batch-processing mode. Acts as nav within the
+  // queue plus an emergency exit.
+  const queueBar = queue ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: Z.ac + "12", border: `1px solid ${Z.ac}40`, borderRadius: Ri }}>
+      <span style={{ fontSize: 11, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        Affidavit Queue
+      </span>
+      <span style={{ fontSize: 12, color: Z.tx, fontFamily: COND }}>
+        {queue.index + 1} of {queue.ids.length}
+        {queueCurrentId && (() => {
+          const n = (legalNotices || []).find(x => x.id === queueCurrentId);
+          return n ? ` · ${n.notice_number || ""} · ${n.title || ""}`.replace(/\s+·\s+$/, "") : "";
+        })()}
+      </span>
+      <div style={{ flex: 1 }} />
+      <Btn sm v="ghost" disabled={queue.index <= 0} onClick={queueBack}>← Back</Btn>
+      <Btn sm v="secondary" onClick={queueAdvance}>Skip</Btn>
+      <Btn sm onClick={queueAdvance}>Next →</Btn>
+      <Btn sm v="cancel" onClick={queueExit}>Exit queue</Btn>
+    </div>
+  ) : null;
+
   // Affidavit workspace is a full-page takeover — short-circuit the
-  // list render when one is open. Back button on the workspace just
-  // clears the ID so the list reappears.
+  // list render when one is open. Back button on the workspace clears
+  // the ID (or advances if the user is in queue mode).
   if (affidavitNoticeId) {
     const notice = (legalNotices || []).find(n => n.id === affidavitNoticeId);
     const publication = notice ? (pubs || []).find(p => p.id === notice.publicationId) : null;
     if (!notice) { setAffidavitNoticeId(null); return null; }
     return (
-      <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading workspace…</div>}>
-        <AffidavitWorkspace
-          notice={notice}
-          publication={publication}
-          currentUser={currentUser}
-          editions={editionsCache}
-          onClose={() => setAffidavitNoticeId(null)}
-          onStatusChange={(newStatus) => {
-            setLegalNotices(prev => prev.map(n => n.id === notice.id ? { ...n, status: newStatus } : n));
-            // Lock → ready: open delivery panel automatically per spec.
-            if (newStatus === "affidavit_ready") {
-              setAffidavitNoticeId(null);
-              setDeliveryNoticeId(notice.id);
-            }
-          }}
-        />
-      </Suspense>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {queueBar}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading workspace…</div>}>
+          <AffidavitWorkspace
+            notice={notice}
+            publication={publication}
+            currentUser={currentUser}
+            editions={editionsCache}
+            onClose={() => { if (queue) queueAdvance(); else setAffidavitNoticeId(null); }}
+            onStatusChange={(newStatus) => {
+              setLegalNotices(prev => prev.map(n => n.id === notice.id ? { ...n, status: newStatus } : n));
+              // Lock → ready: open delivery panel automatically per spec.
+              if (newStatus === "affidavit_ready") {
+                setAffidavitNoticeId(null);
+                setDeliveryNoticeId(notice.id);
+              }
+            }}
+          />
+        </Suspense>
+      </div>
     );
   }
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    {queueBar}
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       {(tab === "Active" || tab === "All") && <SB value={sr} onChange={setSr} placeholder="Search notices..." />}
+      {/* Generate All — eligible when any visible notice is published or
+          mid-affidavit. Builds the queue from the current filtered list
+          so search + filter narrowing carries through. */}
+      {(tab === "Active" || tab === "All") && (() => {
+        const eligibleVisible = filtered.filter(n => ["published", "affidavit_draft"].includes(n.status));
+        if (!eligibleVisible.length) return null;
+        return <Btn sm v="secondary" onClick={() => startQueue(eligibleVisible)}>Generate All Affidavits ({eligibleVisible.length})</Btn>;
+      })()}
       <Btn sm onClick={openNew}><Ic.plus size={13} /> New Legal Notice</Btn>
     </div>
 
-    <TabRow><TB tabs={["Active", "All", "Revenue"]} active={tab} onChange={setTab} />{(tab === "Active" || tab === "All") && <><TabPipe /><TB tabs={["All", ...NOTICE_STATUSES.map(s => STATUS_LABELS[s])]} active={statusFilter === "all" ? "All" : STATUS_LABELS[statusFilter] || "All"} onChange={v => { if (v === "All") setStatusFilter("all"); else { const match = Object.entries(STATUS_LABELS).find(([k, l]) => l === v); setStatusFilter(match ? match[0] : "all"); } }} /></>}</TabRow>
+    <TabRow><TB tabs={["Active", "All", "Schedule", "This Issue", "Revenue"]} active={tab} onChange={setTab} />{(tab === "Active" || tab === "All") && <><TabPipe /><TB tabs={["All", ...NOTICE_STATUSES.map(s => STATUS_LABELS[s])]} active={statusFilter === "all" ? "All" : STATUS_LABELS[statusFilter] || "All"} onChange={v => { if (v === "All") setStatusFilter("all"); else { const match = Object.entries(STATUS_LABELS).find(([k, l]) => l === v); setStatusFilter(match ? match[0] : "all"); } }} /></>}</TabRow>
 
     {/* ════════ STATS ════════ */}
     {(tab === "Active" || tab === "All") && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
@@ -840,6 +1125,12 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         })}
       </div>
     </>}
+
+    {/* ════════ SCHEDULE TAB ════════ */}
+    {tab === "Schedule" && <ScheduleView notices={all} pubs={pubs} />}
+
+    {/* ════════ THIS ISSUE TAB ════════ */}
+    {tab === "This Issue" && <ThisIssueView notices={all} pubs={pubs} issues={issues} />}
 
     {/* ════════ REVENUE TAB ════════ */}
     {tab === "Revenue" && <>
@@ -1007,7 +1298,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
             currentUser={currentUser}
             onDelivered={() => {
               setLegalNotices(prev => prev.map(x => x.id === n.id ? { ...x, status: "delivered" } : x));
-              setDeliveryNoticeId(null);
+              if (queue) queueAdvance(); else setDeliveryNoticeId(null);
             }}
           />
         </Suspense>
