@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo, Fragment } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable, FilterPillStrip } from "./ui";
 import { STORY_STATUSES } from "../constants";
@@ -245,6 +245,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   const [tab, setTab] = useState("workflow");
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
+  // Page-group collapsed state (Phase 3b). Keys are page numbers as
+  // strings, plus "unassigned" for the null-page bucket. Persisted per
+  // issue in localStorage so the editor's open/closed shape survives
+  // tab switches and reloads.
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
 
   const [sr, setSr] = useState("");
   const [selected, setSelected] = useState(null);
@@ -265,6 +270,27 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
   const [showSiblings, setShowSiblings] = useState(false);
+
+  // When the issue changes, restore the per-issue collapsed-groups set
+  // from localStorage so editors don't lose the layout they shaped.
+  useEffect(() => {
+    if (!selIssue) { setCollapsedGroups(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`ip_collapsed_${selIssue}`);
+      setCollapsedGroups(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setCollapsedGroups(new Set()); }
+  }, [selIssue]);
+  useEffect(() => {
+    if (!selIssue) return;
+    try { localStorage.setItem(`ip_collapsed_${selIssue}`, JSON.stringify([...collapsedGroups])); } catch {}
+  }, [collapsedGroups, selIssue]);
+  const toggleGroup = useCallback((key) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [addingInlineStory, setAddingInlineStory] = useState(false);
   const [sortCol, setSortCol] = useState("title");
@@ -552,6 +578,47 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
+
+  // Phase 3b — group issueStories by destination page. Unassigned (page=null)
+  // is always pinned at index 0; remaining buckets sort numerically. Each
+  // group is a tuple [key, label, stories[], jumpsIn[]] where:
+  //   - key:        "unassigned" or the page number as a string
+  //   - label:      header text ("Unassigned" or "Page 6")
+  //   - stories[]:  primary story rows whose .page matches this group
+  //   - jumpsIn[]:  read-only continuation rows — stories whose
+  //                 .jump_to_page lands on this page (rendered as
+  //                 italic "(cont. from p.X)" rows under the group)
+  const pageGroups = useMemo(() => {
+    const buckets = new Map();
+    buckets.set("unassigned", { key: "unassigned", page: null, label: "Unassigned", stories: [], jumpsIn: [] });
+    issueStories.forEach(s => {
+      const p = (s.page_number ?? s.page);
+      const pn = (p === null || p === undefined || p === "" || isNaN(Number(p))) ? null : Number(p);
+      if (pn === null) {
+        buckets.get("unassigned").stories.push(s);
+        return;
+      }
+      const k = String(pn);
+      if (!buckets.has(k)) buckets.set(k, { key: k, page: pn, label: `Page ${pn}`, stories: [], jumpsIn: [] });
+      buckets.get(k).stories.push(s);
+    });
+    // Wire jump_to_page → destination group's jumpsIn
+    issueStories.forEach(s => {
+      const j = parseInt(s.jump_to_page);
+      if (isNaN(j)) return;
+      const k = String(j);
+      if (!buckets.has(k)) buckets.set(k, { key: k, page: j, label: `Page ${j}`, stories: [], jumpsIn: [] });
+      buckets.get(k).jumpsIn.push(s);
+    });
+    // Drop empty Unassigned to reduce visual noise.
+    if (buckets.get("unassigned").stories.length === 0) buckets.delete("unassigned");
+    // Order: Unassigned first, then numerical pages ascending.
+    return [...buckets.values()].sort((a, b) => {
+      if (a.key === "unassigned") return -1;
+      if (b.key === "unassigned") return 1;
+      return a.page - b.page;
+    });
+  }, [issueStories]);
 
   // ── Sibling issue resolver for a given story ──
   // Returns every sibling-pub issue that shares the story's primary
@@ -1021,7 +1088,20 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                       {issueStories.length === 0 && (
                         <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
-                      {issueStories.map(s => {
+                      {pageGroups.map(g => {
+                        const groupCollapsed = collapsedGroups.has(g.key);
+                        const wordSum = g.stories.reduce((sum, s) => sum + (Number(s.word_count || s.wordCount) || 0), 0);
+                        return <Fragment key={g.key}>
+                          <tr style={{ background: Z.sa }}>
+                            <td colSpan={10} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: 11, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                <span style={{ width: 12, color: Z.tm }}>{groupCollapsed ? "▸" : "▾"}</span>
+                                <span>{g.label}</span>
+                                <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>{g.stories.length} {g.stories.length === 1 ? "story" : "stories"}{wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}{g.jumpsIn.length ? ` · ${g.jumpsIn.length} jumping in` : ""}</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {!groupCollapsed && g.stories.map(s => {
                         const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
                         const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
                         const hasSavedTitle = s.title && s.title !== "";
@@ -1109,6 +1189,20 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
                           </td>
                         </tr>;
+                      })}
+                      {/* Jump-in continuation rows. Read-only — jumps are
+                          edited from the origin row only. Click the title to
+                          open the origin story in the editor. */}
+                      {!groupCollapsed && g.jumpsIn.map(s => (
+                        <tr key={`jump-${s.id}`} style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
+                          <td colSpan={10} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: 12 }}>
+                            <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
+                            <span onClick={() => openDetail(s)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{s.title || "Untitled"}</span>
+                            <span style={{ color: Z.td }}>(cont. from p.{s.jump_from_page ?? s.page})</span>
+                          </td>
+                        </tr>
+                      ))}
+                        </Fragment>;
                       })}
                     </tbody>
                   </DataTable>
