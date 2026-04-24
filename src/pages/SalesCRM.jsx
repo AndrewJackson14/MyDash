@@ -1286,6 +1286,7 @@ const SalesCRM = (props) => {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: Z.tx, fontFamily: COND }}>
                   {inq.ad_types?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Types:</span> {inq.ad_types.join(", ")}</div>}
                   {inq.preferred_zones?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Zones:</span> {inq.preferred_zones.join(", ")}</div>}
+                  {inq.interested_product_ids?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Products:</span> {inq.interested_product_ids.length} selected</div>}
                   {inq.budget_range && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Budget:</span> {inq.budget_range}</div>}
                   {inq.desired_start && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Start:</span> {new Date(inq.desired_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
                   {inq.how_heard && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Source:</span> {inq.how_heard}</div>}
