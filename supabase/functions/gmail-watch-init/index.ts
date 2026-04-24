@@ -16,7 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const TOPIC_NAME = Deno.env.get("GMAIL_PUSH_TOPIC") || "projects/spatial-path-239705/topics/gmail-push-mydash";
+const TOPIC_NAME = Deno.env.get("GMAIL_PUSH_TOPIC") || "projects/mydash13stars/topics/gmail-push-mydash";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
