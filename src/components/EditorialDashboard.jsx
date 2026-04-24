@@ -156,7 +156,7 @@ const StoryCard = memo(({ story, pubs, team, onClick, isDragging }) => {
 });
 
 // ── Kanban Column ────────────────────────────────────────────────
-const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
+const KanbanCol = memo(function KanbanCol({ col, stories, pubs, team, onDrop, onClick }) {
   const [dragOver, setDragOver] = useState(false);
 
   return (
@@ -200,7 +200,7 @@ const KanbanCol = ({ col, stories, pubs, team, onDrop, onClick }) => {
       </div>
     </div>
   );
-};
+});
 
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD

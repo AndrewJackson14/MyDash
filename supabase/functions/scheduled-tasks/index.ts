@@ -7,11 +7,29 @@ const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
-};
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "https://mydash.media").split(",");
+function corsFor(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
+    "Vary": "Origin",
+  };
+}
+
+// Hardened (audit 2026-04-23): require service_role JWT. pg_cron
+// invokes via cron_invoke_edge_function with the service-role key
+// from Vault; admin manual triggers can use the same key. Blocks the
+// previous open path that let any browser fan reminder emails out
+// from the team's stored Gmail tokens.
+function isServiceRole(authHeader: string): boolean {
+  if (!authHeader?.startsWith("Bearer ")) return false;
+  try {
+    const payload = JSON.parse(atob(authHeader.slice(7).split(".")[1]));
+    return payload?.role === "service_role";
+  } catch { return false; }
+}
 
 function getAdmin() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -60,8 +78,12 @@ async function sendEmail(token: string, to: string, subject: string, htmlBody: s
 }
 
 serve(async (req: Request) => {
+  const cors = corsFor(req.headers.get("Origin"));
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: cors });
+  }
+  if (!isServiceRole(req.headers.get("Authorization") || "")) {
+    return new Response(JSON.stringify({ error: "service_role only" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
   }
 
   const admin = getAdmin();
@@ -385,6 +407,6 @@ serve(async (req: Request) => {
 
   return new Response(
     JSON.stringify({ success: true, timestamp: new Date().toISOString(), results }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    { headers: { ...cors, "Content-Type": "application/json" } }
   );
 });

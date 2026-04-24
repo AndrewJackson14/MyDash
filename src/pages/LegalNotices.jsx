@@ -8,6 +8,7 @@ import { Ic, Btn, FileBtn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , 
 import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
+import { sanitizeHtml } from "../lib/sanitizeHtml";
 import { supabase } from "../lib/supabase";
 import AssetPanel from "../components/AssetPanel";
 import EntityThread from "../components/EntityThread";
@@ -43,6 +44,17 @@ const RATE_PLANS = [
   { value: "probate_flat",      label: "Probate (flat)" },
   { value: "name_change_flat",  label: "Name Change (flat)" },
 ];
+
+// Reject `javascript:`, `data:`, `vbscript:`, etc. on stored attachment URLs.
+// FBN submissions land via the public StellarPress form; nothing else
+// validates the URL before it appears as a clickable link in the queue.
+const safeAttachmentUrl = (url) => {
+  if (!url) return null;
+  try {
+    const u = new URL(String(url), "https://mydash.media");
+    return (u.protocol === "https:" || u.protocol === "http:") ? u.href : null;
+  } catch { return null; }
+};
 
 // Strip HTML tags + collapse whitespace for billable-character counting.
 // Legal notices are billed on body text only — HTML formatting doesn't
@@ -889,7 +901,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
           <GlassCard>
             <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Notice Text</div>
             {viewNotice.bodyHtml
-              ? <div style={{ fontSize: FS.base, color: Z.tx, lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }} dangerouslySetInnerHTML={{ __html: viewNotice.bodyHtml }} />
+              ? <div style={{ fontSize: FS.base, color: Z.tx, lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(viewNotice.bodyHtml) }} />
               : <div style={{ fontSize: FS.base, color: Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.6, padding: 16, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}`, fontFamily: "'Source Sans 3', serif" }}>{viewNotice.content}</div>
             }
             <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 6 }}>
@@ -1086,9 +1098,11 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
                 {(n.attachments || []).length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                     {n.attachments.map((url, i) => {
-                      const fname = decodeURIComponent((url || "").split("/").pop() || `file-${i + 1}`);
+                      const safeUrl = safeAttachmentUrl(url);
+                      if (!safeUrl) return null;
+                      const fname = decodeURIComponent((safeUrl || "").split("/").pop() || `file-${i + 1}`);
                       const short = fname.length > 28 ? fname.slice(0, 25) + "…" : fname;
-                      return <a key={i} href={url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{
+                      return <a key={i} href={safeUrl} target="_blank" rel="noreferrer noopener" onClick={e => e.stopPropagation()} style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
                         fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND,
                         padding: "2px 8px", borderRadius: 3, background: Z.ac + "12",

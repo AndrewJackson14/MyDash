@@ -93,25 +93,31 @@ const IntegrationsPage = ({ pubs, isActive }) => {
     };
     window.addEventListener("message", handler);
 
-    // Poll localStorage as fallback (popup may lose opener reference after OAuth redirect)
-    const poll = setInterval(() => {
+    // The OAuth popup writes auth-result keys to localStorage as a fallback when
+    // it can't postMessage back (e.g. after a cross-origin redirect strips opener).
+    // Use the storage event instead of polling — fires synchronously on the next
+    // tick after the popup writes, so there's no perceived latency, and there's
+    // no idle CPU spend when the page is backgrounded.
+    const onStorage = (ev) => {
       try {
-        const qbResult = localStorage.getItem("qb-auth-result");
-        if (qbResult) {
-          const data = JSON.parse(qbResult);
+        if (ev.key === "qb-auth-result" && ev.newValue) {
+          const data = JSON.parse(ev.newValue);
           if (Date.now() - data.ts < 30000) { setQbStatus("connected"); setQbCompany(data.company || ""); }
           localStorage.removeItem("qb-auth-result");
         }
-        const gResult = localStorage.getItem("google-auth-result");
-        if (gResult) {
-          const data = JSON.parse(gResult);
+        if (ev.key === "google-auth-result" && ev.newValue) {
+          const data = JSON.parse(ev.newValue);
           if (Date.now() - data.ts < 30000) { setGoogleStatus("connected"); setGoogleEmail(data.email || ""); }
           localStorage.removeItem("google-auth-result");
         }
       } catch { /* ok */ }
-    }, 1000);
+    };
+    window.addEventListener("storage", onStorage);
 
-    return () => { window.removeEventListener("message", handler); clearInterval(poll); };
+    return () => {
+      window.removeEventListener("message", handler);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   // ─── Connect handlers ─────────────────────────────────

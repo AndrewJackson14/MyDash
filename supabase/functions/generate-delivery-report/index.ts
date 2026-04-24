@@ -20,11 +20,30 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
-};
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "https://mydash.media,http://localhost:5173,http://localhost:4173").split(",");
+
+function corsFor(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
+    "Vary": "Origin",
+  };
+}
+
+// Cron fires this with the service_role JWT (Vault-stored, see migration
+// 089). The "Send Now" button on the Reports tab fires it with the user's
+// authenticated JWT. Anonymous callers are rejected — previously open meant
+// anyone could trigger arbitrary schedule_id runs and slam the worker.
+function authedRole(authHeader: string): string | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    const payload = JSON.parse(atob(authHeader.slice(7).split(".")[1]));
+    if (payload.role !== "authenticated" && payload.role !== "service_role") return null;
+    return String(payload.role);
+  } catch { return null; }
+}
 
 function getAdmin() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -222,7 +241,14 @@ async function processSchedule(admin: any, schedule: any) {
 
 // ── Handler ──────────────────────────────────────────────────────
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const corsHeaders = corsFor(req.headers.get("Origin"));
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+
+  if (!authedRole(req.headers.get("Authorization") || "")) {
+    return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const admin = getAdmin();

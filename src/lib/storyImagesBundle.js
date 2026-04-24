@@ -15,7 +15,14 @@
 // table, so the minimal Open Office XML payload is shorter than the
 // library would be.
 // ============================================================
-import JSZip from "jszip";
+// JSZip is ~150KB minified; this module is only used by the Story
+// Editor's "Download Originals" button, so the import is dynamic to
+// keep it out of the editor's startup bundle.
+let JSZipPromise = null;
+function loadJSZip() {
+  if (!JSZipPromise) JSZipPromise = import("jszip").then(m => m.default || m);
+  return JSZipPromise;
+}
 
 function escXml(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -103,6 +110,7 @@ const DOCX_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 // Assemble the caption sheet as a self-contained .docx Blob.
 async function buildCaptionDocx({ storyTitle, rows }) {
+  const JSZip = await loadJSZip();
   const docxZip = new JSZip();
   docxZip.file("[Content_Types].xml", DOCX_CONTENT_TYPES);
   docxZip.folder("_rels").file(".rels", DOCX_RELS);
@@ -116,6 +124,7 @@ async function buildCaptionDocx({ storyTitle, rows }) {
 export async function downloadStoryImagesBundle({ storyTitle, images }) {
   if (!images?.length) return;
   const slug = safeFilename((storyTitle || "story").toLowerCase().replace(/\s+/g, "-").slice(0, 60), "story");
+  const JSZip = await loadJSZip();
   const zip = new JSZip();
 
   // Caption sheet first, at the zip root.

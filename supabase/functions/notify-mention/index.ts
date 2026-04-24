@@ -34,11 +34,30 @@ const AWS_REGION = Deno.env.get("AWS_SES_REGION") || "us-east-1";
 const FROM_HEADER = Deno.env.get("MENTION_FROM_EMAIL") || "MyDash <publisher@pasoroblespress.com>";
 const APP_URL = Deno.env.get("PUBLIC_APP_URL") || "https://mydash.media";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
-};
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "https://mydash.media,http://localhost:5173,http://localhost:4173").split(",");
+
+function corsFor(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
+    "Vary": "Origin",
+  };
+}
+
+// Caller must be an authenticated user — previously open meant anyone
+// could fan out branded emails from publisher@pasoroblespress.com to
+// arbitrary mentionedUserIds with attacker-controlled body text.
+function authedSub(authHeader: string): string | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    const payload = JSON.parse(atob(authHeader.slice(7).split(".")[1]));
+    if (!payload?.sub) return null;
+    if (payload.role !== "authenticated" && payload.role !== "service_role") return null;
+    return String(payload.sub);
+  } catch { return null; }
+}
 
 async function sha256Hex(s: string) {
   const buf = new TextEncoder().encode(s);
@@ -105,29 +124,33 @@ function stripTokens(body: string) {
   return body.replace(/@\[([^\]]+)\]\([^)]+\)/g, "@$1");
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+function json(body: unknown, status: number, cors: Record<string, string>) {
+  return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  const cors = corsFor(req.headers.get("Origin"));
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST") return json({ error: "POST only" }, 405, cors);
+
+  // Auth gate.
+  if (!authedSub(req.headers.get("Authorization") || "")) return json({ error: "Not authenticated" }, 401, cors);
 
   // Silent skip if SES isn't configured — in-app notifications still
   // fired client-side, so nothing breaks for the user.
   if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
-    return json({ skipped: true, reason: "SES creds missing" });
+    return json({ skipped: true, reason: "SES creds missing" }, 200, cors);
   }
 
   let payload: any;
-  try { payload = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+  try { payload = await req.json(); } catch { return json({ error: "bad json" }, 400, cors); }
 
   const ids: string[] = Array.isArray(payload.mentionedUserIds) ? payload.mentionedUserIds.filter(Boolean) : [];
   const senderName: string = String(payload.senderName || "Someone");
   const body: string = String(payload.body || "");
   const contextLabel: string = String(payload.contextLabel || "a discussion");
   const contextUrl: string = String(payload.contextUrl || APP_URL);
-  if (!ids.length) return json({ sent: 0 });
+  if (!ids.length) return json({ sent: 0 }, 200, cors);
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: members } = await admin
@@ -136,7 +159,7 @@ serve(async (req) => {
     .in("id", ids);
 
   const targets = (members || []).filter(m => m.email && m.is_active !== false);
-  if (!targets.length) return json({ sent: 0 });
+  if (!targets.length) return json({ sent: 0 }, 200, cors);
 
   const preview = stripTokens(body).slice(0, 400);
   const subject = `${senderName} mentioned you in ${contextLabel}`;
@@ -161,5 +184,5 @@ serve(async (req) => {
     }
   }
 
-  return json({ sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results });
+  return json({ sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results }, 200, cors);
 });

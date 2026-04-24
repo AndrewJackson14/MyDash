@@ -447,8 +447,8 @@ export function DataProvider({ children, localData }) {
   const loadProposals = useCallback(async () => {
     if (proposalsLoaded || !isOnline()) return;
     const [proposalsRes, propLinesRes] = await Promise.all([
-      supabase.from('proposals').select(proposalSelect).order('date', { ascending: false }),
-      supabase.from('proposal_lines').select('*'),
+      supabase.from('proposals').select(proposalSelect).order('date', { ascending: false }).limit(2000),
+      supabase.from('proposal_lines').select('*').limit(10000),
     ]);
     if (proposalsRes.data && propLinesRes.data) {
       setProposals(proposalsRes.data.map(p => ({
@@ -998,11 +998,11 @@ export function DataProvider({ children, localData }) {
       fetchAllRows('subscribers', 'last_name'),
       fetchAllRows('subscriptions', 'created_at', false),
       supabase.from('mailing_lists').select('*').order('generated_at', { ascending: false }).limit(100),
-      supabase.from('drop_locations').select('*').order('name'),
-      supabase.from('drop_location_pubs').select('*'),
-      supabase.from('drivers').select('*').order('name'),
-      supabase.from('driver_routes').select('*').order('name'),
-      supabase.from('route_stops').select('*').order('sort_order'),
+      supabase.from('drop_locations').select('*').order('name').limit(2000),
+      supabase.from('drop_location_pubs').select('*').limit(5000),
+      supabase.from('drivers').select('*').order('name').limit(500),
+      supabase.from('driver_routes').select('*').order('name').limit(500),
+      supabase.from('route_stops').select('*').order('sort_order').limit(5000),
     ]);
     if (subRes.length > 0) setSubscribers(subRes.map(s => ({
       id: s.id, type: s.type, status: s.status, firstName: s.first_name, lastName: s.last_name, email: s.email, phone: s.phone,
@@ -1040,7 +1040,7 @@ export function DataProvider({ children, localData }) {
   const [editionsLoaded, setEditionsLoaded] = useState(false);
   const loadEditions = useCallback(async () => {
     if (editionsLoaded || !isOnline()) return;
-    const { data } = await supabase.from('editions').select('*').order('publish_date', { ascending: false });
+    const { data } = await supabase.from('editions').select('*').order('publish_date', { ascending: false }).limit(1000);
     if (data) setEditions(data.map(e => ({
       id: e.id, publicationId: e.publication_id, title: e.title, slug: e.slug,
       pdfUrl: e.pdf_url, coverImageUrl: e.cover_image_url, publishDate: e.publish_date,
@@ -1081,8 +1081,8 @@ export function DataProvider({ children, localData }) {
   const loadTickets = useCallback(async () => {
     if (ticketsLoaded || !isOnline()) return;
     const [ticketRes, ticketCommentRes] = await Promise.all([
-      supabase.from('service_tickets').select('*').order('created_at', { ascending: false }),
-      supabase.from('ticket_comments').select('*').order('created_at'),
+      supabase.from('service_tickets').select('*').order('created_at', { ascending: false }).limit(2000),
+      supabase.from('ticket_comments').select('*').order('created_at').limit(5000),
     ]);
     if (ticketRes.data) setTickets(ticketRes.data.map(t => ({
       id: t.id, channel: t.channel, category: t.category, status: t.status, priority: t.priority,
@@ -1104,8 +1104,8 @@ export function DataProvider({ children, localData }) {
   const loadLegals = useCallback(async () => {
     if (legalsLoaded || !isOnline()) return;
     const [legalRes, legalIssueRes] = await Promise.all([
-      supabase.from('legal_notices').select('*').order('created_at', { ascending: false }),
-      supabase.from('legal_notice_issues').select('*'),
+      supabase.from('legal_notices').select('*').order('created_at', { ascending: false }).limit(2000),
+      supabase.from('legal_notice_issues').select('*').limit(5000),
     ]);
     if (legalRes.data) setLegalNotices(legalRes.data.map(n => ({
       id: n.id, clientId: n.client_id, contactName: n.contact_name, contactEmail: n.contact_email,
@@ -1138,7 +1138,7 @@ export function DataProvider({ children, localData }) {
   const [creativeLoaded, setCreativeLoaded] = useState(false);
   const loadCreative = useCallback(async () => {
     if (creativeLoaded || !isOnline()) return;
-    const { data } = await supabase.from('creative_jobs').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('creative_jobs').select('*').order('created_at', { ascending: false }).limit(2000);
     if (data) setCreativeJobs(data.map(j => ({
       id: j.id, clientId: j.client_id, title: j.title, description: j.description,
       jobType: j.job_type, status: j.status, assignedTo: j.assigned_to,
@@ -1157,7 +1157,8 @@ export function DataProvider({ children, localData }) {
     const { data, error } = await supabase
       .from('ad_projects')
       .select('*')
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(2000);
     if (error) { console.error('loadAdProjects failed:', error); return; }
     setAdProjects(data || []);
     setAdProjectsLoaded(true);
@@ -1318,9 +1319,9 @@ export function DataProvider({ children, localData }) {
     const [ledgerRes, payoutsRes, goalsRes, assignRes, ratesRes] = await Promise.all([
       supabase.from('commission_ledger').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1500),
       supabase.from('commission_payouts').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1000),
-      supabase.from('commission_issue_goals').select('*'),
-      supabase.from('salesperson_pub_assignments').select('*'),
-      supabase.from('commission_rates').select('*'),
+      supabase.from('commission_issue_goals').select('*').limit(2000),
+      supabase.from('salesperson_pub_assignments').select('*').limit(1000),
+      supabase.from('commission_rates').select('*').limit(1000),
     ]);
     if (ledgerRes.data) setCommissionLedger(ledgerRes.data.map(l => ({
       id: l.id, saleId: l.sale_id, salespersonId: l.salesperson_id, publicationId: l.publication_id,
@@ -2163,8 +2164,8 @@ export function DataProvider({ children, localData }) {
   const loadOutreach = useCallback(async () => {
     if (outreachLoaded || !isOnline()) return;
     const [campRes, entryRes] = await Promise.all([
-      supabase.from('outreach_campaigns').select('*').order('created_at', { ascending: false }),
-      supabase.from('outreach_entries').select('*').order('created_at', { ascending: false }),
+      supabase.from('outreach_campaigns').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('outreach_entries').select('*').order('created_at', { ascending: false }).limit(5000),
     ]);
     if (campRes.data) setOutreachCampaigns(campRes.data.map(c => ({
       id: c.id, name: c.name, description: c.description, status: c.status,
@@ -2254,7 +2255,7 @@ export function DataProvider({ children, localData }) {
   const [prioritiesLoaded, setPrioritiesLoaded] = useState(false);
   const loadPriorities = useCallback(async () => {
     if (prioritiesLoaded || !isOnline()) return;
-    const { data } = await supabase.from('my_priorities').select('*').order('sort_order');
+    const { data } = await supabase.from('my_priorities').select('*').order('sort_order').limit(500);
     if (data) setMyPriorities(data.map(p => ({
       id: p.id, teamMemberId: p.team_member_id, clientId: p.client_id,
       signalType: p.signal_type, signalDetail: p.signal_detail,

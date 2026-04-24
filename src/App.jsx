@@ -22,7 +22,6 @@ import { GmailNotifPopover } from "./components/GmailNotifPopover";
 import { useGmailUnread } from "./hooks/useGmailUnread";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import MyHelperLauncher from "./components/MyHelperLauncher";
-import IssueDetail from "./pages/IssueDetail";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
@@ -58,6 +57,7 @@ const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const KnowledgeBase = lazyLoad(() => import("./pages/KnowledgeBase"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
 const Permissions = lazy(() => import("./pages/Permissions"));
+const IssueDetail = lazyLoad(() => import("./pages/IssueDetail"));
 const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
@@ -582,7 +582,7 @@ export default function App() {
           {!online && <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Waiting for data...</div>}
           {online && !clients.length && <div style={{ padding: 40, textAlign: "center", color: "#888" }}>Loading clients...</div>}
           {online && clients.length > 0 && (issueDetailId
-            ? <IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} />
+            ? <Suspense fallback={<LazyFallback />}><IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} /></Suspense>
             : (currentUser?.role === "Publisher"
               ? <Suspense fallback={<LazyFallback />}><DashboardV2 isActive={pg === "dashboard"} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || EMPTY_ARR} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || EMPTY_ARR} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
               : <Suspense fallback={<LazyFallback />}><RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></Suspense>
