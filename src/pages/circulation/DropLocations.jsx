@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Z, COND, FS, FW, R, Ri } from "../../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, SB, GlassCard, GlassStat } from "../../components/ui";
+import { supabase } from "../../lib/supabase";
 import { LOC_TYPES, pnFor } from "./constants";
 import DropLocationCSVImport from "./DropLocationCSVImport";
 
@@ -141,7 +142,33 @@ export default function DropLocations({
       </div>
     </Modal>
 
-    {/* CSV import modal — stub for Phase 3 */}
-    <DropLocationCSVImport open={csvModal} onClose={() => setCsvModal(false)} pubs={pubs} />
+    {/* CSV import wizard (Phase 3). Re-queries drop_locations +
+        drop_location_pubs after a successful import so newly-inserted
+        rows appear in the list without a full page reload. */}
+    <DropLocationCSVImport
+      open={csvModal}
+      onClose={() => setCsvModal(false)}
+      pubs={pubs}
+      dropLocations={locs}
+      onImported={async () => {
+        const [locRes, pubRes] = await Promise.all([
+          supabase.from("drop_locations").select("*").order("name").limit(2000),
+          supabase.from("drop_location_pubs").select("*").limit(5000),
+        ]);
+        if (locRes.data) setDropLocations(locRes.data.map(d => ({
+          id: d.id, name: d.name, locationType: d.type, address: d.address,
+          city: d.city, state: d.state, zip: d.zip,
+          contactName: d.contact_name, contactPhone: d.contact_phone,
+          notes: d.notes, isActive: d.is_active, createdAt: d.created_at,
+          lat: d.lat, lng: d.lng, geocodeStatus: d.geocode_status,
+          source: d.source, accessNotes: d.access_notes,
+          preferredDeliveryWindow: d.preferred_delivery_window,
+        })));
+        if (pubRes.data) setDropLocationPubs(pubRes.data.map(lp => ({
+          id: lp.id, dropLocationId: lp.drop_location_id,
+          publicationId: lp.publication_id, quantity: lp.quantity,
+        })));
+      }}
+    />
   </>;
 }
