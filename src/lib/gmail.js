@@ -16,40 +16,79 @@ function encodeSubject(subject) {
   return "=?UTF-8?B?" + btoa(unescape(encodeURIComponent(subject))) + "?=";
 }
 
-// Build RFC 2822 message and base64url encode it
-function buildRawMessage({ to, cc, subject, htmlBody, from }) {
-  const boundary = "boundary_" + Date.now();
+// Build RFC 2822 message and base64url encode it.
+//
+// When `attachments` is non-empty, switches from plain
+// multipart/alternative (text+html) to multipart/mixed wrapping the
+// alternative + each attachment as base64-encoded MIME parts. Used by
+// the legal-affidavit Gmail send so the PDF lands as a real
+// attachment, not a CDN link.
+//
+// attachments: [{ filename, mimeType, base64 }] — base64 is the raw
+// encoded payload; we re-emit in 76-char lines per RFC 2045.
+function buildRawMessage({ to, cc, subject, htmlBody, from, attachments }) {
+  const ccList = Array.isArray(cc) ? cc.filter(Boolean) : (cc ? [cc] : []);
   const headers = [
     `From: ${from || "me"}`,
     `To: ${Array.isArray(to) ? to.join(", ") : to}`,
   ];
-  const ccList = Array.isArray(cc) ? cc.filter(Boolean) : (cc ? [cc] : []);
   if (ccList.length > 0) headers.push(`Cc: ${ccList.join(", ")}`);
-  headers.push(
-    `Subject: ${encodeSubject(subject)}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-  );
-  const raw = [
-    ...headers,
-    "",
-    `--${boundary}`,
+  headers.push(`Subject: ${encodeSubject(subject)}`, `MIME-Version: 1.0`);
+
+  const altBoundary = "alt_" + Date.now();
+  const buildAltPart = () => [
+    `--${altBoundary}`,
     `Content-Type: text/html; charset="UTF-8"`,
     "",
     htmlBody,
-    `--${boundary}--`,
+    `--${altBoundary}--`,
   ].join("\r\n");
+
+  const lineWrap = (b64, w = 76) => {
+    const lines = [];
+    for (let i = 0; i < b64.length; i += w) lines.push(b64.slice(i, i + w));
+    return lines.join("\r\n");
+  };
+
+  if (!attachments || !attachments.length) {
+    headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+    const raw = [...headers, "", buildAltPart()].join("\r\n");
+    return toBase64Url(raw);
+  }
+
+  const mixedBoundary = "mixed_" + Date.now();
+  headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+  const parts = [
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    "",
+    buildAltPart(),
+    "",
+  ];
+  attachments.forEach((a) => {
+    parts.push(
+      `--${mixedBoundary}`,
+      `Content-Type: ${a.mimeType || "application/octet-stream"}; name="${a.filename || "attachment"}"`,
+      `Content-Disposition: attachment; filename="${a.filename || "attachment"}"`,
+      `Content-Transfer-Encoding: base64`,
+      "",
+      lineWrap(a.base64 || ""),
+      "",
+    );
+  });
+  parts.push(`--${mixedBoundary}--`);
+  const raw = [...headers, "", parts.join("\r\n")].join("\r\n");
   return toBase64Url(raw);
 }
 
-export async function sendGmailEmail({ teamMemberId, to, cc, subject, htmlBody, mode = "draft", emailType = "other", clientId = null, refId = null, refType = null }) {
+export async function sendGmailEmail({ teamMemberId, to, cc, subject, htmlBody, mode = "draft", emailType = "other", clientId = null, refId = null, refType = null, attachments = null }) {
   // Get current session token for auth
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) {
     return { success: false, needs_auth: true, error: "Not authenticated" };
   }
 
-  const raw = buildRawMessage({ to, cc, subject, htmlBody });
+  const raw = buildRawMessage({ to, cc, subject, htmlBody, attachments });
   const action = mode === "send" ? "send" : "create-draft";
   const body = action === "send"
     ? { raw }
