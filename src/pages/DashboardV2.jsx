@@ -10,7 +10,7 @@ import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import {
   RevenuePaceCard, IssueAtRiskFeed, RepLeaderboardCard, CashFlowSignalCard,
-  WebTrafficSignalCard, IssueReadinessStrip,
+  WebTrafficSignalCard, IssueReadinessStrip, WebPublishingQueue,
 } from "../components/dashboard";
 import { supabase, isOnline } from "../lib/supabase";
 import { useEventBus } from "../hooks/useEventBus";
@@ -621,6 +621,14 @@ const DashboardV2 = (props) => {
             topSiteName={topSiteName}
             userId={currentUser?.id}
             onOpenAnalytics={() => onNavigate?.("analytics")}
+          />
+          <WebPublishingQueue
+            stories={_stories}
+            pubs={_pubs}
+            userId={currentUser?.id}
+            onPublish={(storyId) => props.publishStory?.(storyId)}
+            onOpenStory={(storyId) => onNavigate?.(`/editorial?storyId=${storyId}`)}
+            onOpenWebQueue={() => onNavigate?.("/editorial?tab=web-queue")}
           />
         </div>
         <IssueAtRiskFeed
