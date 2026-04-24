@@ -12,6 +12,13 @@ scripts/import-*.mjs
 scripts/apply-*.mjs
 scripts/nmReimport/
 
+# Per-project spec drops (unzipped here for Claude Code to read,
+# not meant to be checked in)
+Hayley Dash/
+
+# Marketing assets live locally; tracked copies live in the asset pipeline
+MyDash Logo Light.mp4
+
 # Legacy-migration audit output
 *_audit.csv
 
