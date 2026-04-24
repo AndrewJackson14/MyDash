@@ -204,13 +204,22 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
     if (!story?.id) { setStoryImages([]); return; }
     const { data } = await supabase
       .from("media_assets")
-      .select("id, cdn_url, original_url, thumbnail_url, file_name, created_at, width, height")
+      .select("id, cdn_url, original_url, thumbnail_url, file_name, created_at, width, height, caption, alt_text")
       .eq("story_id", story.id)
       .like("mime_type", "image/%")
       .order("created_at", { ascending: false });
     setStoryImages(data || []);
   }, [story?.id]);
   useEffect(() => { loadStoryImages(); }, [loadStoryImages]);
+
+  // Persist a sidecar caption on a single image. Optimistic UI so the
+  // input doesn't lag while the network round-trips. The caption travels
+  // with the image to StellarPress sites via the same media_assets row.
+  const saveImageCaption = useCallback(async (imageId, caption) => {
+    setStoryImages(prev => prev.map(i => i.id === imageId ? { ...i, caption } : i));
+    const { error } = await supabase.from("media_assets").update({ caption, updated_at: new Date().toISOString() }).eq("id", imageId);
+    if (error) console.error("Caption save failed:", error.message);
+  }, []);
 
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
@@ -619,29 +628,50 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
     inp.click();
   };
 
+  // Media Library picker — re-uses the existing MediaModal (mediaPickerMode
+  // already supports "featured" / "inline" / "gallery"). New "story" mode
+  // attaches the chosen asset to this story_id without creating a
+  // duplicate upload on BunnyCDN. Caption + alt_text travel with the row.
+  const openLibraryForStory = async () => {
+    if (!selectedPubs[0]) {
+      await dialog.alert("Please choose a publication first.");
+      return;
+    }
+    setMediaPickerMode("story");
+    setMediaPickerOpen(true);
+  };
+  const attachAssetToStory = async (asset) => {
+    if (!asset?.id || !story?.id) return;
+    const { error } = await supabase.from("media_assets").update({ story_id: story.id }).eq("id", asset.id);
+    if (error) { dialog.alert("Attach failed: " + error.message); return; }
+    await loadStoryImages();
+  };
+
   const setAsFeatured = async (img) => {
     await saveMeta("featured_image_url", img.cdn_url);
     if (img.id) await saveMeta("featured_image_id", img.id);
   };
 
-  // Sequential downloads with a small gap — browsers will silently drop
-  // some of them if fired synchronously.
+  // Bundle all originals + a captions.docx into a single zip so the
+  // production team gets one click → file with the captions paired up.
+  // Lazy-load the bundler so the docx/jszip code only ships when used.
   const [downloadingOriginals, setDownloadingOriginals] = useState(false);
   const downloadOriginals = async () => {
     if (!storyImages.length) return;
     setDownloadingOriginals(true);
     try {
-      for (const img of storyImages) {
-        const url = img.original_url || img.cdn_url;
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = img.file_name || "image";
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        await new Promise(r => setTimeout(r, 250));
-      }
+      const { downloadStoryImagesBundle } = await import("../lib/storyImagesBundle");
+      await downloadStoryImagesBundle({
+        storyTitle: meta.title || story?.title || "story",
+        images: storyImages.map(img => ({
+          url: img.original_url || img.cdn_url,
+          file_name: img.file_name || "image",
+          caption: img.caption || "",
+        })),
+      });
+    } catch (err) {
+      console.error("Download Originals failed:", err);
+      await dialog.alert("Download failed: " + (err?.message || err));
     } finally {
       setDownloadingOriginals(false);
     }
@@ -940,34 +970,59 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Story Library · {storyImages.length}</div>
-              <button
-                onClick={pickStoryLibraryUpload}
-                disabled={imageUploading}
-                style={{ padding: "3px 10px", borderRadius: Ri, border: "none", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
-              >
-                {imageUploading ? "Uploading…" : "+ Upload"}
-              </button>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  onClick={openLibraryForStory}
+                  disabled={imageUploading}
+                  style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
+                  title="Pick existing image from this publication's media library"
+                >
+                  + From Library
+                </button>
+                <button
+                  onClick={pickStoryLibraryUpload}
+                  disabled={imageUploading}
+                  style={{ padding: "3px 10px", borderRadius: Ri, border: "none", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
+                >
+                  {imageUploading ? "Uploading…" : "+ Upload"}
+                </button>
+              </div>
             </div>
             {storyImages.length === 0 ? (
               <div style={{ width: "100%", padding: "16px 12px", border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center" }}>
-                No images yet. Upload above to get started.
+                No images yet. Upload above or pick from the library.
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {storyImages.map(img => {
                   const isFeatured = meta.featured_image_url === img.cdn_url;
                   return (
-                    <button
-                      key={img.id}
-                      onClick={() => setAsFeatured(img)}
-                      title={isFeatured ? "Currently featured" : "Click to set as featured"}
-                      style={{ position: "relative", padding: 0, border: isFeatured ? `2px solid ${Z.ac}` : `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.sa, cursor: "pointer", overflow: "hidden", aspectRatio: "1 / 1" }}
-                    >
-                      <img src={img.thumbnail_url || img.cdn_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                      {isFeatured && (
-                        <div style={{ position: "absolute", top: 2, right: 2, background: Z.ac, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: Ri, fontFamily: COND }}>★ Featured</div>
-                      )}
-                    </button>
+                    <div key={img.id} style={{ display: "flex", flexDirection: "column", gap: 3, padding: 4, border: isFeatured ? `2px solid ${Z.ac}` : `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.sa }}>
+                      <button
+                        onClick={() => setAsFeatured(img)}
+                        title={isFeatured ? "Currently featured" : "Click to set as featured"}
+                        style={{ position: "relative", padding: 0, border: "none", background: "none", cursor: "pointer", overflow: "hidden", borderRadius: Ri, height: 90 }}
+                      >
+                        <img src={img.thumbnail_url || img.cdn_url} alt={img.caption || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: Ri }} />
+                        {isFeatured && (
+                          <div style={{ position: "absolute", top: 2, right: 2, background: Z.ac, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: Ri, fontFamily: COND }}>★ Featured</div>
+                        )}
+                      </button>
+                      {/* Sidecar caption — saved on blur to media_assets.caption.
+                          Travels with the image to StellarPress so it lands as
+                          the figcaption on the published article. */}
+                      <input
+                        defaultValue={img.caption || ""}
+                        placeholder="Caption (sent to site as figcaption)"
+                        onBlur={(e) => {
+                          const next = e.target.value;
+                          if ((img.caption || "") !== next) saveImageCaption(img.id, next);
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                        style={{ width: "100%", padding: "4px 6px", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.bg, color: Z.tx, fontSize: 11, fontFamily: COND, outline: "none", boxSizing: "border-box" }}
+                      />
+                      <div style={{ fontSize: 9, color: Z.td, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={img.file_name}>{img.file_name}</div>
+                    </div>
                   );
                 })}
               </div>
@@ -1232,6 +1287,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
           if (mediaPickerMode === "featured") {
             saveMeta("featured_image_url", media.url);
             if (media.id) saveMeta("featured_image_id", media.id);
+          } else if (mediaPickerMode === "story") {
+            attachAssetToStory(media);
           } else {
             if (editor) editor.chain().focus().setImage({ src: media.url, alt: media.alt || "", title: media.caption || "" }).run();
           }
