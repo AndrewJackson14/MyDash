@@ -157,18 +157,31 @@ function BookingDetail({ booking, onClose, onChange }) {
     setFull(null); setConflicts([]); setLoading(true);
     setRepNotes(""); setRejecting(false); setRejectReason("");
     (async () => {
-      const [{ data: lines }, { data: cf }] = await Promise.all([
+      const [{ data: bookingFull }, { data: lines }, { data: cf }] = await Promise.all([
+        supabase.from("ad_bookings")
+          .select("creative_status, creative_asset_urls, markup_percent, markup_amount_cents, discount_percent, discount_amount_cents, subtotal_cents, rep_notes, creative_notes, rejection_reason")
+          .eq("id", booking.id).single(),
         supabase.from("ad_booking_line_items")
           .select("id, quantity, unit_price_cents, line_total_cents, run_start_date, run_end_date, product:ad_products(id, name, product_type, ad_zone_id)")
           .eq("booking_id", booking.id)
           .order("created_at"),
         supabase.rpc("get_booking_conflicts", { p_booking_id: booking.id }),
       ]);
-      setFull({ ...booking, line_items: lines || [] });
+      setFull({ ...booking, ...bookingFull, line_items: lines || [] });
       setConflicts(cf || []);
       setLoading(false);
     })();
   }, [booking.id]);
+
+  const transitionCreative = async (newStatus, note) => {
+    setWorking(true);
+    const { error } = await supabase.rpc("transition_creative_status", {
+      p_booking_id: booking.id, p_new_status: newStatus, p_note: note || null,
+    });
+    setWorking(false);
+    if (error) { await dialog.alert("Failed: " + error.message); return; }
+    onChange();
+  };
 
   const approve = async () => {
     setWorking(true);
@@ -267,6 +280,8 @@ function BookingDetail({ booking, onClose, onChange }) {
             </Section>
           )}
 
+          <CreativeReview full={full} working={working} transition={transitionCreative} dialog={dialog} />
+
           {full.rejection_reason && booking.status === "rejected" && (
             <Section title="Rejection reason">
               <p style={{ fontSize: FS.sm, color: "#7f1d1d", fontFamily: COND }}>{full.rejection_reason}</p>
@@ -320,5 +335,107 @@ function PriceRow({ label, value, bold, c }) {
       <span style={{ color: c || Z.tm, fontWeight: bold ? FW.bold : FW.normal }}>{label}</span>
       <span style={{ color: c || Z.tx, fontWeight: bold ? FW.bold : FW.semi }}>{value}</span>
     </div>
+  );
+}
+
+const CREATIVE_LABELS = {
+  pending_upload:    "Awaiting upload",
+  uploaded:          "Uploaded — needs preflight",
+  in_preflight:      "In preflight",
+  preflight_passed:  "Preflight passed",
+  designer_approved: "Designer-approved — awaiting client OK",
+  client_approved:   "Client-approved",
+  rejected:          "Rejected",
+};
+
+const CREATIVE_STATUS_COLORS = {
+  pending_upload:    "#6b7280",
+  uploaded:          "#2563eb",
+  in_preflight:      "#f59e0b",
+  preflight_passed:  "#0891b2",
+  designer_approved: "#7c3aed",
+  client_approved:   "#059669",
+  rejected:          "#dc2626",
+};
+
+function CreativeReview({ full, working, transition, dialog }) {
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const status = full.creative_status;
+  const urls = full.creative_asset_urls || [];
+  const c = CREATIVE_STATUS_COLORS[status];
+
+  const advanceTo = async (next) => {
+    if (!await dialog.confirm(`Move creative to "${CREATIVE_LABELS[next]}"?`)) return;
+    transition(next);
+  };
+
+  return (
+    <Section title="Creative review">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: FW.heavy, color: c, background: c + "18", padding: "2px 8px", borderRadius: 3, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>
+          {CREATIVE_LABELS[status] || status}
+        </span>
+      </div>
+
+      {urls.length === 0 ? (
+        <p style={{ fontSize: FS.sm, color: Z.td, fontFamily: COND, fontStyle: "italic" }}>
+          No creative uploaded yet. Advertiser will upload via the booking-status link sent to {full.booked_by_email}.
+        </p>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 12 }}>
+          {urls.map((u, i) => {
+            const isImage = /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(u);
+            return (
+              <a key={i} href={u} target="_blank" rel="noopener noreferrer"
+                style={{ display: "block", border: `1px solid ${Z.bd}`, borderRadius: 4, overflow: "hidden", background: Z.bg, textDecoration: "none" }}>
+                {isImage ? (
+                  <img src={u} alt={`Creative ${i + 1}`} style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }} />
+                ) : (
+                  <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.xs, fontFamily: COND }}>
+                    📄 {u.split("/").pop()}
+                  </div>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {!rejectMode && urls.length > 0 && status !== "client_approved" && status !== "rejected" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {status === "uploaded" &&    <Btn sm onClick={() => advanceTo("in_preflight")} disabled={working}>Start preflight</Btn>}
+          {status === "in_preflight" && <Btn sm onClick={() => advanceTo("preflight_passed")} disabled={working}>Mark preflight passed</Btn>}
+          {(status === "uploaded" || status === "in_preflight" || status === "preflight_passed") &&
+            <Btn sm onClick={() => advanceTo("designer_approved")} disabled={working}>Designer-approve →</Btn>}
+          <Btn sm v="ghost" onClick={() => setRejectMode(true)} disabled={working} style={{ color: "#dc2626" }}>Reject creative</Btn>
+        </div>
+      )}
+
+      {rejectMode && (
+        <div style={{ marginTop: 8 }}>
+          <TA label="What's wrong with the creative? (saved to internal notes; ask the rep to email the advertiser)"
+            value={rejectNote} onChange={e => setRejectNote(e.target.value)} rows={3} />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <Btn sm onClick={() => { transition("rejected", rejectNote); setRejectMode(false); }} disabled={working || !rejectNote.trim()} style={{ background: "#dc2626" }}>
+              Confirm reject
+            </Btn>
+            <Btn sm v="ghost" onClick={() => setRejectMode(false)}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {status === "designer_approved" && (
+        <p style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 8, fontStyle: "italic" }}>
+          Now waiting for the advertiser to approve the proof on their booking-status page. Once they click "Approve & Schedule",
+          the booking will go live (or scheduled) automatically based on dates.
+        </p>
+      )}
+      {status === "client_approved" && (
+        <p style={{ fontSize: FS.xs, color: "#059669", fontFamily: COND, marginTop: 8 }}>
+          ✓ Client-approved. Ready to run.
+        </p>
+      )}
+    </Section>
   );
 }
