@@ -353,13 +353,19 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     return stories.filter(s => {
       if (fPub !== "all" && (s.publication_id || s.publication) !== fPub) return false;
       if (fAssignee !== "all" && s.assigned_to !== fAssignee) return false;
+
+      // Text search composes with view-scope (used to short-circuit the
+      // scope check, which made Archive's date window silently no-op
+      // the moment the editor typed a query).
       if (sr) {
         const q = sr.toLowerCase();
         const match = (s.title || "").toLowerCase().includes(q) ||
           (s.author || "").toLowerCase().includes(q) ||
           (s.category || "").toLowerCase().includes(q);
         if (!match) return false;
-      } else if (viewScope === "active") {
+      }
+
+      if (viewScope === "active") {
         // Active hides published stories older than 90 days so the
         // kanban doesn't accumulate history.
         const isOld = (s.sent_to_web || s.sentToWeb) && s.published_at && s.published_at < archiveCutoff;
