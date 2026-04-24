@@ -10,6 +10,7 @@ import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import {
   RevenuePaceCard, IssueAtRiskFeed, RepLeaderboardCard, CashFlowSignalCard,
+  WebTrafficSignalCard, IssueReadinessStrip, WebPublishingQueue,
 } from "../components/dashboard";
 import { supabase, isOnline } from "../lib/supabase";
 import { useEventBus } from "../hooks/useEventBus";
@@ -566,6 +567,15 @@ const DashboardV2 = (props) => {
         onClick={nav.toReport("rvg", { publisherId: currentUser?.id })}
       />
 
+      {/* ── Issue readiness (weeklies + magazines) ────────
+          Forward-looking companion to RevenuePace. Tiles click
+          through to the IssueDetail overlay via setIssueDetailId. */}
+      <IssueReadinessStrip
+        readiness={issueReadiness || []}
+        userId={currentUser?.id}
+        onOpenIssue={setIssueDetailId}
+      />
+
       {/* ── Department tiles ─────────────────────────────── */}
       {/* Floating, urgency-responsive tiles in a 2x2 grid whose
           template columns + rows animate on hover so the hovered
@@ -593,6 +603,7 @@ const DashboardV2 = (props) => {
             invoices={_inv}
             payments={props.payments || []}
             clients={_clients}
+            uninvoicedContracts={revenueCommand?.uninvoicedContracts || 0}
             userId={currentUser?.id}
             onOpenInvoice={(invoiceId) => onNavigate?.(`/billing?invoiceId=${invoiceId}`)}
             onOpenBilling={() => onNavigate?.("billing")}
@@ -602,6 +613,22 @@ const DashboardV2 = (props) => {
             team={team}
             userId={currentUser?.id}
             onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
+          />
+          <WebTrafficSignalCard
+            views24h={webViews24h}
+            prev24h={webViewsPrev24h}
+            trend={webTrend}
+            topSiteName={topSiteName}
+            userId={currentUser?.id}
+            onOpenAnalytics={() => onNavigate?.("analytics")}
+          />
+          <WebPublishingQueue
+            stories={_stories}
+            pubs={_pubs}
+            userId={currentUser?.id}
+            onPublish={(storyId) => props.publishStory?.(storyId)}
+            onOpenStory={(storyId) => onNavigate?.(`/editorial?storyId=${storyId}`)}
+            onOpenWebQueue={() => onNavigate?.("/editorial?tab=web-queue")}
           />
         </div>
         <IssueAtRiskFeed
@@ -732,6 +759,13 @@ const DashboardV2 = (props) => {
       color={heatColor(departmentPressure[drilledDept]?.heat || 0)}
       focusItems={focusItems.filter(f => f.dept === drilledDept)}
       deadlineAlerts={deadlineAlerts.filter(d => (d.type === "ed" ? "editorial" : "production") === drilledDept)}
+      adProjectAlerts={drilledDept === "production" ? (feed.adProjectAlerts || []) : []}
+      pendingProofLegal={feed.pendingProofLegal || 0}
+      activeLegal={feed.activeLegal || 0}
+      expiringNext30={feed.expiringNext30 || 0}
+      overdueJobs={feed.overdueJobs || 0}
+      pubs={_pubs}
+      clients={_clients}
       team={team}
       onOpenMember={(m) => { setDrilledDept(null); setOpenMember(m); }}
       onClose={() => setDrilledDept(null)}
@@ -1185,7 +1219,7 @@ const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
   </div>
 );
 
-const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
+const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, adProjectAlerts = [], pendingProofLegal = 0, activeLegal = 0, expiringNext30 = 0, overdueJobs = 0, pubs = [], clients = [], team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
   const Icon = meta.icon;
 
@@ -1261,8 +1295,17 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
 
       {/* Department-specific stats — every card clicks through to
           where that data point actually lives. Sourced from the
-          Performance hook. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          Performance hook.
+          Production + Admin use auto-fit with a 180px min so four
+          stats wrap cleanly on narrow viewports; Sales/Editorial stay
+          at a fixed 2-column grid since they only have two stats. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: (dept === "production" || dept === "admin")
+          ? "repeat(auto-fit, minmax(180px, 1fr))"
+          : "repeat(2, 1fr)",
+        gap: 12,
+      }}>
         {dept === "sales" && <>
           <DrillStat label="Lead → Close" value={`${pressure.pctToGoal ?? 0}%`} onClick={() => navigateAndClose("performance")} />
           <DrillStat label="Revenue this period" value={fmtCurrency(pressure.pipelineValue || 0)} onClick={() => navigateAndClose("performance")} />
@@ -1274,10 +1317,14 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         {dept === "production" && <>
           <DrillStat label="Layout on-track" value={`${pressure.layoutOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
           <DrillStat label="Ad on-track" value={`${pressure.adsOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
+          <DrillStat label="Jobs past deadline" value={overdueJobs} onClick={() => navigateAndClose("creativejobs")} />
+          <DrillStat label="Legal notices in flight" value={activeLegal} onClick={() => navigateAndClose("legalnotices")} />
         </>}
         {dept === "admin" && <>
           <DrillStat label="Unread messages" value={pressure.unreadNoteCount || 0} onClick={() => navigateAndClose("messaging")} />
           <DrillStat label="Escalated tickets" value={pressure.escalatedCount || 0} onClick={() => navigateAndClose("servicedesk")} />
+          <DrillStat label="Notices awaiting proof" value={pendingProofLegal} onClick={() => navigateAndClose("legalnotices")} />
+          <DrillStat label="Subs expiring · 30d" value={expiringNext30} onClick={() => navigateAndClose("circulation")} />
         </>}
       </div>
 
@@ -1326,6 +1373,32 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Team</div>
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
           {allMembers.map(m => <DrillMember key={m.id} member={m} onOpen={onOpenMember} />)}
+        </div>
+      </div>}
+
+      {/* Ad Project Alerts — surfaces overdue + past-press ad projects
+          in the Production drill-in (Hayley Apr 24 decision: drill-in
+          only, not a tile header badge). Tiles navigate deep into
+          AdProjects by id. */}
+      {dept === "production" && adProjectAlerts.length > 0 && <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Ad project alerts</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          {adProjectAlerts.map(a => {
+            const clientName = clients.find(c => c.id === a.client_id)?.name || "Ad Project";
+            const pubName = pubs.find(p => p.id === a.publication_id)?.name || "";
+            const title = a.ad_size ? `${clientName} · ${a.ad_size}` : clientName;
+            const metaLine = [pubName, a.issueLabel].filter(Boolean).join(" · ");
+            return <DrillCard
+              key={a.id}
+              accent={a.color || Z.da}
+              icon={Ic.flat || Ic.clock}
+              kind={a.flag}
+              title={title}
+              meta={metaLine}
+              metaColor={a.color || Z.da}
+              onClick={() => { onClose(); onNavigate?.(`/adprojects?adId=${a.id}`); }}
+            />;
+          })}
         </div>
       </div>}
 
@@ -1516,7 +1589,11 @@ const STAGE_COLORS = { Draft: "#9CA3AF", Edit: "#F59E0B", Ready: "#10B981" };
 const STAGE_ORDER = ["Draft", "Edit", "Ready"];
 
 const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose, onNavigate }) => {
-  const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;
+  const {
+    revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn,
+    webViews24h, webViewsPrev24h, webTrend, topSiteName,
+    issueReadiness,
+  } = feed;
   const nav = useNav(onNavigate);
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });

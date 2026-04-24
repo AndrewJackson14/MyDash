@@ -22,6 +22,7 @@ const OPEN_STATUSES = new Set(["sent", "partially_paid", "overdue"]);
 
 export default function CashFlowSignalCard({
   invoices, payments, clients,
+  uninvoicedContracts = 0,
   userId, onOpenInvoice, onOpenBilling,
 }) {
   const data = useMemo(() => {
@@ -159,15 +160,20 @@ export default function CashFlowSignalCard({
         </div>
       )}
 
-      {/* 7-day net */}
+      {/* 7-day net + uninvoiced. Uninvoiced = closed sales within ±30
+          days whose invoices haven't been cut yet; amber when > 0 as
+          a reminder to get them on the books. */}
       <div style={{
         marginTop: 12, paddingTop: 10,
         borderTop: `1px solid ${Z.bd}`,
-        display: "flex", justifyContent: "space-between",
+        display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12,
         fontSize: FS.xs, color: Z.tm, fontFamily: COND,
       }}>
         <span>7-day collected: <b style={{ color: Z.go }}>{fmtCurrency(data.paid7d)}</b></span>
         <span>7-day issued: <b style={{ color: Z.tx }}>{fmtCurrency(data.issued7d)}</b></span>
+        <span title="Closed sales within ±30 days that haven't been invoiced yet">
+          Uninvoiced: <b style={{ color: uninvoicedContracts > 0 ? Z.wa : Z.tx }}>{fmtCurrency(uninvoicedContracts)}</b>
+        </span>
       </div>
     </DashboardModule>
   );
