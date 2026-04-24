@@ -752,6 +752,10 @@ const DashboardV2 = (props) => {
       focusItems={focusItems.filter(f => f.dept === drilledDept)}
       deadlineAlerts={deadlineAlerts.filter(d => (d.type === "ed" ? "editorial" : "production") === drilledDept)}
       adProjectAlerts={drilledDept === "production" ? (feed.adProjectAlerts || []) : []}
+      pendingProofLegal={feed.pendingProofLegal || 0}
+      activeLegal={feed.activeLegal || 0}
+      expiringNext30={feed.expiringNext30 || 0}
+      overdueJobs={feed.overdueJobs || 0}
       pubs={_pubs}
       clients={_clients}
       team={team}
@@ -1207,7 +1211,7 @@ const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
   </div>
 );
 
-const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, adProjectAlerts = [], pubs = [], clients = [], team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
+const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, adProjectAlerts = [], pendingProofLegal = 0, activeLegal = 0, expiringNext30 = 0, overdueJobs = 0, pubs = [], clients = [], team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
   const Icon = meta.icon;
 
@@ -1283,8 +1287,17 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
 
       {/* Department-specific stats — every card clicks through to
           where that data point actually lives. Sourced from the
-          Performance hook. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          Performance hook.
+          Production + Admin use auto-fit with a 180px min so four
+          stats wrap cleanly on narrow viewports; Sales/Editorial stay
+          at a fixed 2-column grid since they only have two stats. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: (dept === "production" || dept === "admin")
+          ? "repeat(auto-fit, minmax(180px, 1fr))"
+          : "repeat(2, 1fr)",
+        gap: 12,
+      }}>
         {dept === "sales" && <>
           <DrillStat label="Lead → Close" value={`${pressure.pctToGoal ?? 0}%`} onClick={() => navigateAndClose("performance")} />
           <DrillStat label="Revenue this period" value={fmtCurrency(pressure.pipelineValue || 0)} onClick={() => navigateAndClose("performance")} />
@@ -1296,10 +1309,14 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         {dept === "production" && <>
           <DrillStat label="Layout on-track" value={`${pressure.layoutOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
           <DrillStat label="Ad on-track" value={`${pressure.adsOnTrack || 0}%`} onClick={() => navigateAndClose("performance")} />
+          <DrillStat label="Jobs past deadline" value={overdueJobs} onClick={() => navigateAndClose("creativejobs")} />
+          <DrillStat label="Legal notices in flight" value={activeLegal} onClick={() => navigateAndClose("legalnotices")} />
         </>}
         {dept === "admin" && <>
           <DrillStat label="Unread messages" value={pressure.unreadNoteCount || 0} onClick={() => navigateAndClose("messaging")} />
           <DrillStat label="Escalated tickets" value={pressure.escalatedCount || 0} onClick={() => navigateAndClose("servicedesk")} />
+          <DrillStat label="Notices awaiting proof" value={pendingProofLegal} onClick={() => navigateAndClose("legalnotices")} />
+          <DrillStat label="Subs expiring · 30d" value={expiringNext30} onClick={() => navigateAndClose("circulation")} />
         </>}
       </div>
 
