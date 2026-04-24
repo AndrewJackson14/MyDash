@@ -116,12 +116,22 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
   }, [threadId]);
 
   // Realtime subscription — messages + attachments for this thread.
+  // UPDATE/DELETE on messages also flow through so an edit / pin / unpin
+  // / delete from one tab updates every other open tab live.
   useEffect(() => {
     if (!threadId) return;
     const channel = supabase.channel(`msgs-${threadId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `thread_id=eq.${threadId}` },
         (payload) => {
           setMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, payload.new]);
+        })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `thread_id=eq.${threadId}` },
+        (payload) => {
+          setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
+        })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages", filter: `thread_id=eq.${threadId}` },
+        (payload) => {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
         })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "message_attachments", filter: `thread_id=eq.${threadId}` },
         (payload) => {
@@ -135,6 +145,41 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [threadId]);
+
+  // ── Per-message actions (edit / delete / pin) ───────────────
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
+  const startEdit = (m) => { setEditingId(m.id); setEditDraft(m.body || ""); };
+  const cancelEdit = () => { setEditingId(null); setEditDraft(""); };
+  const saveEdit = async (m) => {
+    const next = editDraft.trim();
+    if (!next || next === (m.body || "")) { cancelEdit(); return; }
+    const tagIds = Array.from(new Set(parseMentions(next).map(x => x.id))).filter(Boolean);
+    const { data, error } = await supabase.from("messages")
+      .update({ body: next, tagged_user_ids: tagIds, edited_at: new Date().toISOString() })
+      .eq("id", m.id)
+      .select()
+      .single();
+    if (error) { console.error("Edit failed:", error.message); return; }
+    if (data) setMessages(prev => prev.map(x => x.id === m.id ? { ...x, ...data } : x));
+    cancelEdit();
+  };
+  const deleteMessage = async (m) => {
+    if (!window.confirm("Delete this message?")) return;
+    const { error } = await supabase.from("messages").delete().eq("id", m.id);
+    if (error) { console.error("Delete failed:", error.message); return; }
+    setMessages(prev => prev.filter(x => x.id !== m.id));
+    setAttachByMsg(prev => { const n = { ...prev }; delete n[m.id]; return n; });
+  };
+  const togglePin = async (m) => {
+    const next = !m.is_pinned;
+    const patch = next
+      ? { is_pinned: true, pinned_at: new Date().toISOString(), pinned_by: currentUser?.id || null }
+      : { is_pinned: false, pinned_at: null, pinned_by: null };
+    const { data, error } = await supabase.from("messages").update(patch).eq("id", m.id).select().single();
+    if (error) { console.error("Pin toggle failed:", error.message); return; }
+    if (data) setMessages(prev => prev.map(x => x.id === m.id ? { ...x, ...data } : x));
+  };
 
   // Auto-scroll
   useEffect(() => {
@@ -332,68 +377,154 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
     setLightbox({ images: allImages, index: idx >= 0 ? idx : 0 });
   };
 
+  // Render a single message bubble with hover actions (edit/delete/pin).
+  // pinnedView=true shrinks the bubble for the sticky pinned section.
+  const renderMessage = (m, { pinnedView } = {}) => {
+    const isMe = m.sender_id === currentUser?.id;
+    const isSys = m.is_system;
+    const atts = attachByMsg[m.id] || [];
+    const isEditing = editingId === m.id;
+    return (
+      <div
+        key={(pinnedView ? "pin-" : "") + m.id}
+        style={{
+          position: "relative",
+          padding: "6px 10px", borderRadius: Ri, maxWidth: isSys ? "100%" : "85%",
+          alignSelf: isSys ? "center" : isMe ? "flex-end" : "flex-start",
+          background: isSys ? Z.sa : isMe ? Z.ac + "12" : Z.bg,
+          border: isSys ? "none" : `1px solid ${m.is_pinned ? Z.wa : (isMe ? Z.ac + "25" : Z.bd)}`,
+          opacity: pinnedView ? 0.95 : 1,
+        }}
+      >
+        {/* Header row: author + pin badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          {!isSys && !isMe && <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac }}>{m.sender_name}</span>}
+          {isSys && <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td }}>SYSTEM</span>}
+          {m.is_pinned && <span title="Pinned" style={{ fontSize: 9, fontWeight: 800, color: Z.wa, background: Z.wa + "20", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>📌 Pinned</span>}
+        </div>
+
+        {/* Body — edit mode swaps in a textarea */}
+        {isEditing ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <textarea
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(m); }
+              }}
+              autoFocus
+              style={{ width: "100%", minHeight: 60, padding: "6px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", fontSize: 11 }}>
+              <button onClick={cancelEdit} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", padding: "2px 8px" }}>Cancel</button>
+              <button onClick={() => saveEdit(m)} style={{ background: Z.ac, color: "#fff", border: "none", cursor: "pointer", padding: "3px 10px", borderRadius: 10, fontWeight: 700 }}>Save</button>
+            </div>
+          </div>
+        ) : (m.body || "").length > 0 && (
+          <div style={{ fontSize: FS.sm, color: isSys ? Z.tm : Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
+            {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
+              ? <span key={i} style={{ display: "inline-block", padding: "0 5px", margin: "0 1px", borderRadius: 3, background: "rgba(59,130,246,0.18)", color: "#3b82f6", fontWeight: FW.bold }}>@{seg.name}</span>
+              : <span key={i}>{seg.value}</span>
+            )}
+          </div>
+        )}
+
+        {/* Attachments — hidden in pinned-view to keep the strip compact. */}
+        {!pinnedView && atts.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: (m.body || "").length ? 6 : 0 }}>
+            {atts.map(a => a.kind === "image" ? (
+              <img
+                key={a.id}
+                src={a.cdn_url}
+                alt={a.filename}
+                onClick={() => openLightbox(a.cdn_url)}
+                style={{ maxWidth: 220, maxHeight: 200, borderRadius: 4, border: "1px solid " + Z.bd, cursor: "zoom-in", display: "block" }}
+              />
+            ) : (
+              <a key={a.id} href={a.cdn_url} target="_blank" rel="noreferrer" style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri,
+                textDecoration: "none", color: Z.tx, fontSize: 12, maxWidth: 240,
+              }}>
+                <span style={{
+                  width: 28, height: 28, borderRadius: 4,
+                  background: a.kind === "pdf" ? "#dc2626" : Z.tm, color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontWeight: 800, flexShrink: 0,
+                }}>{a.kind === "pdf" ? "PDF" : "FILE"}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.filename}</div>
+                  <div style={{ fontSize: 10, color: Z.tm }}>{fmtBytes(a.byte_size)}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Footer: timestamp + edited tag */}
+        <div style={{ fontSize: 10, color: Z.td, marginTop: 2, textAlign: isMe ? "right" : "left" }}>
+          {fmtTime(m.created_at)}{m.edited_at && <span style={{ marginLeft: 4, fontStyle: "italic" }}>· edited</span>}
+        </div>
+
+        {/* Hover actions — pin always available; edit/delete only on
+            own non-system messages and not while another bubble is in
+            edit mode. */}
+        {!isSys && !isEditing && !pinnedView && (
+          <div style={{ position: "absolute", top: -10, right: 6, display: "flex", gap: 2, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 12, padding: "1px 4px", opacity: 0, transition: "opacity 0.1s" }} className="msg-actions">
+            <button onClick={() => togglePin(m)} title={m.is_pinned ? "Unpin" : "Pin to top"} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 12, color: m.is_pinned ? Z.wa : Z.tm }}>📌</button>
+            {isMe && <button onClick={() => startEdit(m)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 11, color: Z.tm }}>✎</button>}
+            {isMe && <button onClick={() => deleteMessage(m)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 11, color: Z.da }}>🗑</button>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Pinned section state — sorted by pinned_at desc (newest pin top).
+  const pinnedMessages = messages
+    .filter(m => m.is_pinned)
+    .sort((a, b) => (b.pinned_at || "").localeCompare(a.pinned_at || ""));
+
   if (!threadId) return <div style={{ padding: 20, color: Z.td, fontSize: FS.sm, textAlign: "center" }}>No conversation</div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, borderRadius: Ri, overflow: "hidden" }}>
+      {/* Hover affordance — hover any bubble shows its action chip. */}
+      <style>{`.msg-bubble-wrap:hover .msg-actions { opacity: 1 !important; }`}</style>
+
+      {/* Pinned strip — sticky-top above the scroll container. */}
+      {pinnedMessages.length > 0 && (
+        <div style={{ borderBottom: `1px solid ${Z.bd}`, background: Z.wa + "08", padding: "6px 10px", flexShrink: 0, maxHeight: 220, overflowY: "auto" }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: Z.wa, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            📌 Pinned
+            <span style={{ color: Z.tm, fontWeight: 600 }}>{pinnedMessages.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {pinnedMessages.map(m => (
+              <div key={"pin-" + m.id} className="msg-bubble-wrap" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: Z.ac, flexShrink: 0 }}>{m.sender_name}:</span>
+                <span style={{ flex: 1, color: Z.tx, whiteSpace: "pre-wrap", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                  {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
+                    ? <span key={i} style={{ color: "#3b82f6", fontWeight: 700 }}>@{seg.name}</span>
+                    : <span key={i}>{seg.value}</span>
+                  )}
+                </span>
+                <button onClick={() => togglePin(m)} title="Unpin" style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 11, padding: 0, flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 4 }}>
         {messages.length === 0 && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No messages yet</div>}
-        {messages.map(m => {
-          const isMe = m.sender_id === currentUser?.id;
-          const isSys = m.is_system;
-          const atts = attachByMsg[m.id] || [];
-          return (
-            <div key={m.id} style={{
-              padding: "6px 10px", borderRadius: Ri, maxWidth: isSys ? "100%" : "85%",
-              alignSelf: isSys ? "center" : isMe ? "flex-end" : "flex-start",
-              background: isSys ? Z.sa : isMe ? Z.ac + "12" : Z.bg,
-              border: isSys ? "none" : `1px solid ${isMe ? Z.ac + "25" : Z.bd}`,
-            }}>
-              {!isSys && !isMe && <div style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac, marginBottom: 2 }}>{m.sender_name}</div>}
-              {isSys && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, marginBottom: 2 }}>SYSTEM</div>}
-              {(m.body || "").length > 0 && (
-                <div style={{ fontSize: FS.sm, color: isSys ? Z.tm : Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
-                  {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
-                    ? <span key={i} style={{ display: "inline-block", padding: "0 5px", margin: "0 1px", borderRadius: 3, background: "rgba(59,130,246,0.18)", color: "#3b82f6", fontWeight: FW.bold }}>@{seg.name}</span>
-                    : <span key={i}>{seg.value}</span>
-                  )}
-                </div>
-              )}
-              {atts.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: (m.body || "").length ? 6 : 0 }}>
-                  {atts.map(a => a.kind === "image" ? (
-                    <img
-                      key={a.id}
-                      src={a.cdn_url}
-                      alt={a.filename}
-                      onClick={() => openLightbox(a.cdn_url)}
-                      style={{ maxWidth: 220, maxHeight: 200, borderRadius: 4, border: "1px solid " + Z.bd, cursor: "zoom-in", display: "block" }}
-                    />
-                  ) : (
-                    <a key={a.id} href={a.cdn_url} target="_blank" rel="noreferrer" style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                      background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri,
-                      textDecoration: "none", color: Z.tx, fontSize: 12, maxWidth: 240,
-                    }}>
-                      <span style={{
-                        width: 28, height: 28, borderRadius: 4,
-                        background: a.kind === "pdf" ? "#dc2626" : Z.tm, color: "#fff",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 9, fontWeight: 800, flexShrink: 0,
-                      }}>{a.kind === "pdf" ? "PDF" : "FILE"}</span>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.filename}</div>
-                        <div style={{ fontSize: 10, color: Z.tm }}>{fmtBytes(a.byte_size)}</div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )}
-              <div style={{ fontSize: 10, color: Z.td, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{fmtTime(m.created_at)}</div>
-            </div>
-          );
-        })}
+        {messages.map(m => (
+          <div key={m.id} className="msg-bubble-wrap" style={{ display: "flex", flexDirection: "column", alignItems: m.is_system ? "center" : (m.sender_id === currentUser?.id ? "flex-end" : "flex-start") }}>
+            {renderMessage(m)}
+          </div>
+        ))}
       </div>
 
       {/* Pending uploads above the composer */}
