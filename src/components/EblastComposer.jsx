@@ -87,10 +87,15 @@ import { generateEblastHtml } from "../utils/eblastTemplate";
 import { uploadMedia } from "../lib/media";
 import ScheduleModal from "./ScheduleModal";
 
+// eBlast publication allowlist — restricted to the four sender domains
+// we have verified SES senders + active newsletter lists for. Adding a
+// new pub means seeding newsletter_from_email + verifying with SES
+// before it lands in this list.
 const NEWSLETTER_PUBS = [
-  { value: "pub-the-malibu-times",  label: "The Malibu Times" },
-  { value: "pub-paso-robles-press", label: "Paso Robles Press" },
   { value: "pub-atascadero-news",   label: "Atascadero News" },
+  { value: "pub-paso-robles-press", label: "Paso Robles Press" },
+  { value: "pub-calabasas-style",   label: "Calabasas Style" },
+  { value: "pub-the-malibu-times",  label: "The Malibu Times" },
 ];
 
 // ─── Mini tiptap toolbar ────────────────────────────────────

@@ -545,22 +545,71 @@ function SiteDashboardTab({ site, pubs, clients, sales, digitalAdProducts }) {
 // rows; new rows are added via Add Row, persisted on Save. Reuses the
 // catalog already loaded by useAppData; refetches via loadDigitalAdProducts
 // after a save so other pages see fresh data immediately.
-function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProducts }) {
+function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProducts, onNavigate }) {
   const pubId = site?.publication_id || null;
   const dialog = useDialog();
-  const initial = (digitalAdProducts || []).filter(p => p.pub_id === pubId);
-  const [draft, setDraft] = useState(initial);
+  // ad_zones for this pub — drives the by-zone catalog rows. Loaded
+  // alongside per-zone house-ad counts so the publisher sees which
+  // slots are currently filled with house ads (= unsold inventory).
+  const [zones, setZones] = useState([]);
+  const [houseAdCounts, setHouseAdCounts] = useState({}); // { zone_id: count }
+  const [draft, setDraft] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  // Re-sync draft when the upstream catalog loads or the site changes.
+  const reloadZones = useCallback(async () => {
+    if (!pubId) { setZones([]); setHouseAdCounts({}); return; }
+    const { data: zs } = await supabase.from("ad_zones")
+      .select("id, slug, name, zone_type")
+      .eq("publication_id", pubId)
+      .eq("is_active", true)
+      .order("name");
+    setZones(zs || []);
+    if (zs?.length) {
+      const ids = zs.map(z => z.id);
+      // Bulk count house-ads (active placements) per zone.
+      const { data: pls } = await supabase.from("ad_placements")
+        .select("ad_zone_id")
+        .in("ad_zone_id", ids)
+        .eq("is_active", true);
+      const counts = {};
+      (pls || []).forEach(p => { counts[p.ad_zone_id] = (counts[p.ad_zone_id] || 0) + 1; });
+      setHouseAdCounts(counts);
+    } else {
+      setHouseAdCounts({});
+    }
+  }, [pubId]);
+
+  useEffect(() => { reloadZones(); }, [reloadZones]);
+
+  // Re-sync draft when upstream products / zones change. Each zone
+  // gets one matching digital_ad_products row (linked via zone_id);
+  // when one doesn't exist yet, the row is rendered as a placeholder
+  // with _isZonePlaceholder so Save knows to insert it.
   useEffect(() => {
-    setDraft((digitalAdProducts || []).filter(p => p.pub_id === pubId));
-  }, [digitalAdProducts, pubId]);
+    const products = (digitalAdProducts || []).filter(p => p.pub_id === pubId);
+    const byZone = new Map();
+    products.forEach(p => { if (p.zone_id) byZone.set(p.zone_id, p); });
+    const zoneRows = zones.map(z => byZone.get(z.id) || {
+      _isZonePlaceholder: true,
+      pub_id: pubId,
+      zone_id: z.id,
+      name: z.name,
+      slug: z.slug,
+      product_type: "web_ad",
+      rate_monthly: 0,
+      rate_6mo: null,
+      rate_12mo: null,
+      sort_order: 0,
+      is_active: true,
+    });
+    const otherRows = products.filter(p => !p.zone_id);
+    setDraft([...zoneRows, ...otherRows]);
+  }, [digitalAdProducts, pubId, zones]);
 
   if (!pubId) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>This site has no linked publication; the digital catalog can't be edited.</div>;
 
   const slugify = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  const addRow = () => setDraft(d => [...d, { _new: true, pub_id: pubId, name: "", slug: "", product_type: "web_ad", rate_monthly: 0, rate_6mo: 0, rate_12mo: 0, sort_order: d.length + 1, is_active: true }]);
+  const addOtherRow = () => setDraft(d => [...d, { _new: true, pub_id: pubId, name: "", slug: "", product_type: "newsletter_sponsor", rate_monthly: 0, rate_6mo: null, rate_12mo: null, sort_order: d.length + 1, is_active: true }]);
   const updateRow = (idx, patch) => setDraft(d => d.map((r, i) => i === idx ? { ...r, ...patch } : r));
   const removeRow = (idx) => setDraft(d => d.filter((_, i) => i !== idx));
 
@@ -568,35 +617,36 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     setSaving(true);
     try {
       for (const r of draft) {
-        if (r._new) {
-          if (!r.name?.trim()) continue;
-          const payload = {
-            pub_id: pubId,
-            name: r.name.trim(),
-            slug: slugify(r.slug) || slugify(r.name),
-            product_type: r.product_type || "web_ad",
-            rate_monthly: Number(r.rate_monthly) || 0,
-            rate_6mo: Number(r.rate_6mo) || null,
-            rate_12mo: Number(r.rate_12mo) || null,
-            width: r.width ? Number(r.width) : null,
-            height: r.height ? Number(r.height) : null,
-            sort_order: Number(r.sort_order) || 0,
-            is_active: r.is_active !== false,
-          };
+        const payload = {
+          pub_id: pubId,
+          zone_id: r.zone_id || null,
+          name: (r.name || "").trim(),
+          slug: slugify(r.slug) || slugify(r.name),
+          product_type: r.product_type || "web_ad",
+          rate_monthly: Number(r.rate_monthly) || 0,
+          rate_6mo: r.rate_6mo === "" || r.rate_6mo == null ? null : Number(r.rate_6mo),
+          rate_12mo: r.rate_12mo === "" || r.rate_12mo == null ? null : Number(r.rate_12mo),
+          width: r.width ? Number(r.width) : null,
+          height: r.height ? Number(r.height) : null,
+          sort_order: Number(r.sort_order) || 0,
+          is_active: r.is_active !== false,
+          updated_at: new Date().toISOString(),
+        };
+        if (r._isZonePlaceholder) {
+          // Skip placeholder rows that haven't been priced yet.
+          if ((Number(r.rate_monthly) || 0) === 0 && !r.rate_6mo && !r.rate_12mo) continue;
+          if (!payload.name) continue;
+          const { error } = await supabase.from("digital_ad_products").insert(payload);
+          if (error) throw error;
+        } else if (r._new) {
+          if (!payload.name) continue;
           const { error } = await supabase.from("digital_ad_products").insert(payload);
           if (error) throw error;
         } else if (r.id) {
-          const { error } = await supabase.from("digital_ad_products").update({
-            name: r.name, slug: slugify(r.slug) || slugify(r.name), product_type: r.product_type,
-            rate_monthly: Number(r.rate_monthly) || 0, rate_6mo: Number(r.rate_6mo) || null, rate_12mo: Number(r.rate_12mo) || null,
-            width: r.width ? Number(r.width) : null, height: r.height ? Number(r.height) : null,
-            sort_order: Number(r.sort_order) || 0, is_active: r.is_active !== false,
-          }).eq("id", r.id);
+          const { error } = await supabase.from("digital_ad_products").update(payload).eq("id", r.id);
           if (error) throw error;
         }
       }
-      // Refetch — useAppData currently caches loaded=true, so we bypass the
-      // gate by clearing it. Simpler: reload the page-local catalog here too.
       if (loadDigitalAdProducts) await loadDigitalAdProducts();
     } catch (e) {
       await dialog.alert("Save failed: " + (e.message || "unknown"));
@@ -605,38 +655,99 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     }
   };
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>Manage sellable digital products for this site. Salespeople pick from here in the proposal builder.</div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <Btn sm v="secondary" onClick={addRow}><Ic.plus size={11} /> Add Product</Btn>
-        <Btn sm onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Catalog"}</Btn>
+  // Send-to-Proposal: navigate to SalesCRM/Clients with the product
+  // staged in the deep-link. The clerk picks a client and the new
+  // proposal opens with this product pre-added as a digital line.
+  const sendToProposal = (row) => {
+    if (!onNavigate) return;
+    if (row._isZonePlaceholder || row._new) {
+      dialog.alert("Save the catalog first so the product gets an ID, then click Send to Proposal again.");
+      return;
+    }
+    if (!row.id) return;
+    onNavigate("sales", { tab: "clients", proposalProductId: row.id, proposalProductName: row.name });
+  };
+
+  // Split for rendering: zone-bound first, then "other" digital products.
+  const zoneRows = draft.filter(r => r.zone_id);
+  const otherRows = draft.filter(r => !r.zone_id);
+
+  const headerCols = "1.4fr 0.9fr 1.1fr 0.65fr 0.65fr 0.65fr 0.55fr 110px 24px";
+  const headerCells = (
+    <div style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "6px 8px", background: Z.sa, fontSize: 10, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
+      <div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>6mo $</div><div>12mo $</div><div>Sort</div><div></div><div></div>
+    </div>
+  );
+
+  const renderRow = (r, idx, kind) => {
+    const houseAds = r.zone_id ? (houseAdCounts[r.zone_id] || 0) : null;
+    const priced = (Number(r.rate_monthly) || 0) > 0 || r.rate_6mo || r.rate_12mo;
+    return (
+      <div key={r.id || `_n${idx}_${kind}`} style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center", borderLeft: priced ? `2px solid ${Z.su}` : (r.zone_id ? `2px solid ${Z.wa}` : "2px solid transparent") }}>
+        <Inp value={r.name || ""} onChange={e => updateRow(draft.indexOf(r), { name: e.target.value })} />
+        <div style={{ fontSize: 11, color: houseAds > 0 ? Z.wa : Z.td, fontFamily: COND, textAlign: "center" }}>
+          {r.zone_id ? `${houseAds} placed` : "—"}
+        </div>
+        <Sel value={r.product_type || "web_ad"} onChange={e => updateRow(draft.indexOf(r), { product_type: e.target.value })} options={[
+          { value: "web_ad", label: "Web Ad" },
+          { value: "newsletter_sponsor", label: "Newsletter Sponsor" },
+          { value: "eblast", label: "E-Blast" },
+          { value: "social_sponsor", label: "Social Sponsor" },
+          { value: "programmatic", label: "Programmatic" },
+        ]} disabled={!!r.zone_id} />
+        <Inp type="number" value={r.rate_monthly ?? 0} onChange={e => updateRow(draft.indexOf(r), { rate_monthly: e.target.value })} />
+        <Inp type="number" value={r.rate_6mo ?? ""} onChange={e => updateRow(draft.indexOf(r), { rate_6mo: e.target.value })} />
+        <Inp type="number" value={r.rate_12mo ?? ""} onChange={e => updateRow(draft.indexOf(r), { rate_12mo: e.target.value })} />
+        <Inp type="number" value={r.sort_order ?? 0} onChange={e => updateRow(draft.indexOf(r), { sort_order: e.target.value })} />
+        <Btn sm v="secondary" onClick={() => sendToProposal(r)} disabled={!r.id || !priced} title={!r.id ? "Save first" : !priced ? "Set a rate" : "Open in Sales / new proposal"}>
+          Send to Proposal
+        </Btn>
+        {!r.zone_id ? (
+          <button onClick={() => removeRow(draft.indexOf(r))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
+        ) : <div />}
       </div>
+    );
+  };
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>
+        Auto-built from this site's ad zones. Add pricing per zone, then Send to Proposal lands the product in a fresh Sales proposal.
+      </div>
+      <Btn sm onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Catalog"}</Btn>
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.5fr 24px", gap: 4, padding: "6px 8px", background: Z.sa, fontSize: 10, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
-      <div>Name</div><div>Type</div><div>Mo $</div><div>6mo $</div><div>12mo $</div><div>Slug</div><div>Sort</div><div></div>
+
+    {/* By Zone — one row per active ad_zone on this site */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
+        Web Ad Zones <span style={{ color: Z.tm, fontWeight: 600 }}>· {zones.length}</span>
+      </div>
+      {zones.length === 0
+        ? <div style={{ padding: 16, color: Z.tm, fontSize: FS.sm, fontFamily: COND, textAlign: "center", background: Z.sa, borderRadius: 4 }}>
+            No active ad zones on this site yet. Open the Site tab to add zones + house ads.
+          </div>
+        : <>
+          {headerCells}
+          {zoneRows.map((r, idx) => renderRow(r, idx, "zone"))}
+        </>}
     </div>
-    {draft.length === 0 && <div style={{ padding: 16, color: Z.tm, fontSize: FS.sm, fontFamily: COND, textAlign: "center" }}>No digital products. Add the first one above.</div>}
-    {draft.map((r, idx) => <div key={r.id || `_n${idx}`} style={{ display: "grid", gridTemplateColumns: "1.6fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.5fr 24px", gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center" }}>
-      <Inp value={r.name || ""} onChange={e => updateRow(idx, { name: e.target.value })} />
-      <Sel value={r.product_type || "web_ad"} onChange={e => updateRow(idx, { product_type: e.target.value })} options={[
-        { value: "web_ad", label: "Web Ad" },
-        { value: "newsletter_sponsor", label: "Newsletter Sponsor" },
-        { value: "eblast", label: "E-Blast" },
-        { value: "social_sponsor", label: "Social Sponsor" },
-        { value: "programmatic", label: "Programmatic" },
-      ]} />
-      <Inp type="number" value={r.rate_monthly ?? 0} onChange={e => updateRow(idx, { rate_monthly: e.target.value })} />
-      <Inp type="number" value={r.rate_6mo ?? ""} onChange={e => updateRow(idx, { rate_6mo: e.target.value })} />
-      <Inp type="number" value={r.rate_12mo ?? ""} onChange={e => updateRow(idx, { rate_12mo: e.target.value })} />
-      <Inp value={r.slug || ""} onChange={e => updateRow(idx, { slug: e.target.value })} placeholder={slugify(r.name)} />
-      <Inp type="number" value={r.sort_order ?? 0} onChange={e => updateRow(idx, { sort_order: e.target.value })} />
-      <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
-    </div>)}
+
+    {/* Other digital products — eBlast, newsletter sponsor, social, etc. */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
+          Other Digital Products <span style={{ color: Z.tm, fontWeight: 600 }}>· {otherRows.length}</span>
+        </div>
+        <Btn sm v="secondary" onClick={addOtherRow}><Ic.plus size={11} /> Add Product</Btn>
+      </div>
+      {otherRows.length === 0 && <div style={{ padding: 12, color: Z.tm, fontSize: FS.sm, fontFamily: COND, textAlign: "center" }}>No off-zone products yet (eBlast, newsletter sponsor, social, etc.)</div>}
+      {otherRows.length > 0 && headerCells}
+      {otherRows.map((r, idx) => renderRow(r, idx, "other"))}
+    </div>
   </div>;
 }
 
-export default function MySites({ pubs, setPubs, isActive, sales, clients, digitalAdProducts, loadDigitalAdProducts }) {
+export default function MySites({ pubs, setPubs, isActive, sales, clients, digitalAdProducts, loadDigitalAdProducts, onNavigate }) {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -1301,7 +1412,7 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       )}
 
       {selectedId !== "__mydash" && tab === "Digital Catalog" && (
-        <DigitalCatalogTab site={site} pubs={pubs} digitalAdProducts={digitalAdProducts || []} loadDigitalAdProducts={loadDigitalAdProducts} />
+        <DigitalCatalogTab site={site} pubs={pubs} digitalAdProducts={digitalAdProducts || []} loadDigitalAdProducts={loadDigitalAdProducts} onNavigate={onNavigate} />
       )}
     </div>
   );

@@ -606,7 +606,7 @@ export default function App() {
         {show("messaging") && <div style={vis("messaging")}><Messaging isActive={pg === "messaging"} team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail isActive={pg === "mail"} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage isActive={pg === "newsletters"} pubs={pubs} currentUser={currentUser} /></div>}
-        {show("sitesettings") && <div style={vis("sitesettings")}><MySites isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} sales={jSales} clients={jClients} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></div>}
+        {show("sitesettings") && <div style={vis("sitesettings")}><MySites isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} sales={jSales} clients={jClients} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} onNavigate={handleNav} /></div>}
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage isActive={pg === "integrations"} pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport isActive={pg === "dataimport"} onClose={() => handleNav("integrations")} /></div>}
