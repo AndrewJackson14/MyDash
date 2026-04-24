@@ -6,6 +6,50 @@ import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 const DataContext = createContext(null);
 
+// Maps a raw stories DB row → the shape the UI consumes. Lives at
+// module scope so both the bulk loader and the realtime subscription
+// produce identical objects (otherwise an UPDATE patch would drop
+// fields the loader sets).
+function mapStoryRow(s) {
+  return {
+    id: s.id, title: s.title, author: s.author, status: s.status,
+    publication: s.publication_id,
+    publication_id: s.publication_id,
+    assignedTo: s.assigned_to || '',
+    authorId: s.author_id || null,
+    editorId: s.editor_id || null,
+    assignedBy: s.assigned_by || null,
+    editedBy: s.edited_by || null,
+    dueDate: s.due_date,
+    images: s.images, wordCount: s.word_count, word_count: s.word_count,
+    category: s.category,
+    page: s.page, page_number: s.page,
+    priority: s.priority, word_limit: s.word_limit,
+    has_images: s.has_images === true,
+    jump_to_page: s.jump_to_page ?? null,
+    jump_from_page: s.jump_from_page ?? null,
+    issueId: s.issue_id || '',
+    issue_id: s.issue_id || '',
+    print_issue_id: s.print_issue_id || '',
+    also_in_issue_ids: s.also_in_issue_ids || [],
+    alsoInIssueIds: s.also_in_issue_ids || [],
+    featured_image_url: s.featured_image_url || null,
+    featuredImageUrl: s.featured_image_url || null,
+    sent_to_web: s.sent_to_web === true,
+    sent_to_print: s.sent_to_print === true,
+    sentToWeb: s.sent_to_web === true,
+    sentToPrint: s.sent_to_print === true,
+    print_status: s.print_status,
+    web_status: s.web_status,
+    printPublishedAt: s.print_published_at || null,
+    publishedAt: s.published_at || null,
+    firstPublishedAt: s.first_published_at || null,
+    correctedAfterPublish: s.corrected_after_publish === true,
+    lastCorrectionAt: s.last_correction_at || null,
+    createdAt: s.created_at, updatedAt: s.updated_at,
+  };
+}
+
 // ============================================================
 // DataProvider: Single source of truth for all app data
 // Online → reads from Supabase, writes sync to DB
@@ -493,53 +537,31 @@ export function DataProvider({ children, localData }) {
       if (data.length < pageSize) break;
       storyCursor = data[data.length - 1].id;
     }
-    if (allStories.length > 0) setStories(allStories.map(s => ({
-      id: s.id, title: s.title, author: s.author, status: s.status,
-      publication: s.publication_id,
-      assignedTo: s.assigned_to || '',
-      authorId: s.author_id || null,
-      editorId: s.editor_id || null,
-      assignedBy: s.assigned_by || null,
-      editedBy: s.edited_by || null,
-      dueDate: s.due_date,
-      images: s.images, wordCount: s.word_count, category: s.category,
-      // Issue Planner columns — selected above but were missing from the mapper,
-      // so values typed into the planner persisted in the DB but vanished on
-      // reload because the in-memory `stories` array had no `page` / `priority`
-      // / `word_limit` field for the dropdowns to read back.
-      page: s.page,
-      page_number: s.page,
-      priority: s.priority,
-      word_limit: s.word_limit,
-      // Editorial → Production workflow signals (migration 100):
-      // has_images is a manual publisher flag; jump_to/jump_from_page
-      // drive the Issue Planning jump-line rendering.
-      has_images: s.has_images === true,
-      jump_to_page: s.jump_to_page ?? null,
-      jump_from_page: s.jump_from_page ?? null,
-      issueId: s.issue_id || '',
-      issue_id: s.issue_id || '',
-      print_issue_id: s.print_issue_id || '',
-      also_in_issue_ids: s.also_in_issue_ids || [],
-      alsoInIssueIds: s.also_in_issue_ids || [],
-      // Featured-image presence drives the Issue Planner's IMG column
-      // marker. Was missing from the mapper, so the * never appeared.
-      featured_image_url: s.featured_image_url || null,
-      featuredImageUrl: s.featured_image_url || null,
-      // Destination flags — single source of truth for "is this live"
-      sent_to_web: s.sent_to_web === true,
-      sent_to_print: s.sent_to_print === true,
-      sentToWeb: s.sent_to_web === true,
-      sentToPrint: s.sent_to_print === true,
-      printPublishedAt: s.print_published_at || null,
-      publishedAt: s.published_at || null,
-      firstPublishedAt: s.first_published_at || null,
-      // Correction-after-publish alert
-      correctedAfterPublish: s.corrected_after_publish === true,
-      lastCorrectionAt: s.last_correction_at || null,
-      createdAt: s.created_at, updatedAt: s.updated_at,
-    })));
+    if (allStories.length > 0) setStories(allStories.map(mapStoryRow));
     setStoriesLoaded(true);
+  }, [storiesLoaded]);
+
+  // Realtime: keep the in-memory stories list in sync so an editor's
+  // page/jump/has_images/priority/status edit propagates to every
+  // surface (Issue Planning table, Page Map, Flatplan) live, without
+  // a refresh. Mounts once after the initial load.
+  useEffect(() => {
+    if (!storiesLoaded) return;
+    const ch = supabase.channel("stories-live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "stories" }, (payload) => {
+        const row = mapStoryRow(payload.new);
+        setStories(prev => prev.some(s => s.id === row.id) ? prev : [...prev, row]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "stories" }, (payload) => {
+        const row = mapStoryRow(payload.new);
+        setStories(prev => prev.map(s => s.id === row.id ? { ...s, ...row } : s));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "stories" }, (payload) => {
+        const id = payload.old?.id;
+        if (id) setStories(prev => prev.filter(s => s.id !== id));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [storiesLoaded]);
 
   // Billing module (invoices, payments)
