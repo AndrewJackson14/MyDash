@@ -10,6 +10,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 const StoryEditor = lazy(() => import("./StoryEditor"));
 const EditionManager = lazy(() => import("../pages/EditionManager"));
 const Flatplan = lazy(() => import("../pages/Flatplan"));
+import EntityThread from "./EntityThread";
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: 13 }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -1020,6 +1021,19 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
                   </div>
                 </div>
+                {/* Issue-level discussion thread (Phase 2 of editorial→production
+                    spec). One thread per issue, shared across surfaces — same
+                    underlying message_threads row as the Messages page Issue
+                    tab. Collapsed by default; opens inline. */}
+                <EntityThread
+                  refType="issue"
+                  refId={selIssue}
+                  title={`Issue: ${issues.find(i => i.id === selIssue)?.label || "Untitled"}`}
+                  team={team}
+                  currentUser={currentUser}
+                  label="Issue discussion"
+                  height={300}
+                />
                 {/* Print status pipeline */}
                 <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
                   {PRINT_STAGES.slice(1).map(stage => {
