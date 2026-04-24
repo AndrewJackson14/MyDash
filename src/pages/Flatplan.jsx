@@ -47,7 +47,7 @@ function buildPageGrid(items, pub) {
   return placements;
 }
 
-const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick }) => {
+const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick, layoutImageUrl, onOpenLayoutModal }) => {
   const pH = pageW * (pub.height / pub.width);
   const placements = buildPageGrid(adsOnPage, pub);
   const fs = Math.max(8, pageW * 0.07);
@@ -56,8 +56,22 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
   placements.forEach(p => { for (let r = 0; r < p.spanRows; r++) for (let c = 0; c < p.spanCols; c++) { if (occupied[p.gridRow + r]?.[p.gridCol + c] !== undefined) occupied[p.gridRow + r][p.gridCol + c] = true; } });
 
   return <div onClick={onClick} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (dragId) onDrop(dragId, pageNum); }} style={{ position: "relative", width: pageW, height: pH, background: Z.bg, border: "none", outline: sectionSelected ? `2px solid ${Z.wa}` : "none", background: isSelected ? Z.ac + "12" : Z.bg, borderRadius: R, overflow: "hidden", flexShrink: 0, cursor: "pointer" }}>
-    {/* Page number watermark */}
+    {/* Layout image (publisher-uploaded reference) — sits behind ads at
+        opacity 0.75 so the production team sees the intended layout
+        without it competing with placed ad rectangles. */}
+    {layoutImageUrl && <img src={layoutImageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.75, zIndex: 0, pointerEvents: "none" }} />}
+    {/* Page number watermark — drops behind layout image when present. */}
     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 0, pointerEvents: "none" }}><span style={{ fontSize: Math.max(18, pageW * 0.18), fontWeight: FW.black, color: "rgba(138,149,168,0.08)" }}>{pageNum}</span></div>
+    {/* Layout-upload affordance — small icon top-right opens the modal.
+        Stops propagation so it doesn't trigger the page's own onClick
+        (selection / section / shared toggle). */}
+    {pageW > 70 && onOpenLayoutModal && (
+      <button
+        onClick={e => { e.stopPropagation(); onOpenLayoutModal(pageNum); }}
+        title={layoutImageUrl ? "Replace layout image" : "Upload layout image"}
+        style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 3, border: "none", cursor: "pointer", background: layoutImageUrl ? "rgba(34,197,94,0.85)" : "rgba(0,0,0,0.45)", color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+      >{layoutImageUrl ? "✓" : "+"}</button>
+    )}
     {/* Empty grid cells — always show light grid lines */}
     {Array.from({ length: GRID_ROWS }).map((_, r) => Array.from({ length: GRID_COLS }).map((_, c) => {
       if (occupied[r][c]) return null;
@@ -109,6 +123,122 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       </div>;
     })}
   </div>;
+};
+
+// ─── PageLayoutModal ──────────────────────────────────────────────
+// Replace-on-upload reference layout per (issue, page). Posts to the
+// flatplan-layout-upload edge function which writes to BunnyCDN +
+// upserts the flatplan_page_layouts row. Client downscales images to
+// ~1200px wide before posting (saves CDN egress; layout previews are
+// rendered tiny on the flatplan anyway).
+const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace, onLocalRemove }) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
+  const [removing, setRemoving] = useState(false);
+  const fileRef = useRef(null);
+
+  const downscale = async (file) => {
+    if (!file.type?.startsWith("image/")) return { blob: file, w: null, h: null };
+    try {
+      const bm = await createImageBitmap(file);
+      const long = Math.max(bm.width, bm.height);
+      if (long <= 1200) return { blob: file, w: bm.width, h: bm.height };
+      const scale = 1200 / long;
+      const w = Math.round(bm.width * scale);
+      const h = Math.round(bm.height * scale);
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(bm, 0, 0, w, h);
+      const blob = await new Promise(res => cv.toBlob(res, "image/jpeg", 0.86));
+      return { blob: blob || file, w, h };
+    } catch { return { blob: file, w: null, h: null }; }
+  };
+
+  const upload = async (file) => {
+    if (!file || !issueId || !pageNumber) return;
+    setError(null); setUploading(true);
+    try {
+      const { blob, w, h } = await downscale(file);
+      const fd = new FormData();
+      fd.append("issue_id", issueId);
+      fd.append("page_number", String(pageNumber));
+      const named = blob instanceof File ? blob : new File([blob], file.name || `page-${pageNumber}.jpg`, { type: blob.type || file.type });
+      fd.append("file", named, named.name);
+      if (w) fd.append("width", String(w));
+      if (h) fd.append("height", String(h));
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      const apiKey = supabase.supabaseKey || "";
+      const url = `${supabase.supabaseUrl}/functions/v1/flatplan-layout-upload`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(apiKey ? { apikey: apiKey } : {}),
+        },
+        body: fd,
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+      onLocalReplace?.({
+        page_number: pageNumber,
+        cdn_url: out.cdn_url,
+        bunny_path: out.bunny_path,
+      });
+      onClose?.();
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!layout?.id) return;
+    setRemoving(true);
+    const { error: e } = await supabase.from("flatplan_page_layouts").delete().eq("id", layout.id);
+    setRemoving(false);
+    if (e) { setError(e.message); return; }
+    onLocalRemove?.(pageNumber);
+    onClose?.();
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`Page ${pageNumber} — Layout reference`} width={520}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {layout?.cdn_url ? (
+          <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, overflow: "hidden", padding: 8 }}>
+            <img src={layout.cdn_url} alt={`Page ${pageNumber} layout`} style={{ display: "block", width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 3 }} />
+            <div style={{ fontSize: 10, color: Z.td, marginTop: 6, fontFamily: COND }}>Uploaded {layout.uploaded_at ? new Date(layout.uploaded_at).toLocaleString() : ""}</div>
+          </div>
+        ) : (
+          <div style={{ padding: 28, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, border: `1px dashed ${Z.bd}`, borderRadius: Ri }}>
+            No layout uploaded yet.
+          </div>
+        )}
+
+        {error && <div style={{ fontSize: 12, color: Z.da, padding: "6px 10px", background: "rgba(232,72,85,0.1)", borderRadius: Ri }}>{error}</div>}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf,.jpg,.jpeg,.png,.webp,.pdf"
+          onChange={e => upload(e.target.files?.[0])}
+          style={{ display: "none" }}
+        />
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          {layout?.id && <Btn v="danger" onClick={remove} disabled={removing || uploading}>{removing ? "Removing…" : "Remove"}</Btn>}
+          <Btn v="cancel" onClick={onClose} disabled={uploading}>Close</Btn>
+          <Btn onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : layout?.cdn_url ? "Replace image" : "Upload image"}</Btn>
+        </div>
+
+        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>
+          Replace-on-upload — there's no version history. Accepted: JPG, PNG, WebP, PDF.
+        </div>
+      </div>
+    </Modal>
+  );
 };
 
 const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, clients, contracts, stories, globalPageStories, setGlobalPageStories, lastIssue, lastPub, onSelectionChange, jurisdiction, currentUser, isActive, onNavigate }) => {
@@ -298,6 +428,10 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const [phLabels, setPhLabels] = useState({});
   const [sections, setSections] = useState({});
   const [initialized, setInitialized] = useState(false);
+  // Phase 4 — flatplan_page_layouts loaded for the selected issue +
+  // realtime so parallel uploads/replacements show up everywhere.
+  const [layouts, setLayouts] = useState({}); // pageNum (number) → row
+  const [layoutModalPage, setLayoutModalPage] = useState(null);
 
   // Don't auto-select — let user choose publication first
   // Only restore previous selection if returning to the page
@@ -309,6 +443,33 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     }
     setInitialized(true);
   }, [issues, pubs, lastPub, lastIssue, initialized]);
+
+  // Load + subscribe to layouts for the active issue.
+  useEffect(() => {
+    if (!selIssue) { setLayouts({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("flatplan_page_layouts")
+        .select("id, page_number, cdn_url, bunny_path, uploaded_at, uploaded_by")
+        .eq("issue_id", selIssue);
+      if (cancelled) return;
+      const map = {};
+      (data || []).forEach(r => { map[r.page_number] = r; });
+      setLayouts(map);
+    })();
+    const ch = supabase.channel(`layouts-${selIssue}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flatplan_page_layouts", filter: `issue_id=eq.${selIssue}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const pn = payload.old?.page_number;
+            if (pn != null) setLayouts(prev => { const n = { ...prev }; delete n[pn]; return n; });
+          } else {
+            const r = payload.new;
+            if (r?.page_number != null) setLayouts(prev => ({ ...prev, [r.page_number]: r }));
+          }
+        }).subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [selIssue]);
 
   // Re-sync when the embedder pushes a new seed (e.g., user picks a
   // different issue in the Production page's Issue Planning tab while
@@ -710,7 +871,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           const pageAds = isLocked
             ? (sharedCtx.primarySalesOnShared || []).filter(s => s.page === n).map(s => ({ ...s, isPlaceholder: false, gridRow: s.pagePos?.row ?? null, gridCol: s.pagePos?.col ?? null }))
             : getPageItems(n);
-          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} onClick={() => {
+          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} layoutImageUrl={layouts[n]?.cdn_url || null} onOpenLayoutModal={(pg) => setLayoutModalPage(pg)} onClick={() => {
                     if (showSharedPicker && sharedCtx?.isPrimary) {
                       // Toggle this page in the issue's shared_pages array
                       const cur = issue.sharedPages || [];
@@ -775,6 +936,18 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         </div>
       </div>
     </Modal>
+
+    {/* Layout image upload modal — replace-on-upload, no version history. */}
+    {layoutModalPage != null && (
+      <PageLayoutModal
+        issueId={selIssue}
+        pageNumber={layoutModalPage}
+        layout={layouts[layoutModalPage]}
+        onClose={() => setLayoutModalPage(null)}
+        onLocalReplace={(row) => setLayouts(prev => ({ ...prev, [row.page_number]: row }))}
+        onLocalRemove={(pn) => setLayouts(prev => { const n = { ...prev }; delete n[pn]; return n; })}
+      />
+    )}
   </div>;
 };
 
