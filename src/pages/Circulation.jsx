@@ -91,7 +91,12 @@ const Circulation = (props) => {
       currentUser={props.currentUser}
     />}
 
-    {tab === "Route Instances" && <RouteInstances />}
+    {tab === "Route Instances" && <RouteInstances
+      pubs={props.pubs}
+      drivers={props.drivers}
+      driverRoutes={props.driverRoutes}
+      dropLocations={props.dropLocations}
+    />}
 
     {tab === "Drivers" && <Drivers
       drivers={props.drivers}
