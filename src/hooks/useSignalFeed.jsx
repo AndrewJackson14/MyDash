@@ -400,24 +400,20 @@ export function useSignalFeed({
   }, [_issues, today]);
 
   // ── Web traffic (24h rollup from page_views) ─────────────
+  // Server-side aggregation via get_traffic_24h_by_site RPC. Old client
+  // path counted page_views in JS and silently capped at 1000.
   const [webViews24h, setWebViews24h] = useState(null);
   const [webViewsPrev24h, setWebViewsPrev24h] = useState(null);
   const [topSiteName, setTopSiteName] = useState("");
   useEffect(() => {
     if (!isOnline()) return;
-    const now = new Date();
-    const h24ago = new Date(now - 24 * 3600000).toISOString();
-    const h48ago = new Date(now - 48 * 3600000).toISOString();
-    supabase.from("page_views").select("site_id", { count: "exact", head: false })
-      .gte("created_at", h24ago).limit(50000).then(({ data }) => {
-        if (!data) return;
-        const bysite = {}; data.forEach(r => { bysite[r.site_id] = (bysite[r.site_id] || 0) + 1; });
-        const top = Object.entries(bysite).sort((a, b) => b[1] - a[1])[0];
-        if (top) { setWebViews24h(top[1]); setTopSiteName(pn(top[0]) || top[0]); }
-        else setWebViews24h(0);
-      });
-    supabase.from("page_views").select("id", { count: "exact", head: true })
-      .gte("created_at", h48ago).lt("created_at", h24ago).then(({ count }) => setWebViewsPrev24h(count || 0));
+    supabase.rpc("get_traffic_24h_by_site").then(({ data }) => {
+      if (!data) return;
+      const top = (data.current || [])[0];
+      if (top) { setWebViews24h(top.count); setTopSiteName(pn(top.site_id) || top.site_id); }
+      else setWebViews24h(0);
+      setWebViewsPrev24h(data.previous_total || 0);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const webTrend = webViews24h !== null && webViewsPrev24h ? Math.round(((webViews24h - webViewsPrev24h) / Math.max(1, webViewsPrev24h)) * 100) : 0;

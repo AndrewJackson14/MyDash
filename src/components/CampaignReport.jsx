@@ -105,49 +105,14 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
         if (!report) { setError("Report not found or link revoked."); setLoading(false); return; }
         setData(report);
       } else {
-        // Internal: load the draft directly, then compute stats from email_sends.
-        const { data: draft, error: dErr } = await supabase
-          .from("newsletter_drafts").select("*, share_token, client_id")
-          .eq("id", draftId).single();
-        if (dErr || !draft) { setError("Draft not found."); setLoading(false); return; }
-
-        const { data: pub } = await supabase.from("publications").select("name").eq("id", draft.publication_id).single();
-        const { data: sends } = await supabase.from("email_sends")
-          .select("id, recipient_email, status, sent_at, first_opened_at, last_opened_at, open_count, first_clicked_at, click_count, bounce_type")
-          .eq("draft_id", draftId).order("sent_at", { ascending: false, nullsFirst: false });
-
-        const rows = sends || [];
-        setRecipientRows(rows);
-        const stats = {
-          total_sent:    rows.filter(r => ["sent","delivered","bounced","complained"].includes(r.status)).length,
-          delivered:     rows.filter(r => r.status === "delivered").length,
-          unique_opens:  rows.filter(r => r.first_opened_at).length,
-          total_opens:   rows.reduce((s, r) => s + (r.open_count || 0), 0),
-          unique_clicks: rows.filter(r => r.first_clicked_at).length,
-          total_clicks:  rows.reduce((s, r) => s + (r.click_count || 0), 0),
-          bounces:       rows.filter(r => r.status === "bounced").length,
-          complaints:    rows.filter(r => r.status === "complained").length,
-        };
-
-        // 48h engagement timeseries, client-side since we have the rows
-        const anchor = draft.sent_at
-          ? new Date(draft.sent_at).getTime()
-          : rows.reduce((min, r) => r.sent_at ? Math.min(min, new Date(r.sent_at).getTime()) : min, Infinity);
-        const timeseries = Array.from({ length: 48 }, (_, hour_offset) => {
-          const windowStart = anchor + hour_offset * 3600_000;
-          const windowEnd = windowStart + 3600_000;
-          return {
-            hour_offset,
-            opens:  rows.filter(r => r.first_opened_at  && new Date(r.first_opened_at).getTime()  >= windowStart && new Date(r.first_opened_at).getTime()  < windowEnd).length,
-            clicks: rows.filter(r => r.first_clicked_at && new Date(r.first_clicked_at).getTime() >= windowStart && new Date(r.first_clicked_at).getTime() < windowEnd).length,
-          };
-        });
-
-        setData({
-          draft: { ...draft, publication_name: pub?.name || draft.publication_id },
-          stats,
-          timeseries,
-        });
+        // Internal: server-side aggregation via get_campaign_stats RPC.
+        // Replaces the old "fetch all email_sends + count in JS" pattern
+        // that silently capped at 1000 rows on PostgREST.
+        const { data: report, error: rpcErr } = await supabase.rpc("get_campaign_stats", { p_draft_id: draftId, p_recipients_limit: 50 });
+        if (rpcErr) throw rpcErr;
+        if (!report) { setError("Draft not found."); setLoading(false); return; }
+        setRecipientRows(report.recipients || []);
+        setData({ draft: report.draft, stats: report.stats, timeseries: report.timeseries });
       }
     } catch (e) {
       setError(e.message || "Failed to load report");

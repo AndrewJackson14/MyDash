@@ -1023,58 +1023,31 @@ const WebAnalyticsTab = ({ pubs }) => {
 
   async function loadWebData() {
     setLoading(true);
-    const now = new Date();
     const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-    const since = new Date(now - days * 86400000).toISOString();
-
-    let q = supabase.from("page_views").select("path, session_id, referrer, screen_width, created_at").gte("created_at", since);
-    if (webPub !== "all") q = q.eq("site_id", webPub);
-    else {
-      const siteIds = (pubs || []).filter(p => p.hasWebsite).map(p => p.id);
-      if (siteIds.length) q = q.in("site_id", siteIds);
-    }
-    const { data: rows } = await q.order("created_at", { ascending: false }).limit(50000);
-    if (!rows) { setData(null); setLoading(false); return; }
-
-    // Total views
-    const totalViews = rows.length;
-
-    // Unique sessions
-    const sessions = new Set(rows.map(r => r.session_id).filter(Boolean));
-    const uniqueSessions = sessions.size;
-
-    // Views per day (for chart)
-    const dailyMap = {};
-    for (let i = 0; i < days; i++) {
-      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
-      dailyMap[d] = 0;
-    }
-    rows.forEach(r => { const d = r.created_at?.slice(0, 10); if (d && dailyMap[d] !== undefined) dailyMap[d]++; });
-    const dailyData = Object.entries(dailyMap).sort().map(([date, count]) => ({ date, count }));
-
-    // Top pages
-    const pageCounts = {};
-    rows.forEach(r => { pageCounts[r.path] = (pageCounts[r.path] || 0) + 1; });
-    const topPages = Object.entries(pageCounts).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([path, count]) => ({ path, count }));
-
-    // Top referrers (exclude empty and self)
-    const refCounts = {};
-    rows.forEach(r => {
-      if (!r.referrer) return;
-      try { const h = new URL(r.referrer).hostname; if (h) refCounts[h] = (refCounts[h] || 0) + 1; } catch (e) { console.warn('[Analytics] malformed referrer URL skipped', r.referrer); }
+    const siteIds = webPub !== "all"
+      ? [webPub]
+      : (pubs || []).filter(p => p.hasWebsite).map(p => p.id);
+    // Server-side aggregation via get_site_analytics RPC. Avoids the
+    // 1000-row PostgREST cap that silently truncated the old client-side
+    // count over page_views.
+    const { data: r, error } = await supabase.rpc("get_site_analytics", {
+      p_site_ids: siteIds.length ? siteIds : null,
+      p_days: days,
+      p_top_pages_limit: 15,
+      p_top_refs_limit: 10,
+      p_include_previous: false,
     });
-    const topReferrers = Object.entries(refCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([host, count]) => ({ host, count }));
-
-    // Device breakdown
-    let mobile = 0, tablet = 0, desktop = 0;
-    rows.forEach(r => {
-      const w = r.screen_width || 0;
-      if (w < 768) mobile++;
-      else if (w < 1024) tablet++;
-      else desktop++;
+    if (error || !r) { setData(null); setLoading(false); return; }
+    setData({
+      totalViews: r.views,
+      uniqueSessions: r.sessions,
+      dailyData: r.daily,
+      topPages: r.top_pages,
+      topReferrers: r.top_referrers,
+      mobile: r.device.mobile,
+      tablet: r.device.tablet,
+      desktop: r.device.desktop,
     });
-
-    setData({ totalViews, uniqueSessions, dailyData, topPages, topReferrers, mobile, tablet, desktop });
     setLoading(false);
   }
 

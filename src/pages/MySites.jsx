@@ -163,60 +163,34 @@ const SiteAnalytics = ({ siteId }) => {
 
   async function loadStats() {
     try {
-    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-    const since = new Date(Date.now() - days * 86400000).toISOString();
-    const prevSince = new Date(Date.now() - days * 2 * 86400000).toISOString();
-    const prevUntil = since;
+      const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+      // Server-side aggregation via get_site_analytics RPC. Returns one
+      // JSON blob with totals + previous-period totals + daily timeseries
+      // + top 5 pages + top 5 referrers + device split. Replaces the old
+      // pull-50k-rows-and-count-in-JS pattern that silently capped at 1k.
+      const { data: r, error } = await supabase.rpc("get_site_analytics", {
+        p_site_ids: [siteId], p_days: days,
+        p_top_pages_limit: 5, p_top_refs_limit: 5,
+        p_include_previous: true,
+      });
+      if (error || !r || !r.views) { setStats(null); return; }
 
-    const results = await Promise.all([
-      supabase.from("page_views").select("path, session_id, referrer, screen_width, created_at").eq("site_id", siteId).gte("created_at", since).order("created_at", { ascending: false }).limit(50000),
-      supabase.from("page_views").select("session_id, created_at").eq("site_id", siteId).gte("created_at", prevSince).lt("created_at", prevUntil).limit(50000),
-    ]);
+      const total = r.device.mobile + r.device.tablet + r.device.desktop || 1;
+      const pctChange = (cur, prev) => prev > 0 ? Math.round((cur - prev) / prev * 100) : cur > 0 ? 100 : 0;
 
-    const rows = results[0]?.data || [];
-    const prevRows = results[1]?.data || [];
-
-    if (!rows.length) { setStats(null); return; }
-
-    const views = rows.length;
-    const sessions = new Set(rows.map(r => r.session_id).filter(Boolean)).size;
-    const prevViews = prevRows?.length || 0;
-    const prevSessions = new Set(prevRows.map(r => r.session_id).filter(Boolean)).size;
-
-    // Daily chart
-    const now = new Date();
-    const dailyMap = {};
-    for (let i = 0; i < days; i++) {
-      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
-      dailyMap[d] = 0;
-    }
-    rows.forEach(r => { const d = r.created_at?.slice(0, 10); if (d && dailyMap[d] !== undefined) dailyMap[d]++; });
-    const daily = Object.entries(dailyMap).sort().map(([date, count]) => ({ date, count }));
-
-    // Top 5 pages
-    const pc = {};
-    rows.forEach(r => { pc[r.path] = (pc[r.path] || 0) + 1; });
-    const topPages = Object.entries(pc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([path, count]) => ({ path, count }));
-
-    // Top 5 referrers
-    const rc = {};
-    rows.forEach(r => { if (!r.referrer) return; try { const h = new URL(r.referrer).hostname; if (h) rc[h] = (rc[h] || 0) + 1; } catch {} });
-    const topRefs = Object.entries(rc).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([host, count]) => ({ host, count }));
-
-    // Device
-    let mobile = 0, desktop = 0;
-    rows.forEach(r => { if ((r.screen_width || 0) < 768) mobile++; else desktop++; });
-
-    const pctChange = (cur, prev) => prev > 0 ? Math.round((cur - prev) / prev * 100) : cur > 0 ? 100 : 0;
-
-    setStats({
-      views, sessions, prevViews, prevSessions,
-      viewsChange: pctChange(views, prevViews),
-      sessionsChange: pctChange(sessions, prevSessions),
-      daily, topPages, topRefs,
-      mobilePercent: Math.round(mobile / (rows.length || 1) * 100),
-      desktopPercent: Math.round(desktop / (rows.length || 1) * 100),
-    });
+      setStats({
+        views: r.views,
+        sessions: r.sessions,
+        prevViews: r.prev_views,
+        prevSessions: r.prev_sessions,
+        viewsChange: pctChange(r.views, r.prev_views),
+        sessionsChange: pctChange(r.sessions, r.prev_sessions),
+        daily: r.daily,
+        topPages: r.top_pages,
+        topRefs: r.top_referrers.map(x => ({ host: x.host, count: x.count })),
+        mobilePercent: Math.round(r.device.mobile / total * 100),
+        desktopPercent: Math.round((r.device.desktop + r.device.tablet) / total * 100),
+      });
     } catch (e) { console.error("Analytics load error:", e); setStats(null); }
   }
 
