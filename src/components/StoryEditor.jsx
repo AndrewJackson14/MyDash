@@ -715,7 +715,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                 <Ic.chat size={13} />
                 <span>Discussion</span>
                 {discussionCount > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: Z.tm }}>\u00b7 {discussionCount}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: Z.tm }}>{"\u00b7"} {discussionCount}</span>
                 )}
                 <span style={{ fontSize: 10, color: Z.tm, marginLeft: 2 }}>{discussionOpen ? "\u25be" : "\u25bf"}</span>
               </button>
