@@ -87,6 +87,8 @@ const Circulation = (props) => {
       setDriverRoutes={props.setDriverRoutes}
       routeStops={props.routeStops}
       setRouteStops={props.setRouteStops}
+      team={props.team}
+      currentUser={props.currentUser}
     />}
 
     {tab === "Route Instances" && <RouteInstances />}
