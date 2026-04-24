@@ -750,6 +750,9 @@ const DashboardV2 = (props) => {
       color={heatColor(departmentPressure[drilledDept]?.heat || 0)}
       focusItems={focusItems.filter(f => f.dept === drilledDept)}
       deadlineAlerts={deadlineAlerts.filter(d => (d.type === "ed" ? "editorial" : "production") === drilledDept)}
+      adProjectAlerts={drilledDept === "production" ? (feed.adProjectAlerts || []) : []}
+      pubs={_pubs}
+      clients={_clients}
       team={team}
       onOpenMember={(m) => { setDrilledDept(null); setOpenMember(m); }}
       onClose={() => setDrilledDept(null)}
@@ -1203,7 +1206,7 @@ const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
   </div>
 );
 
-const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
+const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, adProjectAlerts = [], pubs = [], clients = [], team, onOpenMember, onClose, onNavigate, setIssueDetailId }) => {
   if (!pressure || !meta) return null;
   const Icon = meta.icon;
 
@@ -1344,6 +1347,32 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Team</div>
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
           {allMembers.map(m => <DrillMember key={m.id} member={m} onOpen={onOpenMember} />)}
+        </div>
+      </div>}
+
+      {/* Ad Project Alerts — surfaces overdue + past-press ad projects
+          in the Production drill-in (Hayley Apr 24 decision: drill-in
+          only, not a tile header badge). Tiles navigate deep into
+          AdProjects by id. */}
+      {dept === "production" && adProjectAlerts.length > 0 && <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 12 }}>Ad project alerts</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          {adProjectAlerts.map(a => {
+            const clientName = clients.find(c => c.id === a.client_id)?.name || "Ad Project";
+            const pubName = pubs.find(p => p.id === a.publication_id)?.name || "";
+            const title = a.ad_size ? `${clientName} · ${a.ad_size}` : clientName;
+            const metaLine = [pubName, a.issueLabel].filter(Boolean).join(" · ");
+            return <DrillCard
+              key={a.id}
+              accent={a.color || Z.da}
+              icon={Ic.flat || Ic.clock}
+              kind={a.flag}
+              title={title}
+              meta={metaLine}
+              metaColor={a.color || Z.da}
+              onClick={() => { onClose(); onNavigate?.(`/adprojects?adId=${a.id}`); }}
+            />;
+          })}
         </div>
       </div>}
 
