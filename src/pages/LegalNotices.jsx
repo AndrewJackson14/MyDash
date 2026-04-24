@@ -11,6 +11,12 @@ import { uploadMedia } from "../lib/media";
 import { supabase } from "../lib/supabase";
 import AssetPanel from "../components/AssetPanel";
 import EntityThread from "../components/EntityThread";
+import { lazy, Suspense } from "react";
+// Affidavit workspace + delivery panel — lazy-loaded so the module's
+// initial bundle stays light. They drag in html2canvas/pdf-lib only
+// when the user actually opens an affidavit.
+const AffidavitWorkspace = lazy(() => import("../components/legal/AffidavitWorkspace"));
+const DeliveryPanel = lazy(() => import("../components/legal/DeliveryPanel"));
 
 // ─── Constants ──────────────────────────────────────────────
 // Publications that qualify as "newspaper of general circulation"
@@ -200,14 +206,30 @@ const NOTICE_TYPES = [
   { value: "government", label: "Government Notice" },
   { value: "other", label: "Other" },
 ];
-const NOTICE_STATUSES = ["received", "proofing", "approved", "placed", "published", "billed"];
-const STATUS_LABELS = { received: "Received", proofing: "Proofing", approved: "Approved", placed: "Placed", published: "Published", billed: "Billed" };
+// Pipeline now ends at "delivered" — the affidavit is sent and the
+// intake invoice carries a delivery note. Legacy "billed" stays in
+// the enum for old rows but is no longer offered as a forward step.
+const NOTICE_STATUSES = [
+  "received", "proofing", "approved", "placed", "published",
+  "affidavit_draft", "affidavit_ready", "delivered",
+];
+const STATUS_LABELS = {
+  received: "Received", proofing: "Proofing", approved: "Approved",
+  placed: "Placed", published: "Published",
+  affidavit_draft: "Draft Affidavit",
+  affidavit_ready: "Ready to Send",
+  delivered: "Delivered",
+  billed: "Billed",     // legacy; rendered if a row is still on this status
+};
 const STATUS_COLORS = {
   received: { bg: Z.sa, text: Z.tm },
   proofing: { bg: Z.sa, text: Z.tx },
   approved: { bg: Z.sa, text: Z.tx },
   placed: { bg: Z.sa, text: Z.tx },
   published: { bg: Z.sa, text: Z.tx },
+  affidavit_draft: { bg: Z.sa, text: Z.wa },
+  affidavit_ready: { bg: Z.sa, text: Z.ac },
+  delivered: { bg: Z.su + "20", text: Z.su },
   billed: { bg: Z.sa, text: Z.td },
 };
 
@@ -260,6 +282,51 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   const [editId, setEditId] = useState(null);
   // Pending scan attachment(s) to be uploaded & tagged once the notice is saved
   const [pendingScans, setPendingScans] = useState([]);
+  // Affidavit workflow surfaces — IDs only, full notice + publication
+  // resolved by lookup. Workspace is a full-page takeover; Delivery
+  // panel is a modal that floats over the list.
+  const [affidavitNoticeId, setAffidavitNoticeId] = useState(null);
+  const [deliveryNoticeId, setDeliveryNoticeId] = useState(null);
+  // Editions cache for the workspace's Page Source pane. Loaded on
+  // demand when the workspace opens — only need this publication's
+  // recent editions, not the global catalog.
+  const [editionsCache, setEditionsCache] = useState([]);
+  useEffect(() => {
+    if (!affidavitNoticeId) return;
+    const notice = (legalNotices || []).find(n => n.id === affidavitNoticeId);
+    if (!notice?.publicationId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("editions")
+        .select("id, publication_id, slug, page_count, page_images_base_url, page_image_format, publish_date")
+        .eq("publication_id", notice.publicationId)
+        .order("publish_date", { ascending: false })
+        .limit(60);
+      if (!cancelled) setEditionsCache(data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [affidavitNoticeId, legalNotices]);
+
+  // Action handler: routes a row to the right next surface based on
+  // its current status. Used by the row-level affidavit button + the
+  // queue.
+  const openNextAffidavitAction = (notice) => {
+    const status = notice.status || notice.affidavitStatus || "";
+    if (status === "delivered") {
+      // View-only — open PDF.
+      if (notice.affidavit_pdf_url || notice.affidavitPdfUrl) {
+        window.open(notice.affidavit_pdf_url || notice.affidavitPdfUrl, "_blank");
+      }
+      return;
+    }
+    if (status === "affidavit_ready") {
+      setDeliveryNoticeId(notice.id);
+      return;
+    }
+    // published / affidavit_draft → open the workspace.
+    setAffidavitNoticeId(notice.id);
+  };
 
   // Listing excludes FBNs — they're created + managed from ClientProfile.
   const all = (legalNotices || []).filter(n => (n.kind || "legal_notice") !== "fbn");
@@ -370,29 +437,18 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
     const total = calcTotal({ ...form, runDates });
     const nowIso = new Date().toISOString();
 
-    // Allocate per-pub-per-year notice numbers for the primary pub +
-    // any siblings that auto-run together. Only do this on create.
+    // Allocate one notice number from the shared sequence (per migration
+    // 106b). PRP+ATN share 'prp_atn' → "CM <N>"; TMT is 'malibu' → "MALIBU
+    // <N>". Sibling-pub allocation is skipped now that PRP+ATN are one
+    // sequence — the single CM number IS the shared identifier.
     let noticeNumber = form.noticeNumber || null;
     let siblingNumbers = {};
     if (!editId) {
       const year = new Date().getFullYear();
-      const yy = String(year).slice(-2);
-      const primaryCode = LEGAL_PUB_CODES[form.publicationId];
       try {
-        const { data } = await supabase.rpc("next_legal_notice_number", { p_pub_id: form.publicationId, p_year: year });
-        if (data != null && primaryCode) noticeNumber = `${primaryCode}${yy}${String(data).padStart(3, "0")}`;
+        const { data } = await supabase.rpc("next_legal_notice_number_v2", { p_pub_id: form.publicationId, p_year: year });
+        if (data != null) noticeNumber = String(data);
       } catch (err) { console.error("notice_number allocation failed:", err); }
-      // Siblings get their own sequence allocation (PRP ↔ ATN always
-      // run together). Captured here so the appended body + invoice
-      // line can reference both.
-      for (const sibId of siblingsFor(form.publicationId)) {
-        const sibCode = LEGAL_PUB_CODES[sibId];
-        if (!sibCode) continue;
-        try {
-          const { data } = await supabase.rpc("next_legal_notice_number", { p_pub_id: sibId, p_year: year });
-          if (data != null) siblingNumbers[sibId] = `${sibCode}${yy}${String(data).padStart(3, "0")}`;
-        } catch (err) { console.error("sibling notice_number allocation failed:", err); }
-      }
     }
 
     // Append run-date lines + pub codes to the printed body. Pure-text
@@ -665,6 +721,34 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   }
 
   // ─── Main Render ────────────────────────────────────────
+  // Affidavit workspace is a full-page takeover — short-circuit the
+  // list render when one is open. Back button on the workspace just
+  // clears the ID so the list reappears.
+  if (affidavitNoticeId) {
+    const notice = (legalNotices || []).find(n => n.id === affidavitNoticeId);
+    const publication = notice ? (pubs || []).find(p => p.id === notice.publicationId) : null;
+    if (!notice) { setAffidavitNoticeId(null); return null; }
+    return (
+      <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: Z.tm }}>Loading workspace…</div>}>
+        <AffidavitWorkspace
+          notice={notice}
+          publication={publication}
+          currentUser={currentUser}
+          editions={editionsCache}
+          onClose={() => setAffidavitNoticeId(null)}
+          onStatusChange={(newStatus) => {
+            setLegalNotices(prev => prev.map(n => n.id === notice.id ? { ...n, status: newStatus } : n));
+            // Lock → ready: open delivery panel automatically per spec.
+            if (newStatus === "affidavit_ready") {
+              setAffidavitNoticeId(null);
+              setDeliveryNoticeId(notice.id);
+            }
+          }}
+        />
+      </Suspense>
+    );
+  }
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -732,6 +816,22 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
               <div style={{ textAlign: "right", minWidth: 100 }}>
                 <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.su }}>{fmtCurrency(n.totalAmount)}</div>
                 <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(n.createdAt?.slice(0, 10))}</div>
+                {/* Affidavit action — context-dependent label per spec
+                    §6.2. Suppressed before Published; switches to View
+                    once delivered. */}
+                {(["published", "affidavit_draft", "affidavit_ready", "delivered"]).includes(n.status) && (
+                  <Btn
+                    sm
+                    v={n.status === "delivered" ? "ghost" : (n.status === "affidavit_ready" ? "primary" : "secondary")}
+                    onClick={(e) => { e.stopPropagation(); openNextAffidavitAction(n); }}
+                    style={{ marginTop: 6, whiteSpace: "nowrap" }}
+                  >
+                    {n.status === "published" ? "Generate Affidavit"
+                      : n.status === "affidavit_draft" ? "Resume Affidavit"
+                      : n.status === "affidavit_ready" ? "Deliver"
+                      : "View Affidavit"}
+                  </Btn>
+                )}
               </div>
             </div>
             {/* Mini step bar */}
@@ -888,6 +988,31 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         </div>}
       </div>
     </Modal>
+
+    {/* Delivery Panel — opens after Lock Affidavit or via the row's
+        Deliver action on an affidavit_ready notice. */}
+    {deliveryNoticeId && (() => {
+      const n = (legalNotices || []).find(x => x.id === deliveryNoticeId);
+      if (!n) return null;
+      const publication = (pubs || []).find(p => p.id === n.publicationId) || null;
+      const client = (clients || []).find(c => c.id === n.clientId) || null;
+      return (
+        <Suspense fallback={null}>
+          <DeliveryPanel
+            open
+            onClose={() => setDeliveryNoticeId(null)}
+            notice={n}
+            publication={publication}
+            client={client}
+            currentUser={currentUser}
+            onDelivered={() => {
+              setLegalNotices(prev => prev.map(x => x.id === n.id ? { ...x, status: "delivered" } : x));
+              setDeliveryNoticeId(null);
+            }}
+          />
+        </Suspense>
+      );
+    })()}
   </div>;
 };
 
