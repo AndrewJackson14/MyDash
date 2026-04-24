@@ -748,7 +748,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     };
     const { data, error } = await supabase.from("stories").insert(row).select().single();
     setAddingInlineStory(false);
-    if (error) { console.error("Inline new story insert failed:", error); return; }
+    if (error) {
+      console.error("Inline new story insert failed:", error.message, "code=", error.code, "details=", error.details, "hint=", error.hint, "row=", row);
+      return;
+    }
     if (!data) return;
     const mapped = {
       id: data.id, title: "", status: "Draft", author: "",
