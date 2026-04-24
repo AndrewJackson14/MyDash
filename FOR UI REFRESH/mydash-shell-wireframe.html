@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MyDash — Global Shell Wireframe</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    /* Neutrals - white smoke → black */
+    --n-0: #ffffff;
+    --n-25: #fbfbfc;
+    --n-50: #f6f7f8;
+    --n-100: #eceef1;
+    --n-200: #dfe2e7;
+    --n-300: #c7ccd3;
+    --n-400: #9ca3af;
+    --n-500: #6b7280;
+    --n-600: #4b5563;
+    --n-700: #374151;
+    --n-800: #1f2937;
+    --n-900: #111418;
+    --n-950: #0a0c10;
+
+    /* Steel blue → Navy */
+    --b-50: #f0f4f9;
+    --b-100: #dbe4ef;
+    --b-200: #b8c9de;
+    --b-300: #8ea8c6;
+    --b-400: #6787ae;
+    --b-500: #486b95;   /* primary steel */
+    --b-600: #385879;
+    --b-700: #2c465e;
+    --b-800: #1f3448;
+    --b-900: #14243380;
+    --b-navy: #0f1d2c;
+
+    /* Signals */
+    --g-500: #2f9e6b;
+    --g-600: #248656;
+    --a-500: #d99a28;
+    --a-600: #b87f1a;
+    --r-500: #d64545;
+    --r-600: #b63232;
+
+    /* Radii */
+    --r-xs: 6px;
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 20px;
+
+    /* Motion */
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --dur-fast: 140ms;
+    --dur-med: 220ms;
+    --dur-slow: 320ms;
+  }
+
+  /* ---------- Light theme (default) ---------- */
+  :root {
+    --bg-canvas: var(--n-50);
+    --bg-chrome: var(--n-0);
+    --bg-hover: var(--n-100);
+    --bg-active: var(--b-50);
+    --fg-primary: var(--n-900);
+    --fg-secondary: var(--n-600);
+    --fg-muted: var(--n-500);
+    --fg-accent: var(--b-600);
+    --border-subtle: var(--n-200);
+    --border-strong: var(--n-300);
+
+    /* Glass (reserved for modals/overlays) */
+    --glass-bg: rgba(255, 255, 255, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-shadow: 0 20px 60px -20px rgba(15, 29, 44, 0.25),
+                    0 8px 24px -8px rgba(15, 29, 44, 0.12);
+  }
+
+  /* ---------- Dark theme ---------- */
+  html.dark {
+    --bg-canvas: var(--n-950);
+    --bg-chrome: #0f1317;
+    --bg-hover: #171c22;
+    --bg-active: #1a2533;
+    --fg-primary: #e8ebef;
+    --fg-secondary: #9aa3af;
+    --fg-muted: #6b7280;
+    --fg-accent: #7fa3c8;
+    --border-subtle: #1c2128;
+    --border-strong: #262d36;
+
+    --glass-bg: rgba(18, 22, 27, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    --glass-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6),
+                    0 8px 24px -8px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--bg-canvas);
+    color: var(--fg-primary);
+    letter-spacing: -0.01em;
+    transition: background-color var(--dur-med) var(--ease),
+                color var(--dur-med) var(--ease);
+  }
+
+  /* Display font for headings (SF Pro Display feel) */
+  .font-display {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+    letter-spacing: -0.022em;
+  }
+
+  /* ---------- App Shell Layout ---------- */
+  .app-shell {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 64px;
+    background: var(--bg-chrome);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    transition: width var(--dur-slow) var(--ease);
+    position: relative;
+    z-index: 40;
+    overflow: hidden;
+  }
+
+  .sidebar:hover,
+  .sidebar.pinned {
+    width: 240px;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px;
+    height: 64px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--b-600), var(--b-navy));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    letter-spacing: -0.02em;
+    box-shadow: 0 2px 8px -2px rgba(15, 29, 44, 0.4);
+  }
+
+  .brand-text {
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .sidebar:hover .brand-text,
+  .sidebar.pinned .brand-text {
+    opacity: 1;
+  }
+
+  .brand-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg-primary);
+    line-height: 1.2;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--fg-muted);
+    line-height: 1.2;
+  }
+
+  /* Nav scroll area */
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .sidebar-nav::-webkit-scrollbar { width: 6px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+
+  /* Section labels */
+  .nav-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 24px;
+    padding: 0 20px;
+    margin: 14px 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease);
+    white-space: nowrap;
+  }
+  .sidebar:hover .nav-section-label,
+  .sidebar.pinned .nav-section-label {
+    opacity: 1;
+  }
+
+  /* Collapsed spacer between sections */
+  .nav-section-spacer {
+    height: 8px;
+    margin: 4px 12px;
+    border-top: 1px solid var(--border-subtle);
+    opacity: 1;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+  .sidebar:hover .nav-section-spacer,
+  .sidebar.pinned .nav-section-spacer {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+    border: none;
+  }
+
+  /* Nav items */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    margin: 2px 8px;
+    padding: 0 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--fg-secondary);
+    font-size: 13.5px;
+    font-weight: 500;
+    position: relative;
+    transition: background-color var(--dur-fast) var(--ease),
+                color var(--dur-fast) var(--ease);
+    white-space: nowrap;
+  }
+
+  .nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+
+  .nav-item.active {
+    background: var(--bg-active);
+    color: var(--fg-accent);
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--b-500);
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    stroke-width: 1.75;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav-label {
+    margin-left: 12px;
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease);
+    flex: 1;
+  }
+
+  .sidebar:hover .nav-label,
+  .sidebar.pinned .nav-label {
+    opacity: 1;
+  }
+
+  /* Badges */
+  .nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    transition: opacity var(--dur-med) var(--ease);
+  }
+
+  .sidebar:hover .nav-badge,
+  .sidebar.pinned .nav-badge {
+    opacity: 1;
+  }
+
+  .nav-badge.neutral { background: var(--n-800); color: var(--n-0); }
+  html.dark .nav-badge.neutral { background: var(--n-200); color: var(--n-900); }
+  .nav-badge.warning { background: rgba(217, 154, 40, 0.15); color: var(--a-600); }
+  html.dark .nav-badge.warning { background: rgba(217, 154, 40, 0.2); color: var(--a-500); }
+  .nav-badge.danger { background: rgba(214, 69, 69, 0.12); color: var(--r-600); }
+  html.dark .nav-badge.danger { background: rgba(214, 69, 69, 0.18); color: #e88; }
+
+  /* Collapsed state: show dot indicator instead of badge */
+  .nav-dot {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    opacity: 1;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+  .nav-dot.neutral { background: var(--fg-primary); }
+  .nav-dot.warning { background: var(--a-500); }
+  .nav-dot.danger { background: var(--r-500); }
+
+  .sidebar:hover .nav-dot,
+  .sidebar.pinned .nav-dot {
+    opacity: 0;
+  }
+
+  /* Pin toggle at bottom */
+  .sidebar-footer {
+    padding: 8px;
+    border-top: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .pin-toggle {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--fg-muted);
+    font-size: 13px;
+    transition: background-color var(--dur-fast) var(--ease),
+                color var(--dur-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .pin-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+  .pin-toggle .nav-label { font-weight: 500; }
+
+  /* ---------- Top Bar ---------- */
+  .top-bar {
+    height: 64px;
+    background: var(--bg-chrome);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 24px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .crumb {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .crumb.current {
+    color: var(--fg-primary);
+  }
+  .crumb-sep {
+    color: var(--border-strong);
+    font-size: 12px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-primary);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    padding-left: 16px;
+    margin-left: 8px;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  .search-wrap {
+    flex: 1;
+    max-width: 480px;
+    margin-left: auto;
+    position: relative;
+  }
+  .search-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px 0 36px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--fg-primary);
+    outline: none;
+    transition: border-color var(--dur-fast) var(--ease),
+                box-shadow var(--dur-fast) var(--ease);
+    font-family: inherit;
+  }
+  .search-input::placeholder { color: var(--fg-muted); }
+  .search-input:focus {
+    border-color: var(--b-400);
+    box-shadow: 0 0 0 3px rgba(72, 107, 149, 0.12);
+  }
+  .search-icon {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--fg-muted);
+    pointer-events: none;
+  }
+  .search-kbd {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--fg-muted);
+    padding: 3px 6px;
+    background: var(--bg-chrome);
+    border: 1px solid var(--border-subtle);
+    border-radius: 5px;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+
+  .top-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--fg-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--dur-fast) var(--ease);
+  }
+  .icon-btn:hover {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--b-500), var(--b-700));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    border: 2px solid var(--bg-chrome);
+    outline: 1px solid var(--border-subtle);
+    transition: outline-color var(--dur-fast) var(--ease);
+  }
+  .avatar:hover {
+    outline-color: var(--b-400);
+  }
+
+  /* ---------- Main content area ---------- */
+  .main-area {
+    padding: 32px;
+    max-width: 1400px;
+  }
+
+  .demo-card {
+    background: var(--bg-chrome);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .demo-card h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--fg-primary);
+    letter-spacing: -0.015em;
+  }
+  .demo-card p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--fg-secondary);
+    line-height: 1.55;
+  }
+
+  /* ---------- Modal (demonstrates frosted glass) ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 29, 44, 0.35);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn var(--dur-med) var(--ease);
+  }
+  html.dark .modal-overlay {
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .modal-overlay.open { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal {
+    width: 460px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-xl);
+    box-shadow: var(--glass-shadow);
+    padding: 24px;
+    animation: scaleIn var(--dur-slow) var(--ease);
+  }
+  .modal h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .modal p {
+    margin: 0 0 20px;
+    font-size: 13.5px;
+    color: var(--fg-secondary);
+    line-height: 1.5;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all var(--dur-fast) var(--ease);
+    font-family: inherit;
+    letter-spacing: -0.005em;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--fg-secondary);
+    border-color: var(--border-subtle);
+  }
+  .btn-ghost:hover { background: var(--bg-hover); color: var(--fg-primary); }
+
+  .btn-primary {
+    background: var(--b-600);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(15, 29, 44, 0.2);
+  }
+  .btn-primary:hover { background: var(--b-700); }
+
+  .btn-success {
+    background: var(--g-500);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(47, 158, 107, 0.25);
+  }
+  .btn-success:hover { background: var(--g-600); }
+
+  /* ---------- Theme Toggle ---------- */
+  .theme-toggle-wrap {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 200;
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    box-shadow: var(--glass-shadow);
+  }
+  .theme-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--fg-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .theme-btn.active {
+    background: var(--bg-hover);
+    color: var(--fg-primary);
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark">13</div>
+      <div class="brand-text">
+        <div class="brand-name">13 Stars Media</div>
+        <div class="brand-sub">MyDash</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- Primary -->
+      <div class="nav-item active">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        </div>
+        <span class="nav-label">My Dash</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <span class="nav-label">Calendar</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <span class="nav-label">Messages</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <span class="nav-label">Mail</span>
+      </div>
+
+      <!-- Revenue -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Revenue</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <span class="nav-label">Sales</span>
+        <span class="nav-badge neutral">1</span>
+        <span class="nav-dot neutral"></span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+        </div>
+        <span class="nav-label">Contracts</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <span class="nav-label">Billing</span>
+        <span class="nav-badge danger">167</span>
+        <span class="nav-dot danger"></span>
+      </div>
+
+      <!-- Content -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Content</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </div>
+        <span class="nav-label">Editorial</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+        </div>
+        <span class="nav-label">Design Studio</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <span class="nav-label">Media Library</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </div>
+        <span class="nav-label">Flatplan</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <span class="nav-label">Newsletters</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <span class="nav-label">Websites</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <span class="nav-label">Creative Jobs</span>
+      </div>
+
+      <!-- Advertising -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Advertising</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </div>
+        <span class="nav-label">Classifieds</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        </div>
+        <span class="nav-label">Web Ads</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <span class="nav-label">Merch</span>
+      </div>
+
+      <!-- Operations -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Operations</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <span class="nav-label">Circulation</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <span class="nav-label">Service Desk</span>
+        <span class="nav-badge warning">3</span>
+        <span class="nav-dot warning"></span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        </div>
+        <span class="nav-label">Legal Notices</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <span class="nav-label">Performance</span>
+      </div>
+
+      <!-- Revenue 2 / Reports -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Reports</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <span class="nav-label">Reports</span>
+      </div>
+
+      <!-- Systems -->
+      <div class="nav-section-spacer"></div>
+      <div class="nav-section-label">Systems</div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span class="nav-label">Team</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/></svg>
+        </div>
+        <span class="nav-label">Publications</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <span class="nav-label">Schedule</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <span class="nav-label">Email Templates</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <span class="nav-label">Integrations</span>
+      </div>
+      <div class="nav-item">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <span class="nav-label">Data Import</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="pin-toggle" id="pinToggle">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.5-3.5L19 10V4H5v6l1.5 3.5z"/></svg>
+        </div>
+        <span class="nav-label" id="pinLabel">Pin sidebar</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div>
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="breadcrumb">
+        <span class="crumb">Home</span>
+        <span class="crumb-sep">›</span>
+        <span class="crumb current">Dashboard</span>
+      </div>
+      <h1 class="page-title font-display">My Dash</h1>
+
+      <div class="search-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="Search stories, clients, invoices…" />
+        <kbd class="search-kbd">⌘K</kbd>
+      </div>
+
+      <div class="top-bar-actions">
+        <button class="icon-btn" title="Help">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        <div class="avatar" title="Andrew">AJ</div>
+      </div>
+    </header>
+
+    <!-- Main content preview -->
+    <main class="main-area">
+      <div style="margin-bottom: 28px;">
+        <h2 class="font-display" style="font-size: 28px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.025em;">Good morning, Andrew</h2>
+        <p style="margin: 0; color: var(--fg-secondary); font-size: 14px;">Friday, April 17 — 3 items need your attention today</p>
+      </div>
+
+      <div class="demo-card">
+        <h3>Sidebar behavior</h3>
+        <p>Hover the left rail to expand to 240px. Click the pin icon at the bottom to lock it open. Active state uses a left accent bar in steel blue. Badges collapse to colored dots when the rail is narrow — notice the red dot on Billing and the amber on Service Desk.</p>
+      </div>
+
+      <div class="demo-card">
+        <h3>Top bar composition</h3>
+        <p>Breadcrumb on the left grounds the user in the hierarchy. Page title uses SF Pro Display with tight tracking. Global search sits center-right, push-reachable with ⌘K. Avatar anchors the right edge. No notification bell, per spec.</p>
+      </div>
+
+      <div class="demo-card" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <h3 style="margin: 0; flex-basis: 100%;">Frosted glass overlay demo</h3>
+        <p style="flex-basis: 100%; margin-bottom: 8px;">Click the button below — the modal uses backdrop-blur with a semi-opaque tint, soft inset border, and layered shadow. This treatment is reserved strictly for overlays.</p>
+        <button class="btn btn-primary" onclick="document.getElementById('modal').classList.add('open')">Show frosted modal</button>
+        <button class="btn btn-success">Deploy</button>
+        <button class="btn btn-ghost">Save draft</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal (glass) -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <h3 class="font-display">Publish to web?</h3>
+    <p>This story will be pushed live to pasoroblespress.com immediately. You can schedule it for later from the editor instead.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-ghost">Save draft</button>
+      <button class="btn btn-success" onclick="document.getElementById('modal').classList.remove('open')">Publish now</button>
+    </div>
+  </div>
+</div>
+
+<!-- Theme toggle -->
+<div class="theme-toggle-wrap">
+  <button class="theme-btn active" id="lightBtn" onclick="setTheme('light')">☀ Light</button>
+  <button class="theme-btn" id="darkBtn" onclick="setTheme('dark')">☾ Dark</button>
+</div>
+
+<script>
+  // Pin toggle
+  const sidebar = document.getElementById('sidebar');
+  const pinToggle = document.getElementById('pinToggle');
+  const pinLabel = document.getElementById('pinLabel');
+  pinToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('pinned');
+    pinLabel.textContent = sidebar.classList.contains('pinned') ? 'Unpin sidebar' : 'Pin sidebar';
+  });
+
+  // Theme toggle
+  function setTheme(theme) {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.getElementById('lightBtn').classList.toggle('active', theme === 'light');
+    document.getElementById('darkBtn').classList.toggle('active', theme === 'dark');
+  }
+</script>
+</body>
+</html>

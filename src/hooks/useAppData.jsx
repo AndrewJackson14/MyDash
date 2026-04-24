@@ -478,6 +478,7 @@ export function DataProvider({ children, localData }) {
       "featured_image_url", "photo_credit", "audience", "source_type",
       "corrected_after_publish", "last_correction_at",
       "images", "freelancer_name", "freelancer_email",
+      "has_images", "jump_to_page", "jump_from_page",
       "created_at", "updated_at",
     ].join(", ");
     const pageSize = 1000;
@@ -510,6 +511,12 @@ export function DataProvider({ children, localData }) {
       page_number: s.page,
       priority: s.priority,
       word_limit: s.word_limit,
+      // Editorial → Production workflow signals (migration 100):
+      // has_images is a manual publisher flag; jump_to/jump_from_page
+      // drive the Issue Planning jump-line rendering.
+      has_images: s.has_images === true,
+      jump_to_page: s.jump_to_page ?? null,
+      jump_from_page: s.jump_from_page ?? null,
       issueId: s.issue_id || '',
       issue_id: s.issue_id || '',
       print_issue_id: s.print_issue_id || '',

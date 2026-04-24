@@ -395,6 +395,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     if (updates.first_published_at !== undefined) dbFields.first_published_at = updates.first_published_at;
     if (updates.word_limit !== undefined) dbFields.word_limit = updates.word_limit;
     if (updates.priority !== undefined) dbFields.priority = updates.priority;
+    if (updates.has_images !== undefined) dbFields.has_images = !!updates.has_images;
+    if (updates.jump_to_page !== undefined) {
+      const n = parseInt(updates.jump_to_page);
+      dbFields.jump_to_page = isNaN(n) ? null : n;
+    }
     if (Object.keys(dbFields).length === 0) return;
 
     // Map page to integer for DB
@@ -1000,6 +1005,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                           { key: "category", label: "Section" },
                           { key: "status", label: "Status" },
                           { key: "page_number", label: "Page" },
+                          { key: "jump_to_page", label: "Jump" },
                           { key: "priority", label: "Pri" },
                           { key: "word_limit", label: "Limit" },
                           { key: "_img", label: "Img" },
@@ -1013,7 +1019,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     </thead>
                     <tbody>
                       {issueStories.length === 0 && (
-                        <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+                        <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
                       {issueStories.map(s => {
                         const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
@@ -1070,13 +1076,35 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                           <td style={{ padding: "5px 8px", width: 60 }}>
                             <Sel value={String(s.page_number || s.page || "")} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]} style={{ padding: "3px 24px 3px 6px", width: 55 }} />
                           </td>
+                          <td style={{ padding: "5px 8px", width: 60 }}>
+                            {/* Jump column — writes stories.jump_to_page. Empty = no
+                                jump. Edit on origin row only; jump lines render
+                                read-only at the destination (see page-group view). */}
+                            <Sel
+                              value={s.jump_to_page != null ? String(s.jump_to_page) : ""}
+                              onChange={e => updateStory(s.id, { jump_to_page: e.target.value || null })}
+                              options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]}
+                              style={{ padding: "3px 24px 3px 6px", width: 55 }}
+                            />
+                          </td>
                           <td style={{ padding: "5px 8px", width: 50 }}>
                             <Sel value={String(s.priority || "4")} onChange={e => updateStory(s.id, { priority: e.target.value })} options={PRIORITY_OPTIONS} style={{ padding: "3px 24px 3px 6px", width: 45 }} />
                           </td>
                           <td style={{ padding: "5px 8px", width: 55 }}>
                             <input value={s.word_limit || ""} onChange={e => updateStory(s.id, { word_limit: e.target.value ? Number(e.target.value) : null })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center", color: s.word_limit && (s.word_count || s.wordCount || 0) > s.word_limit ? Z.da : Z.tm }} />
                           </td>
-                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center", fontSize: 12 }}>{(s.featured_image_url || s.featuredImageUrl || s.images > 0) ? <span title="Has image" style={{ color: Z.su }}>*</span> : <span style={{ color: Z.td }}>—</span>}</td>
+                          {/* Images column — manual planning flag (stories.has_images).
+                              Independent of attachment state: an editor can flag a
+                              story for images before anything is uploaded. */}
+                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={!!s.has_images}
+                              onChange={e => updateStory(s.id, { has_images: e.target.checked })}
+                              title="Will run with images"
+                              style={{ cursor: "pointer", accentColor: Z.ac, width: 14, height: 14 }}
+                            />
+                          </td>
                           <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
                             <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
                           </td>
