@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, LABEL, INPUT, INV, R } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, TB } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, TB, Modal } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -1014,7 +1014,7 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       {/* Action row — title moved to TopBar via usePageHeader. */}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={[{ value: "__mydash", label: "MyDash Appearance" }, ...sites.map(s => ({ value: s.id, label: s.name }))]} />
+          <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={[{ value: "__mydash", label: "MyDash Settings" }, ...sites.map(s => ({ value: s.id, label: s.name }))]} />
           {site?.domain && (
             <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
               Preview {site.domain} {"\u2197"}
@@ -1033,10 +1033,19 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       )}
 
       {(selectedId === "__mydash" || tab === "Site") && <>
-      {/* ─── Org Appearance (when MyDash selected) ────── */}
-      {selectedId === "__mydash" && <OrgAppearancePanel />}
+      {/* ─── MyDash global settings ────── */}
+      {selectedId === "__mydash" && (
+        <>
+          <OrgAppearancePanel />
+          <div style={{ height: 16 }} />
+          <MarkupIndustriesSection />
+          <div style={{ height: 16 }} />
+          <FreeEmailDomainsSection />
+        </>
+      )}
 
       {draft && selectedId && selectedId !== "__mydash" && <SiteAnalytics siteId={selectedId} />}
+      {draft && selectedId && selectedId !== "__mydash" && <LocalZipsSection pubId={selectedId} />}
 
       {/* ─── Site Errors Panel ─── */}
       {selectedId && (
@@ -1424,3 +1433,205 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
     </div>
   );
 }
+
+// ─── Markup Industries (global, super_admin write) ────────────
+function MarkupIndustriesSection() {
+  const slugify = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const dialog = useDialog();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from("industries").select("*").order("name");
+    setRows(data || []);
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    const slug = slugify(editing.slug || editing.name);
+    const payload = { name: editing.name.trim(), slug, markup_percent: Number(editing.markup_percent) || 0 };
+    const { error } = editing.id
+      ? await supabase.from("industries").update(payload).eq("id", editing.id)
+      : await supabase.from("industries").insert(payload);
+    if (error) { await dialog.alert("Save failed: " + error.message); return; }
+    setEditing(null); load();
+  };
+  const remove = async (r) => {
+    if (!await dialog.confirm(`Delete industry "${r.name}"?`)) return;
+    const { error } = await supabase.from("industries").delete().eq("id", r.id);
+    if (error) { await dialog.alert("Delete failed: " + error.message); return; }
+    load();
+  };
+
+  return (
+    <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Markup Industries</div>
+          <div style={{ fontSize: 11, color: Z.tm }}>Global. Advertisers in these industries pay an extra X% — overrides the local-zip discount.</div>
+        </div>
+        <Btn sm onClick={() => setEditing({ name: "", markup_percent: 15 })}>+ Add</Btn>
+      </div>
+      {loading ? <div style={{ color: Z.tm, fontSize: FS.sm }}>Loading…</div> :
+        rows.length === 0 ? <div style={{ color: Z.td, fontSize: FS.sm, fontFamily: COND }}>No industries set. Add one to start applying markup.</div> :
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th style={ssTh}>Industry</th>
+            <th style={{ ...ssTh, textAlign: "right" }}>Markup</th>
+            <th style={{ ...ssTh, width: 1 }}></th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td style={ssTd}>{r.name}</td>
+                <td style={{ ...ssTd, textAlign: "right", color: r.markup_percent > 0 ? Z.ac : Z.tm, fontWeight: r.markup_percent > 0 ? FW.bold : FW.normal }}>
+                  {Number(r.markup_percent).toFixed(2)}%
+                </td>
+                <td style={{ ...ssTd, whiteSpace: "nowrap" }}>
+                  <Btn sm v="ghost" onClick={() => setEditing(r)}>Edit</Btn>
+                  <span style={{ display: "inline-block", width: 6 }} />
+                  <Btn sm v="ghost" onClick={() => remove(r)} style={{ color: "#dc2626" }}>Delete</Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      }
+      {editing && (
+        <Modal open onClose={() => setEditing(null)} title={editing.id ? "Edit Industry" : "Add Industry"}
+          actions={<><Btn v="ghost" onClick={() => setEditing(null)}>Cancel</Btn><Btn onClick={save} disabled={!editing.name?.trim()}>Save</Btn></>}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Inp label="Name" value={editing.name || ""} onChange={e => setEditing({ ...editing, name: e.target.value })} placeholder="e.g. Personal Injury Law" />
+            <Inp label="Markup %" type="number" min="0" max="100" step="0.5" value={editing.markup_percent ?? 0} onChange={e => setEditing({ ...editing, markup_percent: e.target.value })} />
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Free Email Domains (global, super_admin write) ───────────
+function FreeEmailDomainsSection() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newDomain, setNewDomain] = useState("");
+  const dialog = useDialog();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from("free_email_domains").select("*").order("domain");
+    setRows(data || []); setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    const d = newDomain.trim().toLowerCase();
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)) { await dialog.alert("Invalid domain."); return; }
+    const { error } = await supabase.from("free_email_domains").insert({ domain: d });
+    if (error) { await dialog.alert("Add failed (super_admin only): " + error.message); return; }
+    setNewDomain(""); load();
+  };
+  const remove = async (r) => {
+    if (!await dialog.confirm(`Remove "${r.domain}"?`)) return;
+    const { error } = await supabase.from("free_email_domains").delete().eq("domain", r.domain);
+    if (error) { await dialog.alert("Delete failed (super_admin only): " + error.message); return; }
+    load();
+  };
+
+  return (
+    <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Free Email Domains</div>
+        <div style={{ fontSize: 11, color: Z.tm }}>Global. Self-serve email tier resolution skips domain-matching for these (gmail, yahoo, etc).</div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input
+          value={newDomain} onChange={e => setNewDomain(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") add(); }}
+          placeholder="newdomain.com"
+          style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: 6, padding: "8px 12px", color: Z.tx, fontSize: FS.sm, outline: "none" }}
+        />
+        <Btn onClick={add} disabled={!newDomain.trim()}>Add</Btn>
+      </div>
+      {loading ? <div style={{ color: Z.tm, fontSize: FS.sm }}>Loading…</div> :
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
+          {rows.map(r => (
+            <div key={r.domain} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", border: `1px solid ${Z.bd}`, borderRadius: 4, background: Z.bg }}>
+              <span style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND }}>{r.domain}</span>
+              <button onClick={() => remove(r)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: FS.xs, cursor: "pointer", fontFamily: COND, fontWeight: FW.bold }}>×</button>
+            </div>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+// ─── Local Zip Codes (per-publication; bulk-paste add) ────────
+export function LocalZipsSection({ pubId }) {
+  const dialog = useDialog();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [bulk, setBulk] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from("local_zip_codes").select("*").eq("site_id", pubId).order("zip_code");
+    setRows(data || []); setLoading(false);
+  }, [pubId]);
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (r) => {
+    if (!await dialog.confirm(`Remove ${r.zip_code}?`)) return;
+    await supabase.from("local_zip_codes").delete().eq("id", r.id);
+    load();
+  };
+  const addBulk = async () => {
+    const items = bulkText.split("\n").map(line => {
+      const [zip, ...labelParts] = line.split(",").map(s => s.trim());
+      if (!/^\d{5}$/.test(zip)) return null;
+      return { site_id: pubId, zip_code: zip, label: labelParts.join(",").trim() || null };
+    }).filter(Boolean);
+    if (!items.length) { await dialog.alert("No valid 5-digit zip codes found."); return; }
+    const { error } = await supabase.from("local_zip_codes").upsert(items, { onConflict: "site_id,zip_code", ignoreDuplicates: true });
+    if (error) { await dialog.alert("Add failed: " + error.message); return; }
+    setBulk(false); setBulkText(""); load();
+  };
+
+  return (
+    <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Local Zip Codes</div>
+          <div style={{ fontSize: 11, color: Z.tm }}>Self-serve advertisers billing at these zips get 10% off (markup industries override).</div>
+        </div>
+        <Btn sm onClick={() => setBulk(true)}>+ Bulk Add</Btn>
+      </div>
+      {loading ? <div style={{ color: Z.tm, fontSize: FS.sm }}>Loading…</div> :
+        rows.length === 0 ? <div style={{ color: Z.td, fontSize: FS.sm, fontFamily: COND }}>No local zips yet.</div> :
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6 }}>
+          {rows.map(r => (
+            <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", border: `1px solid ${Z.bd}`, borderRadius: 4, background: Z.bg }}>
+              <span style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND, fontWeight: FW.bold }}>{r.zip_code}</span>
+              <button onClick={() => remove(r)} title={r.label || ""} style={{ background: "none", border: "none", color: "#dc2626", fontSize: FS.xs, cursor: "pointer", fontFamily: COND, fontWeight: FW.bold }}>×</button>
+            </div>
+          ))}
+        </div>
+      }
+      {bulk && (
+        <Modal open onClose={() => setBulk(false)} title="Bulk add zip codes"
+          actions={<><Btn v="ghost" onClick={() => setBulk(false)}>Cancel</Btn><Btn onClick={addBulk} disabled={!bulkText.trim()}>Add</Btn></>}>
+          <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 8 }}>One zip per line. Optionally add a comma + label. Duplicates ignored.</div>
+          <TA value={bulkText} onChange={e => setBulkText(e.target.value)} placeholder={"93446\n93465, Templeton\n93452"} rows={10} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+const ssTh = { padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, borderBottom: `1px solid ${Z.bd}`, fontFamily: COND };
+const ssTd = { padding: "8px 10px", color: Z.tx, fontSize: FS.sm, fontFamily: COND, borderBottom: `1px solid ${Z.bd}30` };
