@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase } from "../lib/supabase";
@@ -220,7 +221,7 @@ const ClassifiedAds = ({ pubs, clients, issues, isActive }) => {
     <Modal open={modal} onClose={() => setModal(false)} title="New Classified Ad" width={620}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Sel label="Client" value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))} options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
+          <FuzzyPicker label="Client" value={form.clientId} onChange={(v) => setForm(f => ({ ...f, clientId: v }))} options={(clients || []).map(c => ({ value: c.id, label: c.name }))} placeholder="Search clients…" />
           <Sel label="Publication" value={form.publicationId} onChange={e => setForm(f => ({ ...f, publicationId: e.target.value, runDates: [] }))} options={[{ value: "", label: "Select publication..." }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
         </div>
         <Sel label="Category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} options={CATEGORIES.map(c => ({ value: c, label: c }))} />

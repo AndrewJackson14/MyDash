@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -419,16 +420,16 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
         <Inp label="Job Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Business card design, event program, etc." />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Sel label="Client" value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
-            options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
+          <FuzzyPicker label="Client" value={form.clientId} onChange={(v) => setForm(f => ({ ...f, clientId: v }))}
+            options={(clients || []).map(c => ({ value: c.id, label: c.name }))} placeholder="Search clients…" />
           <Sel label="Job Type" value={form.jobType} onChange={e => setForm(f => ({ ...f, jobType: e.target.value }))} options={JOB_TYPES} />
         </div>
 
         <TA label="Scope / Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder="Describe the deliverables, specs, and requirements..." />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <Sel label="Assign To" value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
-            options={[{ value: "", label: "Unassigned" }, ...(team || []).map(t => ({ value: t.id, label: `${t.name} (${t.role})` }))]} />
+          <FuzzyPicker label="Assign To" value={form.assignedTo} onChange={(v) => setForm(f => ({ ...f, assignedTo: v }))}
+            options={(team || []).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
           <Inp label="Due Date" type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
           <Inp label="Quoted Amount" type="number" step="0.01" value={form.quotedAmount || ""} onChange={e => setForm(f => ({ ...f, quotedAmount: Number(e.target.value) || 0 }))} />
         </div>

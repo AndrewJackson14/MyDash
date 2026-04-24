@@ -2,6 +2,7 @@ import { useState, useEffect, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, EntityLink } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtTime } from "../lib/formatters";
 
@@ -444,14 +445,14 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         <TA label="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4} placeholder="Full details of the issue..." />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Sel label="Linked Client" value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
-            options={[{ value: "", label: "None" }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
+          <FuzzyPicker label="Linked Client" value={form.clientId} onChange={(v) => setForm(f => ({ ...f, clientId: v }))}
+            options={(clients || []).map(c => ({ value: c.id, label: c.name }))} placeholder="None — search…" emptyLabel="None" />
           <Sel label="Publication" value={form.publicationId} onChange={e => setForm(f => ({ ...f, publicationId: e.target.value }))}
             options={[{ value: "", label: "None" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
         </div>
 
-        <Sel label="Assign To" value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
-          options={[{ value: "", label: "Unassigned" }, ...(team || []).map(t => ({ value: t.id, label: `${t.name} (${t.role})` }))]} />
+        <FuzzyPicker label="Assign To" value={form.assignedTo} onChange={(v) => setForm(f => ({ ...f, assignedTo: v }))}
+          options={(team || []).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
 
         {editId && <TA label="Resolution Notes" value={form.resolutionNotes} onChange={e => setForm(f => ({ ...f, resolutionNotes: e.target.value }))} rows={2} />}
 

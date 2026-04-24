@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, memo, useEffect, useCallback, Fragment } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar, SortHeader , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, Pill, FilterPillStrip, glass } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { COMPANY } from "../constants";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { generatePdf } from "../lib/pdf";
@@ -2196,7 +2197,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
     {/* ════════ CREDIT MEMO MODAL ════════ */}
     <Modal open={creditMemoModal} onClose={() => setCreditMemoModal(false)} title="New Credit Memo" width={560}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Sel label="Client" value={cmForm.clientId} onChange={e => setCmForm(f => ({ ...f, clientId: e.target.value, applyToInvoiceId: "" }))} options={[{ value: "", label: "Select client..." }, ...(clients || []).map(c => ({ value: c.id, label: `${c.name}${c.creditBalance > 0 ? ` ($${c.creditBalance} credit)` : ""}` }))]} />
+        <FuzzyPicker label="Client" value={cmForm.clientId} onChange={(v) => setCmForm(f => ({ ...f, clientId: v, applyToInvoiceId: "" }))} options={(clients || []).map(c => ({ value: c.id, label: c.name, sub: c.creditBalance > 0 ? `$${c.creditBalance} credit` : null }))} placeholder="Search clients…" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <Sel label="Reason" value={cmForm.reasonCode} onChange={e => setCmForm(f => ({ ...f, reasonCode: e.target.value }))} options={REASON_CODES} />
           <Inp label="Amount ($)" type="number" min={0} value={cmForm.amount} onChange={e => setCmForm(f => ({ ...f, amount: Number(e.target.value) }))} />

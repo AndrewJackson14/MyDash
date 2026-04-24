@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo, Fragment } from "react";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, FW, R, Ri, INV, CARD } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Modal, FilterBar, TabRow, TabPipe, GlassStat, DataTable, FilterPillStrip } from "./ui";
+import FuzzyPicker from "./FuzzyPicker";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
@@ -1311,7 +1312,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             )}
                           </td>
                           <td style={{ padding: "5px 8px" }}>
-                            <Sel value={s.author || ""} onChange={e => updateStory(s.id, { author: e.target.value })} options={[{ value: "", label: "—" }, ...[...new Set(stories.map(x => x.author).filter(Boolean))].sort().filter(a => !inactiveAuthorNames.has(a) || a === s.author).map(a => ({ value: a, label: a }))]} style={{ padding: "3px 24px 3px 6px" }} />
+                            <FuzzyPicker value={s.author || ""} onChange={(v) => updateStory(s.id, { author: v })} options={[...new Set(stories.map(x => x.author).filter(Boolean))].sort().filter(a => !inactiveAuthorNames.has(a) || a === s.author).map(a => ({ value: a, label: a }))} placeholder="Author…" emptyLabel="—" size="sm" />
                           </td>
                           <td style={{ padding: "5px 8px" }}>
                             <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />

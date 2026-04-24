@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Toggle, Modal, GlassCard, GlassStat, PageHeader, TabRow, TB, DataTable, SB } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
@@ -350,7 +351,7 @@ const Merch = ({ clients, isActive }) => {
     <Modal open={shopModal} onClose={() => setShopModal(false)} title="Create Shop Link" width={560}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Inp label="Shop Name" value={sForm.name} onChange={e => setSForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ACME Corp Holiday Merch" />
-        <Sel label="Client (optional)" value={sForm.clientId} onChange={e => setSForm(f => ({ ...f, clientId: e.target.value }))} options={[{ value: "", label: "Open (no specific client)" }, ...(clients || []).map(c => ({ value: c.id, label: c.name }))]} />
+        <FuzzyPicker label="Client (optional)" value={sForm.clientId} onChange={(v) => setSForm(f => ({ ...f, clientId: v }))} options={(clients || []).map(c => ({ value: c.id, label: c.name }))} placeholder="Open (no specific client) — search…" emptyLabel="Open (no specific client)" />
         <Inp label="Header Text (optional)" value={sForm.headerText} onChange={e => setSForm(f => ({ ...f, headerText: e.target.value }))} placeholder="Welcome message shown at top of shop" />
 
         {/* Product picker */}
