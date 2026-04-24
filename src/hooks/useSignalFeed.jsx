@@ -131,11 +131,18 @@ export function useSignalFeed({
     });
   }, [_issues, _sales, today, pubMap]);
 
-  // ── Weekly-newspaper issue readiness ─────────────────────
-  const weeklyNewspapers = useMemo(() => _pubs.filter(p => p.frequency === "Weekly"), [_pubs]);
-  const issueReadiness = useMemo(() => weeklyNewspapers.map(pub => {
+  // ── Issue readiness (weeklies + magazines) ───────────────
+  // Hayley Apr 24 decision: show weekly newspapers AND magazines as two
+  // visually distinct strips. Same computation; cadence label lets the
+  // renderer bucket rows without reprising any of the math.
+  const readinessPubs = useMemo(
+    () => _pubs.filter(p => ["Weekly", "Bi-Weekly", "Monthly"].includes(p.frequency)),
+    [_pubs]
+  );
+  const issueReadiness = useMemo(() => readinessPubs.map(pub => {
+    const cadence = ["Weekly", "Bi-Weekly"].includes(pub.frequency) ? "weekly" : "magazine";
     const nextIssue = _issues.filter(i => i.pubId === pub.id && i.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
-    if (!nextIssue) return { pub, issue: null, daysOut: 999, editorialPct: 0, adPct: 0, blended: 0 };
+    if (!nextIssue) return { pub, issue: null, daysOut: 999, editorialPct: 0, adPct: 0, blended: 0, cadence };
     // "Assigned" = tied to the next issue, OR belonging to this pub and
     // not yet live on either channel. Under the new model, "not live"
     // means no sent_to_web and no sent_to_print.
@@ -148,8 +155,8 @@ export function useSignalFeed({
     const d = daysUntil(nextIssue.date);
     const rev = issSales.reduce((s, x) => s + (x.amount || 0), 0);
     const goal = nextIssue.revenueGoal || (pub.defaultRevenueGoal || 0);
-    return { pub, issue: nextIssue, daysOut: d, editorialPct, adPct, blended, storyCount: assignedStories.length, adCount: totalAds, rev, goal };
-  }), [weeklyNewspapers, _issues, _stories, _sales, today]);
+    return { pub, issue: nextIssue, daysOut: d, editorialPct, adPct, blended, storyCount: assignedStories.length, adCount: totalAds, rev, goal, cadence };
+  }), [readinessPubs, _issues, _stories, _sales, today]);
 
   // ── Issue progress (all pubs, next issue each) ───────────
   const issueProgress = useMemo(() => {

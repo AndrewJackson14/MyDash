@@ -10,7 +10,7 @@ import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import {
   RevenuePaceCard, IssueAtRiskFeed, RepLeaderboardCard, CashFlowSignalCard,
-  WebTrafficSignalCard,
+  WebTrafficSignalCard, IssueReadinessStrip,
 } from "../components/dashboard";
 import { supabase, isOnline } from "../lib/supabase";
 import { useEventBus } from "../hooks/useEventBus";
@@ -565,6 +565,15 @@ const DashboardV2 = (props) => {
         issues={_issues}
         userId={currentUser?.id}
         onClick={nav.toReport("rvg", { publisherId: currentUser?.id })}
+      />
+
+      {/* ── Issue readiness (weeklies + magazines) ────────
+          Forward-looking companion to RevenuePace. Tiles click
+          through to the IssueDetail overlay via setIssueDetailId. */}
+      <IssueReadinessStrip
+        readiness={issueReadiness || []}
+        userId={currentUser?.id}
+        onOpenIssue={setIssueDetailId}
       />
 
       {/* ── Department tiles ─────────────────────────────── */}
@@ -1528,6 +1537,7 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
   const {
     revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn,
     webViews24h, webViewsPrev24h, webTrend, topSiteName,
+    issueReadiness,
   } = feed;
   const nav = useNav(onNavigate);
   const today = new Date();
