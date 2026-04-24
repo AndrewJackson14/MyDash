@@ -10,6 +10,7 @@ import TeamMemberPanel from "../components/TeamMemberPanel";
 import SignalThreadPanel from "../components/SignalThreadPanel";
 import {
   RevenuePaceCard, IssueAtRiskFeed, RepLeaderboardCard, CashFlowSignalCard,
+  WebTrafficSignalCard,
 } from "../components/dashboard";
 import { supabase, isOnline } from "../lib/supabase";
 import { useEventBus } from "../hooks/useEventBus";
@@ -602,6 +603,14 @@ const DashboardV2 = (props) => {
             team={team}
             userId={currentUser?.id}
             onOpenMember={(memberId) => onNavigate?.(`/team-member?memberId=${memberId}`)}
+          />
+          <WebTrafficSignalCard
+            views24h={webViews24h}
+            prev24h={webViewsPrev24h}
+            trend={webTrend}
+            topSiteName={topSiteName}
+            userId={currentUser?.id}
+            onOpenAnalytics={() => onNavigate?.("analytics")}
           />
         </div>
         <IssueAtRiskFeed
@@ -1516,7 +1525,10 @@ const STAGE_COLORS = { Draft: "#9CA3AF", Edit: "#F59E0B", Ready: "#10B981" };
 const STAGE_ORDER = ["Draft", "Edit", "Ready"];
 
 const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onClose, onNavigate }) => {
-  const { revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn } = feed;
+  const {
+    revenueCommand, issueCountdown, focusItems, deadlineAlerts, _stories, _subs, pn,
+    webViews24h, webViewsPrev24h, webTrend, topSiteName,
+  } = feed;
   const nav = useNav(onNavigate);
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
