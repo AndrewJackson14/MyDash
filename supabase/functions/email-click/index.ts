@@ -48,8 +48,12 @@ serve(async (req) => {
           click_count: (row.click_count || 0) + 1,
         }).eq("id", row.id);
         if (wasFirstClick) {
-          const { data: d } = await admin.from("newsletter_drafts").select("click_count").eq("id", row.draft_id).single();
-          await admin.from("newsletter_drafts").update({ click_count: (d?.click_count || 0) + 1 }).eq("id", row.draft_id);
+          // Atomic increment via RPC — read-then-update raced under burst
+          // traffic and silently dropped clicks.
+          await admin.rpc("increment_draft_click_count", { p_draft_id: row.draft_id }).then(() => {}).catch(async () => {
+            const { data: d } = await admin.from("newsletter_drafts").select("click_count").eq("id", row.draft_id).single();
+            await admin.from("newsletter_drafts").update({ click_count: (d?.click_count || 0) + 1 }).eq("id", row.draft_id);
+          });
         }
       }
     } catch { /* tracking must not block the redirect */ }
