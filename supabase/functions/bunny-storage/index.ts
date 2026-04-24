@@ -76,7 +76,6 @@ serve(async (req: Request) => {
     if (action === "list") {
       const listPath = path ? `${BUNNY_BASE}/${path}/` : `${BUNNY_BASE}/`;
       const url = listPath;
-      console.log("BunnyCDN LIST v8:", url, "zone:", STORAGE_ZONE, "keyLen:", BUNNY_API_KEY.length, "keyStart:", BUNNY_API_KEY.slice(0, 12));
       const res = await fetch(url, {
         method: "GET",
         headers: { AccessKey: BUNNY_API_KEY, Accept: "application/json" },

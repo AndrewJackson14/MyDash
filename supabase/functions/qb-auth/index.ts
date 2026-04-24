@@ -67,7 +67,12 @@ serve(async (req: Request) => {
       const error = url.searchParams.get("error");
 
       if (error) {
-        return new Response(`<html><body><script>window.opener?.postMessage({type:'qb-auth-error',error:'${error}'},'*');window.close();</script>Auth failed: ${error}</body></html>`, {
+        // JSON.stringify for the JS literal (proper quote escaping); manual
+        // HTML escape for the body text. `error` is attacker-controllable
+        // because it's a query string param Intuit forwards verbatim.
+        const errJs = JSON.stringify(String(error));
+        const errHtml = String(error).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]!));
+        return new Response(`<html><body><script>window.opener?.postMessage({type:'qb-auth-error',error:${errJs}},'*');window.close();</script>Auth failed: ${errHtml}</body></html>`, {
           headers: { "Content-Type": "text/html" },
         });
       }
