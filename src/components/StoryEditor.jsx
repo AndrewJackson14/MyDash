@@ -641,10 +641,52 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
     setMediaPickerMode("story");
     setMediaPickerOpen(true);
   };
+  // Attach a Media-Library pick to this story.
+  //   - asset.id present  → update media_assets.story_id (one-line patch).
+  //   - asset.id missing  → legacy Bunny-only item with no DB row;
+  //     INSERT a fresh media_assets row tagged with this story so it
+  //     shows up in the Story Library grid like any other upload.
+  // Either path must surface errors — silent return left the user
+  // staring at a closed modal with nothing happening.
   const attachAssetToStory = async (asset) => {
-    if (!asset?.id || !story?.id) return;
-    const { error } = await supabase.from("media_assets").update({ story_id: story.id }).eq("id", asset.id);
-    if (error) { dialog.alert("Attach failed: " + error.message); return; }
+    if (!story?.id) {
+      await dialog.alert("Save the story first, then attach an image.");
+      return;
+    }
+    if (!asset?.url) {
+      console.warn("attachAssetToStory: missing asset url", asset);
+      await dialog.alert("Couldn't attach: no image URL on the picked asset.");
+      return;
+    }
+    if (asset.id) {
+      const { error } = await supabase.from("media_assets")
+        .update({ story_id: story.id, updated_at: new Date().toISOString() })
+        .eq("id", asset.id);
+      if (error) {
+        console.error("attachAssetToStory update failed:", error);
+        await dialog.alert("Attach failed: " + error.message);
+        return;
+      }
+    } else {
+      // Legacy Bunny-only item — make a fresh media_assets row pointing
+      // at the same URL so it joins the Story Library on next reload.
+      const { error } = await supabase.from("media_assets").insert({
+        story_id: story.id,
+        publication_id: selectedPubs[0] || null,
+        cdn_url: asset.url,
+        file_url: asset.url,
+        file_name: asset.fileName || asset.url.split("/").pop() || "image",
+        mime_type: "image/jpeg",
+        category: meta.story_type === "obituary" ? "obituary" : "story_image",
+        caption: asset.caption || null,
+        alt_text: asset.alt || null,
+      });
+      if (error) {
+        console.error("attachAssetToStory insert failed:", error);
+        await dialog.alert("Attach failed: " + error.message);
+        return;
+      }
+    }
     await loadStoryImages();
   };
 
