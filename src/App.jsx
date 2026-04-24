@@ -42,6 +42,7 @@ const TeamMemberProfile = lazyLoad(() => import("./pages/TeamMemberProfile"));
 const Analytics = lazyLoad(() => import("./pages/Analytics"));
 const IntegrationsPage = lazyLoad(() => import("./pages/IntegrationsPage"));
 const MySites = lazyLoad(() => import("./pages/MySites"));
+const AdvertisingAdmin = lazyLoad(() => import("./pages/AdvertisingAdmin"));
 const MediaLibrary = lazyLoad(() => import("./pages/MediaLibrary"));
 const DataImport = lazyLoad(() => import("./pages/DataImport"));
 const Billing = lazyLoad(() => import("./pages/Billing"));
@@ -447,6 +448,7 @@ export default function App() {
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
     { id: "creativejobs", label: "Creative Jobs", icon: Ic.brief },
     { id: "_advertising", section: true, label: "Advertising" },
+    { id: "advertising-admin", label: "Advertising Admin", icon: Ic.gear },
     { id: "classifieds", label: "Classifieds", icon: Ic.megaphone },
     { id: "merch", label: "Merch", icon: Ic.bag },
     { id: "_operations", section: true, label: "Operations" },
@@ -607,6 +609,7 @@ export default function App() {
         {show("mail") && <div style={vis("mail")}><Mail isActive={pg === "mail"} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage isActive={pg === "newsletters"} pubs={pubs} currentUser={currentUser} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><MySites isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} sales={jSales} clients={jClients} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} onNavigate={handleNav} /></div>}
+        {show("advertising-admin") && <div style={vis("advertising-admin")}><AdvertisingAdmin isActive={pg === "advertising-admin"} pubs={pubs} /></div>}
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage isActive={pg === "integrations"} pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport isActive={pg === "dataimport"} onClose={() => handleNav("integrations")} /></div>}
