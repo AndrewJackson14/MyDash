@@ -11,6 +11,7 @@ import {
 } from "./dashboard";
 
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil, initials as ini } from "../lib/formatters";
+import { useIsMobile } from "../hooks/useWindowWidth";
 
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);
@@ -130,6 +131,12 @@ const RoleDashboard = memo(({
 }) => {
   const isDark = Z.bg === DARK.bg;
   const glass = { ...glassStyle(), borderRadius: R, padding: "22px 24px" };
+  // P3.35 — viewport-driven layout switches. Below 768px the dashboard
+  // collapses its 2-column layout to a single stack so the right rail
+  // (DirectionCard, Quick Stats, etc.) doesn't get squeezed off-screen.
+  const isMobile = useIsMobile();
+  const dashCols = isMobile ? "1fr" : "1fr 340px";
+  const dashColsWide = isMobile ? "1fr" : "1fr 360px";
   const firstName = (currentUser?.name || "").split(" ")[0] || "there";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? `Good morning, ${firstName}` : hour < 17 ? `Good afternoon, ${firstName}` : `Good evening, ${firstName}`;
@@ -310,7 +317,7 @@ const RoleDashboard = memo(({
           </div>}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT: Queue */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <IncomingPipelineCard
@@ -452,7 +459,7 @@ const RoleDashboard = memo(({
           </div>}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Ready for Print Queue</div>
@@ -548,7 +555,7 @@ const RoleDashboard = memo(({
           </div>}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Today's Checklist</div>
@@ -868,7 +875,7 @@ const RoleDashboard = memo(({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashColsWide, gap: 16 }}>
         {/* ═══ LEFT COLUMN ═══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}>
 
@@ -1082,7 +1089,7 @@ const RoleDashboard = memo(({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
@@ -1197,7 +1204,7 @@ const RoleDashboard = memo(({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
@@ -1315,7 +1322,7 @@ const RoleDashboard = memo(({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
@@ -1384,7 +1391,7 @@ const RoleDashboard = memo(({
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
     {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
       <div style={glass}>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>At a Glance</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

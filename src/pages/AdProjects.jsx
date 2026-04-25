@@ -14,6 +14,22 @@ import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
 import { useAppData } from "../hooks/useAppData";
+import { useIsMobile } from "../hooks/useWindowWidth";
+
+// Forward-only allowed transitions — also used by the grid drag-drop
+// (P3.30) to validate target columns before persisting a move.
+// Backward moves are deliberately not allowed via drag — they require
+// a deliberate path through the project detail page so we don't lose
+// proof history by accident.
+const NEXT_STAGES = {
+  brief:        ["designing"],
+  awaiting_art: ["designing", "approved"],
+  designing:    ["proof_sent"],
+  proof_sent:   ["revising", "approved"],
+  revising:     ["proof_sent"],
+  approved:     ["signed_off"],
+  signed_off:   ["placed"],
+};
 
 const STATUSES = {
   brief: { label: "Brief", color: Z.wa },
@@ -126,6 +142,18 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   const [view, setView] = useState("board"); // board | list
   const [heatmapFilter, setHeatmapFilter] = useState(null);
   const [uploading, setUploading] = useState(false);
+  // P3.29 — selected ids for bulk sign-off on the Issue × Status grid
+  const [selectedSignoff, setSelectedSignoff] = useState(() => new Set());
+  const [bulkSigning, setBulkSigning] = useState(false);
+  // P3.30 — drag-drop state. dragInfo holds the project being moved
+  // so drop targets can validate against NEXT_STAGES[dragInfo.status].
+  // dragOverCell is the cell currently hovered (for visual feedback).
+  const [dragInfo, setDragInfo] = useState(null);
+  const [dragOverCell, setDragOverCell] = useState(null);
+  // P3.35 — viewport-driven layout switches
+  const isMobile = useIsMobile();
+  // P3.35 — Issue × Status grid expansion state on mobile (accordion)
+  const [expandedIssue, setExpandedIssue] = useState(null);
 
   // Create form — _saleId is seeded when the user clicks a Needs Brief card
   const [form, setForm] = useState({
@@ -567,6 +595,51 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...updates } : p));
   };
 
+  // P3.29 — bulk sign-off. Power-action used on the Issue × Status
+  // grid: select N approved cards, click "Sign off N selected" → all
+  // get both signoffs flipped + status="signed_off" in a single
+  // round-trip. Optimistic update so the cards animate out without
+  // waiting on the server.
+  const bulkSignOff = async () => {
+    if (selectedSignoff.size === 0 || bulkSigning) return;
+    const ids = [...selectedSignoff];
+    setBulkSigning(true);
+    const now = new Date().toISOString();
+    const updates = {
+      designer_signoff: true, designer_signoff_at: now,
+      salesperson_signoff: true, salesperson_signoff_at: now,
+      status: "signed_off", updated_at: now,
+    };
+    const { error } = await supabase.from("ad_projects").update(updates).in("id", ids);
+    if (!error) {
+      setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...updates } : p));
+      setSelectedSignoff(new Set());
+    } else {
+      console.error("Bulk sign-off error:", error);
+    }
+    setBulkSigning(false);
+  };
+
+  // P3.30 — drag-drop status change on the grid. Validates target
+  // column against NEXT_STAGES[card.status] so reverse moves and
+  // skipping stages are blocked at the gate.
+  const dropToStatus = async (project, targetCol) => {
+    if (!project) return;
+    const allowed = NEXT_STAGES[project.status] || [];
+    if (!allowed.includes(targetCol)) return;
+    const now = new Date().toISOString();
+    const updates = { status: targetCol, updated_at: now };
+    // Stamp approved_at on the proof_sent → approved path for metric
+    // accuracy (mirrors the project-detail advanceStatus flow).
+    if (targetCol === "approved") updates.approved_at = now;
+    const { error } = await supabase.from("ad_projects").update(updates).eq("id", project.id);
+    if (!error) {
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...updates } : p));
+    } else {
+      console.error("Drag drop status update error:", error);
+    }
+  };
+
   // ── Get approval link ──────────────────────────────────
   const getApprovalLink = (proof) => {
     return `${window.location.origin}/approve/${proof.access_token}`;
@@ -752,15 +825,6 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           clickable, advancing the project one step. Hover ring +
           pointer cursor signal which segments are interactive. */}
       {(() => {
-        const NEXT_STAGES = {
-          brief:        ["designing"],
-          awaiting_art: ["designing", "approved"],   // CR jumps straight to approved on receipt
-          designing:    ["proof_sent"],
-          proof_sent:   ["revising", "approved"],
-          revising:     ["proof_sent"],
-          approved:     ["signed_off"],
-          signed_off:   ["placed"],
-        };
         const allowedNext = NEXT_STAGES[viewProject.status] || [];
         const isCR = viewProject.art_source === "camera_ready";
         const showMarkArtReceived = isCR && viewProject.status === "awaiting_art";
@@ -870,7 +934,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         </div>;
       })()}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 380px", gap: 16 }}>
         {/* LEFT: Brief with hero proof + history */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
@@ -1183,8 +1247,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               </div>;
             }
             return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
-              <div style={{ display: "flex", gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: isMobile ? 110 : 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
+              <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, flex: 1 }}>
                 {pubIssues.map(iss => {
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
                   const count = tab === "Active"
@@ -1210,7 +1274,12 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     })()}
 
     {/* ═══ ISSUE × STATUS GRID (Active tab, board view) ═══ */}
-    {view === "board" && tab === "Active" ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    {view === "board" && tab === "Active" ? <div style={{ display: "flex", flexDirection: "column", gap: 8, position: "relative" }}>
+      {/* P3.35 — outer wrapper handles horizontal scroll on narrow
+          screens; the grid itself keeps a min-width so columns don't
+          collapse to unreadable widths. */}
+      <div style={{ overflowX: isMobile ? "auto" : "visible", paddingBottom: isMobile ? 4 : 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: isMobile ? 920 : "auto" }}>
       {/* Column header row */}
       <div style={{ display: "grid", gridTemplateColumns: `200px repeat(${STATUS_COLS.length}, 1fr)`, gap: 8 }}>
         <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "8px 10px" }}>Issue</div>
@@ -1245,16 +1314,53 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             {/* Status cells */}
             {STATUS_COLS.map(col => {
               const cards = row.cells[col];
+              // P3.30 — drop target validity check + visual highlight
+              const dragValid = dragInfo && (NEXT_STAGES[dragInfo.status] || []).includes(col);
+              const isDragOver = dragOverCell?.row === iss.id && dragOverCell?.col === col;
               return (
-                <div key={col} style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                <div
+                  key={col}
+                  onDragOver={(e) => {
+                    if (dragValid) {
+                      e.preventDefault();
+                      if (!isDragOver) setDragOverCell({ row: iss.id, col });
+                    }
+                  }}
+                  onDragLeave={() => { if (isDragOver) setDragOverCell(null); }}
+                  onDrop={(e) => {
+                    if (!dragValid) return;
+                    e.preventDefault();
+                    const moved = projects.find(p => p.id === dragInfo.id);
+                    if (moved) dropToStatus(moved, col);
+                    setDragOverCell(null);
+                    setDragInfo(null);
+                  }}
+                  style={{
+                    display: "flex", flexDirection: "column", gap: 4, minWidth: 0,
+                    padding: 2, borderRadius: Ri,
+                    background: isDragOver && dragValid ? Z.go + "15" : "transparent",
+                    outline: isDragOver && dragValid ? `2px dashed ${Z.go}` : "none",
+                    transition: "background 0.1s",
+                  }}
+                >
                   {cards.length === 0 ? (
                     <div style={{ padding: "4px 0", textAlign: "center", color: Z.bd, fontSize: 11 }}>·</div>
                   ) : cards.map(({ sale, project }) => {
                     const isNeedsBrief = !project;
                     const isUnassigned = project && !project.designer_id;
+                    // P3.29 — only approved cards can be bulk-signed-off
+                    const canSignoff = project && project.status === "approved";
+                    const isSelected = canSignoff && selectedSignoff.has(project.id);
                     return (
                       <div
                         key={sale.id}
+                        draggable={!isNeedsBrief}
+                        onDragStart={(e) => {
+                          if (isNeedsBrief) return;
+                          e.dataTransfer.effectAllowed = "move";
+                          setDragInfo({ id: project.id, status: project.status });
+                        }}
+                        onDragEnd={() => { setDragInfo(null); setDragOverCell(null); }}
                         onClick={() => {
                           if (isNeedsBrief) {
                             setForm(f => ({
@@ -1271,18 +1377,42 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                           }
                         }}
                         style={{
+                          position: "relative",
                           padding: "8px 10px",
-                          background: isNeedsBrief ? "transparent" : Z.bg,
+                          paddingLeft: canSignoff ? 26 : 10,
+                          background: isSelected ? Z.go + "12" : (isNeedsBrief ? "transparent" : Z.bg),
                           borderRadius: Ri,
-                          cursor: "pointer",
-                          border: isNeedsBrief
-                            ? `1.5px dashed ${Z.bd}`
-                            : isUnassigned
-                              ? `1.5px dashed #E24B4A80`
-                              : `1px solid ${Z.bd}`,
+                          cursor: !isNeedsBrief ? "grab" : "pointer",
+                          opacity: dragInfo?.id === project?.id ? 0.4 : 1,
+                          border: isSelected
+                            ? `1.5px solid ${Z.go}`
+                            : isNeedsBrief
+                              ? `1.5px dashed ${Z.bd}`
+                              : isUnassigned
+                                ? `1.5px dashed #E24B4A80`
+                                : `1px solid ${Z.bd}`,
                         }}
-                        title={isNeedsBrief ? "Click to start a design brief" : "Open project"}
+                        title={isNeedsBrief ? "Click to start a design brief" : "Drag to advance status, or click to open"}
                       >
+                        {/* P3.29 — multi-select checkbox for bulk sign-off
+                            (only approved cards). Stops propagation so
+                            click doesn't open the project detail. */}
+                        {canSignoff && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => {
+                              setSelectedSignoff(prev => {
+                                const next = new Set(prev);
+                                if (next.has(project.id)) next.delete(project.id);
+                                else next.add(project.id);
+                                return next;
+                              });
+                            }}
+                            style={{ position: "absolute", top: 8, left: 8, cursor: "pointer", margin: 0 }}
+                          />
+                        )}
                         <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cn(sale.clientId) || ""}>
                           {sale.clientId
                             ? <EntityLink onClick={nav.toClient(sale.clientId)}>{cn(sale.clientId)}</EntityLink>
@@ -1303,6 +1433,29 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           </div>
         );
       })}
+      </div>{/* end inner min-width grid */}
+      </div>{/* end horizontal-scroll wrapper */}
+
+      {/* P3.29 — bulk sign-off action bar. Sticky at the bottom of the
+          grid section while a selection is active; click to flip all
+          selected approved cards to signed_off in one round-trip. */}
+      {selectedSignoff.size > 0 && (
+        <div style={{
+          position: "sticky", bottom: 12, alignSelf: "center",
+          marginTop: 4, padding: "10px 16px",
+          background: Z.sf, border: `1px solid ${Z.bd}`,
+          borderRadius: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+          display: "flex", gap: 12, alignItems: "center", zIndex: 5,
+        }}>
+          <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>
+            {selectedSignoff.size} selected
+          </span>
+          <Btn sm v="ghost" onClick={() => setSelectedSignoff(new Set())}>Clear</Btn>
+          <Btn sm onClick={bulkSignOff} disabled={bulkSigning} style={{ background: Z.go, color: "#fff" }}>
+            {bulkSigning ? "Signing off…" : `✓ Sign off ${selectedSignoff.size}`}
+          </Btn>
+        </div>
+      )}
     </div>
 
     : view === "board" ? <div style={{ display: "grid", gridTemplateColumns: `repeat(${KANBAN_COLS.length}, 1fr)`, gap: 10, minHeight: 400 }}>
