@@ -47,6 +47,12 @@ const RoleDashboard = memo(({
   // ─── Direction from Publisher (Sec 12.0.3) ─────────────
   const [directionNotes, setDirectionNotes] = useState([]);
   const [replyText, setReplyText] = useState("");
+  // P1.17: track which note the reply input is responding to. Was
+  // hard-coded to directionNotes[0] (the most recent note), so a
+  // reply to an older message would silently land on the wrong
+  // recipient.
+  const [activeNoteId, setActiveNoteId] = useState(null);
+
   useEffect(() => {
     if (!currentUser?.authId || !isOnline()) return;
     supabase.from("team_notes").select("*")
@@ -55,13 +61,30 @@ const RoleDashboard = memo(({
       .then(({ data }) => setDirectionNotes(data || []));
   }, [currentUser?.authId]);
 
+  // P1.18: realtime so a publisher's note shows up in seconds
+  // without the designer needing to refresh. Both INSERT (new
+  // note) and UPDATE (read-receipt flip) are handled.
+  useEffect(() => {
+    if (!currentUser?.authId || !isOnline()) return;
+    const ch = supabase
+      .channel(`direction-notes-${currentUser.authId}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "team_notes", filter: `to_user=eq.${currentUser.authId}` },
+        (payload) => setDirectionNotes(prev => [payload.new, ...prev].slice(0, 10)))
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "team_notes", filter: `to_user=eq.${currentUser.authId}` },
+        (payload) => setDirectionNotes(prev => prev.map(n => n.id === payload.new.id ? payload.new : n)))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [currentUser?.authId]);
+
   const markNoteRead = async (noteId) => {
     await supabase.from("team_notes").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", noteId);
     setDirectionNotes(prev => prev.map(n => n.id === noteId ? { ...n, is_read: true } : n));
   };
 
   const replyToNote = async (note) => {
-    if (!replyText.trim()) return;
+    if (!replyText.trim() || !note) return;
     const { data } = await supabase.from("team_notes").insert({
       from_user: currentUser.authId, to_user: note.from_user,
       message: replyText.trim(), context_type: "general",
@@ -72,6 +95,11 @@ const RoleDashboard = memo(({
 
   const DirectionCard = () => {
     const unread = directionNotes.filter(n => !n.is_read && n.from_user !== currentUser?.authId);
+    const inbound = directionNotes.filter(n => n.from_user !== currentUser?.authId).slice(0, 5);
+    const activeNote = inbound.find(n => n.id === activeNoteId);
+    const senderName = activeNote
+      ? ((team || []).find(t => t.authId === activeNote.from_user)?.name || "note")
+      : null;
     return <div style={glass}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Direction from Publisher</span>
@@ -79,22 +107,33 @@ const RoleDashboard = memo(({
       </div>
       {directionNotes.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No notes from publisher</div>
       : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
-        {directionNotes.filter(n => n.from_user !== currentUser?.authId).slice(0, 5).map(n => (
-          <div key={n.id} onClick={() => { if (!n.is_read) markNoteRead(n.id); }} style={{ padding: "8px 10px", borderRadius: Ri, background: Z.bg, borderLeft: `2px solid ${n.is_read ? Z.bd : Z.ac}`, cursor: n.is_read ? "default" : "pointer" }}>
+        {inbound.map(n => {
+          const isActive = n.id === activeNoteId;
+          return <div key={n.id} onClick={() => {
+            setActiveNoteId(n.id);
+            if (!n.is_read) markNoteRead(n.id);
+          }} style={{
+            padding: "8px 10px", borderRadius: Ri, background: Z.bg,
+            borderLeft: `2px solid ${n.is_read ? Z.bd : Z.ac}`,
+            outline: isActive ? `2px solid ${Z.ac}` : "none",
+            cursor: "pointer",
+          }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
               <span style={{ fontSize: FS.xs, color: n.is_read ? Z.td : Z.ac, fontWeight: FW.bold }}>{n.context_type === "task" ? "Task" : "Note"}</span>
               <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtDate(n.created_at?.slice(0, 10))}</span>
             </div>
             <div style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "pre-wrap" }}>{n.message}</div>
-          </div>
-        ))}
+          </div>;
+        })}
       </div>}
-      {/* Reply input */}
+      {/* Reply input — P1.17: targets activeNote, not the freshest one */}
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         <input value={replyText} onChange={e => setReplyText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && replyText.trim() && directionNotes[0]) replyToNote(directionNotes[0]); }}
-          placeholder="Reply..." style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, outline: "none", fontFamily: "inherit" }} />
-        <Btn sm onClick={() => { if (directionNotes[0]) replyToNote(directionNotes[0]); }} disabled={!replyText.trim()}>Reply</Btn>
+          onKeyDown={e => { if (e.key === "Enter" && replyText.trim() && activeNote) replyToNote(activeNote); }}
+          placeholder={activeNote ? `Reply to ${senderName}…` : "Click a note above to reply…"}
+          disabled={!activeNote}
+          style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, outline: "none", fontFamily: "inherit", opacity: activeNote ? 1 : 0.6 }} />
+        <Btn sm onClick={() => { if (activeNote) replyToNote(activeNote); }} disabled={!replyText.trim() || !activeNote}>Reply</Btn>
       </div>
     </div>;
   };

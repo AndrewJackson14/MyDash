@@ -94,6 +94,36 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         // Auto-dismiss
         dismissTimers.current[n.id] = setTimeout(() => dismiss(n.id), AUTO_DISMISS_MS);
       })
+      // P1.8 — also subscribe to the notifications table so @-mention
+      // events written by ChatPanel surface here. We map them into
+      // the same toast-stack shape the team_notes branch uses, with
+      // context_type='mention' as a discriminator for the render
+      // branch below.
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` }, (payload) => {
+        const n = payload.new;
+        if (n.type !== "mention") return;
+        const stackId = `notif:${n.id}`;
+        setStack(prev => {
+          if (prev.some(x => x.id === stackId)) return prev;
+          return [...prev, {
+            id: stackId,
+            note: {
+              id: n.id,
+              message: n.detail || n.title || "You were mentioned",
+              from_user: null,
+              context_type: "mention",
+              context_url: n.link || null,
+              title: n.title || null,
+              created_at: n.created_at,
+            },
+            shown: false,
+          }];
+        });
+        setTimeout(() => {
+          setStack(prev => prev.map(x => x.id === stackId ? { ...x, shown: true } : x));
+        }, STAGGER_MS);
+        dismissTimers.current[stackId] = setTimeout(() => dismiss(stackId), AUTO_DISMISS_MS);
+      })
       .subscribe();
     } catch (err) {
       console.error("NotificationPopover subscribe failed:", err);
