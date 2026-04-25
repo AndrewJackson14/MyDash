@@ -52,7 +52,7 @@ export const PIPELINE = ["Discovery", "Presentation", "Proposal", "Negotiation",
 export const PROPOSAL_STATUSES = ["Draft", "Sent", "Under Review", "Signed & Converted"];
 export const TERMS = [{ label: "1× (per issue)", key: "rate", months: 1 }, { label: "6-month", key: "rate6", months: 6 }, { label: "12-month", key: "rate12", months: 12 }];
 
-export const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
+export const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Layout Designer", "Ad Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager", "Office Administrator"];
 
 export function getAutoTier(n) { return n >= 12 ? "rate12" : n >= 6 ? "rate6" : "rate"; }
 export function getAutoTermLabel(n) { return n >= 12 ? "12+ insertions" : n >= 6 ? "6-11 insertions" : "1-5 insertions"; }

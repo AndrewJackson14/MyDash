@@ -29,7 +29,7 @@ const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
   Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
   "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
-  "Layout Designer": ["dashboard", "stories", "flatplan", "adprojects", "calendar"],
+  "Layout Designer": ["dashboard", "stories", "flatplan", "publications", "legal_notices", "calendar"],
   "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "stories", "flatplan", "performance"],
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
 };

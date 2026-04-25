@@ -40,7 +40,10 @@ function mapStoryRow(s) {
     sentToWeb: s.sent_to_web === true,
     sentToPrint: s.sent_to_print === true,
     print_status: s.print_status,
+    printStatus: s.print_status,
     web_status: s.web_status,
+    placedBy: s.placed_by || null,
+    laidOutAt: s.laid_out_at || null,
     printPublishedAt: s.print_published_at || null,
     publishedAt: s.published_at || null,
     firstPublishedAt: s.first_published_at || null,
@@ -203,7 +206,7 @@ export function DataProvider({ children, localData }) {
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason,billing_email,billing_cc_emails,billing_address,billing_address2,billing_city,billing_state,billing_zip';
         const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to';
-        const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at';
+        const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at,sent_to_press_by,publisher_signoff_at,publisher_signoff_by';
         // Keyset pagination — uses PK index (id > cursor), no OFFSET. Earlier
         // OFFSET pagination silently dropped pages on Postgres statement
         // timeouts at offset ~18k+, so boot would load only the first ~3860
@@ -293,7 +296,7 @@ export function DataProvider({ children, localData }) {
           contacts: [], comms: [], yearlySummary: [],
         })));
 
-        if (allIssuesRaw.length > 0) setIssues(allIssuesRaw.map(i => ({ id: i.id, pubId: i.pub_id, label: i.label, date: i.date, pageCount: i.page_count, adDeadline: i.ad_deadline, edDeadline: i.ed_deadline, status: i.status, revenueGoal: i.revenue_goal != null ? Number(i.revenue_goal) : null, sentToPressAt: i.sent_to_press_at || null })));
+        if (allIssuesRaw.length > 0) setIssues(allIssuesRaw.map(i => ({ id: i.id, pubId: i.pub_id, label: i.label, date: i.date, pageCount: i.page_count, adDeadline: i.ad_deadline, edDeadline: i.ed_deadline, status: i.status, revenueGoal: i.revenue_goal != null ? Number(i.revenue_goal) : null, sentToPressAt: i.sent_to_press_at || null, sentToPressBy: i.sent_to_press_by || null, publisherSignoffAt: i.publisher_signoff_at || null, publisherSignoffBy: i.publisher_signoff_by || null })));
 
         if (allSalesRaw.length > 0) setSales(allSalesRaw.map(s => ({
           id: s.id, clientId: s.client_id, publication: s.publication_id, issueId: s.issue_id,
@@ -523,6 +526,7 @@ export function DataProvider({ children, localData }) {
       "corrected_after_publish", "last_correction_at",
       "images", "freelancer_name", "freelancer_email",
       "has_images", "jump_to_page", "jump_from_page",
+      "placed_by", "laid_out_at",
       "created_at", "updated_at",
     ].join(", ");
     const pageSize = 1000;

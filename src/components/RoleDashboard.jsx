@@ -159,6 +159,24 @@ const RoleDashboard = memo(({
   const [upcomingRange, setUpcomingRange] = useState("30d");
   const [pinging, setPinging] = useState(null);
 
+  // ─── Layout Designer state (Anthony) ─────────────────────
+  // Same hoist-to-top-of-component rule: hooks must run every render.
+  // The Anthony branch reads these; non-Anthony renders ignore them.
+  const [layoutActiveIssues, setLayoutActiveIssues] = useState([]);
+  const [layoutPipeline, setLayoutPipeline] = useState([]);
+  const [layoutReady, setLayoutReady] = useState([]);
+  const [layoutPings, setLayoutPings] = useState([]);
+  const [layoutRefs, setLayoutRefs] = useState([]);
+  const [layoutRecentPress, setLayoutRecentPress] = useState([]);
+  const [layoutFilter, setLayoutFilter] = useState("all"); // all | newspapers | magazines
+  const [layoutStats, setLayoutStats] = useState({
+    pagesThisMonth: 0,
+    issuesThisMonth: 0,
+    onTimeRate: 100,
+    activeDeadlines: 0,
+    streakDays: 0,
+  });
+
   // ─── Direction from Publisher (Sec 12.0.3) ─────────────
   const [directionNotes, setDirectionNotes] = useState([]);
   const [replyText, setReplyText] = useState("");
@@ -251,6 +269,286 @@ const RoleDashboard = memo(({
         <Btn sm onClick={() => { if (activeNote) replyToNote(activeNote); }} disabled={!replyText.trim() || !activeNote}>Reply</Btn>
       </div>
     </div>;
+  };
+
+  // ─── Layout Designer (Anthony) — top-level effects ───────
+  // Detection lives here so the data-fetch + realtime hooks below
+  // are defined before any role branches do an early return. Inside
+  // each effect we guard with `if (!isLayoutDesigner) return;` so
+  // non-Anthony users pay no work cost.
+  const isLayoutDesigner = role === "Layout Designer" || role === "Production Manager";
+
+  useEffect(() => {
+    if (!isLayoutDesigner) return;
+    if (!currentUser?.id || !isOnline()) return;
+
+    const myPubs = (currentUser?.pubs || []).includes("all")
+      ? (pubs || []).map(p => p.id)
+      : (currentUser?.pubs || []);
+    if (myPubs.length === 0) return;
+
+    (async () => {
+      // 1. Active issues (next 21d, my pubs, not yet shipped). Pulled
+      // straight from in-memory _issues so we don't re-fetch.
+      const cutoff = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+      const myActive = (_issues || []).filter(i =>
+        myPubs.includes(i.pubId)
+        && i.date >= today
+        && i.date <= cutoff
+        && !i.sentToPressAt
+      ).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+      const issueIds = myActive.map(i => i.id);
+
+      if (issueIds.length === 0) {
+        setLayoutActiveIssues([]);
+        setLayoutPipeline([]);
+        setLayoutReady([]);
+        setLayoutPings([]);
+        setLayoutRefs([]);
+      } else {
+        // Batched per-issue progress queries
+        const [storyRes, saleRes, projRes, pageStatusRes] = await Promise.all([
+          supabase.from("stories").select("id, status, print_status, print_issue_id, page").in("print_issue_id", issueIds),
+          supabase.from("sales").select("id, issue_id, status, page").in("issue_id", issueIds),
+          supabase.from("ad_projects").select("id, issue_id, status").in("issue_id", issueIds),
+          supabase.from("flatplan_page_status").select("issue_id, page_number, completed_at").in("issue_id", issueIds).not("completed_at", "is", null),
+        ]);
+        const storyRows = storyRes.data || [];
+        const saleRows = saleRes.data || [];
+        const projRows = projRes.data || [];
+        const pageStatusRows = pageStatusRes.data || [];
+
+        const enriched = myActive.map(iss => {
+          const ss = storyRows.filter(s => s.print_issue_id === iss.id);
+          const xs = saleRows.filter(s => s.issue_id === iss.id);
+          const ps = projRows.filter(p => p.issue_id === iss.id);
+          const cs = pageStatusRows.filter(p => p.issue_id === iss.id);
+
+          const edReady = ss.filter(s => s.status === "Ready").length;
+          const edInEdit = ss.filter(s => s.status === "Edit").length;
+          const edDraft = ss.filter(s => s.status === "Draft").length;
+
+          const layOnPage = ss.filter(s => s.print_status === "on_page").length;
+          const layProofread = ss.filter(s => s.print_status === "proofread").length;
+          const layApproved = ss.filter(s => s.print_status === "approved").length;
+
+          const adsPlaced = xs.filter(s => s.status === "Closed" && s.page).length;
+          const adsAwaitingProof = ps.filter(p => ["proof_sent", "revising", "designing"].includes(p.status)).length;
+          const adsMissing = xs.filter(s => s.status === "Closed" && !s.page).length;
+
+          const pagesWithStory = new Set(ss.map(s => s.page).filter(Boolean));
+          const pagesWithAd = new Set(xs.filter(s => s.status === "Closed" && s.page).map(s => s.page));
+          const pagesStarted = new Set([...pagesWithStory, ...pagesWithAd]).size;
+          const pagesComplete = cs.length;
+
+          const dEd = edReady > 0 && edInEdit + edDraft <= 2 ? "green" : (edInEdit + edDraft > 5 ? "red" : "amber");
+          const dLay = layApproved >= (iss.pageCount || 8) ? "green" : (layOnPage + layProofread + layApproved === 0 ? "red" : "amber");
+          const dAd = adsMissing === 0 ? "green" : (adsMissing > 3 ? "red" : "amber");
+
+          return {
+            ...iss,
+            edReady, edInEdit, edDraft,
+            layOnPage, layProofread, layApproved,
+            adsPlaced, adsAwaitingProof, adsMissing,
+            pagesStarted, pagesComplete,
+            dEd, dLay, dAd,
+          };
+        });
+        setLayoutActiveIssues(enriched);
+
+        // 2. Pipeline lookahead — Camille still has these in Edit
+        const { data: lookahead } = await supabase
+          .from("stories")
+          .select("id, title, author, due_date, print_issue_id, publication_id, assigned_to")
+          .in("print_issue_id", issueIds)
+          .eq("status", "Edit")
+          .order("due_date", { ascending: true })
+          .limit(20);
+        setLayoutPipeline(lookahead || []);
+
+        // 3. Ready for Layout — Anthony's actual queue
+        const { data: ready } = await supabase
+          .from("stories")
+          .select("id, title, author, page, print_issue_id, publication_id, status, print_status, word_count, has_images")
+          .in("print_issue_id", issueIds)
+          .in("status", ["Ready", "Approved"])
+          .in("print_status", ["none", "ready"])
+          .order("page", { ascending: true });
+        setLayoutReady(ready || []);
+
+        // 4. Issue Pings — last 48h, posted by someone other than me.
+        // team_notes.from_user references team_members.id, so we filter
+        // against currentUser.id (NOT authId — different ref).
+        const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const { data: pings } = await supabase
+          .from("team_notes")
+          .select("id, message, context_type, context_id, from_user, created_at, is_read")
+          .eq("context_type", "issue")
+          .in("context_id", issueIds)
+          .neq("from_user", currentUser.id)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        setLayoutPings(pings || []);
+
+        // 5. Hayley's Layout Refs — last 7d
+        const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+        const { data: refs } = await supabase
+          .from("flatplan_page_layouts")
+          .select("id, issue_id, page_number, cdn_url, uploaded_at, uploaded_by")
+          .in("issue_id", issueIds)
+          .gte("uploaded_at", since7)
+          .order("uploaded_at", { ascending: false })
+          .limit(10);
+        setLayoutRefs(refs || []);
+      }
+
+      // 6. Recent press — last 48h, my pubs only
+      const since48 = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+      const recent = (_issues || []).filter(i =>
+        myPubs.includes(i.pubId) && i.sentToPressAt && i.sentToPressAt >= since48
+      ).sort((a, b) => (b.sentToPressAt || "").localeCompare(a.sentToPressAt || ""));
+      setLayoutRecentPress(recent);
+
+      // 7. Layout stats
+      const monthStart = today.slice(0, 7) + "-01";
+      const last30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+      const { data: pagesMonth } = await supabase
+        .from("stories")
+        .select("print_issue_id, page")
+        .eq("placed_by", currentUser.id)
+        .gte("laid_out_at", monthStart);
+      const pageSet = new Set((pagesMonth || []).map(r => `${r.print_issue_id}::${r.page}`));
+
+      const { data: issuesMonth } = await supabase
+        .from("issues")
+        .select("id, sent_to_press_at, ad_deadline")
+        .eq("sent_to_press_by", currentUser.id)
+        .gte("sent_to_press_at", monthStart);
+
+      const { data: last30Issues } = await supabase
+        .from("issues")
+        .select("sent_to_press_at, ad_deadline")
+        .eq("sent_to_press_by", currentUser.id)
+        .gte("sent_to_press_at", last30);
+      const ontime = (last30Issues || []).filter(i =>
+        i.ad_deadline && i.sent_to_press_at && i.sent_to_press_at.slice(0, 10) <= i.ad_deadline
+      ).length;
+      const onTimeRate = (last30Issues || []).length > 0
+        ? Math.round(ontime / last30Issues.length * 100)
+        : 100;
+
+      const cutoff7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      const activeDeadlines = (_issues || []).filter(i =>
+        myPubs.includes(i.pubId) && i.date >= today && i.date <= cutoff7 && !i.sentToPressAt
+      ).length;
+
+      const streakDays = new Set(
+        (last30Issues || [])
+          .map(i => (i.sent_to_press_at || "").slice(0, 10))
+          .filter(Boolean)
+      ).size;
+
+      setLayoutStats({
+        pagesThisMonth: pageSet.size,
+        issuesThisMonth: (issuesMonth || []).length,
+        onTimeRate,
+        activeDeadlines,
+        streakDays,
+      });
+    })();
+  }, [isLayoutDesigner, currentUser?.id, _issues?.length, pubs?.length]);
+
+  // Realtime: Issue Pings — INSERT on team_notes scoped to my active
+  // issues. Filtered server-side on context_type, payload-side on
+  // context_id since postgres_changes only takes one filter clause.
+  useEffect(() => {
+    if (!isLayoutDesigner) return;
+    if (!currentUser?.id || !isOnline()) return;
+    if (layoutActiveIssues.length === 0) return;
+    const issueIds = layoutActiveIssues.map(i => i.id);
+    const ch = supabase
+      .channel(`layout-pings-${currentUser.id}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "team_notes", filter: `context_type=eq.issue` },
+        (payload) => {
+          if (issueIds.includes(payload.new.context_id) && payload.new.from_user !== currentUser.id) {
+            setLayoutPings(prev => [payload.new, ...prev].slice(0, 10));
+          }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isLayoutDesigner, currentUser?.id, layoutActiveIssues.length]);
+
+  // Realtime: Hayley's layout reference uploads
+  useEffect(() => {
+    if (!isLayoutDesigner) return;
+    if (!currentUser?.id || !isOnline()) return;
+    if (layoutActiveIssues.length === 0) return;
+    const issueIds = layoutActiveIssues.map(i => i.id);
+    const ch = supabase
+      .channel(`layout-refs-${currentUser.id}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "flatplan_page_layouts" },
+        (payload) => {
+          if (issueIds.includes(payload.new.issue_id)) {
+            setLayoutRefs(prev => [payload.new, ...prev].slice(0, 10));
+          }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isLayoutDesigner, currentUser?.id, layoutActiveIssues.length]);
+
+  // Realtime: own send-to-press — DOSE moment + immediate stat refresh
+  useEffect(() => {
+    if (!isLayoutDesigner) return;
+    if (!currentUser?.id || !isOnline()) return;
+    const ch = supabase
+      .channel(`layout-press-${currentUser.id}`)
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "issues", filter: `sent_to_press_by=eq.${currentUser.id}` },
+        (payload) => {
+          if (payload.new.sent_to_press_at && !payload.old.sent_to_press_at) {
+            setLayoutRecentPress(prev => [{
+              ...payload.new,
+              pubId: payload.new.pub_id,
+              sentToPressAt: payload.new.sent_to_press_at,
+            }, ...prev]);
+            setLayoutStats(prev => ({
+              ...prev,
+              issuesThisMonth: prev.issuesThisMonth + 1,
+              activeDeadlines: Math.max(0, prev.activeDeadlines - 1),
+            }));
+            setLayoutActiveIssues(prev => prev.filter(i => i.id !== payload.new.id));
+          }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isLayoutDesigner, currentUser?.id]);
+
+  // Mark a story on-page (advances print_status + stamps placed_by/laid_out_at)
+  const handleMarkOnPage = async (storyId) => {
+    const updates = {
+      print_status: "on_page",
+      placed_by: currentUser.id,
+      laid_out_at: new Date().toISOString(),
+    };
+    setLayoutReady(prev => prev.filter(s => s.id !== storyId));
+    const { error } = await supabase.from("stories").update(updates).eq("id", storyId);
+    if (error) {
+      console.error("Mark On Page failed:", error.message);
+      return;
+    }
+    if (typeof setStories === "function") {
+      setStories(prev => prev.map(s => s.id === storyId ? {
+        ...s,
+        print_status: "on_page",
+        printStatus: "on_page",
+        placedBy: currentUser.id,
+        laidOutAt: updates.laid_out_at,
+      } : s));
+    }
   };
 
   // ─── Content Editor Dashboard (Camille) — Sec 12.2 ────
@@ -403,92 +701,269 @@ const RoleDashboard = memo(({
   }
 
   // ─── Layout Designer Dashboard (Anthony) — Sec 12.3 ────
-  if (["Graphic Designer", "Layout Designer", "Production Manager"].includes(role) && !["Ad Designer"].includes(currentUser?.title || "")) {
-    const readyForPrint = _stories.filter(s => s.printStatus === "ready_for_print" || s.status === "Approved");
-    const onPage = _stories.filter(s => s.printStatus === "on_page" || s.status === "On Page");
-    const activeIssues = _issues.filter(i => i.date >= today && daysUntil(i.date) <= 30);
+  if (isLayoutDesigner) {
+    // Filter active issues by newspaper/magazine if filter chip is set.
+    // Pubs categorize via their `type` (newspaper | magazine | annual).
+    const filteredActive = layoutFilter === "all"
+      ? layoutActiveIssues
+      : layoutActiveIssues.filter(iss => {
+          const pub = (pubs || []).find(p => p.id === iss.pubId);
+          const pubType = (pub?.type || "").toLowerCase();
+          if (layoutFilter === "newspapers") return pubType.includes("newspaper") || !pubType;
+          if (layoutFilter === "magazines") return pubType.includes("magazine") || pubType.includes("annual");
+          return true;
+        });
 
-    // DOSE metrics
-    const thisMonthStr = today.slice(0, 7);
-    const pagesThisMonth = onPage.length; // approximate
-    const sentToPress = _issues.filter(i => i.sentToPressAt && i.sentToPressAt.startsWith(thisMonthStr)).length;
-    const nearDeadlines = activeIssues.filter(i => i.date && daysUntil(i.date) <= 7);
-    const queueEmpty = readyForPrint.length === 0 && onPage.length === 0;
-    const recentPress = _issues.filter(i => i.sentToPressAt).sort((a, b) => (b.sentToPressAt || "").localeCompare(a.sentToPressAt || ""))[0];
+    // Pipeline + Ready grouped by issue for tile rendering
+    const pipelineByIssue = layoutPipeline.reduce((acc, s) => {
+      const key = s.print_issue_id || "_unassigned";
+      (acc[key] = acc[key] || []).push(s);
+      return acc;
+    }, {});
+    const readyByIssue = layoutReady.reduce((acc, s) => {
+      const key = s.print_issue_id || "_unassigned";
+      (acc[key] = acc[key] || []).push(s);
+      return acc;
+    }, {});
+
+    const onTimeColor = layoutStats.onTimeRate >= 90 ? Z.go : layoutStats.onTimeRate >= 70 ? Z.wa : Z.da;
+    const queueEmpty = layoutReady.length === 0 && layoutPipeline.length === 0;
+    const justShipped = layoutRecentPress[0];
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      {/* DOSE Eye Candy */}
+      {/* DOSE Hero */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
-          {sentToPress > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
-            <span style={{ fontSize: 16 }}>🖨️</span>
-            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{sentToPress} to press</div><div style={{ fontSize: 10, color: Z.tm }}>this month</div></div>
+          {layoutStats.streakDays >= 3 && <div title={`${layoutStats.streakDays} distinct days shipping in the last 30`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
+            <span style={{ fontSize: 16 }}>🔥</span>
+            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{layoutStats.streakDays} days</div><div style={{ fontSize: 10, color: Z.tm }}>shipping</div></div>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: readyForPrint.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{readyForPrint.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Ready for Layout</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{layoutStats.pagesThisMonth}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pages laid out</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>this month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{onPage.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On Page</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{layoutStats.issuesThisMonth}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Issues to press</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>this month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: activeIssues.length > 0 ? Z.tx : Z.td, fontFamily: DISPLAY }}>{activeIssues.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Issues</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: onTimeColor, fontFamily: DISPLAY }}>{layoutStats.onTimeRate}%</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-time rate</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>last 30 days</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: nearDeadlines.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{nearDeadlines.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Deadlines (7d)</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: layoutStats.activeDeadlines > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{layoutStats.activeDeadlines}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active deadlines</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>next 7 days</div>
           </div>
         </div>
+        {/* Beat strip — conditional badges based on current state */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {recentPress && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🖨️</span>
-            <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(recentPress.pubId)} {recentPress.label}</span> <span style={{ color: Z.tm }}>went to press</span></span>
+          {justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(justShipped.pubId)} {justShipped.label}</span> <span style={{ color: Z.tm }}>went to press</span></span>
           </div>}
-          {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+          {queueEmpty && !justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
             <span style={{ fontSize: 14 }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — no pages waiting</span>
           </div>}
-          {!queueEmpty && readyForPrint.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
+          {!queueEmpty && layoutReady.length > 0 && layoutReady.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
             <span style={{ fontSize: 14 }}>🎯</span>
-            <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{readyForPrint.length} waiting for layout</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{layoutReady.length} to layout — you've got this</span>
+          </div>}
+          {layoutPipeline.filter(s => s.due_date && s.due_date < today).length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.wa + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>⚠️</span>
+            <span style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.bold }}>{layoutPipeline.filter(s => s.due_date && s.due_date < today).length} stories past ed deadline — Camille's working on it</span>
           </div>}
         </div>
       </div>
+
+      {/* Two-column body */}
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
+        {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Today's Issues */}
           <div style={glass}>
-            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Ready for Print Queue</div>
-            {readyForPrint.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No stories waiting for layout</div>
-            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
-              {readyForPrint.map(s => (
-                <div key={s.id} onClick={() => onNavigate?.("flatplan")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{s.title}</div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(s.publication)} · {s.wordCount || "?"} words</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Today's Issues</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["all", "All"], ["newspapers", "Newspapers"], ["magazines", "Magazines"]].map(([v, l]) => (
+                  <button key={v} onClick={() => setLayoutFilter(v)} style={{ padding: "3px 10px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: 10, fontWeight: layoutFilter === v ? FW.bold : 500, background: layoutFilter === v ? Z.tx + "12" : "transparent", color: layoutFilter === v ? Z.tx : Z.td, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {filteredActive.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No active issues in the next 21 days</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 580, overflowY: "auto" }}>
+              {filteredActive.map(iss => {
+                const d = daysUntil(iss.date);
+                const borderColor = d <= 1 ? Z.da : d <= 3 ? Z.wa : Z.go;
+                const totalPages = iss.pageCount || 8;
+                const pct = Math.min(100, Math.round((iss.pagesStarted / totalPages) * 100));
+                const dotColor = (s) => s === "green" ? Z.go : s === "amber" ? Z.wa : Z.da;
+                return (
+                  <div key={iss.id} style={{
+                    padding: "14px 16px", background: Z.bg, borderRadius: R,
+                    borderLeft: `3px solid ${borderColor}`,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ display: "inline-flex", gap: 3 }}>
+                          <span title="Editorial pipeline" style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor(iss.dEd), display: "inline-block" }} />
+                          <span title="Layout progress" style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor(iss.dLay), display: "inline-block" }} />
+                          <span title="Ad placement" style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor(iss.dAd), display: "inline-block" }} />
+                        </span>
+                        <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+                          {pn(iss.pubId)} {iss.label}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: borderColor, padding: "2px 8px", background: borderColor + "15", borderRadius: Ri, fontFamily: COND, letterSpacing: 0.4 }}>
+                        PRESS: {d <= 0 ? "TODAY" : d === 1 ? "TOMORROW" : `${d}D`}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, lineHeight: 1.7, marginBottom: 8 }}>
+                      <div>EDITORIAL: <strong style={{ color: Z.tx }}>{iss.edReady} ready</strong> · {iss.edInEdit} in edit · {iss.edDraft} draft</div>
+                      <div>LAYOUT: <strong style={{ color: Z.tx }}>{iss.layOnPage} on-page</strong> · {iss.layProofread} proofread · {iss.layApproved} approved</div>
+                      <div>ADS: <strong style={{ color: Z.tx }}>{iss.adsPlaced} placed</strong> · {iss.adsAwaitingProof} awaiting proof · {iss.adsMissing} missing</div>
+                    </div>
+
+                    <div style={{ height: 4, background: Z.bd, borderRadius: 2, marginBottom: 6 }}>
+                      <div style={{ height: 4, borderRadius: 2, background: pct >= 80 ? Z.go : pct >= 40 ? Z.wa : Z.da, width: `${pct}%`, transition: "width 0.3s" }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginBottom: 10 }}>
+                      {iss.pagesStarted} of {totalPages} pages started{iss.pagesComplete > 0 ? ` · ${iss.pagesComplete} complete` : ""}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Btn sm onClick={() => onNavigate?.(`/layout/${iss.id}`)}>Open Layout Console</Btn>
+                      <Btn sm v="secondary" onClick={() => onNavigate?.("flatplan", { pub: iss.pubId, issue: iss.id })}>Open Flatplan</Btn>
+                    </div>
                   </div>
-                  <Btn sm onClick={(e) => { e.stopPropagation(); }}>Pull to Layout</Btn>
-                </div>
-              ))}
+                );
+              })}
+            </div>}
+          </div>
+
+          {/* Incoming from Editorial */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Incoming from Editorial</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{layoutPipeline.length} in flight</span>
+            </div>
+            {layoutPipeline.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Nothing in editorial pipeline</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {layoutPipeline.slice(0, 12).map(s => {
+                const overdue = s.due_date && s.due_date < today;
+                return <div key={s.id} onClick={() => onNavigate?.("stories", { storyId: s.id })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${overdue ? Z.da : Z.bd}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{s.author || "—"} · {pn(s.publication_id)} · Camille has it</div>
+                  </div>
+                  {s.due_date && <span style={{ fontSize: FS.xs, color: overdue ? Z.da : Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{overdue ? `${Math.abs(daysUntil(s.due_date))}d over` : `${daysUntil(s.due_date)}d`}</span>}
+                </div>;
+              })}
+            </div>}
+          </div>
+
+          {/* Ready for Layout — grouped by issue */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Ready for Layout</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{layoutReady.length} stor{layoutReady.length === 1 ? "y" : "ies"}</span>
+            </div>
+            {layoutReady.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Nothing waiting for you</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" }}>
+              {Object.entries(readyByIssue).map(([iid, items]) => {
+                const iss = filteredActive.find(i => i.id === iid) || layoutActiveIssues.find(i => i.id === iid);
+                if (!iss && iid !== "_unassigned") return null;
+                return <div key={iid} style={{ background: Z.bg, borderRadius: Ri, padding: "8px 10px" }}>
+                  <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 6 }}>
+                    {iss ? `${pn(iss.pubId)} ${iss.label}` : "Unassigned issue"} · {items.length}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {items.map(s => (
+                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", borderTop: `1px solid ${Z.bd}15` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                          <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{s.author || "—"}{s.word_count ? ` · ${s.word_count}w` : ""}{s.has_images ? " · 📷" : ""}{s.page ? ` · p${s.page}` : ""}</div>
+                        </div>
+                        <Btn sm onClick={() => handleMarkOnPage(s.id)}>Mark On Page</Btn>
+                      </div>
+                    ))}
+                  </div>
+                </div>;
+              })}
             </div>}
           </div>
         </div>
+
+        {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* Issue Pings */}
+          {layoutPings.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Issue Pings</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {layoutPings.map(p => {
+                const sender = (team || []).find(t => t.id === p.from_user)?.name || "Someone";
+                const iss = layoutActiveIssues.find(i => i.id === p.context_id);
+                return <div key={p.id} onClick={() => iss && onNavigate?.("flatplan", { pub: iss.pubId, issue: iss.id })} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: iss ? "pointer" : "default" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{sender}</span>
+                    <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : ""}</span>
+                  </div>
+                  <div title={p.message} style={{ fontSize: FS.xs, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.message}</div>
+                </div>;
+              })}
+            </div>
+          </div>}
+
+          {/* Hayley's Layout Refs */}
+          {layoutRefs.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Hayley's Layout Refs</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+              {layoutRefs.map(r => {
+                const iss = layoutActiveIssues.find(i => i.id === r.issue_id);
+                return <div key={r.id} onClick={() => iss && onNavigate?.("flatplan", { pub: iss.pubId, issue: iss.id, page: r.page_number })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: Z.bg, borderRadius: Ri, cursor: iss ? "pointer" : "default" }}>
+                  {r.cdn_url && <img src={r.cdn_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>Page {r.page_number}{iss ? ` · ${pn(iss.pubId)} ${iss.label}` : ""}</div>
+                    <div style={{ fontSize: 10, color: Z.td }}>{r.uploaded_at ? fmtDate(r.uploaded_at.slice(0, 10)) : ""}</div>
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>}
+
+          {/* From Press */}
+          {layoutRecentPress.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>From Press</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {layoutRecentPress.slice(0, 5).map(p => (
+                <div key={p.id} style={{ padding: "6px 8px", background: Z.go + "08", borderRadius: Ri, borderLeft: `2px solid ${Z.go}` }}>
+                  <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>📰 {pn(p.pubId)} {p.label}</div>
+                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>sent {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"} · awaiting confirmation</div>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          {/* Quick Links */}
           <div style={glass}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Print Schedule</div>
-            {activeIssues.slice(0, 6).map(iss => {
-              const d = daysUntil(iss.date);
-              const c = d <= 3 ? Z.da : d <= 7 ? Z.wa : Z.td;
-              return <div key={iss.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
-                <span style={{ fontSize: FS.sm, color: Z.tx }}>{pn(iss.pubId)} {iss.label}</span>
-                <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: c }}>{d}d</span>
-              </div>;
-            })}
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("stories")} style={{ justifyContent: "flex-start" }}>Stories / Editorial</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("flatplan")} style={{ justifyContent: "flex-start" }}>Flatplan</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("publications")} style={{ justifyContent: "flex-start" }}>Publications</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("calendar")} style={{ justifyContent: "flex-start" }}>Calendar</Btn>
+            </div>
           </div>
         </div>
       </div>
