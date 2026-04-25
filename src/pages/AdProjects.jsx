@@ -648,6 +648,31 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           <Btn sm v="secondary" onClick={() => requestClientAssets(viewProject)} disabled={requestingAssets} title={viewProject.asset_request_sent_at ? `Last sent ${new Date(viewProject.asset_request_sent_at).toLocaleString()}` : "Email the client a link to drop their assets"}>
             <Ic.attach size={11} /> {requestingAssets ? "Sending…" : (viewProject.asset_request_sent_at ? "Resend Asset Link" : "Request Assets from Client")}
           </Btn>
+          {/* P2.23 — quick-notify Cami/Hayley/Anthony. Pings via
+              team_notes with context_type='ad_project' so the
+              recipient's NotificationPopover can deep-link back. */}
+          {(() => {
+            const notify = async (memberRole) => {
+              const recipient = (team || []).find(t => t.role === memberRole && t.isActive !== false);
+              if (!recipient?.authId) {
+                await dialog.alert(`No ${memberRole} on the team to notify.`);
+                return;
+              }
+              await supabase.from("team_notes").insert({
+                from_user: currentUser.authId,
+                to_user: recipient.authId,
+                message: `Re: ${cn(viewProject.client_id)} — ${pn(viewProject.publication_id)} ad — please take a look`,
+                context_type: "ad_project",
+                context_id: viewProject.id,
+              });
+              await dialog.alert(`Notified ${recipient.name}`);
+            };
+            return <>
+              <Btn sm v="secondary" onClick={() => notify("Office Administrator")} title="Send Cami a note about this project"><Ic.bell size={11} /> Cami</Btn>
+              <Btn sm v="secondary" onClick={() => notify("Publisher")} title="Send Hayley a note about this project"><Ic.bell size={11} /> Hayley</Btn>
+              <Btn sm v="secondary" onClick={() => notify("Layout Designer")} title="Send Anthony a note about this project"><Ic.bell size={11} /> Anthony</Btn>
+            </>;
+          })()}
           <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
         </div>
       </div>

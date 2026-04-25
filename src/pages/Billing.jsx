@@ -180,6 +180,127 @@ const PaymentPlanCard = memo(({ plan: p, today, onRetry, onSuspend }) => {
   </GlassCard>;
 });
 
+// ─── Pending Revision Charges (P2.24) ─────────────────────────
+// Surfaces ad_projects with unbilled revision charges so Cami can
+// either bill them on a standalone invoice or write them off
+// (goodwill, dispute, etc) before the next press-send picks them
+// up automatically.
+const PendingRevisionChargesWidget = ({ clients, pubs, issues }) => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null); // project.id while billing/writing-off
+
+  const reload = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("ad_projects")
+      .select("id, client_id, publication_id, issue_id, sale_id, revision_charges, revision_billable_count, designer_signoff_at, status")
+      .eq("status", "signed_off")
+      .gt("revision_charges", 0)
+      .eq("revision_charges_billed", false)
+      .eq("revision_charges_written_off", false)
+      .order("designer_signoff_at", { ascending: true })
+      .limit(50);
+    setRows(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { reload(); }, []);
+
+  const cn = (id) => clients?.find(c => c.id === id)?.name || "—";
+  const pn = (id) => pubs?.find(p => p.id === id)?.name || "—";
+  const il = (id) => issues?.find(i => i.id === id)?.label || "";
+
+  const total = rows.reduce((s, r) => s + (Number(r.revision_charges) || 0), 0);
+
+  // Bill now: creates a standalone invoice for the revision charge
+  // (no per-issue invoice exists yet — press-send hasn't run for
+  // this issue). Reuses next_invoice_number RPC + the same shape
+  // press-send produces, so the line is consistent.
+  const billNow = async (row) => {
+    if (busy) return;
+    setBusy(row.id);
+    try {
+      const { data: invNum } = await supabase.rpc("next_invoice_number");
+      const today = new Date().toISOString().slice(0, 10);
+      const due = new Date(); due.setDate(due.getDate() + 30);
+      const { data: inv, error: iErr } = await supabase.from("invoices").insert({
+        client_id: row.client_id,
+        invoice_number: invNum || `13XX-${Date.now()}`,
+        status: "draft",
+        issue_date: today,
+        due_date: due.toISOString().slice(0, 10),
+        total: row.revision_charges,
+        balance_due: row.revision_charges,
+      }).select("id, invoice_number").single();
+      if (iErr || !inv?.id) throw iErr || new Error("invoice insert failed");
+      await supabase.from("invoice_lines").insert({
+        invoice_id: inv.id,
+        sale_id: row.sale_id || null,
+        description: `Additional design revisions (×${row.revision_billable_count || 0} @ $25) — ${pn(row.publication_id)} ${il(row.issue_id)}`,
+        quantity: row.revision_billable_count || 0,
+        unit_price: 25,
+        total: row.revision_charges,
+        transaction_type: "design_services",
+      });
+      await supabase.from("ad_projects").update({
+        revision_charges_billed: true,
+        revision_charges_billed_at: new Date().toISOString(),
+      }).eq("id", row.id);
+      setRows(prev => prev.filter(r => r.id !== row.id));
+    } catch (e) {
+      alert(`Bill failed: ${String(e?.message ?? e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const writeOff = async (row) => {
+    if (busy) return;
+    if (!confirm(`Write off ${fmtCurrency(row.revision_charges)} in revision charges for ${cn(row.client_id)}? This cannot be undone from this UI.`)) return;
+    setBusy(row.id);
+    try {
+      await supabase.from("ad_projects").update({
+        revision_charges_written_off: true,
+        revision_charges_billed: true,            // also flag billed=true so press-send doesn't re-bill it
+        revision_charges_billed_at: new Date().toISOString(),
+      }).eq("id", row.id);
+      setRows(prev => prev.filter(r => r.id !== row.id));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!loading && rows.length === 0) return null;
+
+  return <Card style={{ borderLeft: `3px solid ${Z.wa}` }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+      <div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Pending Revision Charges</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>{loading ? "Loading…" : `${fmtCurrency(total)} across ${rows.length} project${rows.length === 1 ? "" : "s"}`}</div>
+      </div>
+      <Btn sm v="ghost" onClick={reload}>Refresh</Btn>
+    </div>
+    {!loading && <DataTable>
+      <thead><tr>
+        <th>Client</th><th>Publication</th><th>Issue</th><th>Signed Off</th><th style={{ textAlign: "right" }}>Charge</th><th></th>
+      </tr></thead>
+      <tbody>
+        {rows.map(r => <tr key={r.id}>
+          <td style={{ fontWeight: FW.semi, color: Z.tx }}>{cn(r.client_id)}</td>
+          <td style={{ color: Z.tm, fontSize: FS.sm }}>{pn(r.publication_id)}</td>
+          <td style={{ color: Z.tm, fontSize: FS.sm }}>{il(r.issue_id)}</td>
+          <td style={{ color: Z.tm, fontSize: FS.sm }}>{r.designer_signoff_at ? r.designer_signoff_at.slice(0, 10) : "—"}</td>
+          <td style={{ textAlign: "right", fontWeight: FW.bold, color: Z.tx }}>{fmtCurrency(r.revision_charges)}</td>
+          <td style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <Btn sm onClick={() => billNow(r)} disabled={busy === r.id}>{busy === r.id ? "…" : "Bill now"}</Btn>
+            <Btn sm v="ghost" onClick={() => writeOff(r)} disabled={busy === r.id}>Write off</Btn>
+          </td>
+        </tr>)}
+      </tbody>
+    </DataTable>}
+  </Card>;
+};
+
 // ─── Billing Settings Tab ───────────────────────────────────
 // Publisher-level billing automation config (stored in org_settings)
 const BillingSettings = ({ dialog, generatePending }) => {
@@ -1051,6 +1172,20 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         <GlassStat label="Collected This Month" value={billingLoaded ? fmtCurrency(totalPaidThisMonth) : "—"} />
         <GlassStat label="Drafts" value={billingLoaded ? fmtCurrency(totalDraftValue) : "—"} sub={billingLoaded ? "Pending send" : "Loading…"} />
       </div>
+
+      {/* P2.24 — Pending Revision Charges. Surfaces signed-off ad
+          projects whose revision charges haven't yet been billed
+          (or written off). Cami can bill now (creates standalone
+          design-services invoice line) or write off (sets the
+          flag so it stops showing here without billing). The
+          per-issue press-send flow continues to bill these
+          automatically — this is for charges that need attention
+          BEFORE the next press-send (e.g., dispute, goodwill). */}
+      <PendingRevisionChargesWidget
+        clients={clients}
+        pubs={pubs}
+        issues={issues}
+      />
 
       {/* Uninvoiced Sales — primary action area.
           Hidden until billingLoaded so we don't show every closed sale as

@@ -15,6 +15,114 @@ import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil, in
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);
 
+// ── DesignerWorkloadTile (P2.25) ─────────────────────────────
+// Hayley's view of the design team. One card per Ad Designer with
+// active count (load color), on-time rate, first-proof rate, and a
+// click-through deep-link into AdProjects filtered to that designer.
+function DesignerWorkloadTile({ team, _issues, onNavigate, glass }) {
+  const designers = (team || []).filter(t => t.role === "Ad Designer" && t.isActive !== false);
+  const [stats, setStats] = useState(null);
+  const [sort, setSort] = useState("load"); // load | onTime | firstProof
+
+  useEffect(() => {
+    if (designers.length === 0) { setStats([]); return; }
+    let cancelled = false;
+    (async () => {
+      const ids = designers.map(d => d.id);
+      // One query for everyone's projects — cheaper than N round trips.
+      const { data: rows } = await supabase
+        .from("ad_projects")
+        .select("designer_id, status, revision_count, approved_at, issue_id, updated_at")
+        .in("designer_id", ids);
+      if (cancelled || !rows) return;
+      const byDesigner = new Map();
+      for (const r of rows) {
+        if (!byDesigner.has(r.designer_id)) byDesigner.set(r.designer_id, []);
+        byDesigner.get(r.designer_id).push(r);
+      }
+      const monthStart = today.slice(0, 7);
+      const out = designers.map(d => {
+        const ps = byDesigner.get(d.id) || [];
+        const active = ps.filter(p => !["signed_off", "placed"].includes(p.status)).length;
+        const completed = ps
+          .filter(p => p.approved_at && ["approved", "signed_off", "placed"].includes(p.status))
+          .sort((a, b) => (b.approved_at || "").localeCompare(a.approved_at || ""))
+          .slice(0, 30);
+        const firstProofRate = completed.length > 0
+          ? Math.round(completed.filter(p => (p.revision_count || 1) <= 1).length / completed.length * 100)
+          : null;
+        const onTimeCount = completed.filter(p => {
+          const issue = _issues.find(i => i.id === p.issue_id);
+          if (!issue) return false;
+          const benchmark = issue.adDeadline || issue.date;
+          return benchmark && p.approved_at.slice(0, 10) <= benchmark;
+        }).length;
+        const onTimeRate = completed.length > 0 ? Math.round(onTimeCount / completed.length * 100) : null;
+        const revisionsMtd = ps.filter(p => (p.updated_at || "").startsWith(monthStart) && (p.revision_count || 0) > 1)
+          .reduce((s, p) => s + ((p.revision_count || 1) - 1), 0);
+        return { ...d, active, onTimeRate, firstProofRate, revisionsMtd };
+      });
+      setStats(out);
+    })();
+    return () => { cancelled = true; };
+  }, [team, _issues]);
+
+  const sorted = useMemo(() => {
+    if (!stats) return [];
+    const list = [...stats];
+    if (sort === "load") list.sort((a, b) => (b.active || 0) - (a.active || 0));
+    else if (sort === "onTime") list.sort((a, b) => (b.onTimeRate ?? -1) - (a.onTimeRate ?? -1));
+    else if (sort === "firstProof") list.sort((a, b) => (b.firstProofRate ?? -1) - (a.firstProofRate ?? -1));
+    return list;
+  }, [stats, sort]);
+
+  if (designers.length === 0) return null;
+
+  const loadColor = (n) => n >= 15 ? Z.da : n >= 9 ? Z.wa : Z.go;
+
+  return <div style={glass}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+      <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Designer Workload</span>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[["load", "Load"], ["onTime", "On-time"], ["firstProof", "1st-proof"]].map(([k, label]) => <button
+          key={k}
+          onClick={() => setSort(k)}
+          style={{
+            padding: "3px 8px", fontSize: 10, fontWeight: FW.bold, fontFamily: COND,
+            background: sort === k ? Z.ac + "18" : "transparent",
+            color: sort === k ? Z.ac : Z.td,
+            border: `1px solid ${sort === k ? Z.ac + "40" : Z.bd}`, borderRadius: Ri,
+            cursor: "pointer",
+          }}
+        >{label}</button>)}
+      </div>
+    </div>
+    {!stats ? <div style={{ padding: 14, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading…</div>
+    : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+      {sorted.map(d => <div
+        key={d.id}
+        onClick={() => onNavigate?.("adprojects", { designer: d.id })}
+        style={{
+          padding: "10px 12px", background: Z.bg, borderRadius: Ri,
+          borderLeft: `3px solid ${loadColor(d.active)}`,
+          cursor: "pointer",
+        }}
+      >
+        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{d.name}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
+          <span style={{ fontSize: 24, fontWeight: FW.black, color: loadColor(d.active), fontFamily: DISPLAY, lineHeight: 1 }}>{d.active}</span>
+          <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>active</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: 11, color: Z.tm }}>
+          <span><strong style={{ color: Z.tx }}>{d.onTimeRate ?? "—"}{d.onTimeRate != null && "%"}</strong> on-time</span>
+          <span><strong style={{ color: Z.tx }}>{d.firstProofRate ?? "—"}{d.firstProofRate != null && "%"}</strong> 1st-proof</span>
+        </div>
+        {d.revisionsMtd > 0 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 4 }}>{d.revisionsMtd} extra revision{d.revisionsMtd === 1 ? "" : "s"} MTD</div>}
+      </div>)}
+    </div>}
+  </div>;
+}
+
 const RoleDashboard = memo(({
   role, currentUser, pubs, stories, setStories, clients, sales, issues,
   team, invoices, payments, subscribers, tickets, legalNotices, creativeJobs,
@@ -1225,6 +1333,12 @@ const RoleDashboard = memo(({
           </div>
         </div>
       </div>
+
+      {/* P2.25 — Designer Workload tile. Per-designer card with
+          load (active project count, color-coded), on-time + first-
+          proof rates this period, and a click-through into
+          AdProjects filtered to that designer (uses P1.20 deep-link). */}
+      <DesignerWorkloadTile team={team} _issues={_issues} onNavigate={onNavigate} glass={glass} />
     </div>;
   }
 

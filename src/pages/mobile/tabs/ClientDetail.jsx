@@ -147,7 +147,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
         <ActionButton href={emailHref} label="Email" Icon={Ic.mail} disabled={!emailHref} />
         <ActionButton onClick={() => { setChargeSale(null); setChargeOpen(true); }} label="Charge" Icon={Ic.card} highlight />
         <ActionButton onClick={() => alert("Use the + button at the bottom of the screen to log a call/note.")} label="Log" Icon={Ic.edit} />
-        <ActionButton href={navHref} target="_blank" label="Nav" Icon={Ic.pin} disabled={!navHref} />
+        <ActionButton href={navHref} target="_blank" label="Nav" Icon={Ic.mapPin} disabled={!navHref} />
       </div>
 
       {/* Saved card pill (if any) */}
