@@ -930,7 +930,7 @@ const RoleDashboard = memo(({
                     </div>
 
                     <div style={{ display: "flex", gap: 6 }}>
-                      <Btn sm onClick={() => onNavigate?.(`/layout/${iss.id}`)}>Open Layout Console</Btn>
+                      <Btn sm onClick={() => onNavigate?.(`/layout?id=${iss.id}`)}>Open Layout Console</Btn>
                       <Btn sm v="secondary" onClick={() => onNavigate?.("flatplan", { pub: iss.pubId, issue: iss.id })}>Open Flatplan</Btn>
                     </div>
                   </div>

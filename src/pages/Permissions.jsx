@@ -10,6 +10,7 @@ const MODULES = [
   { key: "commissions", label: "Commissions", icon: "💵" },
   { key: "stories", label: "Stories / Editorial", icon: "✏️" },
   { key: "flatplan", label: "Flatplan / Layout", icon: "📐" },
+  { key: "layout", label: "Layout Console", icon: "📰" },
   { key: "publications", label: "Publications / Schedule", icon: "📰" },
   { key: "billing", label: "Billing / Invoices", icon: "🧾" },
   { key: "circulation", label: "Circulation / Subscribers", icon: "📬" },
@@ -29,7 +30,7 @@ const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
   Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
   "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
-  "Layout Designer": ["dashboard", "stories", "flatplan", "publications", "legal_notices", "calendar"],
+  "Layout Designer": ["dashboard", "stories", "flatplan", "layout", "publications", "legal_notices", "calendar"],
   "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "stories", "flatplan", "performance"],
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
 };
