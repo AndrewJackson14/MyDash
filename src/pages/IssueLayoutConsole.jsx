@@ -15,7 +15,8 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, glass as glassStyle } from "../components/ui";
 import EntityThread from "../components/EntityThread";
 import IssueProofingTab from "../components/IssueProofingTab";
-import { supabase, isOnline } from "../lib/supabase";
+import SendToPressModal from "../components/SendToPressModal";
+import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
 
@@ -57,6 +58,9 @@ export default function IssueLayoutConsole({
   const [pkgDownloading, setPkgDownloading] = useState(null);
   const [tab, setTab] = useState("layout"); // layout | proofing
   const [proofCount, setProofCount] = useState({ total: 0, unresolved: 0, hasReview: false });
+  const [pressModalOpen, setPressModalOpen] = useState(false);
+  const [confettiVisible, setConfettiVisible] = useState(false);
+  const [printRuns, setPrintRuns] = useState([]);
 
   // Stories scoped to this issue, sorted by page then priority
   const issueStories = useMemo(() => {
@@ -89,6 +93,19 @@ export default function IssueLayoutConsole({
       setPageStatus(psRes.data || []);
       setAdProjects(apRes.data || []);
       setLayoutRefs(lrRes.data || []);
+    })();
+  }, [isActive, issueId]);
+
+  // Print runs history for the right rail
+  useEffect(() => {
+    if (!isActive || !issueId || !isOnline()) return;
+    (async () => {
+      const { data } = await supabase
+        .from("print_runs")
+        .select("*")
+        .eq("issue_id", issueId)
+        .order("shipped_at", { ascending: false });
+      setPrintRuns(data || []);
     })();
   }, [isActive, issueId]);
 
@@ -550,19 +567,35 @@ export default function IssueLayoutConsole({
               ))}
             </div>
             <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${Z.bd}` }}>
-              <Btn
-                sm
-                disabled
-                title="Phase 5 wires the actual press handoff. Phase 3 ships the readiness gate only."
-                style={{ width: "100%", opacity: 0.6 }}
-              >
-                Send to Press →
-              </Btn>
-              <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textAlign: "center", marginTop: 4 }}>
-                Phase 5 wires PDF upload + delivery
-              </div>
+              {(() => {
+                const hardBlocked = checklist.some(c => !c.ok && c.hard);
+                const alreadyShipped = !!issue.sentToPressAt;
+                return (
+                  <Btn
+                    sm
+                    onClick={() => setPressModalOpen(true)}
+                    disabled={hardBlocked || alreadyShipped}
+                    title={alreadyShipped ? "Already sent to press" : hardBlocked ? "Resolve checklist blockers first" : "Send to Press"}
+                    style={{ width: "100%" }}
+                  >
+                    {alreadyShipped ? "✓ Sent to press" : "Send to Press →"}
+                  </Btn>
+                );
+              })()}
             </div>
           </div>
+
+          {/* Print runs history */}
+          {printRuns.length > 0 && (
+            <div style={glass}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Print Runs</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {printRuns.map(r => (
+                  <PrintRunRow key={r.id} run={r} currentUser={currentUser} onUpdate={(updated) => setPrintRuns(prev => prev.map(x => x.id === updated.id ? updated : x))} />
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={glass}>
             <EntityThread
@@ -579,6 +612,139 @@ export default function IssueLayoutConsole({
       </div>
       </>
       )}
+
+      {/* Send-to-Press modal */}
+      {pressModalOpen && (
+        <SendToPressModal
+          issue={issue}
+          pub={pub}
+          currentUser={currentUser}
+          onClose={() => setPressModalOpen(false)}
+          onSent={(result) => {
+            setPressModalOpen(false);
+            setConfettiVisible(true);
+            setTimeout(() => setConfettiVisible(false), 4000);
+            // Append the new run optimistically
+            if (result?.print_run_id) {
+              supabase.from("print_runs").select("*").eq("id", result.print_run_id).single()
+                .then(({ data }) => { if (data) setPrintRuns(prev => [data, ...prev]); });
+            }
+          }}
+        />
+      )}
+
+      {/* Confetti DOSE moment */}
+      {confettiVisible && <ConfettiBurst />}
+    </div>
+  );
+}
+
+// ── Print run row with Mark Received button ───────────────────
+function PrintRunRow({ run, currentUser, onUpdate }) {
+  const [marking, setMarking] = useState(false);
+  const isConfirmed = !!run.confirmed_at;
+  const markReceived = async () => {
+    if (marking || isConfirmed) return;
+    setMarking(true);
+    try {
+      const { data } = await supabase.from("print_runs").update({
+        confirmed_at: new Date().toISOString(),
+        confirmed_by_email: currentUser?.email || null,
+        status: "confirmed",
+      }).eq("id", run.id).select().single();
+      if (data) onUpdate(data);
+    } catch (err) {
+      console.error("Mark received failed:", err);
+    }
+    setMarking(false);
+  };
+  return (
+    <div style={{
+      padding: "8px 10px", background: Z.bg, borderRadius: Ri,
+      borderLeft: `2px solid ${isConfirmed ? Z.go : Z.ac}`,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+          📰 {fmtDate(run.shipped_at?.slice(0, 10))}{run.pdf_size_bytes ? ` · ${(run.pdf_size_bytes / 1048576).toFixed(1)} MB` : ""}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: FW.heavy, color: isConfirmed ? Z.go : Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4 }}>
+          {isConfirmed ? "✓ confirmed" : run.status || "shipped"}
+        </span>
+      </div>
+      {run.pdf_url && (
+        <div style={{ fontSize: 10, fontFamily: COND, marginBottom: 4 }}>
+          <a href={run.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: Z.ac, textDecoration: "none" }}>
+            Download PDF ↗
+          </a>
+        </div>
+      )}
+      {run.press_notes && (
+        <div title={run.press_notes} style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 4 }}>
+          {run.press_notes}
+        </div>
+      )}
+      {!isConfirmed && (
+        <Btn sm v="secondary" onClick={markReceived} disabled={marking} style={{ fontSize: 10, padding: "2px 8px" }}>
+          {marking ? "…" : "Mark received"}
+        </Btn>
+      )}
+      {isConfirmed && run.confirmed_at && (
+        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+          Received {fmtDate(run.confirmed_at.slice(0, 10))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Confetti burst — full-screen DOSE moment on send-to-press ─
+function ConfettiBurst() {
+  // 60 colored squares falling. CSS-only animation, no library.
+  const colors = ["#16A34A", "#0C447C", "#D97706", "#7C3AED", "#DC2626", "#F59E0B"];
+  const pieces = Array.from({ length: 60 }, (_, i) => {
+    const left = Math.random() * 100;
+    const delay = Math.random() * 0.6;
+    const dur = 2.4 + Math.random() * 1.6;
+    const color = colors[i % colors.length];
+    const rotate = Math.random() * 360;
+    const size = 6 + Math.random() * 6;
+    return { left, delay, dur, color, rotate, size, key: i };
+  });
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1000, overflow: "hidden" }}>
+      {pieces.map(p => (
+        <div key={p.key} style={{
+          position: "absolute",
+          top: -20,
+          left: `${p.left}%`,
+          width: p.size, height: p.size,
+          background: p.color,
+          transform: `rotate(${p.rotate}deg)`,
+          animation: `confetti-fall ${p.dur}s ${p.delay}s linear forwards`,
+        }} />
+      ))}
+      <div style={{
+        position: "absolute", top: "30%", left: 0, right: 0,
+        textAlign: "center", color: "#fff",
+        textShadow: "0 2px 12px rgba(0,0,0,0.6)",
+        animation: "confetti-msg 2.2s ease-out forwards",
+      }}>
+        <div style={{ fontSize: 48, fontWeight: 900 }}>🎉 Sent to press!</div>
+      </div>
+      <style>{`
+        @keyframes confetti-fall {
+          to {
+            transform: translateY(110vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
+        @keyframes confetti-msg {
+          0%   { opacity: 0; transform: translateY(20px) scale(0.85); }
+          15%  { opacity: 1; transform: translateY(0) scale(1); }
+          80%  { opacity: 1; }
+          100% { opacity: 0; transform: scale(1.05); }
+        }
+      `}</style>
     </div>
   );
 }
