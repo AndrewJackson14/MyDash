@@ -163,7 +163,37 @@ export default function Routes({
   };
 
   // ── "Activate Now": create a scheduled route_instance for today ──
+  // Dedupes on (template, date) — clicking twice in the same day no
+  // longer stacks duplicate instances. Uses local-day instead of UTC
+  // so 6 PM Pacific doesn't roll into tomorrow's date prematurely.
+  const [activatingId, setActivatingId] = useState(null);
+  const [activatedFlash, setActivatedFlash] = useState(null);
+
+  const localToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const activateNow = async (route) => {
+    if (activatingId) return; // prevent double-click race
+    const localDate = localToday();
+    setActivatingId(route.id);
+
+    // Check if an instance already exists for (template, local date).
+    const { data: existing } = await supabase
+      .from("route_instances")
+      .select("id, scheduled_for, status")
+      .eq("route_template_id", route.id)
+      .eq("scheduled_for", localDate)
+      .maybeSingle();
+    if (existing) {
+      setActivatedFlash({ id: route.id, kind: "exists", at: Date.now() });
+      setActivatingId(null);
+      // Surface the existing instance in the local cache so the card stats refresh
+      setInstances(prev => prev.find(i => i.id === existing.id) ? prev : [existing, ...prev]);
+      return;
+    }
+
     const rStops = stops.filter(s => s.routeId === route.id);
     const pubSet = routePubsMap.get(route.id) || [];
     const primaryPub = pubSet.find(p => p.is_primary)?.pub_id || route.publicationId;
@@ -171,13 +201,19 @@ export default function Routes({
       route_template_id: route.id,
       publication_id: primaryPub || null,
       driver_id: route.defaultDriverId || route.driverId || null,
-      scheduled_for: today,
+      scheduled_for: localDate,
       status: "scheduled",
       total_stops: rStops.length,
       notes: "Activated manually from Routes tab",
     }).select().single();
-    if (error) { console.error("Activate Now failed:", error); return; }
+    setActivatingId(null);
+    if (error) {
+      console.error("Activate Now failed:", error);
+      setActivatedFlash({ id: route.id, kind: "error", at: Date.now(), msg: error.message });
+      return;
+    }
     setInstances(prev => [data, ...prev]);
+    setActivatedFlash({ id: route.id, kind: "ok", at: Date.now() });
     await supabase.from("location_audit_log").insert({
       entity_type: "route_template",
       entity_id: route.id,
@@ -243,7 +279,12 @@ export default function Routes({
                       : <span style={{ color: Z.td }}>No runs yet</span>}
                     {st.nextScheduledFor && <span>Next: <b style={{ color: Z.tx }}>{fmtDate(st.nextScheduledFor)}</b></span>}
                   </div>
-                  <Btn sm v="secondary" onClick={e => { e.stopPropagation(); activateNow(r); }}>Activate Now</Btn>
+                  <ActivateNowButton
+                    routeId={r.id}
+                    activatingId={activatingId}
+                    flash={activatedFlash}
+                    onActivate={() => activateNow(r)}
+                  />
                 </div>
                 {stopLocs.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 10 }}>
                   {stopLocs.slice(0, 5).map((loc, i) => <div key={loc.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.sm, color: Z.tm }}>
@@ -359,6 +400,31 @@ export default function Routes({
       onClose={() => setDetailRouteId(null)}
     />}
   </>;
+}
+
+// ── Activate Now button with feedback states ──────────────────────
+// Plain-button click (Activate) → "Activating…" while the insert
+// runs → green "✓ Scheduled for today" for 3 seconds → returns to
+// idle. If a same-day instance already exists, shows
+// "Already scheduled" instead. e.stopPropagation prevents the click
+// from also opening the route detail drawer.
+function ActivateNowButton({ routeId, activatingId, flash, onActivate }) {
+  const isActivating = activatingId === routeId;
+  const flashFresh = flash && flash.id === routeId && (Date.now() - flash.at) < 3000;
+  const showFlash = isActivating || flashFresh;
+
+  let label = "Activate Now";
+  let variant = "secondary";
+  if (isActivating) label = "Activating…";
+  else if (flashFresh && flash.kind === "ok") { label = "✓ Scheduled today"; variant = "primary"; }
+  else if (flashFresh && flash.kind === "exists") { label = "Already scheduled"; variant = "ghost"; }
+  else if (flashFresh && flash.kind === "error") { label = "Failed — see console"; variant = "ghost"; }
+
+  return <Btn
+    sm v={variant}
+    disabled={isActivating}
+    onClick={e => { e.stopPropagation(); if (!isActivating && !showFlash) onActivate(); }}
+  >{label}</Btn>;
 }
 
 // ── Sortable stops list (dnd-kit) ──────────────────────────────────
