@@ -788,7 +788,7 @@ const SalesCRM = (props) => {
       {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
     </div>
 
-    <TabRow><TB tabs={["Pipeline", "Inquiries", "Clients", "Proposals", "Closed", "Outreach", "Commissions"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
+    <TabRow><TB tabs={["Pipeline", "Inquiries", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
 
     {/* PIPELINE */}
     {tab === "Pipeline" && <>
@@ -829,9 +829,9 @@ const SalesCRM = (props) => {
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>{newInqs.length} new inquir{newInqs.length > 1 ? "ies" : "y"}</span>
             <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>Hot leads — respond now</span>
           </div>}
-          {urgentRens.length > 0 && <div style={{ flex: 1, padding: "8px 14px", background: Z.wa + "10", borderLeft: `3px solid ${Z.wa}`, borderRadius: Ri }}>
+          {urgentRens.length > 0 && <div onClick={() => navTo("Renewals")} style={{ flex: 1, padding: "8px 14px", background: Z.wa + "10", borderLeft: `3px solid ${Z.wa}`, borderRadius: Ri, cursor: "pointer" }} title="Open Renewals tab">
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa }}>{urgentRens.length} renewal{urgentRens.length > 1 ? "s" : ""} expiring soon</span>
-            <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{urgentRens.slice(0, 3).map(c => c.name).join(", ")}</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm, marginLeft: 8 }}>{urgentRens.slice(0, 3).map(c => c.name).join(", ")} · click to open Renewals →</span>
           </div>}
         </div>;
       })()}
@@ -1247,6 +1247,27 @@ const SalesCRM = (props) => {
         const color = conf === "exact" ? (Z.su || "#22c55e") : (Z.wa || "#f59e0b");
         return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: color + "18", color, fontFamily: COND, textTransform: "uppercase" }}>{conf} — {reason}</span>;
       };
+      // SLA aging — only meaningful while still "new". Hot leads die in queue.
+      // Audit I-2: 🟢 <30min, 🟡 30min-2hr, 🔴 >2hr.
+      const slaBadge = (inq) => {
+        if (inq.status !== "new") return null;
+        const ageMin = (Date.now() - new Date(inq.created_at).getTime()) / 60000;
+        let color, label;
+        if (ageMin < 30) { color = Z.su || "#22c55e"; label = "FRESH"; }
+        else if (ageMin < 120) { color = Z.wa || "#f59e0b"; label = `${Math.round(ageMin)}m`; }
+        else if (ageMin < 1440) { color = Z.da || "#ef4444"; label = `${Math.round(ageMin / 60)}h LATE`; }
+        else { color = Z.da || "#ef4444"; label = `${Math.round(ageMin / 1440)}d LATE`; }
+        return <span title={`Inquiry age — respond within 30 min for best conversion. Created ${new Date(inq.created_at).toLocaleString()}`} style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: color + "22", color, fontFamily: COND, letterSpacing: 0.5 }}>● {label}</span>;
+      };
+      // Sort: new inquiries by age (oldest first — they're the most at risk),
+      // then everything else by created_at desc. Keeps hot leads at the top.
+      const sortedInquiries = [...inquiries].sort((a, b) => {
+        const aNew = a.status === "new" ? 0 : 1;
+        const bNew = b.status === "new" ? 0 : 1;
+        if (aNew !== bNew) return aNew - bNew;
+        if (a.status === "new") return new Date(a.created_at) - new Date(b.created_at);
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
       return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* Stats */}
         <div style={{ display: "flex", gap: 12 }}>
@@ -1263,7 +1284,7 @@ const SalesCRM = (props) => {
           <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>No inquiries yet. Inquiries from your website's Advertise page will appear here.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {inquiries.map(inq => {
+            {sortedInquiries.map(inq => {
               const matchedClient = inq.client_id ? (clients || []).find(c => c.id === inq.client_id) : null;
               const rep = matchedClient?.repId ? (props.team || []).find(t => t.id === matchedClient.repId) : null;
               return <div key={inq.id} style={{ ...glass(), padding: CARD.pad, borderRadius: R, border: "1px solid " + Z.bd, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1273,6 +1294,7 @@ const SalesCRM = (props) => {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{inq.business_name || inq.name}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (statusColors[inq.status] || Z.tm) + "18", color: statusColors[inq.status] || Z.tm, fontFamily: COND, textTransform: "uppercase" }}>{inq.status}</span>
+                      {slaBadge(inq)}
                       {confidenceBadge(inq.match_confidence, inq.match_reason)}
                       {matchedClient && !inq.confirmed && inq.match_confidence !== "none" && (
                         <span style={{ display: "flex", gap: 4 }}>
@@ -1314,6 +1336,17 @@ const SalesCRM = (props) => {
 
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                  {inq.email && <Btn sm v="primary" onClick={() => {
+                    // Reply opens the email modal pre-filled from the inquiry.
+                    // On send, the existing emailMo handler logs to client.comms
+                    // (when client_id is set) and stamps Gmail send via SES.
+                    setEmailSaleId(null);
+                    setEmailTo(inq.email);
+                    setEmailSubj(`Re: Your inquiry about advertising with 13 Stars Media`);
+                    setEmailBody(`Hi ${inq.name || ""},\n\nThanks for reaching out about advertising with 13 Stars Media. ${inq.message ? `\n\nYou wrote:\n> ${inq.message.split("\n").join("\n> ")}\n` : ""}\nI'd love to set up a quick call to learn more about your business and recommend the right fit. What works for you this week?\n\nBest,\n${COMPANY?.sales?.name || ""}\n${COMPANY?.sales?.phone || ""}`);
+                    setEmailMo(true);
+                    if (inq.status === "new") updateInquiry(inq.id, { status: "contacted", updated_at: new Date().toISOString() });
+                  }}>Reply</Btn>}
                   {inq.status === "new" && <Btn sm onClick={() => updateInquiry(inq.id, { status: "contacted", updated_at: new Date().toISOString() })}>Mark Contacted</Btn>}
                   {(inq.status === "new" || inq.status === "contacted") && !inq.converted_sale_id && (
                     <Btn sm v="primary" onClick={async () => {
