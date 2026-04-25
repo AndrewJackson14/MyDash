@@ -639,10 +639,16 @@ export default function IssueLayoutConsole({
   );
 }
 
-// ── Print run row with Mark Received button ───────────────────
+// ── Print run row with Mark Received + Generate Tearsheets ────
 function PrintRunRow({ run, currentUser, onUpdate }) {
   const [marking, setMarking] = useState(false);
+  const [genStatus, setGenStatus] = useState(null); // null | "running" | "done" | "error"
+  const [genError, setGenError] = useState(null);
+  const [tearsheetsOpen, setTearsheetsOpen] = useState(false);
   const isConfirmed = !!run.confirmed_at;
+  const tearsheets = Array.isArray(run.tearsheets) ? run.tearsheets : [];
+  const hasTearsheets = tearsheets.length > 0;
+
   const markReceived = async () => {
     if (marking || isConfirmed) return;
     setMarking(true);
@@ -658,6 +664,34 @@ function PrintRunRow({ run, currentUser, onUpdate }) {
     }
     setMarking(false);
   };
+
+  const generateTearsheets = async (force = false) => {
+    if (genStatus === "running") return;
+    setGenStatus("running");
+    setGenError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("not signed in");
+      const res = await fetch(`${EDGE_FN_URL}/generate-tearsheets`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ print_run_id: run.id, force }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.error || `gen failed: ${res.status}`);
+      // Pull the updated row so we get the persisted tearsheets array
+      const { data } = await supabase.from("print_runs").select("*").eq("id", run.id).single();
+      if (data) onUpdate(data);
+      setGenStatus("done");
+      setTearsheetsOpen(true);
+    } catch (err) {
+      console.error("Generate tearsheets failed:", err);
+      setGenError(err.message || "generation failed");
+      setGenStatus("error");
+    }
+  };
+
   return (
     <div style={{
       padding: "8px 10px", background: Z.bg, borderRadius: Ri,
@@ -683,14 +717,69 @@ function PrintRunRow({ run, currentUser, onUpdate }) {
           {run.press_notes}
         </div>
       )}
-      {!isConfirmed && (
-        <Btn sm v="secondary" onClick={markReceived} disabled={marking} style={{ fontSize: 10, padding: "2px 8px" }}>
-          {marking ? "…" : "Mark received"}
-        </Btn>
-      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {!isConfirmed && (
+          <Btn sm v="secondary" onClick={markReceived} disabled={marking} style={{ fontSize: 10, padding: "2px 8px" }}>
+            {marking ? "…" : "Mark received"}
+          </Btn>
+        )}
+        {!hasTearsheets && (
+          <Btn
+            sm v="secondary"
+            onClick={() => generateTearsheets(false)}
+            disabled={genStatus === "running"}
+            title="Split master PDF into per-page tearsheets"
+            style={{ fontSize: 10, padding: "2px 8px" }}
+          >
+            {genStatus === "running" ? "Generating…" : "Generate tearsheets"}
+          </Btn>
+        )}
+        {hasTearsheets && (
+          <button
+            onClick={() => setTearsheetsOpen(o => !o)}
+            style={{ background: "transparent", border: "none", color: Z.ac, fontSize: 10, fontFamily: COND, cursor: "pointer", padding: 0 }}
+          >
+            📑 {tearsheets.length} tearsheet{tearsheets.length === 1 ? "" : "s"} {tearsheetsOpen ? "▾" : "▸"}
+          </button>
+        )}
+      </div>
+      {genError && <div style={{ fontSize: 10, color: Z.da, fontFamily: COND, marginTop: 4 }}>{genError}</div>}
       {isConfirmed && run.confirmed_at && (
-        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 4 }}>
           Received {fmtDate(run.confirmed_at.slice(0, 10))}
+        </div>
+      )}
+      {tearsheetsOpen && hasTearsheets && (
+        <div style={{ marginTop: 6, padding: 8, background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+            {tearsheets.map(t => (
+              <a
+                key={t.page}
+                href={t.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Page ${t.page} · ${(t.byte_size / 1048576).toFixed(1)} MB`}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  padding: "8px 4px", background: Z.bg, borderRadius: Ri,
+                  textDecoration: "none", color: Z.tx, border: `1px solid ${Z.bd}`,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>📄</span>
+                <span style={{ fontSize: 10, fontWeight: FW.bold, fontFamily: COND }}>p{t.page}</span>
+              </a>
+            ))}
+          </div>
+          {currentUser?.role === "Publisher" && (
+            <Btn
+              sm v="ghost"
+              onClick={() => generateTearsheets(true)}
+              disabled={genStatus === "running"}
+              style={{ fontSize: 10, marginTop: 6, color: Z.tm }}
+            >
+              {genStatus === "running" ? "Regenerating…" : "↻ Regenerate"}
+            </Btn>
+          )}
         </div>
       )}
     </div>
