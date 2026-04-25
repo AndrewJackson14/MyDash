@@ -39,22 +39,83 @@ export default function DropLocations({
     setLocModal(true);
   };
 
-  const saveLoc = () => {
-    if (!locForm.name || !locForm.address) return;
-    const locId = editLoc ? editLoc.id : "loc-" + Date.now();
+  const [savingLoc, setSavingLoc] = useState(false);
+  const saveLoc = async () => {
+    if (!locForm.name || !locForm.address || savingLoc) return;
+    setSavingLoc(true);
+
+    // Map UI shape → drop_locations columns. The DB column is `type`,
+    // not `location_type` (legacy useAppData has the wrong name; we
+    // write to the actual column).
+    const payload = {
+      name: locForm.name,
+      type: locForm.locationType,
+      address: locForm.address,
+      city: locForm.city || null,
+      state: locForm.state || "CA",
+      zip: locForm.zip || null,
+      contact_name: locForm.contactName || null,
+      contact_phone: locForm.contactPhone || null,
+      notes: locForm.notes || null,
+      is_active: locForm.isActive !== false,
+      source: editLoc?.source || "office",
+    };
+
+    let savedLoc;
     if (editLoc) {
-      setDropLocations(prev => (prev || []).map(l => l.id === locId ? { ...l, ...locForm, pubs: undefined } : l));
+      const { data, error } = await supabase.from("drop_locations")
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq("id", editLoc.id).select().single();
+      setSavingLoc(false);
+      if (error) { console.error("Drop location update failed:", error); return; }
+      savedLoc = data;
+      setDropLocations(prev => (prev || []).map(l => l.id === data.id ? {
+        ...l,
+        name: data.name, locationType: data.type, address: data.address,
+        city: data.city, state: data.state, zip: data.zip,
+        contactName: data.contact_name, contactPhone: data.contact_phone,
+        notes: data.notes, isActive: data.is_active, source: data.source,
+      } : l));
     } else {
-      setDropLocations(prev => [...(prev || []), { ...locForm, id: locId, pubs: undefined, createdAt: new Date().toISOString() }]);
+      const { data, error } = await supabase.from("drop_locations")
+        .insert(payload).select().single();
+      setSavingLoc(false);
+      if (error) { console.error("Drop location insert failed:", error); return; }
+      savedLoc = data;
+      setDropLocations(prev => [...(prev || []), {
+        id: data.id, name: data.name, locationType: data.type, address: data.address,
+        city: data.city, state: data.state, zip: data.zip,
+        contactName: data.contact_name, contactPhone: data.contact_phone,
+        notes: data.notes, isActive: data.is_active, source: data.source,
+        createdAt: data.created_at,
+      }]);
     }
-    const newPubs = Object.entries(locForm.pubs || {}).filter(([, q]) => q > 0).map(([pid, qty]) => ({
-      id: "lp-" + locId + "-" + pid,
-      dropLocationId: locId,
-      publicationId: pid,
-      quantity: Number(qty) || 0,
-    }));
-    setDropLocationPubs(prev => [...(prev || []).filter(lp => lp.dropLocationId !== locId), ...newPubs]);
+
+    // Replace the per-pub quantity rows. Delete-and-reinsert is simpler
+    // than diffing; drop_location_pubs has no FK dependents.
+    await supabase.from("drop_location_pubs").delete().eq("drop_location_id", savedLoc.id);
+    const newPubs = Object.entries(locForm.pubs || {})
+      .filter(([, q]) => q > 0)
+      .map(([pid, qty]) => ({
+        drop_location_id: savedLoc.id,
+        publication_id: pid,
+        quantity: Number(qty) || 0,
+      }));
+    if (newPubs.length) {
+      const { data: insertedPubs } = await supabase.from("drop_location_pubs").insert(newPubs).select();
+      if (insertedPubs) setDropLocationPubs(prev => [
+        ...(prev || []).filter(lp => lp.dropLocationId !== savedLoc.id),
+        ...insertedPubs.map(lp => ({
+          id: lp.id, dropLocationId: lp.drop_location_id,
+          publicationId: lp.publication_id, quantity: lp.quantity,
+        })),
+      ]);
+    } else {
+      setDropLocationPubs(prev => (prev || []).filter(lp => lp.dropLocationId !== savedLoc.id));
+    }
+
     setLocModal(false);
+    setEditLoc(null);
   };
 
   const totalDropCopies = locPubs.reduce((s, lp) => s + (lp.quantity || 0), 0);
@@ -136,8 +197,10 @@ export default function DropLocations({
 
         <TA label="Notes" value={locForm.notes} onChange={e => setLocForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="cancel" onClick={() => setLocModal(false)}>Cancel</Btn>
-          <Btn onClick={saveLoc} disabled={!locForm.name || !locForm.address}>{editLoc ? "Save Changes" : "Add Location"}</Btn>
+          <Btn v="cancel" onClick={() => { setLocModal(false); setEditLoc(null); }}>Cancel</Btn>
+          <Btn onClick={saveLoc} disabled={!locForm.name || !locForm.address || savingLoc}>
+            {savingLoc ? "Saving…" : editLoc ? "Save Changes" : "Add Location"}
+          </Btn>
         </div>
       </div>
     </Modal>
