@@ -5,7 +5,21 @@ import { usePageHeader } from "../../contexts/PageHeaderContext";
 
 const STATUS_COLORS = { active: Z.su || "#22C55E", completed: Z.tm, cancelled: Z.da };
 
-const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract, bus, isActive }) => {
+// Mirror of AdProjects status palette so the inline pill matches the
+// kanban column the project actually lives in.
+const PROJECT_STATUS_META = {
+  needs_brief:   { label: "Needs Brief",  color: Z.tm,           short: "Brief?" },
+  brief:         { label: "Brief",        color: Z.wa || "#F59E0B", short: "Brief"   },
+  awaiting_art:  { label: "Brief",        color: Z.wa || "#F59E0B", short: "Brief"   },
+  designing:     { label: "Designing",    color: Z.ac,           short: "Design"  },
+  proof_sent:    { label: "Proof Sent",   color: Z.pu || "#A855F7", short: "Proof"   },
+  revising:      { label: "Revising",     color: Z.pu || "#A855F7", short: "Revise"  },
+  approved:      { label: "Approved",     color: Z.go || "#B8923D", short: "OK"      },
+  signed_off:    { label: "Signed Off",   color: Z.su || "#22C55E", short: "Off"     },
+  placed:        { label: "Placed",       color: Z.su || "#22C55E", short: "Placed"  },
+};
+
+const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, currentUser, onNavigate, loadContracts, contractsLoaded, deleteContract, bus, isActive, adProjects, adProjectBySaleId, loadAdProjects, adProjectsLoaded }) => {
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -27,6 +41,12 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     if (loadContracts && !contractsLoaded) loadContracts();
   }, [loadContracts, contractsLoaded]);
 
+  // Ad projects feed the new "Proof" column. Load opportunistically;
+  // the column gracefully shows "—" until the data lands.
+  useEffect(() => {
+    if (loadAdProjects && !adProjectsLoaded) loadAdProjects();
+  }, [loadAdProjects, adProjectsLoaded]);
+
   // Lookup maps
   const clientMap = useMemo(() => { const m = {}; (clients || []).forEach(c => { m[c.id] = c; }); return m; }, [clients]);
   const pubMap = useMemo(() => { const m = {}; (pubs || []).forEach(p => { m[p.id] = p.name; }); return m; }, [pubs]);
@@ -46,6 +66,35 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     });
     return m;
   }, [sales]);
+
+  // Ad projects per contract — joined via the contract's sales. The
+  // "headline" status is the most-urgent of the group: anything
+  // proof_sent / revising bubbles up first (driver needs to act),
+  // else needs_brief, else most-recent status.
+  const projectsByContract = useMemo(() => {
+    const m = {};
+    const byId = adProjectBySaleId;
+    if (!byId || !sales) return m;
+    Object.entries(salesByContract).forEach(([cid, slist]) => {
+      const projects = [];
+      let hasNeedsBrief = false;
+      slist.forEach(s => {
+        const p = byId.get?.(s.id);
+        if (p) projects.push({ ...p, _saleId: s.id, _pubId: s.publication, _date: s.date });
+        else if (s.status === "Closed") hasNeedsBrief = true;
+      });
+      // Pick headline status by urgency.
+      let headline = null;
+      const order = ["proof_sent", "revising", "designing", "brief", "awaiting_art", "approved", "signed_off", "placed"];
+      for (const st of order) {
+        const hit = projects.find(p => p.status === st);
+        if (hit) { headline = st; break; }
+      }
+      if (!headline && hasNeedsBrief) headline = "needs_brief";
+      m[cid] = { projects, headline, count: projects.length, needsBriefCount: hasNeedsBrief && projects.length === 0 ? slist.filter(s => s.status === "Closed" && !byId.get?.(s.id)).length : 0 };
+    });
+    return m;
+  }, [salesByContract, sales, adProjectBySaleId]);
 
   // Filter contracts — jurisdiction-aware
   const filtered = useMemo(() => {
@@ -140,6 +189,36 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
         </DataTable>
       </GlassCard>
 
+      {/* Ad projects (joined via this contract's sales) */}
+      {(() => {
+        const proof = projectsByContract[viewContract.id];
+        if (!proof || (proof.count === 0 && proof.needsBriefCount === 0)) return null;
+        return <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>
+              Ad Projects ({proof.count}{proof.needsBriefCount > 0 ? ` · ${proof.needsBriefCount} need brief` : ""})
+            </div>
+            {onNavigate && <Btn sm v="ghost" onClick={() => onNavigate("adprojects")}>Open Ad Projects →</Btn>}
+          </div>
+          {proof.count > 0 ? <DataTable>
+            <thead><tr>
+              <th>Sale Date</th><th>Publication</th><th>Status</th><th>Revisions</th>
+            </tr></thead>
+            <tbody>
+              {proof.projects.map(p => {
+                const meta = PROJECT_STATUS_META[p.status] || { label: p.status, color: Z.tm };
+                return <tr key={p.id} onClick={() => onNavigate?.("adprojects", { saleId: p._saleId })} style={{ cursor: onNavigate ? "pointer" : "default" }}>
+                  <td style={{ color: Z.tm, fontSize: FS.sm }}>{p._date || "—"}</td>
+                  <td style={{ fontWeight: FW.semi, color: Z.tx }}>{pn(p._pubId)}</td>
+                  <td><span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: FS.xs, fontWeight: FW.heavy, color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}40` }}>{meta.label}</span></td>
+                  <td style={{ color: Z.tm }}>{p.revision_count ?? 0}</td>
+                </tr>;
+              })}
+            </tbody>
+          </DataTable> : <div style={{ fontSize: FS.base, color: Z.da, padding: 8 }}>{proof.needsBriefCount} closed sale{proof.needsBriefCount > 1 ? "s" : ""} have no ad project yet — needs a brief.</div>}
+        </GlassCard>;
+      })()}
+
       {/* Linked sales */}
       <GlassCard>
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
@@ -206,7 +285,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
     {/* Contract list */}
     <DataTable>
       <thead><tr>
-        {[["name","Contract"],["client","Client"],["start","Start"],["end","End"],["value","Value"],["orders","Orders"],["rep","Rep"],["status","Status"]].map(([k,l]) => (
+        {[["name","Contract"],["client","Client"],["start","Start"],["end","End"],["value","Value"],["orders","Orders"],["proof","Proof"],["rep","Rep"],["status","Status"]].map(([k,l]) => (
           <th key={k} onClick={() => doSort(k)} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
             {l}{sortCol === k && <span style={{ marginLeft: 3, fontSize: 9 }}>{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span>}
           </th>
@@ -215,6 +294,8 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
       <tbody>
         {filtered.slice(0, 100).map(c => {
           const orderCount = (salesByContract[c.id] || []).length;
+          const proof = projectsByContract[c.id];
+          const meta = proof?.headline ? PROJECT_STATUS_META[proof.headline] : null;
           return <tr key={c.id} onClick={() => setViewId(c.id)}>
             <td style={{ fontWeight: FW.semi, color: Z.tx, maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</td>
             <td style={{ color: Z.tx }}>{cn(c.clientId)}</td>
@@ -222,6 +303,11 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{c.endDate || "—"}</td>
             <td style={{ fontWeight: FW.bold, color: Z.tx }}>${Number(c.totalValue || 0).toLocaleString()}</td>
             <td style={{ color: Z.tm }}>{orderCount}</td>
+            <td onClick={e => { if (meta && onNavigate) { e.stopPropagation(); onNavigate("adprojects"); } }} style={{ whiteSpace: "nowrap" }}>
+              {meta ? <span title={`${proof.count} ad project${proof.count > 1 ? "s" : ""} — headline: ${meta.label}. Click to open Ad Projects.`} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: FS.xs, fontWeight: FW.heavy, color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}40`, cursor: onNavigate ? "pointer" : "default" }}>{meta.short}{proof.count > 1 ? ` ·${proof.count}` : ""}</span>
+              : (proof?.needsBriefCount > 0 ? <span title={`${proof.needsBriefCount} closed sale${proof.needsBriefCount > 1 ? "s" : ""} without an ad project yet`} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da, background: `${Z.da}15`, border: `1px solid ${Z.da}40` }}>Brief? ·{proof.needsBriefCount}</span>
+                : <span style={{ color: Z.td, fontSize: FS.xs }}>—</span>)}
+            </td>
             <td style={{ color: Z.tm, fontSize: FS.sm }}>{rn(c.assignedTo)}</td>
             <td><Badge status={c.status === "active" ? "Active" : c.status === "completed" ? "Completed" : "Cancelled"} small /></td>
           </tr>;
