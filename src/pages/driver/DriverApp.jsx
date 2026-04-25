@@ -75,7 +75,14 @@ export default function DriverApp() {
   // Everything else needs auth.
   if (!auth.isAuthed) {
     return <FullScreenContainer>
-      <SelfIssueLanding selfIssue={auth.selfIssue} />
+      <SelfIssueLanding
+        selfIssue={auth.selfIssue}
+        onPasteToken={(token) => {
+          const next = `/driver/auth/${token}`;
+          window.history.pushState({}, "", next);
+          setPath(next);
+        }}
+      />
     </FullScreenContainer>;
   }
 
@@ -119,10 +126,11 @@ export default function DriverApp() {
   </FullScreenContainer>;
 }
 
-function SelfIssueLanding({ selfIssue }) {
+function SelfIssueLanding({ selfIssue, onPasteToken }) {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [linkInput, setLinkInput] = useState("");
 
   const submit = async (e) => {
     e.preventDefault();
@@ -132,6 +140,17 @@ function SelfIssueLanding({ selfIssue }) {
     const r = await selfIssue(email.trim());
     setSending(false);
     setResult(r);
+  };
+
+  const submitLink = (e) => {
+    e.preventDefault();
+    const raw = linkInput.trim();
+    if (!raw) return;
+    // Accept either a full URL ("https://mydash.media/driver/auth/abc")
+    // or just the bare token. Strip query/fragment along the way.
+    const m = raw.match(/\/driver\/auth\/([^/?#\s]+)/);
+    const token = m ? m[1] : raw.replace(/[?#].*$/, "").replace(/[/\s]+$/, "");
+    if (token) onPasteToken?.(token);
   };
 
   return <div style={{ padding: "60px 24px", maxWidth: 420, margin: "0 auto", textAlign: "center", color: MUTED }}>
@@ -178,7 +197,46 @@ function SelfIssueLanding({ selfIssue }) {
       Couldn't send: {result.message || result.error || "unknown error"}. Call Cami if it keeps failing.
     </div>}
 
-    <div style={{ marginTop: 32, fontSize: 12, color: "#64748B", lineHeight: 1.5 }}>
+    <div style={{
+      marginTop: 32, paddingTop: 24,
+      borderTop: "1px solid #1F2937",
+      textAlign: "left",
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, marginBottom: 8 }}>
+        Already have a sign-in link?
+      </div>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 12, lineHeight: 1.5 }}>
+        Paste it here if the page didn't load — works with the full URL or just the code.
+      </div>
+      <form onSubmit={submitLink} style={{ display: "flex", gap: 8 }}>
+        <input
+          type="text"
+          value={linkInput}
+          onChange={e => setLinkInput(e.target.value)}
+          placeholder="mydash.media/driver/auth/…"
+          style={{
+            flex: 1, boxSizing: "border-box",
+            padding: "12px 14px", minHeight: 48,
+            fontSize: 14, color: TEXT,
+            background: "#1A1F2E", border: "1px solid #2D3548", borderRadius: 8,
+            outline: "none",
+          }}
+        />
+        <button
+          type="submit"
+          disabled={!linkInput.trim()}
+          style={{
+            padding: "12px 16px", minHeight: 48,
+            background: "transparent", color: linkInput.trim() ? TEXT : MUTED,
+            border: `1px solid ${linkInput.trim() ? TEXT : "#2D3548"}`, borderRadius: 8,
+            fontSize: 14, fontWeight: 700,
+            cursor: linkInput.trim() ? "pointer" : "not-allowed",
+          }}
+        >Open</button>
+      </form>
+    </div>
+
+    <div style={{ marginTop: 24, fontSize: 12, color: "#64748B", lineHeight: 1.5, textAlign: "center" }}>
       No email on file? Call Cami to get one set up.
     </div>
   </div>;

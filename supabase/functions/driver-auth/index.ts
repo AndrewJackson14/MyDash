@@ -330,15 +330,12 @@ serve(async (req) => {
       }, 401, cors);
     }
 
-    // PIN matches: stamp verified_at + sign JWT.
-    await admin.from("driver_sessions").update({
-      verified_at: new Date().toISOString(),
-      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
-      user_agent: req.headers.get("user-agent") || null,
-    }).eq("id", session.id);
-
+    // PIN matches. Sign JWT FIRST so a sign failure leaves the session
+    // re-usable (don't burn the verified_at slot until we have a JWT
+    // to hand back). This was a real foot-gun — a missing JWT_SECRET
+    // used to mark the session verified_at *and* return 500, so the
+    // driver couldn't retry the same link.
     if (!JWT_SECRET) {
-      // Surface a clean diagnostic instead of a 500 from crypto.subtle.
       return json({
         error: "jwt_sign_failed",
         detail: "JWT_SECRET (or legacy SUPABASE_JWT_SECRET) not set in Edge Function secrets. Get it from Supabase Dashboard → Settings → API → JWT Secret, then add it as an Edge Function secret named JWT_SECRET (no SUPABASE_ prefix — that's reserved).",
@@ -353,6 +350,11 @@ serve(async (req) => {
         detail: String(e?.message ?? e),
       }, 500, cors);
     }
+    await admin.from("driver_sessions").update({
+      verified_at: new Date().toISOString(),
+      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      user_agent: req.headers.get("user-agent") || null,
+    }).eq("id", session.id);
     return json({
       jwt,
       driver_id: session.driver_id,
