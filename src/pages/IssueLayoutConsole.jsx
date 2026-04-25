@@ -14,6 +14,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, glass as glassStyle } from "../components/ui";
 import EntityThread from "../components/EntityThread";
+import IssueProofingTab from "../components/IssueProofingTab";
 import { supabase, isOnline } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
@@ -54,6 +55,8 @@ export default function IssueLayoutConsole({
   const [savingPageNum, setSavingPageNum] = useState(null);
   const [advancingId, setAdvancingId] = useState(null);
   const [pkgDownloading, setPkgDownloading] = useState(null);
+  const [tab, setTab] = useState("layout"); // layout | proofing
+  const [proofCount, setProofCount] = useState({ total: 0, unresolved: 0, hasReview: false });
 
   // Stories scoped to this issue, sorted by page then priority
   const issueStories = useMemo(() => {
@@ -86,6 +89,31 @@ export default function IssueLayoutConsole({
       setPageStatus(psRes.data || []);
       setAdProjects(apRes.data || []);
       setLayoutRefs(lrRes.data || []);
+    })();
+  }, [isActive, issueId]);
+
+  // Quick proof count for the tab badge — not the full proof load,
+  // just enough to know if there's a proof in review and how many
+  // unresolved pins it has so the Proofing tab label is honest.
+  useEffect(() => {
+    if (!isActive || !issueId || !isOnline()) return;
+    (async () => {
+      const { data: prs } = await supabase
+        .from("issue_proofs")
+        .select("id, status")
+        .eq("issue_id", issueId);
+      const total = (prs || []).length;
+      const reviewProof = (prs || []).find(p => p.status === "review");
+      let unresolved = 0;
+      if (reviewProof) {
+        const { count } = await supabase
+          .from("issue_proof_annotations")
+          .select("id", { count: "exact", head: true })
+          .eq("proof_id", reviewProof.id)
+          .eq("resolved", false);
+        unresolved = count || 0;
+      }
+      setProofCount({ total, unresolved, hasReview: !!reviewProof });
     })();
   }, [isActive, issueId]);
 
@@ -338,6 +366,49 @@ export default function IssueLayoutConsole({
         </div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, paddingLeft: 4 }}>
+        {[
+          ["layout", "Layout", null],
+          ["proofing", "Proofing", proofCount.hasReview ? proofCount.unresolved : null],
+        ].map(([k, label, badge]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            style={{
+              padding: "6px 14px", borderRadius: Ri, border: "none", cursor: "pointer",
+              fontSize: FS.sm, fontWeight: tab === k ? FW.bold : 500,
+              background: tab === k ? Z.tx + "12" : "transparent",
+              color: tab === k ? Z.tx : Z.tm,
+              fontFamily: COND, display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            {label}
+            {badge != null && badge > 0 && (
+              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.wa, background: Z.wa + "20", padding: "1px 6px", borderRadius: 999 }}>{badge}</span>
+            )}
+            {k === "proofing" && proofCount.total > 0 && proofCount.unresolved === 0 && proofCount.hasReview && (
+              <span style={{ fontSize: 10, color: Z.go }}>✓</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "proofing" ? (
+        <IssueProofingTab
+          issueId={issueId}
+          issue={issue}
+          currentUser={currentUser}
+          team={team}
+          onApproved={() => {
+            setProofCount(c => ({ ...c, hasReview: false, unresolved: 0 }));
+            // Bounce back to Layout tab so Anthony sees the readiness
+            // checklist clear in real time after approval.
+            setTab("layout");
+          }}
+        />
+      ) : (
+      <>
       {/* Three-column body */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 3fr 1.2fr", gap: 14, alignItems: "flex-start" }}>
 
@@ -506,6 +577,8 @@ export default function IssueLayoutConsole({
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
