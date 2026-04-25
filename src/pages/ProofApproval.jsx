@@ -21,6 +21,7 @@ export default function ProofApproval() {
 
   const [proof, setProof] = useState(null);
   const [project, setProject] = useState(null);
+  const [pub, setPub] = useState(null); // P2.26: per-publication branding
   const [allProofs, setAllProofs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -61,6 +62,18 @@ export default function ProofApproval() {
       const { data: projData } = await supabase
         .from("ad_projects").select("*").eq("id", proofData.project_id).single();
       if (projData) setProject(projData);
+
+      // P2.26 — load publication for branded header (logo, primary
+      // color, name). Falls back gracefully to 13 Stars defaults if
+      // the pub is missing or has no branding fields populated yet.
+      if (projData?.publication_id) {
+        const { data: pubData } = await supabase
+          .from("publications")
+          .select("id, name, logo_url, primary_color")
+          .eq("id", projData.publication_id)
+          .maybeSingle();
+        if (pubData) setPub(pubData);
+      }
 
       // Load all proofs for this project (version history)
       const { data: proofsList } = await supabase
@@ -204,12 +217,21 @@ export default function ProofApproval() {
   // ─── Render: Main ─────────────────────────────────────
   return (
     <div style={styles.page}>
-      {/* Header */}
+      {/* Header — P2.26: per-publication branding when configured.
+          Falls back to 13 Stars Media Group + dark fill when the
+          pub has no logo / primary_color set. */}
       <div style={styles.header}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 4, background: C.tx, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 15, color: C.bg, flexShrink: 0 }}>13</div>
+          {pub?.logo_url
+            ? <img src={pub.logo_url} alt={pub.name || ""} style={{ height: 32, maxWidth: 140, objectFit: "contain", flexShrink: 0 }} />
+            : <div style={{
+                width: 32, height: 32, borderRadius: 4,
+                background: pub?.primary_color || C.tx, color: "#FFFFFF",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 900, fontSize: 15, flexShrink: 0,
+              }}>{pub?.name ? pub.name.charAt(0).toUpperCase() : "13"}</div>}
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.tx }}>13 Stars Media Group</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.tx }}>{pub?.name || "13 Stars Media Group"}</div>
             <div style={{ fontSize: 12, color: C.tm }}>Ad Proof Review</div>
           </div>
         </div>
@@ -438,6 +460,12 @@ export default function ProofApproval() {
           50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
         }
       `}</style>
+
+      {/* P2.26: footer attribution — visible when a pub has its
+          own branding so the 13 Stars relationship is still clear. */}
+      {pub?.name && pub.name !== "13 Stars Media Group" && <div style={{ textAlign: "center", padding: "16px 8px", color: C.tm, fontSize: 11 }}>
+        Powered by 13 Stars Media
+      </div>}
     </div>
   );
 }

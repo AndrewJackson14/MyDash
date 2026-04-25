@@ -8,6 +8,7 @@ import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import ChatPanel from "../components/ChatPanel";
 import EntityThread from "../components/EntityThread";
 import AssetPanel from "../components/AssetPanel";
+import ProofAnnotationOverlay from "../components/ProofAnnotationOverlay";
 import { getOrCreateThread, postSystemMessage } from "../lib/threads";
 import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
@@ -907,9 +908,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   {/* Image preview */}
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, overflow: "hidden" }}>
                     {latestProof.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-                      ? <img src={latestProof.proof_url} alt={`Proof v${latestProof.version}`} loading="lazy" style={{ maxWidth: "100%", maxHeight: 320, borderRadius: Ri, objectFit: "contain" }} />
-                      : <div style={{ textAlign: "center", color: Z.tm, fontSize: FS.sm }}>PDF · <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open</a></div>
-                    }
+                      ? <ProofAnnotationOverlay proofUrl={latestProof.proof_url} annotationsJson={latestProof.annotations} maxHeight={320} />
+                      : <div style={{ textAlign: "center", color: Z.tm, fontSize: FS.sm }}>PDF · <a href={latestProof.proof_url} target="_blank" rel="noopener" style={{ color: Z.ac }}>Open</a></div>}
                   </div>
                   {latestProof.client_feedback && <div style={{ padding: "8px 14px", borderTop: `1px solid ${Z.bd}`, fontSize: FS.xs, color: Z.tx, background: Z.wa + "08", borderLeft: `2px solid ${Z.wa}` }}>Client: {latestProof.client_feedback}</div>}
                   {/* Actions */}

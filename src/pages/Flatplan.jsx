@@ -282,6 +282,24 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
   const [sendingToPress, setSendingToPress] = useState(false);
   const [sentToPressModal, setSentToPressModal] = useState(false);
 
+  // P2.21 — load ad_projects for the selected issue so we can pill
+  // each unplaced sale with its readiness state. Joined by sale_id.
+  // Only the columns the pill needs (status + designer) — keeps the
+  // round-trip small.
+  const [adProjectsForIssue, setAdProjectsForIssue] = useState([]);
+  useEffect(() => {
+    if (!selIssue) { setAdProjectsForIssue([]); return; }
+    let cancelled = false;
+    supabase.from("ad_projects").select("id, sale_id, status, designer_id").eq("issue_id", selIssue)
+      .then(({ data }) => { if (!cancelled) setAdProjectsForIssue(data || []); });
+    return () => { cancelled = true; };
+  }, [selIssue]);
+  const adProjectBySaleId = useMemo(() => {
+    const m = new Map();
+    for (const p of adProjectsForIssue) m.set(p.sale_id, p);
+    return m;
+  }, [adProjectsForIssue]);
+
   // Send to Press handler
   const canSendToPress = jurisdiction?.isAdmin || false; // Publisher, Admin, Layout Designer
   const handleSendToPress = async () => {
@@ -896,18 +914,38 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         </div>)}
 
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginTop: 8 }}>Unplaced ({unplaced.length})</div>
-        {unplaced.map(s => { const isPending = s.status === "Proposal" || s.status === "Negotiation"; return <div
-          key={s.id}
-          draggable
-          onDragStart={e => handleDragStart(e, s)}
-          onClick={e => { if (s.clientId && (e.metaKey || e.ctrlKey)) { e.stopPropagation(); onClientModClick(s.clientId); } }}
-          title={s.clientId ? "⌘/Ctrl-click to open client" : undefined}
-          style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}
-        >
-          <div style={{ fontWeight: FW.bold, color: Z.tx, fontSize: FS.base }}>{cn(s.clientId)}</div>
-          <div style={{ color: Z.tm, fontSize: FS.sm }}>{s.size || s.type} · ${s.amount.toLocaleString()}{isPending ? " · PENDING" : ""}</div>
-          {s.adW > 0 && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.adW}" × {s.adH}"</div>}
-        </div>; })}
+        {unplaced.map(s => {
+          const isPending = s.status === "Proposal" || s.status === "Negotiation";
+          // P2.21 — readiness pill from the linked ad_project. Anthony
+          // sees green ✓ on approved ads, amber on in-flight, red on
+          // missing/unready. Hidden for Pending sales (they're already
+          // marked PENDING and shouldn't be placed yet anyway).
+          const adProj = adProjectBySaleId.get(s.id);
+          let pill = null;
+          if (!isPending) {
+            const status = adProj?.status;
+            const isApproved = status && ["approved", "signed_off", "placed"].includes(status);
+            const isUnready = !adProj || ["brief", "awaiting_art", "designing"].includes(status);
+            const pillStyle = (color, label, char) => <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: FW.bold, background: color + "22", color, fontFamily: COND, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 4 }}>{char}{label}</span>;
+            if (isApproved) pill = pillStyle(Z.go, "Ready", "✓ ");
+            else if (status === "proof_sent") pill = pillStyle(Z.wa, "Proof out", "⏳ ");
+            else if (status === "revising") pill = pillStyle(Z.wa, "Revising", "↻ ");
+            else if (isUnready) pill = pillStyle(Z.da, "Not ready", "⚠ ");
+          }
+          return <div
+            key={s.id}
+            draggable
+            onDragStart={e => handleDragStart(e, s)}
+            onClick={e => { if (s.clientId && (e.metaKey || e.ctrlKey)) { e.stopPropagation(); onClientModClick(s.clientId); } }}
+            title={s.clientId ? "⌘/Ctrl-click to open client" : undefined}
+            style={{ background: isPending ? "rgba(232,176,58,0.08)" : (Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.35)"), backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${isPending ? "rgba(232,176,58,0.3)" : (Z.bg === "#08090D" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.5)")}`, borderRadius: R, padding: 7, cursor: "grab", opacity: isPending ? 0.6 : 1 }}
+          >
+            <div style={{ fontWeight: FW.bold, color: Z.tx, fontSize: FS.base }}>{cn(s.clientId)}</div>
+            <div style={{ color: Z.tm, fontSize: FS.sm }}>{s.size || s.type} · ${s.amount.toLocaleString()}{isPending ? " · PENDING" : ""}</div>
+            {s.adW > 0 && <div style={{ fontSize: FS.xs, color: Z.td }}>{s.adW}" × {s.adH}"</div>}
+            {pill}
+          </div>;
+        })}
         {placed.length > 0 && <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.su, textTransform: "uppercase", marginTop: 8 }}>Placed ({placed.length})</div>}
         {placed.map(s => { const pm = pageMapRef.current[s.id]; return <div
           key={s.id}
