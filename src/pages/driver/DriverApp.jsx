@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useDriverAuth } from "../../hooks/useDriverAuth";
 import DriverLogin from "./DriverLogin";
 import DriverHome from "./DriverHome";
+import DriverRoute from "./DriverRoute";
 
 const DARK_BG = "#0F1419";
 const TEXT = "#E8EAED";
@@ -88,7 +89,19 @@ export default function DriverApp() {
   if (path.startsWith("/driver/route/")) {
     const instanceId = path.replace("/driver/route/", "").replace(/\/$/, "");
     return <FullScreenContainer>
-      <Stub title="Route view (Phase 7)" detail={`Instance: ${instanceId || "(none)"}`} onSignOut={auth.signOut} />
+      <DriverRoute
+        instanceId={instanceId}
+        driverId={auth.driverId}
+        onBack={() => {
+          window.history.pushState({}, "", "/driver/home");
+          setPath("/driver/home");
+        }}
+        onComplete={(id) => {
+          const next = `/driver/complete/${id}`;
+          window.history.pushState({}, "", next);
+          setPath(next);
+        }}
+      />
     </FullScreenContainer>;
   }
   if (path.startsWith("/driver/complete/")) {
