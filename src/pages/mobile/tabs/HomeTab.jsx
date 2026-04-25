@@ -34,23 +34,34 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [reviewImport, setReviewImport] = useState(null);
   const [imports, setImports] = useState([]);
+  const [importsError, setImportsError] = useState(null);
   useEffect(() => {
-    if (!myId) return;
+    // No gate on currentUser/myId — RLS already filters per-user.
+    // Earlier we waited on myId before loading, which silently dropped
+    // the queue if currentUser took a beat to resolve from team lookup.
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("contract_imports")
-        .select("id, status, storage_paths, extracted_json, error_message, created_at, updated_at, uploaded_by, notes")
+        .select("id, status, storage_paths, extracted_json, error_message, created_at, updated_at, uploaded_by, notes, client_id")
         .in("status", ["pending", "processing", "extracted", "failed"])
         .order("created_at", { ascending: false })
         .limit(10);
-      if (!cancelled) setImports(data || []);
+      if (cancelled) return;
+      if (error) {
+        setImportsError(error.message);
+        return;
+      }
+      setImportsError(null);
+      setImports(data || []);
     };
     load();
     // Realtime subscription so the row flips from pending → extracted
-    // on its own once the Mac Mini worker finishes parsing.
+    // on its own once the parser finishes. Channel name is stable
+    // ("contract_imports_self") rather than per-user — RLS handles
+    // who-can-see-what at the data layer, no need to scope here.
     const channel = supabase
-      .channel(`contract_imports_${myId}`)
+      .channel("contract_imports_self")
       .on("postgres_changes", { event: "*", schema: "public", table: "contract_imports" }, load)
       .subscribe();
     const interval = setInterval(load, 30000);  // belt-and-suspenders 30s poll
@@ -59,7 +70,7 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [myId]);
+  }, []);
 
   const importsExtracted = imports.filter(i => i.status === "extracted");
   const importsPending = imports.filter(i => i.status === "pending" || i.status === "processing");
@@ -136,6 +147,35 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
     />
 
     <div style={{ padding: "14px 14px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+      {/* Top-of-page banner: extracted drafts ready for review.
+          Sits above the revenue strip so it can't be missed. */}
+      {importsExtracted.length > 0 && <button
+        onClick={() => setReviewImport(importsExtracted[0])}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "12px 14px", minHeight: 56,
+          background: GOLD + "15", color: INK,
+          border: `1px solid ${GOLD}50`, borderRadius: 12,
+          textAlign: "left", cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        <span style={{ fontSize: 22, lineHeight: 1 }}>📄</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
+            {importsExtracted.length} contract{importsExtracted.length === 1 ? "" : "s"} ready to review
+          </div>
+          <div style={{ fontSize: 12, color: TOKENS.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {importsExtracted.slice(0, 3).map(i => i.extracted_json?.client?.name || "Unknown").join(" · ")}
+          </div>
+        </div>
+        <span style={{ color: GOLD, fontSize: 18, fontWeight: 700 }}>›</span>
+      </button>}
+
+      {importsError && <div style={{
+        padding: "10px 14px", background: TOKENS.urgent + "12",
+        borderRadius: 10, color: TOKENS.urgent, fontSize: 12,
+      }}>Imports query: {importsError}</div>}
 
       {/* Revenue strip — 3 horizontally-scrollable cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>

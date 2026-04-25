@@ -1,4 +1,12 @@
-# contract-importer
+# contract-importer (DEPRECATED — moved to Supabase Edge Function)
+
+> **As of 2026-04-25 the contract-importer runs as a Supabase Edge Function** at `supabase/functions/contract-importer/`. The Mac Mini LaunchAgent below is preserved for reference and as a hot-spare option, but is **not the production parser** anymore. The Edge Function uses Claude Vision (Anthropic) by default with Gemini fallback, runs on Supabase's infra (no dependency on the Mac Mini being awake), and is triggered automatically by a Postgres trigger on `contract_imports` insert.
+>
+> **Do not deploy this LaunchAgent unless you specifically want a fallback worker.** Running both at once is fine — the atomic `claim_pending_contract_import` RPC ensures no row gets double-processed — but it's redundant.
+
+---
+
+## Original (Mac Mini) Architecture
 
 Wednesday Agent Station LaunchAgent that turns mobile-uploaded paper-contract photos into proposal drafts in MyDash. Picks up `contract_imports` rows in `pending` status, runs the photos through Gemini Vision, writes the structured result back as `extracted` so the mobile reviewer can confirm + convert.
 
