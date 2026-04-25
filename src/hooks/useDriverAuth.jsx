@@ -96,6 +96,25 @@ export function useDriverAuth() {
     }
   }, []);
 
+  const selfIssue = useCallback(async (email) => {
+    try {
+      const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "self_issue", email }),
+      });
+      let json;
+      try { json = await res.json(); }
+      catch { return { ok: false, error: `server_${res.status}`, message: `Server returned ${res.status}` }; }
+      if (!res.ok) {
+        return { ok: false, error: json.error, message: json.message || json.detail };
+      }
+      return { ok: true, message: json.message };
+    } catch (e) {
+      return { ok: false, error: "network_error", message: String(e?.message ?? e) };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     localStorage.removeItem(STORAGE_KEY);
     try { await supabase.auth.signOut(); } catch { /* ok */ }
@@ -108,6 +127,7 @@ export function useDriverAuth() {
     driverId: auth?.driver_id || null,
     expiresAt: auth?.exp || null,
     verify,
+    selfIssue,
     signOut,
   };
 }

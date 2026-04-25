@@ -45,7 +45,11 @@ const JWT_SECRET = Deno.env.get("JWT_SECRET")
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
 const TWILIO_FROM = Deno.env.get("TWILIO_FROM_NUMBER") || "";
+const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
+const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const PUBLIC_APP_URL = Deno.env.get("PUBLIC_APP_URL") || "https://mydash.media";
+
+const SELF_ISSUE_THROTTLE_SEC = 60;  // anti-flood: at most 1 self-issue per driver per 60s
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") || "https://mydash.media,http://localhost:5173,http://localhost:4173").split(",");
 
@@ -155,6 +159,72 @@ async function sendTwilioSms(to: string, body: string): Promise<{ ok: boolean; r
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: `twilio_fetch_failed: ${String(e?.message ?? e).slice(0, 160)}` };
+  }
+}
+
+// ── Gmail send (mirrors contract-email pattern) ────────────────
+// Pulls a refreshable access token from any admin's google_tokens
+// row. The driver-self-issue email goes "from" whichever admin is
+// connected — most recently, that's Cami's office Gmail.
+async function sendGmail(admin: any, toEmail: string, subject: string, htmlBody: string): Promise<{ ok: boolean; reason?: string }> {
+  const { data: admins } = await admin.from("team_members")
+    .select("auth_id").not("auth_id", "is", null).limit(20);
+  let userId: string | null = null;
+  let tokens: any = null;
+  for (const a of (admins || [])) {
+    const { data: t } = await admin.from("google_tokens").select("*").eq("user_id", a.auth_id).maybeSingle();
+    if (t?.access_token) { userId = a.auth_id; tokens = t; break; }
+  }
+  if (!userId || !tokens) return { ok: false, reason: "no_gmail_tokens" };
+
+  let accessToken = tokens.access_token;
+  const expiry = tokens.token_expiry ? new Date(tokens.token_expiry) : new Date(0);
+  if (expiry.getTime() - Date.now() < 300_000 && tokens.refresh_token) {
+    try {
+      const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: tokens.refresh_token,
+          grant_type: "refresh_token",
+        }),
+      });
+      const refreshData = await refreshRes.json();
+      if (refreshData.access_token) {
+        accessToken = refreshData.access_token;
+        await admin.from("google_tokens").update({
+          access_token: accessToken,
+          token_expiry: new Date(Date.now() + refreshData.expires_in * 1000).toISOString(),
+        }).eq("user_id", userId);
+      }
+    } catch (e) {
+      return { ok: false, reason: `refresh_failed: ${String(e?.message ?? e).slice(0, 120)}` };
+    }
+  }
+
+  const raw = btoa(
+    `To: ${toEmail}\r\n` +
+    `Subject: ${subject}\r\n` +
+    `MIME-Version: 1.0\r\n` +
+    `Content-Type: text/html; charset="UTF-8"\r\n\r\n` +
+    htmlBody
+  ).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  try {
+    const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw }),
+    });
+    if (!sendRes.ok) {
+      const text = await sendRes.text();
+      return { ok: false, reason: `gmail_${sendRes.status}: ${text.slice(0, 160)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: `gmail_fetch_failed: ${String(e?.message ?? e).slice(0, 160)}` };
   }
 }
 
@@ -288,6 +358,81 @@ serve(async (req) => {
       driver_id: session.driver_id,
       expires_in: exp - Math.floor(Date.now() / 1000),
     }, 200, cors);
+  }
+
+  // ── SELF_ISSUE ─────────────────────────────────────────────
+  // Anonymous driver-self-serve. Driver enters their email on the
+  // public /driver landing screen; we look them up, issue a magic
+  // link, and send it via the office Gmail account. Anti-enumeration:
+  // always return generic 200 success regardless of whether the email
+  // matches an active driver. Throttle to 1/min/driver to stop floods.
+  if (action === "self_issue") {
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return json({ ok: false, error: "bad_email" }, 400, cors);
+    }
+    const generic = { ok: true, message: "If that email is on file for an active driver, a sign-in link is on its way." };
+
+    const { data: driver } = await admin
+      .from("drivers")
+      .select("id, name, email, is_active")
+      .ilike("email", email)
+      .maybeSingle();
+    if (!driver || driver.is_active === false) {
+      // Don't reveal which case we hit.
+      return json(generic, 200, cors);
+    }
+
+    // Throttle: reject if a session was issued for this driver within the window.
+    const cutoff = new Date(Date.now() - SELF_ISSUE_THROTTLE_SEC * 1000).toISOString();
+    const { data: recent } = await admin
+      .from("driver_sessions")
+      .select("id, created_at")
+      .eq("driver_id", driver.id)
+      .gt("created_at", cutoff)
+      .limit(1);
+    if (recent && recent.length > 0) {
+      return json({ ...generic, throttled: true }, 200, cors);
+    }
+
+    const magicToken = genMagicToken();
+    const pin = genPin();
+    const pinHash = await hashPin(pin, magicToken);
+    const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 3600_000).toISOString();
+
+    const { error: sessErr } = await admin.from("driver_sessions").insert({
+      driver_id: driver.id,
+      magic_token: magicToken,
+      pin_hash: pinHash,
+      pin_attempts: 0,
+      expires_at: expiresAt,
+    });
+    if (sessErr) return json({ ok: false, error: sessErr.message }, 500, cors);
+
+    const magicLink = `${PUBLIC_APP_URL}/driver/auth/${magicToken}`;
+    const subject = "Your 13 Stars driver sign-in link";
+    const html = `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1A1F2E;">
+        <div style="font-size:20px;font-weight:800;margin-bottom:16px;">13 Stars Delivery</div>
+        <p style="font-size:15px;line-height:1.5;">Hi ${driver.name?.split(" ")[0] || "there"},</p>
+        <p style="font-size:15px;line-height:1.5;">Tap the button below to start your route. You'll be asked for the 6-digit PIN shown beneath it.</p>
+        <p style="margin:24px 0;">
+          <a href="${magicLink}" style="display:inline-block;background:#B8893A;color:#fff;text-decoration:none;padding:14px 24px;border-radius:8px;font-weight:800;font-size:16px;">Open my route →</a>
+        </p>
+        <div style="background:#F5F5F0;border:1px solid #E5E5DC;border-radius:8px;padding:16px;text-align:center;margin:16px 0;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#5A6779;text-transform:uppercase;margin-bottom:6px;">PIN</div>
+          <div style="font-size:32px;font-family:ui-monospace,SFMono-Regular,monospace;font-weight:800;letter-spacing:6px;">${pin}</div>
+        </div>
+        <p style="font-size:12px;color:#5A6779;line-height:1.5;">Link and PIN expire in 8 hours. If you didn't request this, you can ignore this email — nothing happens until both the link and PIN are used together.</p>
+      </div>`;
+
+    const sendResult = await sendGmail(admin, driver.email!, subject, html);
+    if (!sendResult.ok) {
+      // Roll back the session — no point holding it open if we couldn't deliver.
+      await admin.from("driver_sessions").delete().eq("magic_token", magicToken);
+      return json({ ok: false, error: "send_failed", detail: sendResult.reason }, 500, cors);
+    }
+    return json(generic, 200, cors);
   }
 
   return json({ error: "unknown_action" }, 400, cors);

@@ -75,13 +75,7 @@ export default function DriverApp() {
   // Everything else needs auth.
   if (!auth.isAuthed) {
     return <FullScreenContainer>
-      <div style={{ padding: "60px 32px", textAlign: "center", color: MUTED }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: TEXT, marginBottom: 12 }}>13 Stars Delivery</div>
-        <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-          You need a magic-link SMS from the office to sign in.<br />
-          Call Cami if you didn't receive one.
-        </div>
-      </div>
+      <SelfIssueLanding selfIssue={auth.selfIssue} />
     </FullScreenContainer>;
   }
 
@@ -123,6 +117,71 @@ export default function DriverApp() {
       }}
     />
   </FullScreenContainer>;
+}
+
+function SelfIssueLanding({ selfIssue }) {
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (sending || !email.trim()) return;
+    setSending(true);
+    setResult(null);
+    const r = await selfIssue(email.trim());
+    setSending(false);
+    setResult(r);
+  };
+
+  return <div style={{ padding: "60px 24px", maxWidth: 420, margin: "0 auto", textAlign: "center", color: MUTED }}>
+    <div style={{ fontSize: 22, fontWeight: 800, color: TEXT, marginBottom: 8 }}>13 Stars Delivery</div>
+    <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 28 }}>
+      Enter the email on file with the office to get a fresh sign-in link.
+    </div>
+
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <input
+        type="email"
+        autoComplete="email"
+        inputMode="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        disabled={sending || result?.ok}
+        style={{
+          width: "100%", boxSizing: "border-box",
+          padding: "14px 16px", minHeight: 52,
+          fontSize: 16, color: TEXT,
+          background: "#1A1F2E", border: "1px solid #2D3548", borderRadius: 10,
+          outline: "none",
+        }}
+      />
+      <button
+        type="submit"
+        disabled={sending || !email.trim() || result?.ok}
+        style={{
+          width: "100%", padding: "14px", minHeight: 52,
+          background: result?.ok ? "#2F855A" : "#B8893A",
+          color: "#0F1419", border: "none", borderRadius: 10,
+          fontSize: 16, fontWeight: 800,
+          cursor: sending || !email.trim() || result?.ok ? "not-allowed" : "pointer",
+          opacity: sending || (!email.trim() && !result?.ok) ? 0.6 : 1,
+        }}
+      >{sending ? "Sending…" : result?.ok ? "Sent ✓" : "Email me a sign-in link"}</button>
+    </form>
+
+    {result?.ok && <div style={{ marginTop: 20, fontSize: 13, lineHeight: 1.5, color: "#94A3B8" }}>
+      {result.message || "Check your email."} Open the link on this phone, then enter the 6-digit PIN.
+    </div>}
+    {result && !result.ok && <div style={{ marginTop: 20, fontSize: 13, lineHeight: 1.5, color: "#C53030" }}>
+      Couldn't send: {result.message || result.error || "unknown error"}. Call Cami if it keeps failing.
+    </div>}
+
+    <div style={{ marginTop: 32, fontSize: 12, color: "#64748B", lineHeight: 1.5 }}>
+      No email on file? Call Cami to get one set up.
+    </div>
+  </div>;
 }
 
 function FullScreenContainer({ children }) {
