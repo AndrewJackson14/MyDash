@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { Z, COND, FS, FW, R, Ri } from "../../lib/theme";
 import { Ic, Btn, Inp, TA, Modal, GlassCard, GlassStat } from "../../components/ui";
-import { supabase } from "../../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../../lib/supabase";
 import { fmtDate } from "../../lib/formatters";
 
 export default function Drivers({
@@ -111,8 +111,32 @@ export default function Drivers({
     closeDriverModal();
   };
 
+  // Send Magic Link: call driver-auth issue, show the PIN to Cami in
+  // a modal so she can read it manually if SMS doesn't land. Twilio
+  // dispatch happens server-side and reports back via sms_sent flag.
+  const [linkResult, setLinkResult] = useState(null);
+  const [sendingLinkFor, setSendingLinkFor] = useState(null);
+
   const sendMagicLink = async (driver) => {
-    alert(`Send Magic Link: Phase 6 wiring.\nDriver: ${driver.name}\nPhone: ${driver.sms_phone || driver.phone || "(no phone on file)"}`);
+    setSendingLinkFor(driver.id);
+    setLinkResult(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Sign in required");
+      const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: supabase.supabaseKey || "" },
+        body: JSON.stringify({ action: "issue", driver_id: driver.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to issue link");
+      setLinkResult({ driver, ...json });
+    } catch (e) {
+      setLinkResult({ driver, error: String(e?.message ?? e) });
+    } finally {
+      setSendingLinkFor(null);
+    }
   };
 
   const daysSince = (iso) => {
@@ -180,12 +204,66 @@ export default function Drivers({
                 </div>
                 <Btn sm v="ghost" onClick={() => openEditDriver(d)}>Edit</Btn>
                 <div style={{ textAlign: "right" }}>
-                  <Btn sm v="secondary" onClick={() => sendMagicLink(d)} disabled={isInactive || !(d.sms_phone || d.phone)}>Send Magic Link</Btn>
+                  <Btn sm v="secondary"
+                    onClick={() => sendMagicLink(d)}
+                    disabled={isInactive || !(d.sms_phone || d.phone) || sendingLinkFor === d.id}
+                  >{sendingLinkFor === d.id ? "Sending…" : "Send Magic Link"}</Btn>
                 </div>
               </div>;
             })}
           </div>}
     </GlassCard>
+
+    {/* Magic-link result modal — shows PIN to Cami so she can read it
+        to the driver if SMS lags or fails. PIN is also returned by
+        the Edge Function regardless of SMS outcome. */}
+    {linkResult && <Modal open={true} onClose={() => setLinkResult(null)}
+      title={linkResult.error ? "Magic Link Failed" : `Magic Link for ${linkResult.driver.name}`}
+      width={460}
+    >
+      {linkResult.error
+        ? <div style={{ padding: "10px 14px", background: Z.da + "18", color: Z.da, borderRadius: Ri, fontSize: FS.sm }}>
+            {linkResult.error}
+          </div>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: "16px 18px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
+              <div style={{ fontSize: FS.xs, color: Z.td, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                6-digit PIN
+              </div>
+              <div style={{ fontSize: 36, fontWeight: FW.black, color: Z.ac, letterSpacing: 6, fontFamily: "monospace" }}>
+                {linkResult.pin}
+              </div>
+            </div>
+            <div style={{ fontSize: FS.sm, color: Z.tx, lineHeight: 1.5 }}>
+              {linkResult.sms_sent
+                ? <span style={{ color: Z.go, fontWeight: FW.bold }}>✓ SMS sent to {linkResult.driver.sms_phone || linkResult.driver.phone}</span>
+                : <>
+                    <span style={{ color: Z.wa, fontWeight: FW.bold }}>SMS not sent</span>{" "}
+                    <span style={{ color: Z.tm }}>({linkResult.reason || "unknown"})</span>
+                    <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>
+                      Read the PIN and link to the driver by phone, or have them tap the link below directly.
+                    </div>
+                  </>}
+            </div>
+            <div>
+              <div style={{ fontSize: FS.micro, color: Z.td, fontWeight: FW.heavy, textTransform: "uppercase", marginBottom: 4 }}>
+                Magic link
+              </div>
+              <div style={{
+                padding: "8px 10px", background: Z.bg, borderRadius: Ri,
+                fontSize: FS.xs, color: Z.tx, fontFamily: "monospace",
+                wordBreak: "break-all",
+              }}>{linkResult.magic_link}</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 4 }}>
+                Expires {new Date(linkResult.expires_at).toLocaleString()}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Btn v="secondary" onClick={() => navigator.clipboard?.writeText(linkResult.magic_link)}>Copy link</Btn>
+              <Btn onClick={() => setLinkResult(null)}>Close</Btn>
+            </div>
+          </div>}
+    </Modal>}
 
     <Modal open={driverModal} onClose={closeDriverModal}
       title={editingDriver ? `Edit Driver — ${editingDriver.name}` : "New Driver"}

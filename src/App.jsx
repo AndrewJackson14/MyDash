@@ -62,6 +62,7 @@ const IssueDetail = lazyLoad(() => import("./pages/IssueDetail"));
 const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
+const DriverApp = lazy(() => import("./pages/driver/DriverApp"));
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
@@ -72,6 +73,17 @@ const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color
 const EMPTY_ARR = Object.freeze([]);
 
 export default function App() {
+  // Hard pathname check for the driver-app route tree. Drivers never
+  // see MyDash chrome — totally different shell, different auth model
+  // (custom JWT via driver-auth Edge Function), mobile-first viewport.
+  // Branch happens BEFORE useAppData so we don't pull the heavy office
+  // data layer for a driver session.
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/driver")) {
+    return <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0F1419" }} />}>
+      <DriverApp />
+    </Suspense>;
+  }
+
   const appData = useAppData();
   const { teamMember: realUser } = useAuth();
   
