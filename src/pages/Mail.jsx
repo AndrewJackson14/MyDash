@@ -12,6 +12,7 @@ import DOMPurify from "dompurify";
 import Image from "@tiptap/extension-image";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../lib/theme";
 import { Ic, Btn, Inp, Modal, PageHeader, GlassCard, SB, Pill, FilterPillStrip } from "../components/ui";
+import FuzzyPicker from "../components/FuzzyPicker";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 
@@ -354,6 +355,22 @@ const Mail = ({ isActive } = {}) => {
   const [pageToken, setPageToken] = useState(null);
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [selectedFull, setSelectedFull] = useState(null);
+  // P2.22 — link-to-ad-project state. linkableProjects loaded once
+  // when the modal opens; cached for subsequent opens within the
+  // session (in-flight projects don't churn that fast).
+  const [linkProjectOpen, setLinkProjectOpen] = useState(false);
+  const [linkableProjects, setLinkableProjects] = useState([]);
+  const [linking, setLinking] = useState(false);
+  useEffect(() => {
+    if (!linkProjectOpen || linkableProjects.length > 0) return;
+    let cancelled = false;
+    supabase.from("ad_projects")
+      .select("id, client_id, publication_id, issue_id, status, ad_size, thread_id, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(200)
+      .then(({ data }) => { if (!cancelled && data) setLinkableProjects(data); });
+    return () => { cancelled = true; };
+  }, [linkProjectOpen, linkableProjects.length]);
   const [loadingMsg, setLoadingMsg] = useState(false);
   const [search, setSearch] = useState("");
   const [searchActive, setSearchActive] = useState("");
@@ -713,7 +730,7 @@ const Mail = ({ isActive } = {}) => {
                 </div>
 
                 {/* Action buttons */}
-                <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
+                <div style={{ display: "flex", gap: 4, marginTop: 10, flexWrap: "wrap" }}>
                   <Btn sm v="ghost" onClick={() => { setReplyTo(selectedFull); setReplyAll(false); setForwardMsg(null); setComposeOpen(true); }}>Reply</Btn>
                   <Btn sm v="ghost" onClick={() => { setReplyTo(selectedFull); setReplyAll(true); setForwardMsg(null); setComposeOpen(true); }}>Reply All</Btn>
                   <Btn sm v="ghost" onClick={() => { setForwardMsg(selectedFull); setReplyTo(null); setReplyAll(false); setComposeOpen(true); }}>Forward</Btn>
@@ -722,6 +739,9 @@ const Mail = ({ isActive } = {}) => {
                   <Btn sm v="ghost" onClick={() => toggleRead(selectedFull)}>
                     {selectedFull.labelIds?.includes("UNREAD") ? "Mark Read" : "Mark Unread"}
                   </Btn>
+                  {/* P2.22 — link this email to an ad project so the
+                      conversation surfaces in context on the project. */}
+                  <Btn sm v="ghost" onClick={() => setLinkProjectOpen(true)} title="Tag this email to an ad project so Jen sees it in context">🔗 Link to ad project</Btn>
                 </div>
               </div>
 
@@ -775,6 +795,63 @@ const Mail = ({ isActive } = {}) => {
       forward={forwardMsg}
       signature=""
     />
+
+    {/* P2.22 — Link this email to an ad project. Loads in-flight
+        projects on open (capped to 100, ordered newest first), lets
+        Jen pick by client+pub, writes a gmail_message_links row plus
+        a system message into the project's thread so the conversation
+        timeline reflects the linkage. */}
+    <Modal open={linkProjectOpen} onClose={() => { if (!linking) setLinkProjectOpen(false); }} title="Link this email to an ad project" width={520}>
+      <div style={{ padding: "14px 18px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: FS.sm, color: Z.tm }}>
+          From: <strong style={{ color: Z.tx }}>{selectedFull ? getHeader(selectedFull, "From") : ""}</strong><br />
+          Subject: <strong style={{ color: Z.tx }}>{selectedFull ? (getHeader(selectedFull, "Subject") || "(no subject)") : ""}</strong>
+        </div>
+        <FuzzyPicker
+          label="Project"
+          options={linkableProjects.map(p => ({
+            value: p.id,
+            label: `${p.client_id?.slice(0, 6) || "?"} · ${p.ad_size || "Ad"} · ${p.status}`,
+          }))}
+          onChange={async (projectId) => {
+            if (!projectId || linking || !selectedFull) return;
+            const proj = linkableProjects.find(p => p.id === projectId);
+            const fromHeader = getHeader(selectedFull, "From") || "";
+            const subjHeader = getHeader(selectedFull, "Subject") || "";
+            const fromMatch = fromHeader.match(/<([^>]+)>/);
+            const fromEmail = (fromMatch ? fromMatch[1] : fromHeader).toLowerCase().trim();
+            const excerpt = (selectedFull.snippet || "").slice(0, 240);
+            setLinking(true);
+            try {
+              await supabase.from("gmail_message_links").insert({
+                gmail_message_id: selectedFull.id,
+                ad_project_id: projectId,
+                thread_id: proj?.thread_id || null,
+                excerpt,
+                from_email: fromEmail || null,
+                subject: subjHeader || null,
+              });
+              if (proj?.thread_id) {
+                await supabase.from("messages").insert({
+                  thread_id: proj.thread_id,
+                  sender_name: "System",
+                  body: `📧 Email linked from ${fromHeader}: "${(excerpt || subjHeader).slice(0, 200)}…"`,
+                  is_system: true,
+                });
+              }
+              setLinkProjectOpen(false);
+            } catch (e) {
+              alert(`Link failed: ${String(e?.message ?? e)}`);
+            } finally {
+              setLinking(false);
+            }
+          }}
+        />
+        <div style={{ fontSize: FS.xs, color: Z.td }}>
+          The email surfaces in the project's "Linked Emails" panel and a system note lands in the project chat.
+        </div>
+      </div>
+    </Modal>
   </div>;
 };
 

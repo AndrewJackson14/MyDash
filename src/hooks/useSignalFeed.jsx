@@ -322,6 +322,12 @@ export function useSignalFeed({
     };
   }, [_sales, salesToGoal, _stories, deadlineAlerts, thisMonth]);
 
+  // adProjectAlerts is computed in an effect further down, but we
+  // reference it from departmentPressure (just below) — declare the
+  // state slot up here so the closure has a defined binding to read
+  // (initial render gets [], updates flow through normal React state).
+  const [adProjectAlerts, setAdProjectAlerts] = useState([]);
+
   // ── Per-department pressure (new for V2 dashboard) ───────
   // heat: 0 (calm blue) → 100 (hot red). Count = how many items need attention.
   const departmentPressure = useMemo(() => {
@@ -338,9 +344,22 @@ export function useSignalFeed({
     const edHeat = Math.min(100, stuckStories * 5 + editDeadlines * 20);
 
     // Production: overdue ad projects + jobs past deadline + imminent press dates
+    // P1.11 — weight by ad-project signal severity so a single black
+    // (past-press) alert can pin prodHeat near max regardless of
+    // background noise.
     const prodItems = deptItems.production.length;
     const adDl = deadlineAlerts.filter(a => a.type === "ad").length;
-    const prodHeat = Math.min(100, prodItems * 20 + adDl * 15 + overdueJobs * 10);
+    const blackCount = adProjectAlerts.filter(a => a.level === "black").length;
+    const redCount   = adProjectAlerts.filter(a => a.level === "red").length;
+    const amberCount = adProjectAlerts.filter(a => a.level === "amber").length;
+    const prodHeat = Math.min(100,
+      prodItems * 20
+      + adDl * 15
+      + overdueJobs * 10
+      + blackCount * 50
+      + redCount * 25
+      + amberCount * 10
+    );
 
     // Admin: open + escalated tickets + overdue invoices
     const adminItems = deptItems.admin.length;
@@ -352,7 +371,7 @@ export function useSignalFeed({
       production: { heat: prodHeat, count: prodItems + adDl, items: deptItems.production, adDeadlines: adDl, overdueJobs },
       admin: { heat: adminHeat, count: adminItems + openTickets + overdueInvCount, items: deptItems.admin, openTickets, escalatedTickets, overdueInvCount, expiringNext30 },
     };
-  }, [focusItems, salesToGoal, _stories, deadlineAlerts, overdueJobs, openTickets, escalatedTickets, overdueInvCount, pipelineValue, expiringNext30]);
+  }, [focusItems, salesToGoal, _stories, deadlineAlerts, overdueJobs, openTickets, escalatedTickets, overdueInvCount, pipelineValue, expiringNext30, adProjectAlerts]);
 
   // ── Global pressure (0–100) for ambient glow state ──────
   // Weighted toward the HOTTEST department so one dept on fire visibly tints
@@ -371,27 +390,69 @@ export function useSignalFeed({
     return Math.min(100, Math.round(raw));
   }, [departmentPressure, focusItems]);
 
-  // ── Ad project alerts (overdue / past-press) ─────────────
-  const [adProjectAlerts, setAdProjectAlerts] = useState([]);
+  // ── Ad project alerts (P1.11 — 4 signal types) ────────────
+  // Pulls all in-flight ad projects + the latest sent proof per
+  // project, then classifies into:
+  //   black  = past press date, not signed off (catastrophic)
+  //   red    = past adDeadline, not approved
+  //   amber  = proof out >5d with no client response
+  //   amber  = revision requested >2d with no new proof uploaded
+  // The classifications feed into prodHeat so the AmbientPressure
+  // layer reflects design pressure 1:1, and into adProjectAlerts
+  // for any consumer that wants to render the list.
+  // (state declared higher up so departmentPressure closure can read it)
   useEffect(() => {
     if (!isOnline()) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from("ad_projects")
-        .select("id, status, client_id, publication_id, issue_id, ad_size")
-        .not("status", "in", '("approved","signed_off","placed")');
-      if (cancelled || !data) return;
+      const [{ data: projs }, { data: proofs }] = await Promise.all([
+        supabase.from("ad_projects")
+          .select("id, status, client_id, publication_id, issue_id, ad_size, designer_id, updated_at")
+          .not("status", "in", '("approved","signed_off","placed")'),
+        supabase.from("ad_proofs")
+          .select("project_id, version, sent_to_client_at")
+          .not("sent_to_client_at", "is", null),
+      ]);
+      if (cancelled || !projs) return;
+      // Latest proof-sent per project, for the "proof out >5d" signal.
+      const latestSentByProject = new Map();
+      for (const pf of (proofs || [])) {
+        const cur = latestSentByProject.get(pf.project_id);
+        if (!cur || (pf.sent_to_client_at || "") > (cur || "")) {
+          latestSentByProject.set(pf.project_id, pf.sent_to_client_at);
+        }
+      }
       const issueMap = {};
       _issues.forEach(i => { issueMap[i.id] = i; });
+      const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
+      const twoDaysAgo  = new Date(Date.now() - 2 * 86400000).toISOString();
       const alerts = [];
-      for (const p of data) {
+      for (const p of projs) {
         const iss = issueMap[p.issue_id];
         if (!iss) continue;
         const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
+        // 1. Past press, not signed off — catastrophic.
         if (iss.date < today && !["approved", "signed_off", "placed"].includes(p.status)) {
-          alerts.push({ ...p, flag: "INCOMPLETE — PAST PRESS", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
-        } else if (adDl <= 0) {
-          alerts.push({ ...p, flag: "OVERDUE", color: Z.wa, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+          alerts.push({ ...p, flag: "INCOMPLETE — PAST PRESS", level: "black", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+          continue;
+        }
+        // 2. Past ad deadline, not approved.
+        if (adDl <= 0 && !["approved", "signed_off", "placed"].includes(p.status)) {
+          alerts.push({ ...p, flag: "OVERDUE", level: "red", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+          continue;
+        }
+        // 3. Proof out >5d with no client response.
+        if (p.status === "proof_sent") {
+          const lastSent = latestSentByProject.get(p.id);
+          if (lastSent && lastSent < fiveDaysAgo) {
+            alerts.push({ ...p, flag: "PROOF OUT 5+ DAYS", level: "amber", color: Z.wa, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+            continue;
+          }
+        }
+        // 4. Revision sitting >2d with no new proof.
+        if (p.status === "revising" && p.updated_at && p.updated_at < twoDaysAgo) {
+          alerts.push({ ...p, flag: "REVISION SITTING 2+ DAYS", level: "amber", color: Z.wa, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
+          continue;
         }
       }
       if (!cancelled) setAdProjectAlerts(alerts);

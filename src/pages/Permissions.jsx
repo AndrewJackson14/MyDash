@@ -15,7 +15,7 @@ const MODULES = [
   { key: "circulation", label: "Circulation / Subscribers", icon: "📬" },
   { key: "service_desk", label: "Service Desk", icon: "🎧" },
   { key: "legal_notices", label: "Legal Notices", icon: "⚖️" },
-  { key: "creative_jobs", label: "Creative Jobs", icon: "🎨" },
+  // P2.27 — Creative Jobs retired in favor of AdProjects.
   { key: "classifieds", label: "Classified Ads", icon: "📰" },
   { key: "merch", label: "Merch", icon: "🏷" },
   { key: "calendar", label: "Calendar", icon: "📅" },
@@ -29,8 +29,8 @@ const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
   Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
   "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
-  "Layout Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
-  "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "creative_jobs", "stories", "flatplan", "performance"],
+  "Layout Designer": ["dashboard", "stories", "flatplan", "adprojects", "calendar"],
+  "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "stories", "flatplan", "performance"],
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
 };
 

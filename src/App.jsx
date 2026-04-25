@@ -50,7 +50,9 @@ const Circulation = lazyLoad(() => import("./pages/Circulation"));
 const ServiceDesk = lazyLoad(() => import("./pages/ServiceDesk"));
 const LegalNotices = lazyLoad(() => import("./pages/LegalNotices"));
 const Performance = lazyLoad(() => import("./pages/Performance"));
-const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
+// P2.27 — CreativeJobs sunset. Page kept in repo (creative_jobs
+// data lives on for Performance reads) but removed from build path.
+// const CreativeJobs = lazyLoad(() => import("./pages/CreativeJobs"));
 const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
 const Merch = lazyLoad(() => import("./pages/Merch"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
@@ -479,7 +481,6 @@ export default function App() {
     { id: "newsletters", label: "Newsletters", icon: Ic.send },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
-    { id: "creativejobs", label: "Creative Jobs", icon: Ic.brief },
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "bookings-queue", label: "Booking Queue", icon: Ic.bell },
     { id: "classifieds", label: "Classifieds", icon: Ic.megaphone },
@@ -655,7 +656,9 @@ export default function App() {
         {show("legalnotices") && <div style={vis("legalnotices")}><LegalNotices isActive={pg === "legalnotices"} legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} onNavigate={handleNav} /></div>}
         {show("adprojects") && <div style={vis("adprojects")}><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></div>}
         {show("knowledgebase") && <div style={vis("knowledgebase")}><KnowledgeBase isActive={pg === "knowledgebase"} team={team} currentUser={currentUser} /></div>}
-        {show("creativejobs") && <div style={vis("creativejobs")}><CreativeJobs isActive={pg === "creativejobs"} jurisdiction={jurisdiction} creativeJobs={jJobs} setCreativeJobs={setCreativeJobs} clients={jClients} team={team} bus={bus} /></div>}
+        {/* P2.27 — CreativeJobs sunset. Module retired in favor of
+            AdProjects. Lazy import + sidebar entry removed; data
+            kept in the table for historical Performance reads. */}
         {show("classifieds") && <div style={vis("classifieds")}><ClassifiedAds isActive={pg === "classifieds"} pubs={pubs} clients={jClients} issues={jIssues} /></div>}
         {show("merch") && <div style={vis("merch")}><Merch isActive={pg === "merch"} clients={jClients} /></div>}
         </Suspense>

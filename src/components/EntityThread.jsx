@@ -98,6 +98,18 @@ export default function EntityThread({
     if (onMsgCount && msgCount != null) onMsgCount(msgCount);
   }, [msgCount, onMsgCount]);
 
+  // P1.9 — stamp last_read_at when this user opens the thread, so
+  // AdProjects queue cards can compute unread counts accurately.
+  // Idempotent upsert; cheap (single-row write).
+  useEffect(() => {
+    if (!thread?.id || !resolvedUser?.id) return;
+    supabase.from("thread_reads").upsert({
+      thread_id: thread.id,
+      user_id: resolvedUser.id,
+      last_read_at: new Date().toISOString(),
+    });
+  }, [thread?.id, resolvedUser?.id]);
+
   const headerLabel = useMemo(() => {
     if (msgCount == null) return label;
     return `${label} · ${msgCount}`;

@@ -41,6 +41,56 @@ const EXCLUDED_SIZES = new Set([
 const PROXY_URL = EDGE_FN_URL + "/bunny-storage";
 const CDN_BASE = "https://cdn.13stars.media";
 
+// P2.22 — Linked Emails panel. Reads gmail_message_links for the
+// current project, renders sender + subject + excerpt + a click-out
+// to Gmail's web client (#inbox/{messageId} resolves the same way
+// the Mail tab's "open in Gmail" does). Quiet when there are no
+// linked emails so the project chat stays the focus.
+function LinkedEmailsPanel({ projectId }) {
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    supabase.from("gmail_message_links")
+      .select("gmail_message_id, from_email, subject, excerpt, linked_at, linked_by")
+      .eq("ad_project_id", projectId)
+      .order("linked_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setItems(data || []);
+        setLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [projectId]);
+  if (!loaded || items.length === 0) return null;
+  return <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+    <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 6 }}>
+      Linked Emails ({items.length})
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+      {items.map(it => <a
+        key={it.gmail_message_id}
+        href={`https://mail.google.com/mail/u/0/#inbox/${it.gmail_message_id}`}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: "block", padding: "6px 8px", borderRadius: Ri,
+          background: Z.bg, color: Z.tx, textDecoration: "none",
+          borderLeft: `2px solid ${Z.ac}`,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.subject || "(no subject)"}</span>
+          <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, flexShrink: 0 }}>{it.linked_at ? new Date(it.linked_at).toLocaleDateString() : ""}</span>
+        </div>
+        {it.from_email && <div style={{ fontSize: 11, color: Z.tm, marginTop: 1 }}>{it.from_email}</div>}
+        {it.excerpt && <div style={{ fontSize: 11, color: Z.td, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.excerpt}</div>}
+      </a>)}
+    </div>
+  </div>;
+}
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate, digitalAdProducts, loadDigitalAdProducts }) => {
   const nav = useNav(onNavigate);
@@ -164,6 +214,26 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       });
     });
   }, [loadAdProjects]);
+
+  // P1.9 — unread chat counts per project thread. Loaded as a
+  // single bulk RPC call against unread_counts_for_threads
+  // whenever the project list changes. Map keyed by thread_id;
+  // queue cards render a 💬 N badge when count > 0.
+  const [unreadByThread, setUnreadByThread] = useState(new Map());
+  useEffect(() => {
+    if (!currentUser?.id || !projects.length) { setUnreadByThread(new Map()); return; }
+    const threadIds = projects.map(p => p.thread_id).filter(Boolean);
+    if (threadIds.length === 0) { setUnreadByThread(new Map()); return; }
+    let cancelled = false;
+    supabase.rpc("unread_counts_for_threads", { p_thread_ids: threadIds, p_user_id: currentUser.id })
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const m = new Map();
+        for (const r of data) m.set(r.thread_id, r.unread_count);
+        setUnreadByThread(m);
+      });
+    return () => { cancelled = true; };
+  }, [projects, currentUser?.id]);
 
   // P1.14 — realtime subscriptions on ad_projects + ad_proofs.
   // When a client signs off via the public approval page, when
@@ -1027,6 +1097,9 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             label="Project Chat"
             height={560}
           />
+          {/* P2.22 — Linked emails (sender + subject + excerpt + open
+              in Gmail). Loads only the rows for this project. */}
+          <LinkedEmailsPanel projectId={viewProject?.id} />
         </GlassCard>
       </div>
 
@@ -1256,6 +1329,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     </div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
+                  {/* P1.9 — unread chat badge: hidden when 0, visible when >0 */}
+                  {p.thread_id && unreadByThread.get(p.thread_id) > 0 && <span title={`${unreadByThread.get(p.thread_id)} unread message${unreadByThread.get(p.thread_id) === 1 ? "" : "s"}`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>💬 {unreadByThread.get(p.thread_id)}</span>}
                   {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                 </div>
                 {/* Overdue / incomplete-after-press flags */}
@@ -1349,11 +1424,13 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           {filtered.length === 0 ? <tr><td colSpan={9} style={{ textAlign: "center", color: Z.td, padding: 20 }}>No ad projects</td></tr>
           : filtered.map(p => {
             const st = STATUSES[p.status] || STATUSES.brief;
+            const unread = p.thread_id ? unreadByThread.get(p.thread_id) || 0 : 0;
             return <tr key={p.id} onClick={() => setViewId(p.id)} style={{ cursor: "pointer" }}>
               <td style={{ fontWeight: FW.semi, color: Z.tx }}>
                 {p.client_id
                   ? <EntityLink onClick={nav.toClient(p.client_id)}>{cn(p.client_id)}</EntityLink>
                   : cn(p.client_id)}
+                {unread > 0 && <span title={`${unread} unread`} style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, verticalAlign: "middle" }}>💬 {unread}</span>}
               </td>
               <td style={{ color: Z.tm }}>
                 {p.publication_id
