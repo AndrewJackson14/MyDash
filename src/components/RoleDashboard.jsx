@@ -12,6 +12,7 @@ import {
 
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil, initials as ini } from "../lib/formatters";
 import { useIsMobile } from "../hooks/useWindowWidth";
+import { downloadStoryPackage } from "../lib/storyPackage";
 
 const today = new Date().toISOString().slice(0, 10);
 const thisMonth = today.slice(0, 7);
@@ -527,6 +528,94 @@ const RoleDashboard = memo(({
     return () => { supabase.removeChannel(ch); };
   }, [isLayoutDesigner, currentUser?.id]);
 
+  // P2 — Flag back to editor: drops story to Edit + pings the
+  // assigned editor with a reason. Modal state + handlers live here
+  // so the dashboard row can fire it inline.
+  const [flagBackStory, setFlagBackStory] = useState(null);
+  const [flagBackReason, setFlagBackReason] = useState("");
+  const [flagBackOther, setFlagBackOther] = useState("");
+  const [flagBackSubmitting, setFlagBackSubmitting] = useState(false);
+  const [pkgDownloading, setPkgDownloading] = useState(null); // story.id while in flight
+
+  const submitFlagBack = async () => {
+    if (!flagBackStory || flagBackSubmitting) return;
+    const reason = flagBackReason === "other" ? flagBackOther.trim() : flagBackReason;
+    if (!reason) return;
+    setFlagBackSubmitting(true);
+    try {
+      // 1. Story drops back to Edit + print_status to none
+      await supabase.from("stories").update({
+        status: "Edit",
+        print_status: "none",
+      }).eq("id", flagBackStory.id);
+
+      // 2. Ping the editor — assigned_to or editor_id, falling back
+      // to anyone with editor-ish role on the story's pub. team_notes
+      // FKs reference team_members(id), not auth.users(id).
+      const editorId = flagBackStory.editor_id
+        || flagBackStory.editorId
+        || flagBackStory.assigned_to
+        || flagBackStory.assignedTo
+        || (team || []).find(t => t.role === "Content Editor" && t.isActive !== false)?.id
+        || (team || []).find(t => ["Editor", "Managing Editor"].includes(t.role) && t.isActive !== false)?.id;
+
+      if (editorId) {
+        await supabase.from("team_notes").insert({
+          from_user: currentUser?.id || null,
+          to_user: editorId,
+          message: `Flagging "${flagBackStory.title || 'Untitled'}" back from layout — ${reason}`,
+          context_type: "story",
+          context_id: flagBackStory.id,
+        });
+      }
+
+      // 3. Optimistic UI: remove from Ready list + sync parent stories
+      setLayoutReady(prev => prev.filter(s => s.id !== flagBackStory.id));
+      if (typeof setStories === "function") {
+        setStories(prev => prev.map(s => s.id === flagBackStory.id ? { ...s, status: "Edit", print_status: "none", printStatus: "none" } : s));
+      }
+
+      setFlagBackStory(null);
+      setFlagBackReason("");
+      setFlagBackOther("");
+    } catch (err) {
+      console.error("Flag back failed:", err);
+    }
+    setFlagBackSubmitting(false);
+  };
+
+  // P2 — InDesign story package download. Pulls fresh body + images
+  // (the dashboard row only carries summary fields — body lives in
+  // stories.body, images in media_assets WHERE story_id=$).
+  const handleDownloadPackage = async (s) => {
+    if (pkgDownloading) return;
+    setPkgDownloading(s.id);
+    try {
+      const [storyRes, imgRes] = await Promise.all([
+        supabase.from("stories").select("id, title, slug, author, body, deck, photo_credit, word_count, word_limit, category, has_images, page, jump_to_page, print_issue_id, due_date, publication_id").eq("id", s.id).single(),
+        supabase.from("media_assets").select("file_name, cdn_url, file_url, caption, photo_credit").eq("story_id", s.id).order("created_at", { ascending: true }),
+      ]);
+      if (storyRes.error || !storyRes.data) throw storyRes.error || new Error("Story not found");
+      const fullStory = storyRes.data;
+      const images = (imgRes.data || []).map(r => ({
+        url: r.cdn_url || r.file_url,
+        file_name: r.file_name,
+        caption: r.caption,
+        photo_credit: r.photo_credit,
+      })).filter(i => i.url);
+      const iss = layoutActiveIssues.find(i => i.id === fullStory.print_issue_id);
+      await downloadStoryPackage({
+        story: fullStory,
+        images,
+        pubName: pn(fullStory.publication_id),
+        issueLabel: iss?.label || "",
+      });
+    } catch (err) {
+      console.error("Package download failed:", err);
+    }
+    setPkgDownloading(null);
+  };
+
   // Mark a story on-page (advances print_status + stamps placed_by/laid_out_at)
   const handleMarkOnPage = async (storyId) => {
     const updates = {
@@ -888,11 +977,26 @@ const RoleDashboard = memo(({
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     {items.map(s => (
-                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", borderTop: `1px solid ${Z.bd}15` }}>
+                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 4px", borderTop: `1px solid ${Z.bd}15` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
                           <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{s.author || "—"}{s.word_count ? ` · ${s.word_count}w` : ""}{s.has_images ? " · 📷" : ""}{s.page ? ` · p${s.page}` : ""}</div>
                         </div>
+                        <button
+                          onClick={() => handleDownloadPackage(s)}
+                          disabled={pkgDownloading === s.id}
+                          title="Download InDesign story package (.zip)"
+                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND }}
+                        >
+                          {pkgDownloading === s.id ? "…" : "Pkg"}
+                        </button>
+                        <button
+                          onClick={() => setFlagBackStory(s)}
+                          title="Flag back to editor"
+                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND }}
+                        >
+                          ↩
+                        </button>
                         <Btn sm onClick={() => handleMarkOnPage(s.id)}>Mark On Page</Btn>
                       </div>
                     ))}
@@ -967,6 +1071,51 @@ const RoleDashboard = memo(({
           </div>
         </div>
       </div>
+
+      {/* Flag-back modal — Anthony's "send back to editor" affordance.
+          Shown when flagBackStory is set; closes by setting null. */}
+      {flagBackStory && (
+        <div onClick={() => !flagBackSubmitting && setFlagBackStory(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: Z.sf, borderRadius: R, padding: 24, width: 440, maxWidth: "92vw",
+            border: `1px solid ${Z.bd}`,
+          }}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 6 }}>Flag back to editor</div>
+            <div title={flagBackStory.title} style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{flagBackStory.title || "Untitled"}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {[
+                ["too_long", "Story too long for slot — needs cut"],
+                ["bad_photo", "Need a better photo"],
+                ["bad_headline", "Headline doesn't fit"],
+                ["other", "Other (describe)"],
+              ].map(([k, l]) => (
+                <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.sm, color: Z.tx, cursor: "pointer" }}>
+                  <input type="radio" name="flagback" checked={flagBackReason === k} onChange={() => setFlagBackReason(k)} />
+                  {l}
+                </label>
+              ))}
+            </div>
+            {flagBackReason === "other" && (
+              <textarea
+                value={flagBackOther}
+                onChange={e => setFlagBackOther(e.target.value)}
+                placeholder="What's the issue?"
+                rows={3}
+                style={{ width: "100%", padding: 8, borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical", outline: "none", marginBottom: 12 }}
+              />
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <Btn sm v="secondary" onClick={() => setFlagBackStory(null)} disabled={flagBackSubmitting}>Cancel</Btn>
+              <Btn sm onClick={submitFlagBack} disabled={flagBackSubmitting || !flagBackReason || (flagBackReason === "other" && !flagBackOther.trim())}>
+                {flagBackSubmitting ? "Sending…" : "Send to editor"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>;
   }
 
