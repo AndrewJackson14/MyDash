@@ -16,7 +16,17 @@
 //
 // The driver-app shell uses isAuthed to gate route rendering.
 import { useState, useEffect, useCallback } from "react";
-import { supabase, EDGE_FN_URL } from "../lib/supabase";
+import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "../lib/supabase";
+
+// Anonymous calls (verify, self_issue) still need the anon key in the
+// Authorization + apikey headers — the Supabase API gateway rejects any
+// /functions/v1 request that doesn't carry one, before the function
+// even runs. Anon key is a public key, safe to ship in client code.
+const ANON_HEADERS = {
+  "Content-Type": "application/json",
+  "apikey": SUPABASE_ANON_KEY,
+  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+};
 
 const STORAGE_KEY = "driver_auth_v1";
 
@@ -62,7 +72,7 @@ export function useDriverAuth() {
     try {
       const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: ANON_HEADERS,
         body: JSON.stringify({ action: "verify", magic_token: magicToken, pin }),
       });
       let json;
@@ -100,7 +110,7 @@ export function useDriverAuth() {
     try {
       const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: ANON_HEADERS,
         body: JSON.stringify({ action: "self_issue", email }),
       });
       let json;

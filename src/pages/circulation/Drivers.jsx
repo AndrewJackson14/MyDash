@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { Z, COND, FS, FW, R, Ri } from "../../lib/theme";
 import { Ic, Btn, Inp, TA, Modal, GlassCard, GlassStat } from "../../components/ui";
-import { supabase, EDGE_FN_URL } from "../../lib/supabase";
+import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "../../lib/supabase";
 import { fmtDate } from "../../lib/formatters";
 
 export default function Drivers({
@@ -126,7 +126,7 @@ export default function Drivers({
       if (!token) throw new Error("Sign in required");
       const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: supabase.supabaseKey || "" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
         body: JSON.stringify({ action: "issue", driver_id: driver.id }),
       });
       const json = await res.json();
