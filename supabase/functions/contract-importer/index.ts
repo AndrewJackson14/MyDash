@@ -27,9 +27,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+// Anthropic Claude is the primary vision provider (better handwriting
+// recognition + much higher rate limits than Gemini free tier). If
+// ANTHROPIC_API_KEY isn't set we fall back to Gemini.
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const CLAUDE_MODEL = Deno.env.get("CLAUDE_MODEL") || "claude-sonnet-4-5-20250929";
+const CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages";
+
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash";
-
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Cap per drain call. A trigger-fired call always processes 1 row,
@@ -122,7 +129,63 @@ async function downloadAsBase64(admin: any, path: string): Promise<{ mime: strin
   return { mime: mimeFor(path), data: btoa(binary) };
 }
 
-async function callGemini(parts: any[]): Promise<string> {
+// Inputs to the parser dispatch: prompt text + N photos (base64).
+type ParserInput = { prompt: string; photos: { mime: string; data: string }[]; reviewerHint?: string | null };
+
+async function callClaude(input: ParserInput): Promise<string> {
+  // Claude Vision via Messages API. Order matters — image content
+  // first, then the question, mirrors Anthropic's recommendation
+  // for OCR-style tasks.
+  const content: any[] = [];
+  for (const p of input.photos) {
+    content.push({
+      type: "image",
+      source: { type: "base64", media_type: p.mime, data: p.data },
+    });
+  }
+  content.push({
+    type: "text",
+    text: input.prompt + (input.reviewerHint ? `\n\nReviewer hint: ${input.reviewerHint}` : ""),
+  });
+
+  const res = await fetch(CLAUDE_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2000,
+      temperature: 0,
+      // We tell Claude to prefill its response with `{` so it's
+      // guaranteed to start a JSON object — matches the prompt's
+      // "STRICTLY this JSON shape" rule and saves a parse retry.
+      messages: [
+        { role: "user", content },
+        { role: "assistant", content: "{" },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`claude ${res.status}: ${text.slice(0, 300)}`);
+  }
+  const body = await res.json();
+  const block = body?.content?.[0];
+  if (!block?.text) throw new Error(`claude empty response: ${JSON.stringify(body).slice(0, 300)}`);
+  // Re-attach the assistant prefill since we asked Claude to start with `{`.
+  return "{" + block.text;
+}
+
+async function callGemini(input: ParserInput): Promise<string> {
+  const parts: any[] = [{ text: input.prompt }];
+  for (const p of input.photos) {
+    parts.push({ inlineData: { mimeType: p.mime, data: p.data } });
+  }
+  if (input.reviewerHint) parts.push({ text: `\nReviewer hint: ${input.reviewerHint}` });
+
   const url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY)}`;
   const res = await fetch(url, {
     method: "POST",
@@ -130,7 +193,7 @@ async function callGemini(parts: any[]): Promise<string> {
     body: JSON.stringify({
       contents: [{ role: "user", parts }],
       generationConfig: {
-        temperature: 0.1,           // OCR/extraction wants determinism
+        temperature: 0.1,
         responseMimeType: "application/json",
       },
     }),
@@ -145,6 +208,20 @@ async function callGemini(parts: any[]): Promise<string> {
   return text;
 }
 
+// Dispatch: prefer Claude when the key's set; fall back to Gemini.
+// On any Claude error we DON'T retry on Gemini — better to surface
+// the real error than to mask it with a fallback that might also
+// fail and hide what actually went wrong.
+async function callParser(input: ParserInput): Promise<{ provider: string; text: string }> {
+  if (ANTHROPIC_API_KEY) {
+    return { provider: "claude", text: await callClaude(input) };
+  }
+  if (GEMINI_API_KEY) {
+    return { provider: "gemini", text: await callGemini(input) };
+  }
+  throw new Error("no parser key configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY in Edge Function secrets)");
+}
+
 // ── Process one row (assumed already in 'processing' state) ────
 async function processRow(admin: any, row: any) {
   console.log(`[contract-importer] processing ${row.id} (${(row.storage_paths || []).length} photos)`);
@@ -152,33 +229,31 @@ async function processRow(admin: any, row: any) {
     const photos = await Promise.all((row.storage_paths || []).map((p: string) => downloadAsBase64(admin, p)));
     if (photos.length === 0) throw new Error("no photos attached");
 
-    const parts: any[] = [
-      { text: EXTRACTION_PROMPT },
-      ...photos.map(p => ({ inlineData: { mimeType: p.mime, data: p.data } })),
-    ];
-    if (row.notes) parts.push({ text: `\nReviewer hint: ${row.notes}` });
-
-    const text = await callGemini(parts);
+    const { provider, text } = await callParser({
+      prompt: EXTRACTION_PROMPT,
+      photos,
+      reviewerHint: row.notes || null,
+    });
     const parsed = tryParseJson(text);
 
     if (!parsed) {
       await admin.from("contract_imports").update({
         status: "failed",
-        error_message: `Parser returned non-JSON (first 500 chars): ${text.slice(0, 500)}`,
+        error_message: `${provider} returned non-JSON (first 500 chars): ${text.slice(0, 500)}`,
         worker_finished_at: new Date().toISOString(),
       }).eq("id", row.id);
-      console.error(`[contract-importer] ${row.id} JSON parse failed`);
-      return { ok: false, reason: "non_json" };
+      console.error(`[contract-importer] ${row.id} JSON parse failed (provider=${provider})`);
+      return { ok: false, reason: "non_json", provider };
     }
 
     await admin.from("contract_imports").update({
       status: "extracted",
-      extracted_json: parsed,
+      extracted_json: { ...parsed, _provider: provider },
       worker_finished_at: new Date().toISOString(),
       error_message: null,
     }).eq("id", row.id);
-    console.log(`[contract-importer] ${row.id} → extracted (confidence ${parsed.confidence ?? "?"})`);
-    return { ok: true, confidence: parsed.confidence };
+    console.log(`[contract-importer] ${row.id} → extracted (provider=${provider}, confidence ${parsed.confidence ?? "?"})`);
+    return { ok: true, confidence: parsed.confidence, provider };
   } catch (e) {
     const msg = String((e as Error)?.message ?? e).slice(0, 500);
     console.error(`[contract-importer] ${row.id} failed:`, msg);
@@ -208,8 +283,11 @@ serve(async (req) => {
     }
   }
 
-  if (!GEMINI_API_KEY) {
-    return json({ error: "missing_gemini_key", detail: "GEMINI_API_KEY not set in Edge Function secrets." }, 500);
+  if (!ANTHROPIC_API_KEY && !GEMINI_API_KEY) {
+    return json({
+      error: "no_parser_key",
+      detail: "Set ANTHROPIC_API_KEY (preferred) or GEMINI_API_KEY in Supabase Edge Function secrets.",
+    }, 500);
   }
 
   let body: any;

@@ -90,8 +90,13 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
         .single();
       if (insErr) throw insErr;
 
-      onUploaded?.(data);
-      onClose();
+      // Brief success state so the user has visual confirmation before
+      // we close — closing-on-resolve was too fast to register on iOS.
+      setProgress({ sent: files.length, total: files.length, success: true });
+      setTimeout(() => {
+        onUploaded?.(data);
+        onClose();
+      }, 900);
     } catch (e) {
       setProgress(p => ({ ...(p || {}), error: String(e?.message ?? e) }));
       setUploading(false);
@@ -205,8 +210,13 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
           {progress.error}
         </div>}
 
-        {progress && !progress.error && uploading && <div style={{ padding: "10px 12px", background: SURFACE.alt, borderRadius: 8, color: TOKENS.muted, fontSize: 13 }}>
+        {progress && !progress.error && !progress.success && uploading && <div style={{ padding: "10px 12px", background: SURFACE.alt, borderRadius: 8, color: TOKENS.muted, fontSize: 13 }}>
           Uploading {progress.sent}/{progress.total}…
+        </div>}
+
+        {progress?.success && <div style={{ padding: "12px 14px", background: TOKENS.good + "12", border: `1px solid ${TOKENS.good}30`, borderRadius: 10, color: TOKENS.good, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 18 }}>✓</span>
+          <span>Sent to parser. You'll see the draft on Home in ~30s.</span>
         </div>}
 
         <button
