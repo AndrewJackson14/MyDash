@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, EntityLink } from "../../components/ui";
 import { useNav } from "../../hooks/useNav";
@@ -27,6 +27,110 @@ function actionBtnStyle(enabled, accent) {
     cursor: enabled ? "pointer" : "not-allowed",
     opacity: enabled ? 1 : 0.5,
   };
+}
+
+// Anthony P5i — per-sale tearsheet upload cell. Inline file picker
+// hits the upload-tearsheet edge function, then optimistically
+// updates the parent sales array via setSales so the row's status
+// flips to ✓ Uploaded immediately. Resilient to no-setSales callers
+// — falls back to a no-op (the page reload will pick up the new
+// tearsheet_url).
+function TearsheetCell({ sale, setSales }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
+  const inputRef = useRef(null);
+  const hasTearsheet = !!sale.tearsheetUrl;
+  const isImage = sale.tearsheetKind === "image"
+    || (hasTearsheet && /\.(jpe?g|png|webp|gif|avif|heic)(\?|$)/i.test(sale.tearsheetUrl));
+
+  const onPick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    upload(file);
+  };
+
+  const upload = async (file) => {
+    if (uploading) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("not signed in");
+      const form = new FormData();
+      form.append("sale_id", sale.id);
+      form.append("file", file);
+      const res = await fetch(`${EDGE_FN_URL}/upload-tearsheet`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.error || `upload failed: ${res.status}`);
+      if (typeof setSales === "function") {
+        setSales(prev => prev.map(s => s.id === sale.id ? {
+          ...s,
+          tearsheetUrl: out.tearsheet_url,
+          tearsheetFilename: out.filename,
+          tearsheetKind: out.kind,
+          tearsheetUploadedAt: new Date().toISOString(),
+        } : s));
+      }
+    } catch (err) {
+      console.error("Tearsheet upload failed:", err);
+      setError(err.message || "upload failed");
+      setTimeout(() => setError(null), 3000);
+    }
+    setUploading(false);
+  };
+
+  const triggerPick = () => {
+    if (inputRef.current) inputRef.current.click();
+  };
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/*,.pdf,.jpg,.jpeg,.png,.webp,.gif,.avif,.heic"
+        onChange={onPick}
+        style={{ display: "none" }}
+      />
+      {hasTearsheet ? (
+        <>
+          <a
+            href={sale.tearsheetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Open tearsheet · ${isImage ? "image" : "PDF"}${sale.tearsheetFilename ? ` · ${sale.tearsheetFilename}` : ""}`}
+            style={{ fontSize: 10, color: Z.go, fontFamily: COND, fontWeight: FW.bold, padding: "1px 6px", background: Z.go + "12", borderRadius: 999, textDecoration: "none" }}
+          >
+            ✓ Tearsheet
+          </a>
+          <button
+            onClick={triggerPick}
+            disabled={uploading}
+            title="Replace tearsheet"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.tm, fontSize: 11, fontFamily: COND }}
+          >
+            {uploading ? "…" : "↺"}
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={triggerPick}
+          disabled={uploading}
+          title="Upload tearsheet (PDF or image)"
+          style={{ background: "transparent", border: `1px dashed ${Z.bd}`, borderRadius: 999, padding: "1px 8px", cursor: "pointer", color: Z.tm, fontSize: 10, fontFamily: COND }}
+        >
+          {uploading ? "Uploading…" : "⤴ Tearsheet"}
+        </button>
+      )}
+      {error && <span style={{ fontSize: 9, color: Z.da, fontFamily: COND }}>{error.slice(0, 40)}</span>}
+    </span>
+  );
 }
 
 // Anthony P5g+P5h — paired button: copy the public portfolio URL
@@ -190,7 +294,7 @@ function SendPortfolioModal({ client, onClose }) {
 }
 
 const ClientProfile = ({
-  clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
+  clientId, clients, setClients, sales, setSales, pubs, issues, proposals, contracts,
   invoices, payments, team,
   commForm, setCommForm, onBack, onNavTo, onNavigate, onOpenProposal, onSetViewPropId,
   onOpenEditClient, onOpenEmail, onOpenMeeting,
@@ -1081,7 +1185,7 @@ const ClientProfile = ({
                 {ctOpen && ct.ads.length > 0 && <div style={{ padding: "0 14px 10px 41px", display: "flex", flexDirection: "column", gap: 2, borderTop: `1px solid ${Z.bd}` }}>
                   <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 0 2px" }}>Ads under this contract ({ct.ads.length})</div>
                   {ct.ads.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: FS.xs, color: Z.tm, borderBottom: `1px solid ${Z.bd}20` }}>
-                    <span style={{ display: "flex", gap: 8 }}>
+                    <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <span style={{ color: Z.td, width: 72 }}>
                         {a.issueId && a.publication
                           ? <EntityLink onClick={nav.toFlatplan(a.publication, a.issueId)} muted>{a.date || "—"}</EntityLink>
@@ -1096,7 +1200,10 @@ const ClientProfile = ({
                         <EntityLink onClick={nav.toAdProjectForSale(a.id)} muted noUnderline>{a.size || a.type || "Ad"}</EntityLink>
                       </span>
                     </span>
-                    <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <TearsheetCell sale={a} setSales={setSales} />
+                      <span style={{ fontWeight: FW.heavy, color: Z.tx, minWidth: 70, textAlign: "right" }}>${(a.amount || 0).toLocaleString()}</span>
+                    </span>
                   </div>)}
                 </div>}
                 {ctOpen && ct.ads.length === 0 && <div style={{ padding: "4px 14px 10px 41px", fontSize: FS.micro, color: Z.td, borderTop: `1px solid ${Z.bd}` }}>No ads fulfilled yet against this contract.</div>}
@@ -1108,7 +1215,7 @@ const ClientProfile = ({
               <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>Standalone Ad Orders ({yr.standaloneSales.length})</div>
               <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 10px" }}>
                 {yr.standaloneSales.map(a => <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", fontSize: FS.xs, borderBottom: `1px solid ${Z.bd}20` }}>
-                  <span style={{ display: "flex", gap: 8 }}>
+                  <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <Ic.tag size={10} color={Z.td} />
                     <span style={{ color: Z.td, width: 72 }}>
                       {a.issueId && a.publication
@@ -1124,7 +1231,10 @@ const ClientProfile = ({
                       <EntityLink onClick={nav.toAdProjectForSale(a.id)} muted noUnderline>{a.size || a.type || "Ad"}</EntityLink>
                     </span>
                   </span>
-                  <span style={{ fontWeight: FW.heavy, color: Z.tx }}>${(a.amount || 0).toLocaleString()}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <TearsheetCell sale={a} setSales={setSales} />
+                    <span style={{ fontWeight: FW.heavy, color: Z.tx, minWidth: 70, textAlign: "right" }}>${(a.amount || 0).toLocaleString()}</span>
+                  </span>
                 </div>)}
               </div>
             </div>}

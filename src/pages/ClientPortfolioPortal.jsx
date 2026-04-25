@@ -192,6 +192,11 @@ function TearsheetCard({ t }) {
   const accent = t.pub_primary_color || C.ac;
   const portalUrl = `/tearsheet/${t.tearsheet_token}`;
   const pdfReady = !!t.tearsheet_pdf_url;
+  // P5i — manual uploads include a kind hint so we preview images
+  // inline; auto-split / unset rows fall back to PDF rendering.
+  const inferredKind = t.tearsheet_kind
+    || (t.tearsheet_pdf_url && /\.(jpe?g|png|webp|gif|avif|heic)(\?|$)/i.test(t.tearsheet_pdf_url) ? "image" : "pdf");
+  const isImage = inferredKind === "image";
   return (
     <div style={{
       background: C.sf, border: `1px solid ${C.bd}`,
@@ -199,6 +204,17 @@ function TearsheetCard({ t }) {
       borderTop: `3px solid ${accent}`,
       display: "flex", flexDirection: "column",
     }}>
+      {/* Image preview thumbnail when available */}
+      {isImage && pdfReady && (
+        <a href={portalUrl} style={{ display: "block", background: C.sa, borderBottom: `1px solid ${C.bd}` }}>
+          <img
+            src={t.tearsheet_pdf_url}
+            alt={`Page ${t.page}`}
+            loading="lazy"
+            style={{ width: "100%", height: 180, objectFit: "cover", display: "block" }}
+          />
+        </a>
+      )}
       <div style={{ padding: "14px 16px", flex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -239,7 +255,7 @@ function TearsheetCard({ t }) {
             download
             style={{ flex: 1, textAlign: "center", padding: "6px 10px", background: accent, border: `1px solid ${accent}`, borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#fff", textDecoration: "none" }}
           >
-            ↓ PDF
+            ↓ {isImage ? "Image" : "PDF"}
           </a>
         ) : (
           <span style={{ flex: 1, textAlign: "center", padding: "6px 10px", border: `1px dashed ${C.bd}`, borderRadius: 6, fontSize: 11, color: C.td }}>

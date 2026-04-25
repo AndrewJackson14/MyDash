@@ -966,7 +966,7 @@ const SalesCRM = (props) => {
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
     {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><ClientProfile
       clientId={viewClientId} clients={clients} setClients={setClients}
-      sales={sales} pubs={pubs} issues={issues} proposals={proposals}
+      sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals}
       contracts={contracts} invoices={invoices} payments={payments}
       team={props.team} commForm={commForm} setCommForm={setCommForm}
       onBack={goBack} onNavTo={navTo} onNavigate={props.onNavigate}

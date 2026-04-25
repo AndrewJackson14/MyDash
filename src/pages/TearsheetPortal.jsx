@@ -63,6 +63,11 @@ export default function TearsheetPortal() {
   );
 
   const pdfReady = !!data.tearsheet_pdf_url;
+  // P5i — manual uploads can be PDFs or images. Heuristic kind from
+  // the RPC payload, with a fallback that infers from URL extension
+  // for legacy auto-split rows that didn't carry the kind field.
+  const inferredKind = data.tearsheet_kind
+    || (data.tearsheet_pdf_url && /\.(jpe?g|png|webp|gif|avif|heic)(\?|$)/i.test(data.tearsheet_pdf_url) ? "image" : "pdf");
   const accent = data.pub_primary_color || C.tx;
 
   return (
@@ -129,11 +134,19 @@ export default function TearsheetPortal() {
                   ↓ Download PDF
                 </a>
               </div>
-              <iframe
-                src={data.tearsheet_pdf_url}
-                style={{ width: "100%", height: 720, border: "none", borderRadius: 6, background: C.sa }}
-                title={`Page ${data.page} tearsheet`}
-              />
+              {inferredKind === "image" ? (
+                <img
+                  src={data.tearsheet_pdf_url}
+                  alt={`Page ${data.page} tearsheet`}
+                  style={{ width: "100%", maxHeight: 800, objectFit: "contain", borderRadius: 6, background: C.sa, display: "block" }}
+                />
+              ) : (
+                <iframe
+                  src={data.tearsheet_pdf_url}
+                  style={{ width: "100%", height: 720, border: "none", borderRadius: 6, background: C.sa }}
+                  title={`Page ${data.page} tearsheet`}
+                />
+              )}
             </div>
 
             <div style={styles.shareRow}>
