@@ -63,6 +63,7 @@ const EmailTemplates = lazyLoad(() => import("./pages/EmailTemplates"));
 const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 const DriverApp = lazy(() => import("./pages/driver/DriverApp"));
+const MobileApp = lazy(() => import("./pages/mobile/MobileApp"));
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
@@ -81,6 +82,26 @@ export default function App() {
   if (typeof window !== "undefined" && window.location.pathname.startsWith("/driver")) {
     return <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0F1419" }} />}>
       <DriverApp />
+    </Suspense>;
+  }
+
+  // Phone-first auto-redirect: a sales rep opening MyDash on a phone
+  // gets bumped to the mobile shell instead of the desktop chrome.
+  // Synchronous so the desktop frame never flashes. Skip if they
+  // explicitly opted into desktop via ?desktop=1 (debugging escape).
+  if (typeof window !== "undefined"
+      && window.location.pathname === "/"
+      && window.innerWidth < 768
+      && !window.location.search.includes("desktop=1")) {
+    window.history.replaceState({}, "", "/mobile");
+  }
+
+  // Mobile sales app — separate /mobile route tree. Reads the same
+  // tables as desktop (useAppData runs inside MobileApp), but no
+  // desktop chrome, mobile-first viewport, 5-tab bottom nav.
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/mobile")) {
+    return <Suspense fallback={<div style={{ minHeight: "100vh", background: "#FFFFFF" }} />}>
+      <MobileApp />
     </Suspense>;
   }
 
