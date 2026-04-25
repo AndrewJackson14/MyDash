@@ -205,6 +205,28 @@ serve(async (req) => {
     }
   }
 
+  // P5d — pre-load active printers' contact email + any cc_emails
+  // from delivery_config so a printer's reply can auto-confirm the
+  // most recent unconfirmed print_run for that printer.
+  const { data: printerRows } = await admin
+    .from("printers")
+    .select("id, name, contact_email, delivery_config")
+    .eq("is_active", true);
+  const emailToPrinterId = new Map<string, string>();
+  for (const p of (printerRows || [])) {
+    const e = (p.contact_email || "").toLowerCase().trim();
+    if (e) emailToPrinterId.set(e, p.id);
+    const ccs = Array.isArray(p.delivery_config?.cc_emails) ? p.delivery_config.cc_emails : [];
+    for (const cc of ccs) {
+      const ec = (typeof cc === "string" ? cc : "").toLowerCase().trim();
+      if (ec) emailToPrinterId.set(ec, p.id);
+    }
+  }
+
+  // Heuristic: subject or snippet matches one of these → confirmation.
+  // Generous to handle the variety of printer reply phrasings.
+  const CONFIRM_RE = /\b(received|confirm(?:ed|ation)?|got the file|got it|got your|in queue|queued|processing|downloaded|ready to print|on press|at press)\b/i;
+
   // ── Fetch + match each new message ───────────────────────────
   let matched = 0;
   let processed = 0;
@@ -230,9 +252,80 @@ serve(async (req) => {
       const toRaw = headerValue(headers, "To");
       const subject = headerValue(headers, "Subject");
       const dateRaw = headerValue(headers, "Date");
+      const snippet = String(m?.snippet || "");
       const { email: fromEmail } = parseAddress(fromRaw);
       const { email: toEmail } = parseAddress(toRaw);
       if (!fromEmail) continue;
+
+      const occurredAt = dateRaw ? new Date(dateRaw).toISOString() : new Date().toISOString();
+
+      // P5d — printer confirmation path. Runs BEFORE the client-match
+      // path so a printer that's also a client contact still resolves
+      // to its print_run. The match is broad (printer email or one of
+      // its cc_emails) and we only flip the run if the subject/snippet
+      // contains a confirmation keyword.
+      const printerId = emailToPrinterId.get(fromEmail);
+      let printerMatchHandled = false;
+      if (printerId) {
+        const isConfirmation = CONFIRM_RE.test(subject) || CONFIRM_RE.test(snippet);
+        if (isConfirmation) {
+          // Find the most recent unconfirmed run for this printer
+          // shipped in the last 7 days — bounded so we don't auto-flip
+          // a run from a month ago because of an unrelated reply.
+          const since = new Date(Date.now() - 7 * 86400000).toISOString();
+          const { data: candidate } = await admin
+            .from("print_runs")
+            .select("id, issue_id, shipped_by")
+            .eq("printer_id", printerId)
+            .is("confirmed_at", null)
+            .gte("shipped_at", since)
+            .order("shipped_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (candidate) {
+            await admin.from("print_runs").update({
+              confirmed_at: occurredAt,
+              confirmed_by_email: fromEmail,
+              status: "confirmed",
+            }).eq("id", candidate.id);
+
+            // Ping the shipper so they don't have to keep checking.
+            // team_notes.from_user/to_user reference team_members.id;
+            // we don't have a "from_user" for an inbound auto-flip, so
+            // leave it null (the dashboard's unread-DirectionCard
+            // filter is fine with null senders — they show as "System").
+            if (candidate.shipped_by) {
+              const { data: iss } = await admin.from("issues").select("label, pub_id").eq("id", candidate.issue_id).maybeSingle();
+              const { data: pub } = iss?.pub_id ? await admin.from("publications").select("name").eq("id", iss.pub_id).maybeSingle() : { data: null };
+              const summary = `${pub?.name || ""} ${iss?.label || ""}`.trim() || candidate.issue_id;
+              await admin.from("team_notes").insert({
+                from_user: null,
+                to_user: candidate.shipped_by,
+                message: `📬 Printer confirmed receipt of ${summary}.`,
+                context_type: "issue",
+                context_id: candidate.issue_id,
+              });
+            }
+
+            // Log this email against the run for the audit trail.
+            await admin.from("email_log").insert({
+              type: "inbound",
+              direction: "inbound",
+              from_email: fromEmail,
+              to_email: toEmail || watch.email_address || "",
+              subject: subject || "(no subject)",
+              status: "received",
+              gmail_message_id: msgId,
+              created_at: occurredAt,
+              ref_type: "print_run",
+              ref_id: candidate.id,
+            });
+            matched++;
+            printerMatchHandled = true;
+          }
+        }
+      }
+      if (printerMatchHandled) continue;
 
       // Only log if the sender matches a known client contact. The
       // alternative (log every inbound) would flood the timeline
@@ -241,7 +334,6 @@ serve(async (req) => {
       const clientId = emailToClientId.get(fromEmail);
       if (!clientId) continue;
 
-      const occurredAt = dateRaw ? new Date(dateRaw).toISOString() : new Date().toISOString();
       const { error: insErr } = await admin.from("email_log").insert({
         type: "inbound",
         direction: "inbound",
