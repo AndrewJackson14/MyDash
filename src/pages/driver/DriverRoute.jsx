@@ -378,6 +378,23 @@ export default function DriverRoute({ instanceId, driverId, onBack, onComplete }
           borderRadius: 6, fontSize: 14, color: TEXT, lineHeight: 1.4, marginBottom: 12,
         }}>💡 {currentLoc.notes}</div>}
 
+        {/* Primary action — confirm. Sits above the per-stop note so
+            the most-pressed control is in thumb reach the moment the
+            quantities and address have been read. */}
+        <button
+          onClick={onConfirmDelivery}
+          disabled={confirming}
+          style={{
+            width: "100%", padding: "16px", minHeight: 56, boxSizing: "border-box",
+            background: confirming ? PANEL_BD : GOLD,
+            color: confirming ? MUTED : "#0F1419",
+            border: "none", borderRadius: 12,
+            fontSize: 17, fontWeight: 900, letterSpacing: 0.3,
+            cursor: confirming ? "not-allowed" : "pointer",
+            marginBottom: 12,
+          }}
+        >{confirming ? "Saving…" : "✓ CONFIRM DELIVERY"}</button>
+
         {/* Per-instance note input (for THIS confirmation only) */}
         <textarea
           value={confirmingNotes}
@@ -412,21 +429,6 @@ export default function DriverRoute({ instanceId, driverId, onBack, onComplete }
           <span>{gps.status === "ok" ? "● GPS active" : `● GPS ${gps.status}`}</span>
           {gps.accuracy && gps.status === "ok" && <span style={{ color: MUTED, fontWeight: 400 }}>· ±{Math.round(gps.accuracy)}m</span>}
         </div>
-
-        {/* Primary action — confirm */}
-        <button
-          onClick={onConfirmDelivery}
-          disabled={confirming}
-          style={{
-            width: "100%", padding: "16px", minHeight: 56, boxSizing: "border-box",
-            background: confirming ? PANEL_BD : GOLD,
-            color: confirming ? MUTED : "#0F1419",
-            border: "none", borderRadius: 12,
-            fontSize: 17, fontWeight: 900, letterSpacing: 0.3,
-            cursor: confirming ? "not-allowed" : "pointer",
-            marginBottom: 12,
-          }}
-        >{confirming ? "Saving…" : "✓ CONFIRM DELIVERY"}</button>
 
         {/* Secondary — skip */}
         <button onClick={() => setSkipOpen(true)} style={{
