@@ -29,6 +29,29 @@ function actionBtnStyle(enabled, accent) {
   };
 }
 
+// Anthony P5g — small inline button that copies the public client
+// tearsheet portfolio URL to clipboard. Used in the Action Center on
+// ClientProfile; the link itself is /ads/<portfolio_token> and renders
+// the public ClientPortfolioPortal page.
+function PortfolioLinkButton({ token }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/ads/${token}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
+  return (
+    <Btn sm v="secondary" onClick={copy} title={url}>
+      {copied ? "✓ Copied" : "🔗 Tearsheet portfolio"}
+    </Btn>
+  );
+}
+
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   invoices, payments, team,
@@ -555,6 +578,8 @@ const ClientProfile = ({
             {closedCS.length > 0 && <Btn sm v="secondary" onClick={() => { if (bus) bus.emit("invoice.create", { clientId: vc.id, clientName: vc.name }); }}><Ic.invoice size={11} /> Create Invoice</Btn>}
             <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: "Account Manager", note: "" })}>Log Call</Btn>
             <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: "Account Manager", note: "" })}>Log Email</Btn>
+            {/* Anthony P5g — copy public tearsheet portfolio link */}
+            {vc.portfolioToken && <PortfolioLinkButton token={vc.portfolioToken} />}
           </div>
         </Card>
 
