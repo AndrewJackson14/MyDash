@@ -214,12 +214,12 @@ export default function Sidebar({
             }}>{impersonating ? "!" : userInitials}</div>
             {expanded && (
               <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <div style={{
+                <div title={currentUser?.name || "User"} style={{
                   fontSize: 12, fontWeight: 600,
                   color: impersonating ? SIGNAL.warning : Z.fgPrimary,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>{currentUser?.name || "User"}</div>
-                <div style={{ fontSize: 11, color: Z.fgMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser?.role || ""}</div>
+                <div title={currentUser?.role || ""} style={{ fontSize: 11, color: Z.fgMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser?.role || ""}</div>
               </div>
             )}
             {expanded && isAdmin && (

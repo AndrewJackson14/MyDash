@@ -734,7 +734,11 @@ const RoleDashboard = memo(({
     const thisMonthStr = today.slice(0, 7);
     const allCompleted = adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status));
     const completedThisMonth = allCompleted.filter(p => p.updated_at?.startsWith(thisMonthStr));
-    const totalDesignsCareer = allCompleted.length + _jobs.filter(j => j.status === "complete").length;
+    // P3.36 — de-dupe legacy creative_jobs that were also migrated into ad_projects
+    // by sale_id. Without this we double-count any sale that has both rows.
+    const adProjectSaleIds = new Set(allCompleted.map(p => p.sale_id).filter(Boolean));
+    const uniqueLegacyJobs = _jobs.filter(j => j.status === "complete" && !adProjectSaleIds.has(j.sale_id));
+    const totalDesignsCareer = allCompleted.length + uniqueLegacyJobs.length;
 
     // P1.15 — first-proof rate scoped to MY work, sorted by approved_at
     // (or fall back to updated_at when historical rows don't have it).
@@ -766,6 +770,17 @@ const RoleDashboard = memo(({
     last7dApproved.forEach(p => { const d = p.updated_at.slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
     const highWaterMark = Math.max(0, ...Object.values(byDay));
 
+    // P3.32 — consecutive-days approval streak: walk back from today counting
+    // each day with ≥1 approval until we hit a zero-day. Uses approved_at when
+    // available (more accurate) and falls back to updated_at for legacy rows.
+    const approvalDates = new Set(allCompleted.map(p => (p.approved_at || p.updated_at || "").slice(0, 10)).filter(Boolean));
+    let streakDays = 0;
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      if (approvalDates.has(d)) streakDays++;
+      else break;
+    }
+
     // Recent placed ads (your work in print)
     const placedAds = _sales.filter(s => s.status === "Closed" && s.page).sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 3);
 
@@ -779,13 +794,22 @@ const RoleDashboard = memo(({
         {/* Greeting + streak */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
-          {highWaterMark > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
-            <span style={{ fontSize: 16 }}>🔥</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{highWaterMark} in a day</div>
-              <div style={{ fontSize: 10, color: Z.tm }}>7-day best</div>
-            </div>
-          </div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            {streakDays > 0 && <div title={`${streakDays} consecutive day${streakDays === 1 ? "" : "s"} with at least one approval`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
+              <span style={{ fontSize: 16 }}>⚡</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{streakDays} day{streakDays === 1 ? "" : "s"}</div>
+                <div style={{ fontSize: 10, color: Z.tm }}>current streak</div>
+              </div>
+            </div>}
+            {highWaterMark > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
+              <span style={{ fontSize: 16 }}>🔥</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{highWaterMark} in a day</div>
+                <div style={{ fontSize: 10, color: Z.tm }}>7-day best</div>
+              </div>
+            </div>}
+          </div>
         </div>
 
         {/* Pride metrics — 4 cards */}
@@ -987,7 +1011,13 @@ const RoleDashboard = memo(({
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm }}>
                 <span style={{ color: Z.tm }}>Completed this month</span>
-                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status) && p.updated_at?.startsWith(today.slice(0, 7))).length + _jobs.filter(j => j.status === "complete" && j.completedAt?.startsWith(today.slice(0, 7))).length}</span>
+                <span style={{ fontWeight: FW.bold, color: Z.tx }}>{(() => {
+                  const monthStr = today.slice(0, 7);
+                  const adProjMonthly = adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status) && p.updated_at?.startsWith(monthStr));
+                  const adProjSaleIds = new Set(adProjMonthly.map(p => p.sale_id).filter(Boolean));
+                  const legacyMonthly = _jobs.filter(j => j.status === "complete" && j.completedAt?.startsWith(monthStr) && !adProjSaleIds.has(j.sale_id));
+                  return adProjMonthly.length + legacyMonthly.length;
+                })()}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.sm }}>
                 <span style={{ color: Z.tm }}>Revision rate</span>
@@ -1065,7 +1095,7 @@ const RoleDashboard = memo(({
                 const urgency = isOverdue ? Z.da : isSoon ? Z.wa : Z.tm;
                 return <div key={s.id} onClick={() => onNavigate?.("stories")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${urgency}`, cursor: "pointer" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={s.title || "Untitled"}>{s.title || "Untitled"}</div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.status} · {pn(s.publication)}{s.dueDate ? ` · due ${s.dueDate}` : ""}</div>
                   </div>
                   <Btn sm v="secondary" onClick={(e) => { e.stopPropagation(); onNavigate?.("stories"); }}>Open</Btn>
@@ -1078,7 +1108,7 @@ const RoleDashboard = memo(({
             {dueThisWeek.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No stories due in the next 7 days</div>
             : dueThisWeek.map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${Z.bd}15` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={s.title || "Untitled"}>{s.title || "Untitled"}</div>
                 <div style={{ fontSize: FS.xs, color: Z.tm }}>{s.status} · {pn(s.publication)}</div>
               </div>
               <div style={{ fontSize: FS.xs, color: daysUntil(s.dueDate) <= 1 ? Z.wa : Z.tm, fontWeight: FW.bold }}>{daysUntil(s.dueDate)}d</div>
@@ -1106,7 +1136,7 @@ const RoleDashboard = memo(({
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Bylines</div>
             {recentBylines.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No published stories yet</div>
             : recentBylines.map(s => <div key={s.id} style={{ padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={s.title || "Untitled"}>{s.title || "Untitled"}</div>
               <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(s.publication)} · {fmtDate((s.publishedAt || s.updatedAt || "").slice(0, 10))}</div>
             </div>)}
           </div>
@@ -1206,7 +1236,7 @@ const RoleDashboard = memo(({
             {recentWins.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No closed deals yet</div>
             : recentWins.map(s => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cn(s.clientId)}</div>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={cn(s.clientId)}>{cn(s.clientId)}</div>
                 <div style={{ fontSize: FS.xs, color: Z.tm }}>{fmtDate(s.closedAt?.slice(0, 10) || s.date)}</div>
               </div>
               <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go }}>{fmtCurrency(s.amount || 0)}</div>

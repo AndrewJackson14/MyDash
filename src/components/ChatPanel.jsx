@@ -454,7 +454,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
                   fontSize: 9, fontWeight: 800, flexShrink: 0,
                 }}>{a.kind === "pdf" ? "PDF" : "FILE"}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.filename}</div>
+                  <div title={a.filename} style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.filename}</div>
                   <div style={{ fontSize: 10, color: Z.tm }}>{fmtBytes(a.byte_size)}</div>
                 </div>
               </a>
@@ -504,7 +504,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
             {pinnedMessages.map(m => (
               <div key={"pin-" + m.id} className="msg-bubble-wrap" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12 }}>
                 <span style={{ fontWeight: 700, color: Z.ac, flexShrink: 0 }}>{m.sender_name}:</span>
-                <span style={{ flex: 1, color: Z.tx, whiteSpace: "pre-wrap", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                <span title={m.body || ""} style={{ flex: 1, color: Z.tx, whiteSpace: "pre-wrap", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                   {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
                     ? <span key={i} style={{ color: "#3b82f6", fontWeight: 700 }}>@{seg.name}</span>
                     : <span key={i}>{seg.value}</span>
@@ -539,7 +539,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
               color: p.status === "error" ? "#dc2626" : Z.tx,
             }}>
               <span style={{ fontWeight: 700, textTransform: "uppercase", fontSize: 9, color: Z.tm }}>{p.kind}</span>
-              <span style={{ maxWidth: 160, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.filename}</span>
+              <span title={p.filename} style={{ maxWidth: 160, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.filename}</span>
               {p.status === "uploading" && <span style={{ color: Z.tm }}>uploading…</span>}
               {p.status === "error" && <span title={p.error}>failed</span>}
               <button onClick={() => removePending(p.id)} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", padding: 0, fontSize: 14, lineHeight: 1 }}>×</button>

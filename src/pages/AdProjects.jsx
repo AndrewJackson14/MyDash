@@ -82,11 +82,11 @@ function LinkedEmailsPanel({ projectId }) {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.subject || "(no subject)"}</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.subject || "(no subject)"}>{it.subject || "(no subject)"}</span>
           <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, flexShrink: 0 }}>{it.linked_at ? new Date(it.linked_at).toLocaleDateString() : ""}</span>
         </div>
         {it.from_email && <div style={{ fontSize: 11, color: Z.tm, marginTop: 1 }}>{it.from_email}</div>}
-        {it.excerpt && <div style={{ fontSize: 11, color: Z.td, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.excerpt}</div>}
+        {it.excerpt && <div style={{ fontSize: 11, color: Z.td, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.excerpt}>{it.excerpt}</div>}
       </a>)}
     </div>
   </div>;
@@ -1172,9 +1172,18 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {activePubs.map(pub => {
             const pubIssues = (issues || []).filter(i => i.pubId === pub.id && i.date >= today && i.date <= cutoff30d).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
-            if (pubIssues.length === 0) return null;
+            // P3.28 — render "All clear" placeholder instead of hiding pubs with no upcoming issues
+            if (pubIssues.length === 0) {
+              return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.55 }}>
+                <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: Z.sa, border: `1px dashed ${Z.bd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.td }}>·</div>
+                  <span style={{ fontSize: 10, color: Z.td, fontStyle: "italic" }}>All clear</span>
+                </div>
+              </div>;
+            }
             return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub.name}</span>
+              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
               <div style={{ display: "flex", gap: 6 }}>
                 {pubIssues.map(iss => {
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
@@ -1183,7 +1192,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     : filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
                   const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#DC2626" : adDl <= 7 ? "#D97706" : "#16A34A";
                   const isActive = heatmapFilter?.pubId === pub.id && heatmapFilter?.issueId === iss.id;
-                  return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: 26, height: 26, borderRadius: "50%", background: count > 0 ? dotColor : Z.sa, border: `2px solid ${isActive ? Z.tx : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: count > 0 ? "#fff" : Z.td, transition: "all 0.15s" }}>{count > 0 ? count : "·"}</div>;
+                  // P3.28 — scale dots: 9+ for 10-99, 99+ for 100+; bump size to 32 for 99+
+                  const isJumbo = count >= 100;
+                  const display = count === 0 ? "·" : count >= 100 ? "99+" : count >= 10 ? "9+" : count;
+                  const size = isJumbo ? 32 : 26;
+                  return <div key={iss.id} onClick={() => setHeatmapFilter(isActive ? null : { pubId: pub.id, issueId: iss.id, label: `${pub.name} ${iss.label}` })} title={`${iss.label} — ${count} ads, ${adDl}d to deadline`} style={{ width: size, height: size, borderRadius: "50%", background: count > 0 ? dotColor : Z.sa, border: `2px solid ${isActive ? Z.tx : "transparent"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: isJumbo ? 11 : 10, fontWeight: 800, color: count > 0 ? "#fff" : Z.td, transition: "all 0.15s" }}>{display}</div>;
                 })}
               </div>
             </div>;
@@ -1223,7 +1236,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           <div key={iss.id} style={{ display: "grid", gridTemplateColumns: `200px repeat(${STATUS_COLS.length}, 1fr)`, gap: 8, alignItems: "flex-start" }}>
             {/* Issue label cell */}
             <div style={{ padding: "8px 10px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, borderLeft: `3px solid ${urgColor}` }}>
-              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pub?.name || "\u2014"}</div>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub?.name || ""}>{pub?.name || "\u2014"}</div>
               <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.label || fmtDate(iss.date)}</div>
               {adDl < 99 && <div style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor, marginTop: 3 }}>
                 {adDl < 0 ? `${Math.abs(adDl)}d overdue` : adDl === 0 ? "Due today" : `${adDl}d left`}
@@ -1270,12 +1283,12 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                         }}
                         title={isNeedsBrief ? "Click to start a design brief" : "Open project"}
                       >
-                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cn(sale.clientId) || ""}>
                           {sale.clientId
                             ? <EntityLink onClick={nav.toClient(sale.clientId)}>{cn(sale.clientId)}</EntityLink>
                             : cn(sale.clientId)}
                         </div>
-                        <div style={{ fontSize: FS.xs, color: Z.tm }}>{sale.size || "Ad"}</div>
+                        <div style={{ fontSize: FS.xs, color: Z.tm }} title={sale.size || "Ad"}>{sale.size || "Ad"}</div>
                         {project?.designer_id && <div style={{ fontSize: 10, color: Z.td, marginTop: 2 }}>
                           <EntityLink onClick={nav.toTeamMember(project.designer_id)} muted noUnderline>{tn(project.designer_id)?.split(" ")[0]}</EntityLink>
                         </div>}
@@ -1322,12 +1335,12 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cn(p.client_id) || ""}>
                       {p.client_id
                         ? <EntityLink onClick={nav.toClient(p.client_id)}>{cn(p.client_id)}</EntityLink>
                         : cn(p.client_id)}
                     </div>
-                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }} title={`${pn(p.publication_id)} · ${iss?.label || ""} · ${p.ad_size || "Ad"}`}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
                   {/* P1.9 — unread chat badge: hidden when 0, visible when >0 */}
                   {p.thread_id && unreadByThread.get(p.thread_id) > 0 && <span title={`${unreadByThread.get(p.thread_id)} unread message${unreadByThread.get(p.thread_id) === 1 ? "" : "s"}`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>💬 {unreadByThread.get(p.thread_id)}</span>}

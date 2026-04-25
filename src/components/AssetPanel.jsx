@@ -50,7 +50,7 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
       }
       setLoading(true);
       let q = supabase.from("media_assets")
-        .select("id, file_name, cdn_url, file_url, file_size, created_at, storage_path")
+        .select("id, file_name, cdn_url, file_url, file_size, created_at, storage_path, notes")
         .order("created_at", { ascending: false })
         .limit(200);
       if (legalNoticeId) q = q.eq("legal_notice_id", legalNoticeId);
@@ -70,6 +70,7 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
         size: r.file_size || 0,
         date: r.created_at,
         storagePath: r.storage_path,
+        notes: r.notes || "",
       }));
 
       // Supplement with direct-Bunny listing for flows that don't write
@@ -136,6 +137,18 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     inp.click();
   };
 
+  // P3.33 — save asset note. Only persists for media_assets-backed
+  // rows (skips bunny-only entries that have no DB row to update).
+  const saveNote = async (asset, value) => {
+    const trimmed = (value || "").trim();
+    if ((asset.notes || "") === trimmed) return;
+    setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, notes: trimmed } : a));
+    if (typeof asset.id === "string" && asset.id.startsWith("bunny:")) return;
+    try {
+      await supabase.from("media_assets").update({ notes: trimmed || null }).eq("id", asset.id);
+    } catch (err) { console.error("Save note error:", err); }
+  };
+
   // Download via proxy (cross-origin CDN URLs don't support download attribute).
   // Uses asset.storagePath (the actual bunny location from media_assets)
   // rather than the legacy `path` prop, which was only ever right for the
@@ -165,28 +178,59 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
     {assets.length === 0 ? <div style={{ padding: compact ? 8 : 16, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No assets yet</div>
     : <div style={{ display: "grid", gridTemplateColumns: compact ? "repeat(auto-fill, minmax(60px, 1fr))" : "repeat(auto-fill, minmax(100px, 1fr))", gap: 6 }}>
       {assets.map(a => (
-        <div key={a.id || a.name} onClick={() => downloadAsset(a)} style={{ textDecoration: "none", cursor: "pointer" }}>
-          <div style={{ background: Z.bg, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = Z.ac}
-            onMouseLeave={e => e.currentTarget.style.borderColor = Z.bd}
-          >
-            {isImage(a.name) ? (
-              <img src={a.url} alt={a.name} loading="lazy" style={{ width: "100%", height: compact ? 50 : 80, objectFit: "cover", display: "block" }} />
-            ) : (
-              <div style={{ width: "100%", height: compact ? 50 : 80, display: "flex", alignItems: "center", justifyContent: "center", background: Z.sa }}>
-                <span style={{ fontSize: compact ? 16 : 24, color: Z.td }}>{isPdf(a.name) ? "PDF" : "FILE"}</span>
-              </div>
-            )}
-            {!compact && <div style={{ padding: "4px 6px" }}>
-              <div style={{ fontSize: 10, color: Z.tx, fontWeight: FW.semi, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
-              <div style={{ fontSize: 9, color: Z.td }}>{fmtSize(a.size)}</div>
-            </div>}
-          </div>
-        </div>
+        <AssetCell key={a.id || a.name} asset={a} compact={compact} onOpen={() => downloadAsset(a)} onSaveNote={saveNote} />
       ))}
     </div>}
   </div>;
 });
 
 AssetPanel.displayName = "AssetPanel";
+
+// P3.33 — single asset card with inline-editable note.
+// Note input is below the thumbnail, single-line, save on blur.
+// Tooltip shows file name + note when hovering the thumbnail.
+function AssetCell({ asset, compact, onOpen, onSaveNote }) {
+  const [draft, setDraft] = useState(asset.notes || "");
+  useEffect(() => { setDraft(asset.notes || ""); }, [asset.notes]);
+  const tooltip = asset.notes ? `${asset.name}\n${asset.notes}` : asset.name;
+  return (
+    <div style={{ textDecoration: "none" }}>
+      <div style={{ background: Z.bg, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = Z.ac}
+        onMouseLeave={e => e.currentTarget.style.borderColor = Z.bd}
+      >
+        <div onClick={onOpen} title={tooltip} style={{ cursor: "pointer" }}>
+          {isImage(asset.name) ? (
+            <img src={asset.url} alt={asset.name} loading="lazy" style={{ width: "100%", height: compact ? 50 : 80, objectFit: "cover", display: "block" }} />
+          ) : (
+            <div style={{ width: "100%", height: compact ? 50 : 80, display: "flex", alignItems: "center", justifyContent: "center", background: Z.sa }}>
+              <span style={{ fontSize: compact ? 16 : 24, color: Z.td }}>{isPdf(asset.name) ? "PDF" : "FILE"}</span>
+            </div>
+          )}
+        </div>
+        {!compact && <div style={{ padding: "4px 6px" }}>
+          <div style={{ fontSize: 10, color: Z.tx, fontWeight: FW.semi, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={asset.name}>{asset.name}</div>
+          <div style={{ fontSize: 9, color: Z.td }}>{fmtSize(asset.size)}</div>
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={() => onSaveNote(asset, draft)}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+            placeholder="add note…"
+            title={asset.notes || ""}
+            style={{
+              width: "100%", marginTop: 3, padding: "2px 4px",
+              fontSize: 9, color: Z.tm, fontFamily: "inherit",
+              background: "transparent", border: `1px solid transparent`,
+              borderRadius: 3, outline: "none", boxSizing: "border-box",
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = Z.bd; e.currentTarget.style.background = Z.sf; e.currentTarget.style.color = Z.tx; }}
+            onMouseLeave={e => { if (document.activeElement !== e.currentTarget) { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; } }}
+          />
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 export default AssetPanel;

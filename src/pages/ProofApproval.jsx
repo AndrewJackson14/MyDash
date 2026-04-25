@@ -114,7 +114,11 @@ export default function ProofApproval() {
   };
 
   // ─── Submit: Approve ──────────────────────────────────
-  const handleApprove = async () => {
+  // P3.34 — `withNotes` middle path: client approves but wants a
+  // final cleanup pass before press. Project still moves to
+  // approved, but the thread message is flagged so the designer
+  // knows to handle the notes before signing off.
+  const handleApprove = async (withNotes = false) => {
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -131,10 +135,13 @@ export default function ProofApproval() {
 
       // Post system message to thread
       if (project?.thread_id) {
+        const headline = withNotes
+          ? `✓ Proof v${proof.version} APPROVED WITH NOTES — please apply before press.`
+          : `✓ Proof v${proof.version} APPROVED by client.`;
         await supabase.from("messages").insert({
           thread_id: project.thread_id,
           sender_name: project.client_contact_name || "Client",
-          body: `✓ Proof v${proof.version} APPROVED by client.${feedback ? `\n\nNote: ${feedback}` : ""}${annotations.length > 0 ? `\n\n${annotations.length} annotation(s) attached.` : ""}`,
+          body: `${headline}${feedback ? `\n\nNote: ${feedback}` : ""}${annotations.length > 0 ? `\n\n${annotations.length} annotation(s) attached.` : ""}`,
           is_system: true,
         });
       }
@@ -411,9 +418,16 @@ export default function ProofApproval() {
 
               {/* Action Buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button onClick={handleApprove} disabled={submitting} style={styles.btnApprove}>
+                <button onClick={() => handleApprove(false)} disabled={submitting} style={styles.btnApprove}>
                   {submitting ? "Submitting..." : "✓ Approve This Proof"}
                 </button>
+                {/* P3.34 — middle path: only available when client has
+                    actually written notes/annotations to apply. */}
+                {(feedback.trim() || annotations.length > 0) && (
+                  <button onClick={() => handleApprove(true)} disabled={submitting} style={styles.btnApproveNotes}>
+                    ✓ Approve with Notes
+                  </button>
+                )}
                 <button
                   onClick={handleRequestChanges}
                   disabled={submitting || (!feedback.trim() && annotations.length === 0)}
@@ -522,6 +536,11 @@ const styles = {
     fontSize: 15, fontWeight: 800, cursor: "pointer",
     background: C.go, color: "#fff",
     transition: "transform 0.1s",
+  },
+  btnApproveNotes: {
+    padding: "12px 24px", borderRadius: 8,
+    border: `2px solid ${C.go}`, background: "transparent",
+    fontSize: 14, fontWeight: 700, cursor: "pointer", color: C.go,
   },
   btnRevise: {
     padding: "12px 24px", borderRadius: 8,
