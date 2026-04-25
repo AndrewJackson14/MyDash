@@ -30,7 +30,7 @@ const ROLE_DEFAULTS = {
   Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
   "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
   "Layout Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
-  "Ad Designer": ["dashboard", "stories", "flatplan", "creative_jobs", "calendar"],
+  "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "creative_jobs", "stories", "flatplan", "performance"],
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
 };
 

@@ -83,6 +83,26 @@ export default function ClientUpload() {
       await supabase.from("ad_projects").update({ client_assets_path: basePath }).eq("id", project.id);
     }
 
+    // Jen P0.4: notify the assigned designer so they see the new
+    // assets in their NotificationPopover (and in the project's
+    // team_notes feed). RLS allows this anon insert specifically
+    // when from_user IS NULL + context_type='ad_project'.
+    if (project.designer_id) {
+      try {
+        await supabase.from("team_notes").insert({
+          to_user: project.designer_id,
+          from_user: null,
+          message: `Client uploaded ${files.length} file${files.length === 1 ? "" : "s"}${project.ad_size ? ` for ${project.ad_size}` : ""}`,
+          context_type: "ad_project",
+          context_id: project.id,
+        });
+      } catch (_e) {
+        // Failure to ping the designer shouldn't block the upload —
+        // the files are already in storage. Designer will see them
+        // on next AssetPanel refresh either way.
+      }
+    }
+
     setFiles([]);
     setUploading(false);
   };

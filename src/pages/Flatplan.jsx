@@ -375,6 +375,47 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           total: sale.amount || 0,
           transaction_type: deriveTransactionType(sale.productType),
         });
+
+        // Jen P0.3: roll any unbilled revision charges from the
+        // linked ad project onto the same invoice. Only bills when
+        // the project is signed_off so a still-revising deal can't
+        // accidentally trigger a charge — and uses the idempotency
+        // flag so re-running press-send for the same issue is safe.
+        const { data: adProj } = await supabase
+          .from("ad_projects")
+          .select("id, revision_charges, revision_billable_count, status, revision_charges_billed")
+          .eq("sale_id", sale.id)
+          .maybeSingle();
+
+        if (adProj
+            && adProj.status === "signed_off"
+            && (adProj.revision_charges || 0) > 0
+            && !adProj.revision_charges_billed) {
+          const charge = Number(adProj.revision_charges) || 0;
+          const count = Number(adProj.revision_billable_count) || 0;
+          await supabase.from("invoice_lines").insert({
+            invoice_id: inv.id,
+            sale_id: sale.id,
+            description: `Additional design revisions (×${count} @ $25)`,
+            quantity: count,
+            unit_price: 25,
+            total: charge,
+            transaction_type: "design_services",
+          });
+          await supabase.from("invoices").update({
+            total: (inv.total || 0) + charge,
+            balance_due: (inv.balance_due || 0) + charge,
+          }).eq("id", inv.id);
+          await supabase.from("ad_projects").update({
+            revision_charges_billed: true,
+            revision_charges_billed_at: new Date().toISOString(),
+          }).eq("id", adProj.id);
+          // Keep the in-memory invoice consistent with what we just
+          // pushed so sendInvoiceEmail reads the correct total.
+          inv.total = (inv.total || 0) + charge;
+          inv.balance_due = (inv.balance_due || 0) + charge;
+        }
+
         invoicesCreated++;
 
         // Send the invoice email

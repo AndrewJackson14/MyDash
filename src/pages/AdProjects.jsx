@@ -426,8 +426,96 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   const getApprovalLink = (proof) => {
     return `${window.location.origin}/approve/${proof.access_token}`;
   };
-  const copyApprovalLink = (proof) => {
-    navigator.clipboard?.writeText(getApprovalLink(proof));
+
+  // Jen P0.2: real email send (was a silent clipboard copy that
+  // left no DB stamp, no toast, no thread message). Calls the
+  // send-proof Edge Function which pulls a Gmail token from any
+  // connected admin and sends a branded HTML email with the
+  // approval CTA. On success we stamp ad_proofs server-side and
+  // post a system message to the project thread.
+  const [sendingProof, setSendingProof] = useState(null); // proof.id while sending
+
+  // Jen P0.4: send the public client_upload_token URL to the client
+  // so they can drop logos/copy/reference assets directly into the
+  // project. Generates a token if missing, stores it, prompts for
+  // email if missing, then calls send-asset-request Edge Function.
+  const [requestingAssets, setRequestingAssets] = useState(false);
+  const requestClientAssets = async (project) => {
+    if (!project?.id || requestingAssets) return;
+    setRequestingAssets(true);
+    try {
+      let token = project.client_upload_token;
+      if (!token) {
+        token = crypto.randomUUID().replace(/-/g, "");
+        await supabase.from("ad_projects").update({ client_upload_token: token }).eq("id", project.id);
+        setProjects(prev => prev.map(p => p.id === project.id ? { ...p, client_upload_token: token } : p));
+      }
+      let recipient = project.client_contact_email;
+      if (!recipient) {
+        recipient = await dialog.prompt("Client email address for upload link", "");
+        if (!recipient) { setRequestingAssets(false); return; }
+        await supabase.from("ad_projects").update({ client_contact_email: recipient }).eq("id", project.id);
+        setProjects(prev => prev.map(p => p.id === project.id ? { ...p, client_contact_email: recipient } : p));
+      }
+      const uploadUrl = `${window.location.origin}/upload/${token}`;
+      const pubNameLocal = pubs.find(p => p.id === project.publication_id)?.name || "13 Stars Media";
+      const { data, error } = await supabase.functions.invoke("send-asset-request", {
+        body: {
+          projectId: project.id,
+          recipientEmail: recipient,
+          recipientName: project.client_contact_name || "",
+          uploadUrl,
+          adSize: project.ad_size,
+          pubName: pubNameLocal,
+        },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.detail || data?.error || "Send failed");
+      // Post system message to project thread mirroring the proof-send pattern.
+      if (project.thread_id) {
+        await supabase.from("messages").insert({
+          thread_id: project.thread_id,
+          sender_name: "System",
+          body: `📎 Asset upload request sent to ${project.client_contact_name || recipient}`,
+          is_system: true,
+        });
+      }
+      await dialog.alert(`Upload link sent to ${recipient}`);
+    } catch (e) {
+      await dialog.alert(`Send failed: ${String(e?.message ?? e)}`);
+    } finally {
+      setRequestingAssets(false);
+    }
+  };
+
+  const sendProofToClient = async (proof) => {
+    if (!proof?.id) return;
+    if (sendingProof) return;
+    const project = projects.find(p => p.id === proof.project_id);
+    let recipient = project?.client_contact_email;
+    if (!recipient) {
+      recipient = await dialog.prompt(`Send proof to which email address?`, "");
+      if (!recipient) return;
+      // Persist so the next send doesn't re-prompt.
+      await supabase.from("ad_projects").update({ client_contact_email: recipient }).eq("id", project.id);
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, client_contact_email: recipient } : p));
+    }
+    setSendingProof(proof.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-proof", {
+        body: { proofId: proof.id, recipientEmail: recipient },
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.detail || data?.error || "Send failed");
+      // Optimistic local update of the proof row so the button flips
+      // immediately to "Resend to Client" without a refetch.
+      setProofs(prev => prev.map(p => p.id === proof.id ? { ...p, sent_to_client_at: data.sent_at, internal_status: "sent_to_client" } : p));
+      await dialog.alert(`Proof v${proof.version || 1} sent to ${recipient}`);
+    } catch (e) {
+      await dialog.alert(`Send failed: ${String(e?.message ?? e)}`);
+    } finally {
+      setSendingProof(null);
+    }
   };
 
   // ── View project detail ────────────────────────────────
@@ -457,6 +545,9 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {viewProject.status === "brief" && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
+          <Btn sm v="secondary" onClick={() => requestClientAssets(viewProject)} disabled={requestingAssets} title={viewProject.asset_request_sent_at ? `Last sent ${new Date(viewProject.asset_request_sent_at).toLocaleString()}` : "Email the client a link to drop their assets"}>
+            <Ic.attach size={11} /> {requestingAssets ? "Sending…" : (viewProject.asset_request_sent_at ? "Resend Asset Link" : "Request Assets from Client")}
+          </Btn>
           <Btn sm v="ghost" onClick={() => setViewId(null)}>← Back</Btn>
         </div>
       </div>
@@ -667,7 +758,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     {!latestProof.saved_at && <Btn sm v="success" onClick={() => saveProof(latestProof.id)} style={{ flex: 1 }} title="Save permanently — unsaved proofs expire in 7 days"><Ic.check size={11} /> Save</Btn>}
                     {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }} style={{ flex: 1 }}>Mark Ready</Btn>}
                     {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }} style={{ flex: 1 }}>Request Edit</Btn>}
-                    {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved") && <Btn sm onClick={() => copyApprovalLink(latestProof)} style={{ flex: 1 }}>Send to Client</Btn>}
+                    {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved" || latestProof.internal_status === "sent_to_client") && <Btn sm onClick={() => sendProofToClient(latestProof)} disabled={sendingProof === latestProof.id} style={{ flex: 1 }} title={latestProof.sent_to_client_at ? `Last sent ${new Date(latestProof.sent_to_client_at).toLocaleString()}` : undefined}>{sendingProof === latestProof.id ? "Sending…" : (latestProof.sent_to_client_at ? "Resend to Client" : "Send to Client")}</Btn>}
                     <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading || viewProofs.length >= 5} title={viewProofs.length >= 5 ? "Proof cap reached (5)" : undefined} style={{ flex: 1 }}><Ic.up size={11} /> New Version</Btn>
                   </div>
                 </> : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 24 }}>
