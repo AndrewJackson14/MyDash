@@ -174,6 +174,127 @@ serve(async (req: Request) => {
       }
     }
 
+    // ─── CREATE CHARGE INTENT ───
+    // Mobile in-the-moment charge: rep is in the field, sale just
+    // closed, customer hands over their card. Creates a PaymentIntent
+    // for an arbitrary amount with optional setup_future_usage so the
+    // card gets saved to the client for one-tap renewals later.
+    //
+    // Body: { client_id, amount_cents, description, save_card?, sale_id?, opportunity_id? }
+    // Returns: { client_secret, customer_id, intent_id }
+    if (action === "create_charge_intent") {
+      const { client_id, amount_cents, description, save_card, sale_id, opportunity_id } = body;
+      if (!client_id) throw new Error("client_id required");
+      if (!amount_cents || amount_cents < 50) throw new Error("amount_cents must be at least 50 (Stripe minimum)");
+
+      const { data: client } = await admin.from("clients").select("name, billing_email, contacts, stripe_customer_id").eq("id", client_id).single();
+      if (!client) throw new Error("client not found");
+
+      // Reuse or create Stripe customer.
+      let customerId = client.stripe_customer_id;
+      if (!customerId) {
+        const primaryContact = (client.contacts || [])[0];
+        const customer = await stripe.customers.create({
+          name: client.name || undefined,
+          email: client.billing_email || primaryContact?.email || undefined,
+          metadata: { mydash_client_id: client_id },
+        });
+        customerId = customer.id;
+        await admin.from("clients").update({ stripe_customer_id: customerId }).eq("id", client_id);
+      }
+
+      const intent = await stripe.paymentIntents.create({
+        amount: amount_cents,
+        currency: "usd",
+        customer: customerId,
+        description: description || `MyDash mobile charge — ${client.name || ""}`,
+        // setup_future_usage stores the payment_method on success; the
+        // webhook handler picks it up + writes to clients.stripe_payment_method_id.
+        // Without this flag the card is single-use.
+        setup_future_usage: save_card ? "off_session" : undefined,
+        // Always allow Apple Pay / Google Pay if available.
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+          mydash_client_id: client_id,
+          source: "mobile_charge",
+          ...(sale_id ? { sale_id } : {}),
+          ...(opportunity_id ? { opportunity_id } : {}),
+          save_card: save_card ? "true" : "false",
+        },
+      });
+
+      return new Response(
+        JSON.stringify({
+          client_secret: intent.client_secret,
+          customer_id: customerId,
+          intent_id: intent.id,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ─── RECORD MOBILE CHARGE ───
+    // Called by the mobile client AFTER stripe.confirmPayment resolves
+    // with status=succeeded. Belt-and-suspenders to the webhook: the
+    // webhook is the source of truth, but this client-side ack ensures
+    // a payments row + saved-card-on-client lands immediately so the
+    // UI can reflect success without waiting for webhook propagation.
+    //
+    // Body: { client_id, intent_id, save_card }
+    if (action === "record_mobile_charge") {
+      const { client_id, intent_id } = body;
+      if (!client_id || !intent_id) throw new Error("client_id and intent_id required");
+
+      const intent = await stripe.paymentIntents.retrieve(intent_id);
+      if (intent.status !== "succeeded") {
+        return new Response(JSON.stringify({ success: false, status: intent.status }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const amount = (intent.amount || 0) / 100;
+
+      // If the card was saved (setup_future_usage=off_session), pull
+      // the payment method details and stamp them on the client.
+      const pmId = (intent.payment_method as string) || null;
+      if (pmId && intent.metadata?.save_card === "true") {
+        try {
+          const pm = await stripe.paymentMethods.retrieve(pmId);
+          const card = pm.card;
+          if (intent.customer) {
+            await stripe.customers.update(intent.customer as string, {
+              invoice_settings: { default_payment_method: pmId },
+            });
+          }
+          await admin.from("clients").update({
+            stripe_payment_method_id: pmId,
+            card_last4: card?.last4 || null,
+            card_brand: card?.brand || null,
+            card_exp: card ? `${card.exp_month}/${card.exp_year}` : null,
+          }).eq("id", client_id);
+        } catch (_e) { /* card-detail save failed; webhook will retry */ }
+      }
+
+      // Insert a payments row marked "card" + Stripe ref. No invoice_id —
+      // this is an ad-hoc mobile charge, not invoice-tied. The webhook
+      // dedupes via stripe_payment_intent_id check.
+      const { data: existing } = await admin.from("payments").select("id").eq("reference", `Stripe ${intent_id}`).maybeSingle();
+      if (!existing) {
+        await admin.from("payments").insert({
+          client_id,
+          amount,
+          payment_date: new Date().toISOString().slice(0, 10),
+          method: "card",
+          reference: `Stripe ${intent_id}`,
+          notes: intent.description || "Mobile charge",
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, amount }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── UPDATE CARD ───
     // For client portal card management
     if (action === "update_card") {
