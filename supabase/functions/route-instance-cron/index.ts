@@ -2,17 +2,15 @@
 // route-instance-cron — daily job that creates upcoming
 // route_instance rows 48 hours before each scheduled delivery.
 //
-// Spec v1.1 §7.1 sketches the cron using a non-existent
-// publications.schedule_pattern column. The real schema already has
-// generated issues with publication dates, so this simpler variant
-// joins driver_routes → issues (by publication_id) and inserts an
-// instance for any issue in the next 48h that doesn't already have
-// one.
+// Multi-pub aware (migration 131): for each active template, look at
+// the full pub set from driver_route_pubs, find any issue across those
+// pubs in the next 48h, and create ONE instance per (template, date)
+// — so a route that delivers PRP + AN + SYV on the same Wednesday
+// dispatches one run, not three. The anchor issue_id is the earliest
+// matching issue for the primary pub (falls back to any pub).
 //
-// Invoked from pg_cron (migration 107 pattern) at 06:00 PT daily.
-// Also callable manually via POST {force: true} to backfill.
-//
-// Auth: service_role JWT required (same pattern as scheduled-tasks).
+// Invoked from pg_cron (migration 128) at 06:00 PT daily.
+// Service_role JWT required.
 // ============================================================
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -32,8 +30,6 @@ function corsFor(origin: string | null) {
   };
 }
 
-// Service-role only — pg_cron uses the Vault-stored key; manual calls
-// use the same. No user JWT path (would be a DoS vector).
 function isServiceRole(authHeader: string): boolean {
   if (!authHeader?.startsWith("Bearer ")) return false;
   try {
@@ -57,41 +53,58 @@ serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  // Window: today through today+2 days (48h lookahead).
   const lookaheadEnd = new Date(now.getTime() + 48 * 3600_000).toISOString().slice(0, 10);
 
-  // 1. Active templates with a publication set (routes without a pub
-  //    can't auto-schedule — they're ad-hoc only, activated via the
-  //    Routes tab "Activate Now" button).
+  // 1. Active templates. We don't filter by publication_id on the
+  //    template anymore — driver_route_pubs is the source of truth.
   const { data: templates, error: tplErr } = await admin
     .from("driver_routes")
     .select("id, publication_id, default_driver_id")
-    .eq("is_active", true)
-    .not("publication_id", "is", null);
+    .eq("is_active", true);
   if (tplErr) return json({ error: tplErr.message }, 500, cors);
 
   const results: any[] = [];
   for (const tpl of (templates || [])) {
-    // 2. Find next issue(s) for this publication in the window.
+    // 2. This template's full pub set. Empty set = ad-hoc only, skip.
+    const { data: pubLinks } = await admin
+      .from("driver_route_pubs")
+      .select("publication_id, is_primary")
+      .eq("route_id", tpl.id);
+    const pubIds: string[] = (pubLinks || []).map((r: any) => r.publication_id);
+    if (pubIds.length === 0) continue;
+    const primaryPubId = (pubLinks || []).find((r: any) => r.is_primary)?.publication_id || pubIds[0];
+
+    // 3. All issues across any pub in the set, in the window.
+    //    Group by date so we dispatch once per calendar day even if
+    //    multiple pubs publish same day.
     const { data: issues } = await admin
       .from("issues")
       .select("id, pub_id, date")
-      .eq("pub_id", tpl.publication_id)
+      .in("pub_id", pubIds)
       .gte("date", today)
       .lte("date", lookaheadEnd)
       .order("date");
 
+    const byDate = new Map<string, any[]>();
     for (const iss of (issues || [])) {
-      // 3. Skip if an instance already exists for this template + date.
+      if (!byDate.has(iss.date)) byDate.set(iss.date, []);
+      byDate.get(iss.date)!.push(iss);
+    }
+
+    for (const [date, dayIssues] of byDate.entries()) {
+      // 4. Skip if an instance already exists for (template, date).
       const { data: existing } = await admin
         .from("route_instances")
         .select("id")
         .eq("route_template_id", tpl.id)
-        .eq("scheduled_for", iss.date)
+        .eq("scheduled_for", date)
         .maybeSingle();
       if (existing) continue;
 
-      // 4. Total stops from the template.
+      // 5. Anchor issue_id: pick the primary pub's issue if that pub
+      //    publishes that day, else first of the day.
+      const anchorIssue = dayIssues.find((i: any) => i.pub_id === primaryPubId) || dayIssues[0];
+
       const { count: stopCount } = await admin
         .from("route_stops")
         .select("id", { count: "exact", head: true })
@@ -99,26 +112,31 @@ serve(async (req) => {
 
       const { data: inserted, error: insErr } = await admin.from("route_instances").insert({
         route_template_id: tpl.id,
-        issue_id: iss.id,
-        publication_id: tpl.publication_id,
+        issue_id: anchorIssue.id,
+        publication_id: anchorIssue.pub_id,
         driver_id: tpl.default_driver_id || null,
-        scheduled_for: iss.date,
+        scheduled_for: date,
         status: "scheduled",
         total_stops: stopCount || 0,
       }).select("id").single();
 
       if (insErr) { results.push({ template_id: tpl.id, error: insErr.message }); continue; }
 
-      // 5. Audit trail so the Routes tab's log shows the cron creation.
       await admin.from("location_audit_log").insert({
         entity_type: "route_template",
         entity_id: tpl.id,
         action: "created",
         actor_type: "system",
-        context: { route_id: tpl.id, issue_id: iss.id, reason: "Auto-cron created scheduled instance", instance_id: inserted.id },
+        context: {
+          route_id: tpl.id,
+          issue_id: anchorIssue.id,
+          pubs: pubIds,
+          reason: pubIds.length > 1 ? "Auto-cron created multi-pub scheduled instance" : "Auto-cron created scheduled instance",
+          instance_id: inserted.id,
+        },
       });
 
-      results.push({ template_id: tpl.id, instance_id: inserted.id, scheduled_for: iss.date });
+      results.push({ template_id: tpl.id, instance_id: inserted.id, scheduled_for: date, pubs: pubIds });
     }
   }
 

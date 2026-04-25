@@ -1,7 +1,18 @@
 // Routes tab — route template list + edit modal + per-route detail
 // drawer with Stops/Audit tabs, "Activate Now" ad-hoc dispatch, and
 // per-stop expected_qty + access_notes (spec v1.1 §5.3).
+//
+// Multi-pub aware (migration 131): each template carries a pub SET
+// rather than a single pub. UI uses a checkbox list with a primary-pub
+// toggle. Persisted to driver_route_pubs; the legacy single
+// driver_routes.publication_id column is kept in sync by DB trigger.
+//
+// Stops list uses @dnd-kit drag-handles for reorder (replaces the
+// prior up/down arrow buttons).
 import { useState, useEffect, useMemo } from "react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../../lib/theme";
 import { Ic, Btn, Inp, Sel, TA, Modal, GlassCard, GlassStat, TabRow, TB } from "../../components/ui";
 import { supabase } from "../../lib/supabase";
@@ -30,17 +41,22 @@ export default function Routes({
   const [routeModal, setRouteModal] = useState(false);
   const [detailRouteId, setDetailRouteId] = useState(null);
   const [instances, setInstances] = useState([]);
+  const [routePubsMap, setRoutePubsMap] = useState(new Map()); // route_id → [{pub_id, is_primary}]
 
   // Route template form. Stops are tracked as an ordered array of
   // { dropLocationId, expected_qty, access_notes } objects so the
   // Phase-1 route_stops fields land on insert.
+  // pub_ids is an ordered list of publication ids; the FIRST id in the
+  // list is the primary pub (used as the cron anchor + UI label).
   const blankStop = (locId) => ({ dropLocationId: locId, expected_qty: 0, access_notes: "" });
-  const blankRoute = { driverId: "", name: "", frequency: "weekly", publicationId: pubs[0]?.id || "", flat_fee: 0, notes: "", stops: [] };
+  const blankRoute = {
+    driverId: "", name: "", frequency: "weekly",
+    pub_ids: pubs[0] ? [pubs[0].id] : [],
+    flat_fee: 0, notes: "", stops: [],
+  };
   const [routeForm, setRouteForm] = useState(blankRoute);
 
   // ── Load per-route summary stats (last instance + next scheduled) ──
-  // One fetch on mount + after mutations. Small table for now; upgrade
-  // to keyset when it saturates.
   const loadInstances = async () => {
     const { data } = await supabase
       .from("route_instances")
@@ -49,7 +65,20 @@ export default function Routes({
       .limit(500);
     setInstances(data || []);
   };
-  useEffect(() => { loadInstances(); }, []);
+  // Load the pub set per route so cards can render multi-pub badges.
+  const loadRoutePubs = async () => {
+    const { data } = await supabase
+      .from("driver_route_pubs")
+      .select("route_id, publication_id, is_primary")
+      .limit(2000);
+    const m = new Map();
+    for (const r of (data || [])) {
+      if (!m.has(r.route_id)) m.set(r.route_id, []);
+      m.get(r.route_id).push({ pub_id: r.publication_id, is_primary: r.is_primary });
+    }
+    setRoutePubsMap(m);
+  };
+  useEffect(() => { loadInstances(); loadRoutePubs(); }, []);
 
   const statsByRoute = useMemo(() => {
     const m = new Map();
@@ -65,20 +94,30 @@ export default function Routes({
     return m;
   }, [routes, instances]);
 
-  // ── Persist route + stops to Supabase (fixes pre-existing local-only bug) ──
+  // ── Persist route + stops + pubs to Supabase ─────────────────────
   const saveRoute = async () => {
-    if (!routeForm.name) return;
+    if (!routeForm.name || routeForm.pub_ids.length === 0) return;
+    const primaryPubId = routeForm.pub_ids[0];
+
     const { data: routeRow, error: routeErr } = await supabase.from("driver_routes").insert({
       driver_id: routeForm.driverId || null,
       name: routeForm.name,
       frequency: routeForm.frequency,
-      publication_id: routeForm.publicationId || null,
+      publication_id: primaryPubId, // legacy column; trigger keeps in sync
       default_driver_id: routeForm.driverId || null,
       flat_fee: Number(routeForm.flat_fee) || null,
       notes: routeForm.notes,
       is_active: true,
     }).select().single();
     if (routeErr) { console.error("Route insert failed:", routeErr); return; }
+
+    // Insert pub set. Primary flag matches the ordered list's first item.
+    const pubRows = routeForm.pub_ids.map(pid => ({
+      route_id: routeRow.id,
+      publication_id: pid,
+      is_primary: pid === primaryPubId,
+    }));
+    await supabase.from("driver_route_pubs").insert(pubRows);
 
     if (routeForm.stops?.length > 0) {
       const rows = routeForm.stops.map((s, i) => ({
@@ -103,15 +142,19 @@ export default function Routes({
       defaultDriverId: routeRow.default_driver_id, flatFee: routeRow.flat_fee,
       createdAt: routeRow.created_at,
     }]);
+    setRoutePubsMap(prev => {
+      const next = new Map(prev);
+      next.set(routeRow.id, routeForm.pub_ids.map(pid => ({ pub_id: pid, is_primary: pid === primaryPubId })));
+      return next;
+    });
 
-    // Audit entry (office actor).
     await supabase.from("location_audit_log").insert({
       entity_type: "route_template",
       entity_id: routeRow.id,
       action: "created",
       actor_type: "office",
       actor_team_member_id: currentUser?.id || null,
-      context: { route_id: routeRow.id, name: routeRow.name },
+      context: { route_id: routeRow.id, name: routeRow.name, pubs: routeForm.pub_ids },
     });
 
     setRouteModal(false);
@@ -121,9 +164,11 @@ export default function Routes({
   // ── "Activate Now": create a scheduled route_instance for today ──
   const activateNow = async (route) => {
     const rStops = stops.filter(s => s.routeId === route.id);
+    const pubSet = routePubsMap.get(route.id) || [];
+    const primaryPub = pubSet.find(p => p.is_primary)?.pub_id || route.publicationId;
     const { data, error } = await supabase.from("route_instances").insert({
       route_template_id: route.id,
-      publication_id: route.publicationId || null,
+      publication_id: primaryPub || null,
       driver_id: route.defaultDriverId || route.driverId || null,
       scheduled_for: today,
       status: "scheduled",
@@ -168,15 +213,22 @@ export default function Routes({
                   return sum + lpubs.reduce((ss, lp) => ss + (lp.quantity || 0), 0);
                 }, 0);
               const st = statsByRoute.get(r.id) || {};
+              const pubSet = routePubsMap.get(r.id) || (r.publicationId ? [{ pub_id: r.publicationId, is_primary: true }] : []);
               return <GlassCard key={r.id} style={{ padding: 12, cursor: "pointer" }} onClick={() => setDetailRouteId(r.id)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>{r.name}</div>
                     <div style={{ fontSize: FS.sm, color: Z.tm }}>
                       {driver?.name || "Unassigned"} · {ROUTE_FREQS.find(f => f.value === r.frequency)?.label || r.frequency}
-                      {r.publicationId ? ` · ${pn(r.publicationId)}` : ""}
                       {r.flatFee ? ` · ${fmtCurrency(r.flatFee)}/route` : ""}
                     </div>
+                    {pubSet.length > 0 && <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                      {pubSet.map(p => <span key={p.pub_id} style={{
+                        fontSize: FS.micro, fontWeight: FW.heavy, color: p.is_primary ? Z.ac : Z.tm,
+                        background: p.is_primary ? Z.ac + "18" : Z.sa, padding: "2px 6px", borderRadius: Ri,
+                        fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5,
+                      }}>{pn(p.pub_id)}</span>)}
+                    </div>}
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{stopLocs.length} stops</div>
@@ -207,66 +259,89 @@ export default function Routes({
     </GlassCard>
 
     {/* New Route modal */}
-    <Modal open={routeModal} onClose={() => setRouteModal(false)} title="New Route" width={620} onSubmit={saveRoute}>
+    <Modal open={routeModal} onClose={() => setRouteModal(false)} title="New Route" width={680} onSubmit={saveRoute}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Inp label="Route Name" value={routeForm.name} onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))} placeholder="Paso Robles Downtown" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          <Sel label="Driver" value={routeForm.driverId} onChange={e => setRouteForm(f => ({ ...f, driverId: e.target.value }))} options={[{ value: "", label: "Select driver..." }, ...drvs.map(d => ({ value: d.id, label: d.name }))]} />
+          <Sel label="Driver" value={routeForm.driverId} onChange={e => setRouteForm(f => ({ ...f, driverId: e.target.value }))} options={[{ value: "", label: "Select driver..." }, ...drvs.filter(d => d.isActive).map(d => ({ value: d.id, label: d.name }))]} />
           <Sel label="Frequency" value={routeForm.frequency} onChange={e => setRouteForm(f => ({ ...f, frequency: e.target.value }))} options={ROUTE_FREQS} />
           <Inp label="Flat Fee" type="number" step="0.01" value={routeForm.flat_fee || ""} onChange={e => setRouteForm(f => ({ ...f, flat_fee: Number(e.target.value) || 0 }))} />
         </div>
-        <Sel label="Publication" value={routeForm.publicationId} onChange={e => setRouteForm(f => ({ ...f, publicationId: e.target.value }))} options={[{ value: "", label: "All publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
 
+        {/* Publications — multi-select. First in list = primary. */}
         <div>
-          <label style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Stops (click to add in order; edit qty + notes inline)</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6, maxHeight: 260, overflowY: "auto" }}>
-            {/* Selected stops at the top with inputs */}
-            {routeForm.stops.map((s, i) => {
-              const loc = locs.find(l => l.id === s.dropLocationId);
-              if (!loc) return null;
-              return <div key={s.dropLocationId} style={{ display: "grid", gridTemplateColumns: "24px 1fr 80px 1fr 80px", gap: 8, alignItems: "center", padding: "4px 6px", background: Z.ac + "12", borderRadius: Ri }}>
-                <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac, textAlign: "center" }}>{i + 1}</span>
-                <div>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{loc.name}</div>
-                  <div style={{ fontSize: FS.micro, color: Z.td }}>{loc.city}</div>
-                </div>
-                <input type="number" min="0" value={s.expected_qty || ""} placeholder="qty"
-                  onChange={e => setRouteForm(f => ({ ...f, stops: f.stops.map((x, idx) => idx === i ? { ...x, expected_qty: Number(e.target.value) || 0 } : x) }))}
-                  style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.sm, padding: "3px 6px", outline: "none" }} />
-                <input type="text" value={s.access_notes} placeholder="Access notes"
-                  onChange={e => setRouteForm(f => ({ ...f, stops: f.stops.map((x, idx) => idx === i ? { ...x, access_notes: e.target.value } : x) }))}
-                  style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.sm, padding: "3px 6px", outline: "none" }} />
-                <div style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-                  <button onClick={() => setRouteForm(f => {
-                    if (i === 0) return f;
-                    const arr = [...f.stops]; [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; return { ...f, stops: arr };
-                  })} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 11 }}>▲</button>
-                  <button onClick={() => setRouteForm(f => {
-                    if (i === f.stops.length - 1) return f;
-                    const arr = [...f.stops]; [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]]; return { ...f, stops: arr };
-                  })} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 11 }}>▼</button>
-                  <button onClick={() => setRouteForm(f => ({ ...f, stops: f.stops.filter((_, idx) => idx !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, marginLeft: 4 }}>×</button>
-                </div>
-              </div>;
+          <label style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>
+            Publications {routeForm.pub_ids.length > 0 && <span style={{ color: Z.ac }}>· first is primary</span>}
+          </label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            {pubs.map(p => {
+              const idx = routeForm.pub_ids.indexOf(p.id);
+              const selected = idx >= 0;
+              const primary = idx === 0;
+              return <button
+                key={p.id}
+                type="button"
+                onClick={() => setRouteForm(f => {
+                  const list = [...f.pub_ids];
+                  const i = list.indexOf(p.id);
+                  if (i >= 0) list.splice(i, 1);
+                  else list.push(p.id);
+                  return { ...f, pub_ids: list };
+                })}
+                onContextMenu={e => {
+                  // Right-click to promote to primary.
+                  e.preventDefault();
+                  if (!selected) return;
+                  setRouteForm(f => ({ ...f, pub_ids: [p.id, ...f.pub_ids.filter(x => x !== p.id)] }));
+                }}
+                title={selected ? "Click to remove · right-click to set primary" : "Click to add"}
+                style={{
+                  padding: "5px 10px", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer",
+                  borderRadius: Ri, border: "none",
+                  background: primary ? Z.ac : selected ? Z.ac + "30" : Z.bg,
+                  color: primary ? "#fff" : selected ? Z.ac : Z.tm,
+                }}
+              >
+                {primary && "★ "}{pn(p.id)}
+              </button>;
             })}
-            {/* Add more from the unselected locs */}
+          </div>
+          {routeForm.pub_ids.length === 0 && <div style={{ fontSize: FS.micro, color: Z.da, marginTop: 4 }}>Select at least one publication.</div>}
+        </div>
+
+        {/* Stops — drag-and-drop reorderable via @dnd-kit */}
+        <div>
+          <label style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>
+            Stops {routeForm.stops.length > 0 && <span style={{ color: Z.ac }}>· drag to reorder</span>}
+          </label>
+          <div style={{ marginTop: 6, maxHeight: 300, overflowY: "auto" }}>
+            <StopsList
+              stops={routeForm.stops}
+              locs={locs}
+              onChange={(nextStops) => setRouteForm(f => ({ ...f, stops: nextStops }))}
+            />
             <div style={{ marginTop: 8, fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase" }}>Add a stop</div>
-            {locs.filter(l => l.isActive && !routeForm.stops.some(s => s.dropLocationId === l.id)).slice(0, 30).map(loc =>
-              <div key={loc.id} onClick={() => setRouteForm(f => ({ ...f, stops: [...f.stops, blankStop(loc.id)] }))}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 6px", borderRadius: Ri, cursor: "pointer" }}
-                onMouseOver={e => e.currentTarget.style.background = Z.sa}
-                onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                <span style={{ fontSize: FS.sm, color: Z.tx }}>+ {loc.name}</span>
-                <span style={{ fontSize: FS.micro, color: Z.td }}>{loc.city}</span>
-              </div>
-            )}
+            <div style={{ maxHeight: 120, overflowY: "auto" }}>
+              {locs.filter(l => l.isActive && !routeForm.stops.some(s => s.dropLocationId === l.id)).slice(0, 40).map(loc =>
+                <div
+                  key={loc.id}
+                  onClick={() => setRouteForm(f => ({ ...f, stops: [...f.stops, blankStop(loc.id)] }))}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 6px", borderRadius: Ri, cursor: "pointer" }}
+                  onMouseOver={e => e.currentTarget.style.background = Z.sa}
+                  onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <span style={{ fontSize: FS.sm, color: Z.tx }}>+ {loc.name}</span>
+                  <span style={{ fontSize: FS.micro, color: Z.td }}>{loc.city}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <TA label="Notes" value={routeForm.notes} onChange={e => setRouteForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <Btn v="cancel" onClick={() => setRouteModal(false)}>Cancel</Btn>
-          <Btn onClick={saveRoute} disabled={!routeForm.name}>Create Route</Btn>
+          <Btn onClick={saveRoute} disabled={!routeForm.name || routeForm.pub_ids.length === 0}>Create Route</Btn>
         </div>
       </div>
     </Modal>
@@ -277,16 +352,87 @@ export default function Routes({
       stops={stops.filter(s => s.routeId === detailRouteId).slice().sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))}
       locs={locs}
       team={team || []}
+      routePubs={routePubsMap.get(detailRouteId) || []}
+      pn={pn}
       onClose={() => setDetailRouteId(null)}
     />}
   </>;
 }
 
+// ── Sortable stops list (dnd-kit) ──────────────────────────────────
+function StopsList({ stops, locs, onChange }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const onDragEnd = (ev) => {
+    const { active, over } = ev;
+    if (!over || active.id === over.id) return;
+    const oldIdx = stops.findIndex(s => s.dropLocationId === active.id);
+    const newIdx = stops.findIndex(s => s.dropLocationId === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    onChange(arrayMove(stops, oldIdx, newIdx));
+  };
+  return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <SortableContext items={stops.map(s => s.dropLocationId)} strategy={verticalListSortingStrategy}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {stops.map((s, i) => {
+          const loc = locs.find(l => l.id === s.dropLocationId);
+          if (!loc) return null;
+          return <SortableStopRow
+            key={s.dropLocationId}
+            id={s.dropLocationId}
+            index={i}
+            stop={s}
+            loc={loc}
+            onQtyChange={(q) => onChange(stops.map((x, idx) => idx === i ? { ...x, expected_qty: q } : x))}
+            onNotesChange={(n) => onChange(stops.map((x, idx) => idx === i ? { ...x, access_notes: n } : x))}
+            onRemove={() => onChange(stops.filter((_, idx) => idx !== i))}
+          />;
+        })}
+      </div>
+    </SortableContext>
+  </DndContext>;
+}
+
+function SortableStopRow({ id, index, stop, loc, onQtyChange, onNotesChange, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return <div ref={setNodeRef} style={{
+    ...style,
+    display: "grid", gridTemplateColumns: "24px 24px 1fr 80px 1fr 30px",
+    gap: 8, alignItems: "center", padding: "4px 6px",
+    background: Z.ac + "12", borderRadius: Ri,
+  }}>
+    <span {...attributes} {...listeners} style={{ cursor: "grab", color: Z.tm, fontSize: 14, textAlign: "center" }}>⋮⋮</span>
+    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac, textAlign: "center" }}>{index + 1}</span>
+    <div>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{loc.name}</div>
+      <div style={{ fontSize: FS.micro, color: Z.td }}>{loc.city}</div>
+    </div>
+    <input type="number" min="0" value={stop.expected_qty || ""} placeholder="qty"
+      onChange={e => onQtyChange(Number(e.target.value) || 0)}
+      style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.sm, padding: "3px 6px", outline: "none" }} />
+    <input type="text" value={stop.access_notes || ""} placeholder="Access notes"
+      onChange={e => onNotesChange(e.target.value)}
+      style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.sm, padding: "3px 6px", outline: "none" }} />
+    <button onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 13 }}>×</button>
+  </div>;
+}
+
 // ── Route detail modal with Stops / Audit tabs ─────────────────────
-function RouteDetailModal({ route, stops, locs, team, onClose }) {
+function RouteDetailModal({ route, stops, locs, team, routePubs, pn, onClose }) {
   const [tab, setTab] = useState("Stops");
   if (!route) return null;
-  return <Modal open={true} onClose={onClose} title={route.name} width={640}>
+  return <Modal open={true} onClose={onClose} title={route.name} width={660}>
+    {routePubs.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+      {routePubs.map(p => <span key={p.pub_id} style={{
+        fontSize: FS.micro, fontWeight: FW.heavy, color: p.is_primary ? Z.ac : Z.tm,
+        background: p.is_primary ? Z.ac + "18" : Z.sa, padding: "2px 8px", borderRadius: Ri,
+        fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5,
+      }}>{p.is_primary && "★ "}{pn(p.pub_id)}</span>)}
+    </div>}
     <TabRow>
       <TB tabs={["Stops", "Audit Log"]} active={tab} onChange={setTab} />
     </TabRow>
