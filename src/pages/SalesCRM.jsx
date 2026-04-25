@@ -551,6 +551,34 @@ const SalesCRM = (props) => {
   const pMonthly = monthSpan > 1 ? Math.ceil(pTotal / monthSpan) : pTotal;
   const pubSummary = (pp) => { const pub = pubs.find(p => p.id === pp.pubId); const t = pp.issues.reduce((s, iss) => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return s + (ad?.[autoTier] || ad?.rate || 0); }, 0); return `${pp.issues.length} issues · $${t.toLocaleString()}`; };
   const goToEmailStep = () => { if (propLineItems.length === 0) return; const cl = clients.find(c => c.id === propClient); setPropEmailRecipients((cl?.contacts || []).filter(c => c.email).map(c => c.email)); setPropEmailMsg(`Dear ${cl?.contacts?.[0]?.name || ""},\n\nPlease find the attached proposal.\n\nTotal: $${pTotal.toLocaleString()}\n\nBest,\n${COMPANY.sales.name}`); setPropStep("email"); };
+
+  // Live preview HTML for the email step — same generator the actual
+  // send uses, so the rep sees exactly what the client will receive
+  // (per-pub config overrides are skipped here; preview shows the
+  // default template, which is what 95% of sends use).
+  const propPreviewHtml = useMemo(() => {
+    if (propStep !== "email" || !propClient) return "";
+    try {
+      const cl = clients.find(c => c.id === propClient);
+      if (!cl) return "";
+      const teamMember = (props.team || []).find(t => t.id === currentUser?.id) || (props.team || [])[0] || { name: COMPANY?.sales?.name || "Sales", email: COMPANY?.sales?.email || "", phone: COMPANY?.sales?.phone || "" };
+      const propData = {
+        clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
+        lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
+        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource,
+        briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null,
+        monthly: pMonthly, chargeDay: propChargeDay,
+      };
+      return generateProposalHtml({
+        config: { ...DEFAULT_PROPOSAL_CONFIG, paymentTiming: propPayTiming },
+        proposal: propData, client: cl, salesperson: teamMember, pubs: pubs || [],
+        introText: propEmailMsg,
+        signLink: "https://mydash.media/sign/preview",
+      });
+    } catch (e) {
+      return `<html><body style="font-family:sans-serif;padding:24px;color:#94a3b8"><strong>Preview unavailable</strong><br/><small>${String(e?.message ?? e)}</small></body></html>`;
+    }
+  }, [propStep, propClient, propName, propLineItems, propPayPlan, propPayTiming, propArtSource, propBrief, propChargeDay, propEmailMsg, autoTermLabel, monthSpan, pTotal, pMonthly, clients, pubs, issueMap, props.team, currentUser?.id]);
   const toggleRecipient = (email) => setPropEmailRecipients(r => r.includes(email) ? r.filter(e => e !== email) : [...r, email]);
   const submitProposal = async () => {
     if (!propClient || propLineItems.length === 0 || propEmailRecipients.length === 0) return;
@@ -1573,7 +1601,7 @@ const SalesCRM = (props) => {
     {/* PROPOSAL BUILDER */}
     <Modal open={propMo} onClose={closePropMo} title={propStep === "sent" ? "Sent!" : propStep === "email" ? `Send Proposal \u2014 ${cn(propClient)}` : `Build Proposal \u2014 ${cn(propClient)}`} width={1100}>
       {propStep === "sent" ? <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", padding: 16 }}><Ic.check size={28} color={Z.su} /><div style={{ fontSize: FS.base, color: Z.tm }}>Proposal sent — {propLineItems.length} items · <b style={{ color: Z.su }}>${pTotal.toLocaleString()}</b></div><div style={{ fontSize: FS.sm, color: Z.td, maxWidth: 340, textAlign: "center" }}>When the client signs, this will convert to a contract and create confirmed sales orders.</div><div style={{ display: "flex", gap: 6, marginTop: 4 }}><Btn v="success" onClick={async () => { await signProposal(editPropId || proposals[proposals.length - 1]?.id); setPropMo(false); setPropPending(null); }}>Client Signed → Convert to Contract</Btn><Btn v="secondary" onClick={() => { setPropMo(false); setPropPending(null); }}>Close</Btn></div></div>
-      : propStep === "email" ? <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "60vh" }}><div><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Recipients</label>
+      : propStep === "email" ? <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.1fr)", gap: 14, height: "60vh" }}><div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}><div><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Recipients</label>
         {/* Saved contacts as toggle buttons */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{(clients.find(c => c.id === propClient)?.contacts || []).filter(c => c.email).map(ct => <button key={ct.email} onClick={() => toggleRecipient(ct.email)} style={{ padding: "5px 10px", borderRadius: R, border: `1px solid ${propEmailRecipients.includes(ct.email) ? Z.go : Z.bd}`, background: propEmailRecipients.includes(ct.email) ? Z.go : Z.bg, cursor: "pointer" }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: propEmailRecipients.includes(ct.email) ? INV.light : Z.tx }}>{ct.name}</span><div style={{ fontSize: FS.sm, color: propEmailRecipients.includes(ct.email) ? INV.light + "b3" : Z.tm }}>{ct.email}</div></button>)}</div>
         {/* Manual email entry */}
@@ -1583,8 +1611,21 @@ const SalesCRM = (props) => {
         </div>
         {/* Selected recipients */}
         {propEmailRecipients.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{propEmailRecipients.map(e => <span key={e} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: Ri, background: Z.go + "15", fontSize: FS.xs, color: Z.go, fontWeight: FW.bold }}>{e} <button onClick={() => setPropEmailRecipients(r => r.filter(x => x !== e))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.go, fontSize: 12, fontWeight: 900 }}>×</button></span>)}</div>}
-      </div><div style={{ flex: 1, display: "flex", flexDirection: "column" }}><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Message</label><textarea value={propEmailMsg} onChange={e => setPropEmailMsg(e.target.value)} style={{ flex: 1, width: "100%", padding: "12px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }} /></div>
+      </div><div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Message</label><textarea value={propEmailMsg} onChange={e => setPropEmailMsg(e.target.value)} style={{ flex: 1, width: "100%", padding: "12px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }} /></div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexShrink: 0 }}><Btn v="secondary" onClick={() => setPropStep("build")}>Back</Btn><Btn v="secondary" disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("draft")}>{propSending ? "Creating..." : "Save Gmail Draft"}</Btn><Btn disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("send")}><Ic.send size={12} /> {propSending ? "Sending..." : "Send Now"}</Btn></div></div>
+        {/* Live preview of the rendered proposal — what the client sees */}
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Preview · what the client sees</label>
+            <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>updates as you type</span>
+          </div>
+          <iframe
+            title="Proposal preview"
+            srcDoc={propPreviewHtml}
+            sandbox=""
+            style={{ flex: 1, width: "100%", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: "#FFFFFF" }}
+          />
+        </div></div>
       : <div style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: "45vh" }}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><FuzzyPicker label="Client" value={propClient} onChange={setPropClient} options={clients.map(c => ({ value: c.id, label: c.name }))} placeholder="Search clients…" /><Inp label="Proposal Name" value={propName} onChange={e => setPropName(e.target.value)} /></div>
         <div>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Art Source</div>
