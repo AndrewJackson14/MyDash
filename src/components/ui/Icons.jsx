@@ -69,6 +69,16 @@ const Ic = {
   template:  p => <Iv d="M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z" {...p} />,
   palette:   p => <Iv d="M12 2a10 10 0 00-10 10c0 4 3 7 7 7 1 0 2-.5 2-2v-1a1.5 1.5 0 011.5-1.5H15a6 6 0 006-6c0-3.87-3.13-7-9-7zM7.5 10.5h.01M11 7h.01M15.5 7.5h.01M17 11h.01" {...p} />,
   scroll:    p => <Iv d="M6 3h12a2 2 0 012 2 2 2 0 01-2 2H6a2 2 0 01-2-2 2 2 0 012-2zM6 17h12a2 2 0 012 2 2 2 0 01-2 2H6a2 2 0 01-2-2 2 2 0 012-2zM6 7v10M18 7v10M9 11h6M9 14h5" {...p} />,
+  // Mobile UI icon swap (2026-04-25): six new flat-line glyphs to
+  // replace the emoji/Unicode icons mobile shipped with. Same stroke
+  // weight + 24x24 viewBox as the rest of the set so they sit cleanly
+  // alongside Ic.phone / Ic.mail / Ic.cal etc.
+  users:     p => <Iv d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" {...p} />,
+  card:      p => <Iv d="M2 6h20v12H2zM2 10h20" {...p} />,
+  pin:       p => <Iv d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0zM12 13a3 3 0 100-6 3 3 0 000 6z" {...p} />,
+  external:  p => <Iv d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" {...p} />,
+  camera:    p => <Iv d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2zM12 17a4 4 0 100-8 4 4 0 000 8z" {...p} />,
+  refresh:   p => <Iv d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" {...p} />,
 };
 
 export { Iv, Ic };

@@ -24,6 +24,7 @@
 // the rest stays in extracted_json for the desktop session to refine.
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { Ic } from "../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, fmtMoneyFull, todayISO } from "./mobileTokens";
 
 export default function ContractReviewModal({ importRow, currentUser, appData, onClose, onConverted }) {
@@ -261,9 +262,9 @@ export default function ContractReviewModal({ importRow, currentUser, appData, o
               background: SURFACE.alt, border: `1px solid ${TOKENS.rule}`, borderRadius: 8,
               cursor: "pointer", fontSize: 13, fontWeight: 600, color: ACCENT,
               fontFamily: "inherit",
-            }}>↳ Match to existing: <strong>{c.name}</strong> ({c.status})</button>)}
+            }}><Ic.checkAll size={12} color={ACCENT} /> Match to existing: <strong>{c.name}</strong> ({c.status})</button>)}
           </div>}
-          {matchedClientId && <div style={{ marginTop: 6, fontSize: 12, color: TOKENS.good, fontWeight: 600 }}>✓ Matched to existing client</div>}
+          {matchedClientId && <div style={{ marginTop: 6, fontSize: 12, color: TOKENS.good, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}><Ic.check size={12} color={TOKENS.good} /> Matched to existing client</div>}
         </Field>
 
         {/* Pub */}
@@ -283,7 +284,7 @@ export default function ContractReviewModal({ importRow, currentUser, appData, o
             <input value={li.category} onChange={e => updateLine(i, "category", e.target.value)} placeholder="Category" style={smallInput} />
             <input value={li.ad_size} onChange={e => updateLine(i, "ad_size", e.target.value)} placeholder="Size" style={smallInput} />
             <input type="number" inputMode="decimal" value={li.rate} onChange={e => updateLine(i, "rate", parseFloat(e.target.value) || 0)} placeholder="Rate" style={smallInput} />
-            <button onClick={() => removeLine(i)} style={{ background: "transparent", border: "none", cursor: "pointer", color: TOKENS.urgent, fontSize: 16, fontWeight: 800 }}>×</button>
+            <button onClick={() => removeLine(i)} aria-label="Remove line" style={{ background: "transparent", border: "none", cursor: "pointer", color: TOKENS.urgent, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.close size={16} color={TOKENS.urgent} /></button>
           </div>)}
           <button onClick={addLine} style={{
             marginTop: 4, padding: "8px 12px", background: "transparent",

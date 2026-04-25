@@ -18,6 +18,7 @@
 //      result for human confirmation → convert to proposal.
 import { useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { Ic } from "../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD } from "./mobileTokens";
 
 export default function UploadContractModal({ currentUser, prefillClient, onClose, onUploaded }) {
@@ -128,7 +129,7 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
             <div style={{ fontSize: 11, fontWeight: 700, color: TOKENS.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>For client</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: INK, marginTop: 2 }}>{prefillClient.name}</div>
           </div>
-          <span style={{ fontSize: 12, color: ACCENT, fontWeight: 700 }}>✓ pre-bound</span>
+          <span style={{ fontSize: 12, color: ACCENT, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.check size={12} color={ACCENT} /> pre-bound</span>
         </div>}
 
         <div style={{ padding: "10px 14px", background: SURFACE.alt, borderRadius: 10, fontSize: 13, color: TOKENS.muted, lineHeight: 1.5 }}>
@@ -140,11 +141,11 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
         {/* Photo picker buttons */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={() => cameraInputRef.current?.click()} disabled={uploading} style={pickerBtnStyle(true)}>
-            <span style={{ fontSize: 28 }}>📷</span>
+            <Ic.camera size={28} color={ACCENT} />
             <span>Camera</span>
           </button>
           <button onClick={() => galleryInputRef.current?.click()} disabled={uploading} style={pickerBtnStyle(false)}>
-            <span style={{ fontSize: 28 }}>🖼</span>
+            <Ic.image size={28} />
             <span>Gallery</span>
           </button>
         </div>
@@ -174,9 +175,10 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
               position: "absolute", top: 4, right: 4,
               width: 28, height: 28, borderRadius: 14,
               background: "rgba(0,0,0,0.6)", color: "#FFFFFF",
-              border: "none", cursor: "pointer", fontSize: 14, fontWeight: 800,
+              border: "none", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
-            }}>×</button>
+              padding: 0,
+            }} aria-label="Remove photo"><Ic.close size={14} color="#FFFFFF" /></button>
             <div style={{
               position: "absolute", left: 4, bottom: 4,
               padding: "2px 6px", borderRadius: 4,
@@ -215,7 +217,7 @@ export default function UploadContractModal({ currentUser, prefillClient, onClos
         </div>}
 
         {progress?.success && <div style={{ padding: "12px 14px", background: TOKENS.good + "12", border: `1px solid ${TOKENS.good}30`, borderRadius: 10, color: TOKENS.good, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>✓</span>
+          <Ic.check size={18} color={TOKENS.good} />
           <span>Sent to parser. You'll see the draft on Home in ~30s.</span>
         </div>}
 

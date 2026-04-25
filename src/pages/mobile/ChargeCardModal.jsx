@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements, AddressElement } from "@stripe/react-stripe-js";
 import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "../../lib/supabase";
+import { Ic } from "../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, fmtMoneyFull } from "./mobileTokens";
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
@@ -168,8 +169,7 @@ export default function ChargeCardModal({ client, sale, onClose, onSuccess }) {
           width: 64, height: 64, borderRadius: 32, margin: "0 auto 16px",
           background: TOKENS.good, color: "#FFFFFF",
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 36, fontWeight: 800,
-        }}>✓</div>
+        }}><Ic.check size={36} color="#FFFFFF" /></div>
         <div style={{ fontSize: 22, fontWeight: 800, color: INK, marginBottom: 6 }}>{fmtMoneyFull(amountCents / 100)} charged</div>
         <div style={{ fontSize: 14, color: TOKENS.muted, lineHeight: 1.5, marginBottom: 24 }}>
           Receipt is on its way to {client.billing_email || (client.contacts?.[0]?.email) || "the customer"}.

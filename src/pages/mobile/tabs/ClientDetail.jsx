@@ -9,6 +9,7 @@
 // Read directly from the existing tables — no Spec 055 view layer.
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import MobileHeader from "../MobileHeader";
+import { Ic } from "../../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtRelative, fmtMoneyFull, todayISO } from "../mobileTokens";
 import { supabase } from "../../../lib/supabase";
 
@@ -142,11 +143,11 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
 
       {/* Action row — 5 thumb-reach buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
-        <ActionButton href={callHref} label="Call" icon="📞" disabled={!callHref} />
-        <ActionButton href={emailHref} label="Email" icon="✉️" disabled={!emailHref} />
-        <ActionButton onClick={() => { setChargeSale(null); setChargeOpen(true); }} label="Charge" icon="💳" highlight />
-        <ActionButton onClick={() => alert("Use the + button at the bottom of the screen to log a call/note.")} label="Log" icon="📝" />
-        <ActionButton href={navHref} target="_blank" label="Nav" icon="🧭" disabled={!navHref} />
+        <ActionButton href={callHref} label="Call" Icon={Ic.phone} disabled={!callHref} />
+        <ActionButton href={emailHref} label="Email" Icon={Ic.mail} disabled={!emailHref} />
+        <ActionButton onClick={() => { setChargeSale(null); setChargeOpen(true); }} label="Charge" Icon={Ic.card} highlight />
+        <ActionButton onClick={() => alert("Use the + button at the bottom of the screen to log a call/note.")} label="Log" Icon={Ic.edit} />
+        <ActionButton href={navHref} target="_blank" label="Nav" Icon={Ic.pin} disabled={!navHref} />
       </div>
 
       {/* Saved card pill (if any) */}
@@ -213,16 +214,16 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
             border: "none", borderRadius: 12,
             fontSize: 14, fontWeight: 700, cursor: "pointer",
             fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>📄 Upload contract</button>
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}><Ic.up size={18} color="#FFFFFF" /><span>Upload contract</span></button>
           <button onClick={() => setNewOppOpen(true)} style={{
             padding: "14px 12px", minHeight: 52,
             background: GOLD, color: "#FFFFFF",
             border: "none", borderRadius: 12,
             fontSize: 14, fontWeight: 700, cursor: "pointer",
             fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>＋ Opportunity</button>
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}><Ic.plus size={18} color="#FFFFFF" /><span>Opportunity</span></button>
         </div>
 
         <a href={`/?desktop=1#client=${clientId}`} target="_blank" rel="noreferrer" style={{
@@ -230,7 +231,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
           color: ACCENT, display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>Build a proposal on desktop</div>
-          <span style={{ fontSize: 18, fontWeight: 600 }}>↗</span>
+          <Ic.external size={18} color={ACCENT} />
         </a>
       </>}
 
@@ -304,7 +305,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
               fontWeight: 700, fontSize: 14, textDecoration: "none",
             }}>Build one on desktop ↗</a>
           </div>
-        ) : <Section title={`Proposals (${myProposals.length})`} action={{ label: "+ New (desktop)", onClick: () => window.open(`/?desktop=1#client=${clientId}`, "_blank") }}>
+        ) : <Section title={`Proposals (${myProposals.length})`} action={{ label: "New (desktop)", onClick: () => window.open(`/?desktop=1#client=${clientId}`, "_blank") }}>
           {myProposals.map(p => <ProposalCard
             key={p.id}
             proposal={p}
@@ -360,7 +361,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
 }
 
 // ── Bits ──────────────────────────────────────────────────────
-function ActionButton({ href, target, onClick, label, icon, disabled, highlight }) {
+function ActionButton({ href, target, onClick, label, Icon, disabled, highlight }) {
   const baseStyle = {
     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
     gap: 4, padding: "10px 4px", minHeight: 64,
@@ -372,14 +373,15 @@ function ActionButton({ href, target, onClick, label, icon, disabled, highlight 
     opacity: disabled ? 0.5 : 1,
     fontFamily: "inherit",
   };
+  const iconNode = Icon ? <Icon size={22} /> : null;
   if (disabled || !href) {
     return <button onClick={disabled ? undefined : onClick} disabled={disabled} style={baseStyle}>
-      <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
+      {iconNode}
       <span>{label}</span>
     </button>;
   }
   return <a href={href} target={target} style={baseStyle}>
-    <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
+    {iconNode}
     <span>{label}</span>
   </a>;
 }
@@ -416,7 +418,8 @@ function OppCard({ sale, onCharge }) {
       border: `1px solid ${ACCENT}40`, borderRadius: 8,
       fontSize: 13, fontWeight: 600, cursor: "pointer",
       fontFamily: "inherit",
-    }}>Charge {fmtMoneyFull(sale.amount || 0)} 💳</button>}
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+    }}><Ic.card size={14} color={ACCENT} /><span>Charge {fmtMoneyFull(sale.amount || 0)}</span></button>}
   </div>;
 }
 
@@ -515,11 +518,12 @@ function ProposalCard({ proposal, sourceImport, convertProposal, onConverted }) 
         border: "none", borderRadius: 8,
         fontSize: 13, fontWeight: 700, cursor: converting ? "not-allowed" : "pointer",
         fontFamily: "inherit",
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
       }}
-    >{converting ? "Creating contract…" : "✓ Mark Signed → Convert to Contract"}</button>}
+    >{converting ? <span>Creating contract…</span> : <><Ic.checkAll size={16} color="#FFFFFF" /><span>Mark Signed → Convert to Contract</span></>}</button>}
 
-    {status === "Signed & Converted" && <div style={{ marginTop: 8, padding: "6px 10px", background: TOKENS.good + "10", borderRadius: 6, fontSize: 12, color: TOKENS.good, fontWeight: 600, textAlign: "center" }}>
-      ✓ Contract created
+    {status === "Signed & Converted" && <div style={{ marginTop: 8, padding: "6px 10px", background: TOKENS.good + "10", borderRadius: 6, fontSize: 12, color: TOKENS.good, fontWeight: 600, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      <Ic.check size={14} color={TOKENS.good} /><span>Contract created</span>
     </div>}
   </div>;
 }

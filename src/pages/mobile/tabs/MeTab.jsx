@@ -6,6 +6,7 @@
 // triple-tap easter egg.
 import { useMemo } from "react";
 import MobileHeader from "../MobileHeader";
+import { Ic } from "../../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtMoneyFull } from "../mobileTokens";
 
 export default function MeTab({ appData, currentUser, signOut, navTo }) {
@@ -87,7 +88,7 @@ export default function MeTab({ appData, currentUser, signOut, navTo }) {
           <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>Continue on desktop</div>
           <div style={{ fontSize: 12, color: TOKENS.muted, marginTop: 2 }}>Open MyDash full version in a new tab</div>
         </div>
-        <span style={{ fontSize: 18, fontWeight: 600 }}>↗</span>
+        <Ic.external size={18} color={ACCENT} />
       </a>
 
       {/* Sign out */}

@@ -11,13 +11,14 @@
 // validates the IA.
 import { useEffect, useRef, useState } from "react";
 import { useAppData } from "../../hooks/useAppData";
+import { Ic } from "../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, fmtRelative, todayISO } from "./mobileTokens";
 
 const TYPES = [
-  { value: "Call",    icon: "📞", color: ACCENT },
-  { value: "Email",   icon: "✉️", color: ACCENT },
-  { value: "Meeting", icon: "🗓", color: GOLD },
-  { value: "Note",    icon: "📝", color: TOKENS.muted },
+  { value: "Call",    Icon: Ic.phone, color: ACCENT },
+  { value: "Email",   Icon: Ic.mail,  color: ACCENT },
+  { value: "Meeting", Icon: Ic.cal,   color: GOLD   },
+  { value: "Note",    Icon: Ic.edit,  color: TOKENS.muted },
 ];
 
 export default function CaptureModal({ onClose }) {
@@ -106,7 +107,7 @@ export default function CaptureModal({ onClose }) {
             borderRadius: 10,
             fontSize: 12, fontWeight: 600, cursor: "pointer",
           }}>
-            <span style={{ fontSize: 22, lineHeight: 1 }}>{t.icon}</span>
+            <t.Icon size={22} />
             <span>{t.value}</span>
           </button>;
         })}

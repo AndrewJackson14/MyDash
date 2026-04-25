@@ -27,6 +27,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useAppData } from "../../hooks/useAppData";
 import { useJurisdiction } from "../../hooks/useJurisdiction";
+import { Ic } from "../../components/ui";
 import { TOKENS, INK, SURFACE, ACCENT } from "./mobileTokens";
 
 const HomeTab = lazy(() => import("./tabs/HomeTab"));
@@ -184,7 +185,7 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
 
 // ── Bottom tab bar ────────────────────────────────────────────
 function TabBar({ active, onTab, onCapture }) {
-  const item = (key, label, icon) => {
+  const item = (key, label, IconComp) => {
     const isActive = active === key;
     return <button onClick={() => onTab(key)} style={{
       flex: 1, display: "flex", flexDirection: "column",
@@ -194,7 +195,7 @@ function TabBar({ active, onTab, onCapture }) {
       color: isActive ? ACCENT : TOKENS.muted,
       fontFamily: "inherit",
     }}>
-      <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
+      <IconComp size={22} />
       <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>{label}</span>
     </button>;
   };
@@ -211,8 +212,8 @@ function TabBar({ active, onTab, onCapture }) {
       display: "flex", alignItems: "center",
       position: "relative",
     }}>
-      {item("home", "Home", "△")}
-      {item("pipeline", "Pipeline", "↳")}
+      {item("home", "Home", Ic.dash)}
+      {item("pipeline", "Pipeline", Ic.lineGraph)}
       <div style={{ flex: 1, position: "relative" }}>
         <button onClick={onCapture} aria-label="Capture interaction" style={{
           position: "absolute", left: "50%", top: -22,
@@ -221,13 +222,12 @@ function TabBar({ active, onTab, onCapture }) {
           background: ACCENT, color: "#FFFFFF",
           border: `3px solid ${SURFACE.elevated}`,
           boxShadow: "0 4px 12px rgba(12,68,124,0.35)",
-          fontSize: 28, fontWeight: 800, lineHeight: 1,
           cursor: "pointer", padding: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-        }}>+</button>
+        }}><Ic.plus size={28} /></button>
       </div>
-      {item("clients", "Clients", "◌")}
-      {item("me", "Me", "▤")}
+      {item("clients", "Clients", Ic.users)}
+      {item("me", "Me", Ic.user)}
     </div>
   </div>;
 }

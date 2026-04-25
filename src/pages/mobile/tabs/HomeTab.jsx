@@ -14,6 +14,7 @@
 //   - Recent activity (last 5 events from activityLog if available)
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import MobileHeader from "../MobileHeader";
+import { Ic } from "../../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtMoney, fmtMoneyFull, fmtRelative, todayISO } from "../mobileTokens";
 import { supabase } from "../../../lib/supabase";
 
@@ -160,7 +161,7 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
           textAlign: "left", cursor: "pointer", fontFamily: "inherit",
         }}
       >
-        <span style={{ fontSize: 22, lineHeight: 1 }}>📄</span>
+        <span style={{ color: GOLD, display: "flex" }}><Ic.file size={22} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>
             {importsExtracted.length} contract{importsExtracted.length === 1 ? "" : "s"} ready to review
@@ -194,7 +195,7 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
           fontSize: 14, fontWeight: 700, cursor: "pointer",
           fontFamily: "inherit",
         }}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>📄</span>
+          <Ic.up size={20} color="#FFFFFF" />
           <span>Upload contract</span>
         </button>
         <button onClick={() => navTo("/mobile/pipeline")} style={{
@@ -205,7 +206,7 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
           fontSize: 14, fontWeight: 700, cursor: "pointer",
           fontFamily: "inherit",
         }}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>↳</span>
+          <Ic.lineGraph size={20} />
           <span>Open pipeline</span>
         </button>
       </div>
@@ -356,6 +357,15 @@ function DotIcon({ color }) {
 }
 
 function ActionIcon({ type }) {
-  const map = { call: "📞", email: "✉️", meeting: "🗓", proposal: "📄", follow_up: "↻" };
-  return <span style={{ fontSize: 18, lineHeight: 1, width: 24, textAlign: "center" }}>{map[type] || "↻"}</span>;
+  const map = {
+    call:      Ic.phone,
+    email:     Ic.mail,
+    meeting:   Ic.cal,
+    proposal:  Ic.file,
+    follow_up: Ic.refresh,
+  };
+  const Comp = map[type] || Ic.refresh;
+  return <span style={{ width: 24, display: "flex", alignItems: "center", justifyContent: "center", color: TOKENS.muted }}>
+    <Comp size={18} />
+  </span>;
 }
