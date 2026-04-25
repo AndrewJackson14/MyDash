@@ -7,7 +7,7 @@
 // (with iOS card-scan via the system keyboard).
 //
 // Read directly from the existing tables — no Spec 055 view layer.
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import MobileHeader from "../MobileHeader";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtRelative, fmtMoneyFull, todayISO } from "../mobileTokens";
 import { supabase } from "../../../lib/supabase";
@@ -56,8 +56,30 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
   const totalSpend = closedSales.reduce((sum, s) => sum + (s.amount || 0), 0);
   const lastSale = closedSales.sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
   const myContracts = useMemo(() => contracts.filter(c => c.clientId === clientId), [contracts, clientId]);
-  const myProposals = useMemo(() => proposals.filter(p => p.clientId === clientId)
-    .sort((a, b) => (b.sentAt || b.date || "").localeCompare(a.sentAt || a.date || "")), [proposals, clientId]);
+  const myProposals = useMemo(() => proposals.filter(p => p.clientId === clientId || p.client_id === clientId)
+    .sort((a, b) => (b.sent_at || b.sentAt || b.date || "").localeCompare(a.sent_at || a.sentAt || a.date || "")), [proposals, clientId]);
+
+  // Reverse-link contract_imports → proposal so the proposal card can
+  // surface the photos that produced it. Indexed in DB; cheap query.
+  const [importsByProposalId, setImportsByProposalId] = useState({});
+  useEffect(() => {
+    if (myProposals.length === 0) { setImportsByProposalId({}); return; }
+    let cancelled = false;
+    (async () => {
+      const ids = myProposals.map(p => p.id);
+      const { data } = await supabase
+        .from("contract_imports")
+        .select("id, proposal_id, storage_paths")
+        .in("proposal_id", ids);
+      if (cancelled) return;
+      const map = {};
+      for (const r of (data || [])) {
+        if (r.proposal_id) map[r.proposal_id] = r;
+      }
+      setImportsByProposalId(map);
+    })();
+    return () => { cancelled = true; };
+  }, [myProposals]);
   const myInvoices = useMemo(() => invoices.filter(i => i.client_id === clientId || i.clientId === clientId), [invoices, clientId]);
   const myPayments = useMemo(() => payments.filter(p => p.client_id === clientId), [payments, clientId]);
 
@@ -283,7 +305,18 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
             }}>Build one on desktop ↗</a>
           </div>
         ) : <Section title={`Proposals (${myProposals.length})`} action={{ label: "+ New (desktop)", onClick: () => window.open(`/?desktop=1#client=${clientId}`, "_blank") }}>
-          {myProposals.map(p => <ProposalCard key={p.id} proposal={p} />)}
+          {myProposals.map(p => <ProposalCard
+            key={p.id}
+            proposal={p}
+            sourceImport={importsByProposalId[p.id]}
+            convertProposal={appData?.convertProposal}
+            onConverted={(result) => {
+              // Optimistic local flip: status pill updates without a refetch.
+              if (typeof appData?.setProposals === "function") {
+                appData.setProposals(ps => (ps || []).map(x => x.id === p.id ? { ...x, status: "Signed & Converted", converted_at: new Date().toISOString() } : x));
+              }
+            }}
+          />)}
         </Section>}
       </>}
 
@@ -398,12 +431,51 @@ function CommCard({ comm }) {
   </div>;
 }
 
-function ProposalCard({ proposal }) {
+function ProposalCard({ proposal, sourceImport, convertProposal, onConverted }) {
   const status = proposal.status || "Draft";
   const statusColor = status === "Signed & Converted" ? TOKENS.good
     : status === "Sent" ? ACCENT
     : status === "Cancelled" ? TOKENS.urgent
     : TOKENS.muted;
+  const sentAt = proposal.sent_at || proposal.sentAt;
+  const [photos, setPhotos] = useState([]);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState(null);
+
+  // Lazily resolve signed URLs for the source contract photos when
+  // the proposal card has an attached import. ~10min TTL is plenty —
+  // Christie reviews and either converts or moves on quickly.
+  useEffect(() => {
+    if (!sourceImport?.storage_paths?.length) return;
+    let cancelled = false;
+    (async () => {
+      const urls = [];
+      for (const path of sourceImport.storage_paths) {
+        const { data } = await supabase.storage.from("contract-imports").createSignedUrl(path, 600);
+        if (data?.signedUrl) urls.push(data.signedUrl);
+      }
+      if (!cancelled) setPhotos(urls);
+    })();
+    return () => { cancelled = true; };
+  }, [sourceImport]);
+
+  const onConvert = async () => {
+    if (!convertProposal || converting) return;
+    if (!confirm("Mark this proposal as signed and create the contract? This will generate sales orders and the first invoice.")) return;
+    setConverting(true);
+    setConvertError(null);
+    try {
+      const result = await convertProposal(proposal.id);
+      if (!result?.success) throw new Error(result?.error || "Conversion failed");
+      onConverted?.(result);
+    } catch (e) {
+      setConvertError(String(e?.message ?? e));
+    } finally {
+      setConverting(false);
+    }
+  };
+
   return <div style={{ ...CARD, padding: "10px 14px" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: INK, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{proposal.name || "Proposal"}</div>
@@ -411,7 +483,43 @@ function ProposalCard({ proposal }) {
     </div>
     <div style={{ fontSize: 12, color: TOKENS.muted, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
       <span style={{ color: statusColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, fontSize: 10 }}>{status}</span>
-      <span>{proposal.sentAt ? `Sent ${fmtRelative(proposal.sentAt)}` : (proposal.date || "")}</span>
+      <span>{sentAt ? `Sent ${fmtRelative(sentAt)}` : (proposal.date || "")}</span>
     </div>
+
+    {/* Source contract photos — only when this proposal came from a paper-contract import */}
+    {photos.length > 0 && <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: TOKENS.muted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>Source contract ({photos.length})</div>
+      <div style={{ position: "relative", aspectRatio: "4 / 3", background: SURFACE.alt, borderRadius: 8, overflow: "hidden" }}>
+        <img src={photos[photoIdx]} alt={`Source ${photoIdx + 1}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        {photos.length > 1 && <div style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4, padding: "3px 8px", borderRadius: 999, background: "rgba(0,0,0,0.55)" }}>
+          {photos.map((_, i) => <button key={i} onClick={(e) => { e.stopPropagation(); setPhotoIdx(i); }} style={{
+            width: 6, height: 6, borderRadius: 3,
+            background: i === photoIdx ? "#FFFFFF" : "rgba(255,255,255,0.45)",
+            border: "none", cursor: "pointer", padding: 0,
+          }} />)}
+        </div>}
+      </div>
+    </div>}
+
+    {convertError && <div style={{ marginTop: 8, padding: "8px 10px", background: TOKENS.urgent + "12", borderRadius: 6, color: TOKENS.urgent, fontSize: 12 }}>{convertError}</div>}
+
+    {/* Mark Signed → Convert to Contract */}
+    {status === "Sent" && convertProposal && <button
+      onClick={onConvert}
+      disabled={converting}
+      style={{
+        marginTop: 10, width: "100%",
+        padding: "10px 14px", minHeight: 40,
+        background: converting ? TOKENS.rule : TOKENS.good,
+        color: converting ? TOKENS.muted : "#FFFFFF",
+        border: "none", borderRadius: 8,
+        fontSize: 13, fontWeight: 700, cursor: converting ? "not-allowed" : "pointer",
+        fontFamily: "inherit",
+      }}
+    >{converting ? "Creating contract…" : "✓ Mark Signed → Convert to Contract"}</button>}
+
+    {status === "Signed & Converted" && <div style={{ marginTop: 8, padding: "6px 10px", background: TOKENS.good + "10", borderRadius: 6, fontSize: 12, color: TOKENS.good, fontWeight: 600, textAlign: "center" }}>
+      ✓ Contract created
+    </div>}
   </div>;
 }

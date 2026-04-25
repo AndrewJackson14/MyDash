@@ -131,41 +131,67 @@ export default function ContractReviewModal({ importRow, currentUser, appData, o
         clientId = newClient.id;
       }
 
-      // 2) Insert a sale (Discovery → Sent on the proposal step).
-      const lineDesc = lineItems.map(li => `${li.ad_size || "?"} · $${Number(li.rate || 0).toLocaleString()}${li.section ? ` (${li.section})` : ""}`).join("; ");
-      const { data: newSale, error: sErr } = await supabase
-        .from("sales")
+      // 2) Insert a PROPOSAL row (status='Sent' since the paper contract
+      // is the signed proposal). The "Mark Signed → Convert to
+      // Contract" button on the mobile Proposals tab will fire the
+      // existing convert_proposal_to_contract RPC chain when she's
+      // ready, which mints the contract + sales orders + ad project +
+      // first invoice in one shot.
+      const proposalName = `Imported · ${clientName.trim()} · ${todayISO()}`;
+      const { data: newProposal, error: pErr } = await supabase
+        .from("proposals")
         .insert({
-          clientId,
-          publication: pubId || null,
-          name: `Contract import — ${clientName.trim()}`,
-          amount: computedTotal,
-          status: "Closed",                       // signed paper contract = closed
+          client_id: clientId,
+          name: proposalName,
+          status: "Sent",
+          total: computedTotal,
           date: todayISO(),
-          oppNotes: [
-            { id: "n" + Date.now(), text: `Imported from paper contract. ${lineDesc}`, date: todayISO(), source: "mobile_contract_import" },
-            ...(reviewNotes.trim() ? [{ id: "n" + (Date.now() + 1), text: reviewNotes.trim(), date: todayISO(), source: "review" }] : []),
-          ],
+          sent_at: new Date().toISOString(),
+          assigned_to: currentUser?.id || null,
+          created_by: currentUser?.id || null,
+          art_source: draft.line_items?.[0]?.design || null,
+          notes: [
+            `Imported from paper contract (${importRow.id}).`,
+            reviewNotes.trim() ? `Reviewer: ${reviewNotes.trim()}` : null,
+            draft.notes ? `Form notes: ${draft.notes}` : null,
+            draft.payment_method ? `Payment method: ${draft.payment_method}` : null,
+            draft.check_number ? `Check #: ${draft.check_number}` : null,
+            paidAmount ? `Paid: $${paidAmount}` : null,
+          ].filter(Boolean).join("\n"),
         })
         .select()
         .single();
-      if (sErr) throw sErr;
+      if (pErr) throw pErr;
 
-      // 3) Mark the import as converted, link to sale.
+      // 3) Insert proposal_lines from the extracted/edited line items.
+      if (lineItems.length > 0) {
+        const linesPayload = lineItems.map((li, idx) => ({
+          proposal_id: newProposal.id,
+          publication_id: pubId || null,
+          ad_size: li.ad_size || "—",
+          price: Number(li.rate) || 0,
+          sort_order: idx,
+          notes: [li.section, li.category].filter(Boolean).join(" / ") || null,
+        }));
+        const { error: lErr } = await supabase.from("proposal_lines").insert(linesPayload);
+        if (lErr) throw lErr;
+      }
+
+      // 4) Link the import to the proposal + mark converted.
       await supabase.from("contract_imports").update({
         status: "converted",
         client_id: clientId,
-        proposal_id: newSale.id,
+        proposal_id: newProposal.id,
         reviewed_by: currentUser?.id || null,
         reviewed_at: new Date().toISOString(),
       }).eq("id", importRow.id);
 
-      // Optimistic local refresh
-      if (typeof appData?.setSales === "function") {
-        appData.setSales(sl => [...sl, newSale]);
+      // 5) Optimistic local refresh.
+      if (typeof appData?.setProposals === "function") {
+        appData.setProposals(ps => [...(ps || []), newProposal]);
       }
 
-      onConverted?.({ saleId: newSale.id, clientId });
+      onConverted?.({ proposalId: newProposal.id, clientId });
       onClose();
     } catch (e) {
       setError(String(e?.message ?? e));
