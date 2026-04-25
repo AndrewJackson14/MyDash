@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent for the contract-importer.
+  Install:
+    cp station.wednesday.contract-importer.plist \
+       ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/station.wednesday.contract-importer.plist
+
+  Reload after edits:
+    launchctl unload ~/Library/LaunchAgents/station.wednesday.contract-importer.plist
+    launchctl load   ~/Library/LaunchAgents/station.wednesday.contract-importer.plist
+
+  Tail logs:
+    tail -f ~/wednesday-station/logs/contract-importer.{out,err}.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>station.wednesday.contract-importer</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/wednesdayagentic/wednesday-station/jobs/contract-importer/index.mjs</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/wednesdayagentic/wednesday-station/jobs/contract-importer</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/wednesdayagentic/wednesday-station/logs/contract-importer.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/wednesdayagentic/wednesday-station/logs/contract-importer.err.log</string>
+</dict>
+</plist>

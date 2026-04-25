@@ -1,0 +1,18 @@
+{
+  "name": "contract-importer",
+  "version": "1.0.0",
+  "description": "Wednesday Agent Station LaunchAgent worker — turns mobile-uploaded contract photos into proposal drafts via Gemini Vision.",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "once": "node index.mjs --once"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@google/generative-ai": "^0.21.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

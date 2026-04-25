@@ -7,12 +7,18 @@
 // Sections:
 //   - Greeting + date
 //   - Revenue strip (MTD closed · weighted pipeline · next payout)
+//   - Quick actions (Upload contract, New opportunity)
+//   - In review (contract imports awaiting review)
 //   - Urgent (renewals expiring within 30d, no proposal yet)
 //   - Today (sales whose nextActionDate ≤ today, assigned to me)
 //   - Recent activity (last 5 events from activityLog if available)
-import { useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import MobileHeader from "../MobileHeader";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtMoney, fmtMoneyFull, fmtRelative, todayISO } from "../mobileTokens";
+import { supabase } from "../../../lib/supabase";
+
+const UploadContractModal = lazy(() => import("../UploadContractModal"));
+const ContractReviewModal = lazy(() => import("../ContractReviewModal"));
 
 export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
   const today = todayISO();
@@ -23,6 +29,41 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
 
   const myId = currentUser?.id;
   const myFirstName = currentUser?.name?.split(" ")[0] || "there";
+
+  // ── Contract imports ─────────────────────────────────────
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [reviewImport, setReviewImport] = useState(null);
+  const [imports, setImports] = useState([]);
+  useEffect(() => {
+    if (!myId) return;
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from("contract_imports")
+        .select("id, status, storage_paths, extracted_json, error_message, created_at, updated_at, uploaded_by, notes")
+        .in("status", ["pending", "processing", "extracted", "failed"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (!cancelled) setImports(data || []);
+    };
+    load();
+    // Realtime subscription so the row flips from pending → extracted
+    // on its own once the Mac Mini worker finishes parsing.
+    const channel = supabase
+      .channel(`contract_imports_${myId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "contract_imports" }, load)
+      .subscribe();
+    const interval = setInterval(load, 30000);  // belt-and-suspenders 30s poll
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [myId]);
+
+  const importsExtracted = imports.filter(i => i.status === "extracted");
+  const importsPending = imports.filter(i => i.status === "pending" || i.status === "processing");
+  const importsFailed = imports.filter(i => i.status === "failed");
 
   // ── Revenue strip ────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -103,6 +144,70 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
         <KpiCard label="Pending $" primary={fmtMoney(kpis.pendingPayout)} sub="commission" />
       </div>
 
+      {/* Quick actions — Upload Contract + jump-into-pipeline */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <button onClick={() => setUploadOpen(true)} style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          padding: "14px 12px", minHeight: 56,
+          background: ACCENT, color: "#FFFFFF",
+          border: "none", borderRadius: 12,
+          fontSize: 14, fontWeight: 700, cursor: "pointer",
+          fontFamily: "inherit",
+        }}>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>📄</span>
+          <span>Upload contract</span>
+        </button>
+        <button onClick={() => navTo("/mobile/pipeline")} style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          padding: "14px 12px", minHeight: 56,
+          background: SURFACE.elevated, color: INK,
+          border: `1px solid ${TOKENS.rule}`, borderRadius: 12,
+          fontSize: 14, fontWeight: 700, cursor: "pointer",
+          fontFamily: "inherit",
+        }}>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>↳</span>
+          <span>Open pipeline</span>
+        </button>
+      </div>
+
+      {/* In review — extracted contract drafts awaiting confirmation */}
+      {importsExtracted.length > 0 && <Section title="In review" count={importsExtracted.length}>
+        {importsExtracted.map(imp => {
+          const ej = imp.extracted_json || {};
+          const cn = ej.client?.name || "Unknown client";
+          const total = ej.total_due || (Array.isArray(ej.line_items) ? ej.line_items.reduce((s, li) => s + (Number(li.rate) || 0), 0) : 0);
+          return <Row
+            key={imp.id}
+            left={<DotIcon color={GOLD} />}
+            title={cn}
+            sub={`${(imp.storage_paths || []).length} photo${(imp.storage_paths || []).length === 1 ? "" : "s"}${total ? ` · ${fmtMoney(total)}` : ""} · ${fmtRelative(imp.updated_at)}`}
+            highlight
+            onTap={() => setReviewImport(imp)}
+          />;
+        })}
+      </Section>}
+
+      {/* Pending parser */}
+      {importsPending.length > 0 && <Section title="Parser working…" count={importsPending.length}>
+        {importsPending.map(imp => <div key={imp.id} style={{ ...CARD, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, opacity: 0.7 }}>
+          <DotIcon color={ACCENT} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>{(imp.storage_paths || []).length} photo{(imp.storage_paths || []).length === 1 ? "" : "s"} uploaded</div>
+            <div style={{ fontSize: 11, color: TOKENS.muted, marginTop: 2 }}>
+              {imp.status === "processing" ? "Parsing now…" : "Queued — waiting for the parser"} · {fmtRelative(imp.created_at)}
+            </div>
+          </div>
+        </div>)}
+      </Section>}
+
+      {/* Failed imports */}
+      {importsFailed.length > 0 && <Section title="Parser problems" count={importsFailed.length}>
+        {importsFailed.map(imp => <div key={imp.id} style={{ ...CARD, padding: "10px 14px", borderLeft: `3px solid ${TOKENS.urgent}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: TOKENS.urgent }}>Couldn't parse {(imp.storage_paths || []).length} photo{(imp.storage_paths || []).length === 1 ? "" : "s"}</div>
+          <div style={{ fontSize: 12, color: TOKENS.muted, marginTop: 2 }}>{imp.error_message || "Unknown error"}</div>
+        </div>)}
+      </Section>}
+
       {/* Urgent */}
       {urgent.length > 0 && <Section title="Urgent" count={urgent.length} action={{ label: "All renewals", onClick: () => navTo("/mobile/clients?filter=renewal") }}>
         {urgent.map(u => <Row
@@ -142,6 +247,24 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
       </Section>}
 
     </div>
+
+    {uploadOpen && <Suspense fallback={null}>
+      <UploadContractModal
+        currentUser={currentUser}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => { /* realtime sub picks the new row up automatically */ }}
+      />
+    </Suspense>}
+
+    {reviewImport && <Suspense fallback={null}>
+      <ContractReviewModal
+        importRow={reviewImport}
+        currentUser={currentUser}
+        appData={appData}
+        onClose={() => setReviewImport(null)}
+        onConverted={() => setReviewImport(null)}
+      />
+    </Suspense>}
   </>;
 }
 
