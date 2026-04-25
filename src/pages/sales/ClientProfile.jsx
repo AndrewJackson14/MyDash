@@ -10,11 +10,31 @@ import { useAppData } from "../../hooks/useAppData";
 import { supabase } from "../../lib/supabase";
 import { fmtTimeRelative } from "../../lib/formatters";
 
+// Shared style for the four header action buttons (Call · Email ·
+// Proposal · Meeting). Tinted by the verb's accent color so the
+// row reads as four distinct surfaces, not a quartet of grey boxes.
+function actionBtnStyle(enabled, accent) {
+  return {
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    gap: 6, padding: "12px 4px", minHeight: 64,
+    background: enabled ? `${accent}10` : Z.sa,
+    color: enabled ? accent : Z.td,
+    border: `1px solid ${enabled ? `${accent}40` : Z.bd}`,
+    borderRadius: Ri,
+    fontSize: FS.xs, fontWeight: FW.heavy,
+    fontFamily: COND, letterSpacing: 0.5, textTransform: "uppercase",
+    textDecoration: "none",
+    cursor: enabled ? "pointer" : "not-allowed",
+    opacity: enabled ? 1 : 0.5,
+  };
+}
+
 const ClientProfile = ({
   clientId, clients, setClients, sales, pubs, issues, proposals, contracts,
   invoices, payments, team,
   commForm, setCommForm, onBack, onNavTo, onNavigate, onOpenProposal, onSetViewPropId,
-  onOpenEditClient, bus, updateClientContact,
+  onOpenEditClient, onOpenEmail, onOpenMeeting,
+  bus, updateClientContact,
 }) => {
   const nav = useNav(onNavigate);
   const appData = useAppData();
@@ -334,6 +354,59 @@ const ClientProfile = ({
       </div>
       <Btn sm onClick={() => { if (onOpenProposal) onOpenProposal(vc.id); }}>Create Renewal Proposal</Btn>
     </div>}
+
+    {/* ── ACTION BAR — Tier 2 CP-3. Four most-frequent verbs in
+         thumb (or click) reach instead of scattered down the page:
+         Call, Email, Proposal, Meeting. All four pre-fill the right
+         modal/link and write to client.comms / activityLog as
+         appropriate. Hidden when the client has no primary contact
+         on file (Call/Email rely on it). */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+      <a
+        href={primaryContact.phone ? `tel:${primaryContact.phone.replace(/[^0-9+]/g, "")}` : undefined}
+        onClick={(e) => {
+          if (!primaryContact.phone) { e.preventDefault(); return; }
+          // Drop a Call comm immediately so the timeline reflects the
+          // attempt even if the rep doesn't loop back to log a result.
+          setClients(cl => cl.map(c => c.id === vc.id ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Call", author: "Account Manager", date: today, note: `Tapped to call ${primaryContact.phone}` }] } : c));
+        }}
+        style={actionBtnStyle(primaryContact.phone, Z.ac)}
+        title={primaryContact.phone || "No phone on file"}
+      >
+        <span style={{ fontSize: 20, lineHeight: 1 }}>📞</span>
+        <span>Call</span>
+      </a>
+      <button
+        type="button"
+        onClick={() => onOpenEmail?.(vc)}
+        disabled={!primaryContact.email || !onOpenEmail}
+        style={actionBtnStyle(primaryContact.email && onOpenEmail, Z.ac)}
+        title={primaryContact.email || "No email on file"}
+      >
+        <span style={{ fontSize: 20, lineHeight: 1 }}>✉️</span>
+        <span>Email</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onOpenProposal?.(vc.id)}
+        disabled={!onOpenProposal}
+        style={actionBtnStyle(!!onOpenProposal, Z.go)}
+        title="Build a proposal pre-filled for this client"
+      >
+        <span style={{ fontSize: 20, lineHeight: 1 }}>📄</span>
+        <span>Proposal</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onOpenMeeting?.(vc)}
+        disabled={!onOpenMeeting}
+        style={actionBtnStyle(!!onOpenMeeting, Z.pu)}
+        title="Schedule a meeting with this client"
+      >
+        <span style={{ fontSize: 20, lineHeight: 1 }}>📅</span>
+        <span>Meeting</span>
+      </button>
+    </div>
 
     {/* ── PRIMARY CONTACT — surfaces the main contact's full details
          (name, role, email, phone, notes) at the top so a rep can reach

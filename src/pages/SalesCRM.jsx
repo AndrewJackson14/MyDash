@@ -964,7 +964,41 @@ const SalesCRM = (props) => {
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
     {tab === "Clients" && !viewClientId && clientView === "signals" && <Suspense fallback={<SubFallback />}><ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} /></Suspense>}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
-    {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><ClientProfile clientId={viewClientId} clients={clients} setClients={setClients} sales={sales} pubs={pubs} issues={issues} proposals={proposals} contracts={contracts} invoices={invoices} payments={payments} team={props.team} commForm={commForm} setCommForm={setCommForm} onBack={goBack} onNavTo={navTo} onNavigate={props.onNavigate} onOpenProposal={openProposal} onSetViewPropId={setViewPropId} bus={bus} updateClientContact={props.updateClientContact} onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2), billingAddress: vc.billingAddress || "", billingAddress2: vc.billingAddress2 || "", billingCity: vc.billingCity || "", billingState: vc.billingState || "", billingZip: vc.billingZip || "" }); setCmo(true); }} /></Suspense>}
+    {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><ClientProfile
+      clientId={viewClientId} clients={clients} setClients={setClients}
+      sales={sales} pubs={pubs} issues={issues} proposals={proposals}
+      contracts={contracts} invoices={invoices} payments={payments}
+      team={props.team} commForm={commForm} setCommForm={setCommForm}
+      onBack={goBack} onNavTo={navTo} onNavigate={props.onNavigate}
+      onOpenProposal={openProposal} onSetViewPropId={setViewPropId}
+      bus={bus} updateClientContact={props.updateClientContact}
+      onOpenEditClient={(vc) => { setEc(vc); setCf({ name: vc.name, industries: vc.industries || [], leadSource: vc.leadSource || "", interestedPubs: vc.interestedPubs || [], contacts: vc.contacts || [], notes: vc.notes || "", billingEmail: vc.billingEmail || "", billingCcEmails: [...(vc.billingCcEmails || []), "", ""].slice(0, 2), billingAddress: vc.billingAddress || "", billingAddress2: vc.billingAddress2 || "", billingCity: vc.billingCity || "", billingState: vc.billingState || "", billingZip: vc.billingZip || "" }); setCmo(true); }}
+      onOpenEmail={(client) => {
+        // Mirrors the per-pipeline-card email handler at line 392 — pre-fills To with the
+        // primary contact's email, drops a generic "following up" body Dana usually edits.
+        setEmailSaleId(null);
+        setEmailTo(client?.contacts?.[0]?.email || "");
+        setEmailSubj(`Following up — ${client?.name || ""}`);
+        setEmailBody(`Hi ${client?.contacts?.[0]?.name || ""},\n\nI wanted to follow up on our conversation about advertising with 13 Stars Media.\n\nBest,\n${COMPANY.sales.name}\n${COMPANY.sales.phone}`);
+        setEmailMo(true);
+      }}
+      onOpenMeeting={(client) => {
+        // Same pattern as the existing scheduling action — defaults to a meeting
+        // tomorrow @ 10am, 30min, with the client preset. No saleId because this
+        // entry-point comes from the client header, not a specific opportunity.
+        setCalSaleId(null);
+        setSchEvent({
+          title: `Meeting: ${client?.name || ""}`,
+          date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          time: "10:00",
+          duration: 30,
+          clientId: client?.id || "",
+          type: "meeting",
+          notes: "",
+        });
+        setCalMo(true);
+      }}
+    /></Suspense>}
 
     {/* PROPOSALS */}
     {tab === "Proposals" && !viewPropId && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
