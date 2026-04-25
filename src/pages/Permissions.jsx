@@ -12,6 +12,7 @@ const MODULES = [
   { key: "flatplan", label: "Flatplan / Layout", icon: "📐" },
   { key: "layout", label: "Layout Console", icon: "📰" },
   { key: "printers", label: "Printers", icon: "🖨" },
+  { key: "tearsheets", label: "Tearsheet Center", icon: "📑" },
   { key: "publications", label: "Publications / Schedule", icon: "📰" },
   { key: "billing", label: "Billing / Invoices", icon: "🧾" },
   { key: "circulation", label: "Circulation / Subscribers", icon: "📬" },
@@ -29,11 +30,11 @@ const MODULES = [
 
 const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
-  Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar"],
+  Salesperson: ["dashboard", "sales", "clients", "proposals", "commissions", "flatplan", "publications", "billing", "calendar", "tearsheets"],
   "Content Editor": ["dashboard", "stories", "flatplan", "calendar"],
-  "Layout Designer": ["dashboard", "stories", "flatplan", "layout", "printers", "publications", "legal_notices", "calendar"],
+  "Layout Designer": ["dashboard", "stories", "flatplan", "layout", "printers", "publications", "legal_notices", "calendar", "tearsheets"],
   "Ad Designer": ["dashboard", "calendar", "adprojects", "medialibrary", "stories", "flatplan", "performance"],
-  "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar"],
+  "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar", "tearsheets"],
 };
 
 const Permissions = ({ team, updateTeamMember }) => {

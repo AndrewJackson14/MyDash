@@ -39,6 +39,7 @@ const EditorialDashboard = lazyLoad(() => import("./components/EditorialDashboar
 const Flatplan = lazyLoad(() => import("./pages/Flatplan"));
 const IssueLayoutConsole = lazyLoad(() => import("./pages/IssueLayoutConsole"));
 const Printers = lazyLoad(() => import("./pages/Printers"));
+const TearsheetCenter = lazyLoad(() => import("./pages/TearsheetCenter"));
 const TeamModule = lazyLoad(() => import("./pages/TeamModule"));
 const TeamMemberProfile = lazyLoad(() => import("./pages/TeamMemberProfile"));
 const Analytics = lazyLoad(() => import("./pages/Analytics"));
@@ -482,6 +483,7 @@ export default function App() {
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "layout", label: "Layout Console", icon: Ic.flat },
     { id: "printers", label: "Printers", icon: Ic.truck },
+    { id: "tearsheets", label: "Tearsheet Center", icon: Ic.image },
     { id: "newsletters", label: "Newsletters", icon: Ic.send },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
@@ -642,6 +644,7 @@ export default function App() {
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan isActive={pg === "flatplan"} jurisdiction={jurisdiction} pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} stories={jStories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} currentUser={currentUser} onNavigate={handleNav} /></div>}
         {show("layout") && <div style={vis("layout")}><IssueLayoutConsole isActive={pg === "layout"} deepLink={deepLink} currentUser={currentUser} pubs={pubs} issues={jIssues} team={team} sales={jSales} stories={jStories} clients={jClients} setStories={setStories} onNavigate={handleNav} /></div>}
         {show("printers") && <div style={vis("printers")}><Printers isActive={pg === "printers"} currentUser={currentUser} pubs={pubs} /></div>}
+        {show("tearsheets") && <div style={vis("tearsheets")}><TearsheetCenter isActive={pg === "tearsheets"} currentUser={currentUser} sales={jSales} setSales={setSales} clients={jClients} pubs={pubs} issues={jIssues} /></div>}
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard isActive={pg === "editorial"} stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} setIssues={setIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} editions={appData.editions || []} setEditions={appData.setEditions} deepLink={deepLink} jurisdiction={jurisdiction} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastFlatplanIssue={lastFlatplanIssue} lastFlatplanPub={lastFlatplanPub} onFlatplanSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} onNavigate={handleNav} /></div>}
         {show("analytics") && <div style={vis("analytics")}><Analytics isActive={pg === "analytics"} pubs={pubs} sales={jSales} clients={jClients} issues={jIssues} stories={jStories} invoices={jInvoices} payments={payments} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} drivers={drivers} bills={bills} commissionPayouts={appData.commissionPayouts || []} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} onNavigate={handleNav} deepLink={deepLink} /></div>}
         {show("medialibrary") && <div style={vis("medialibrary")}><MediaLibrary isActive={pg === "medialibrary"} pubs={pubs} allPubs={appData.allPubs || pubs} currentUser={currentUser} mediaAssets={appData.mediaAssets || []} mediaAssetsLoaded={appData.mediaAssetsLoaded} loadMediaAssets={appData.loadMediaAssets} pushMediaAsset={appData.pushMediaAsset} removeMediaAsset={appData.removeMediaAsset} /></div>}
