@@ -36,7 +36,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const SUPABASE_JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET") || "";
+// JWT_SECRET (no SUPABASE_ prefix — Supabase reserves that prefix for
+// ambient secrets and rejects manual ones starting with it). Fallback
+// reads kept for any existing deployments that already used the prefix.
+const JWT_SECRET = Deno.env.get("JWT_SECRET")
+  || Deno.env.get("SUPABASE_JWT_SECRET")
+  || "";
 const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
 const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
 const TWILIO_FROM = Deno.env.get("TWILIO_FROM_NUMBER") || "";
@@ -119,7 +124,7 @@ async function signSupabaseJwt(driverId: string): Promise<{ jwt: string; exp: nu
   const data = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
   const key = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(SUPABASE_JWT_SECRET),
+    new TextEncoder().encode(JWT_SECRET),
     { name: "HMAC", hash: "SHA-256" },
     false, ["sign"],
   );
@@ -262,7 +267,22 @@ serve(async (req) => {
       user_agent: req.headers.get("user-agent") || null,
     }).eq("id", session.id);
 
-    const { jwt, exp } = await signSupabaseJwt(session.driver_id);
+    if (!JWT_SECRET) {
+      // Surface a clean diagnostic instead of a 500 from crypto.subtle.
+      return json({
+        error: "jwt_sign_failed",
+        detail: "JWT_SECRET (or legacy SUPABASE_JWT_SECRET) not set in Edge Function secrets. Get it from Supabase Dashboard → Settings → API → JWT Secret, then add it as an Edge Function secret named JWT_SECRET (no SUPABASE_ prefix — that's reserved).",
+      }, 500, cors);
+    }
+    let jwt: string, exp: number;
+    try {
+      ({ jwt, exp } = await signSupabaseJwt(session.driver_id));
+    } catch (e) {
+      return json({
+        error: "jwt_sign_failed",
+        detail: String(e?.message ?? e),
+      }, 500, cors);
+    }
     return json({
       jwt,
       driver_id: session.driver_id,

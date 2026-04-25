@@ -54,24 +54,46 @@ export function useDriverAuth() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const verify = useCallback(async (magicToken, pin) => {
-    const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verify", magic_token: magicToken, pin }),
-    });
-    const json = await res.json();
-    if (!res.ok || !json.jwt) {
-      return { ok: false, error: json.error, attempts_remaining: json.attempts_remaining, message: json.message };
+    // Defensive shape: any thrown error along the way returns
+    // { ok: false, error } so the caller's setSubmitting(false) always
+    // runs. Without this, a non-JSON 500 body (e.g. "Internal Server
+    // Error") used to throw at res.json() and leave the UI stuck on
+    // "Verifying…".
+    try {
+      const res = await fetch(`${EDGE_FN_URL}/driver-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", magic_token: magicToken, pin }),
+      });
+      let json;
+      try { json = await res.json(); }
+      catch { return { ok: false, error: `server_${res.status}`, message: `Server returned ${res.status} with no JSON body` }; }
+      if (!res.ok || !json.jwt) {
+        return {
+          ok: false, error: json.error,
+          attempts_remaining: json.attempts_remaining,
+          message: json.message || json.detail,
+        };
+      }
+      const next = {
+        jwt: json.jwt,
+        driver_id: json.driver_id,
+        exp: Math.floor(Date.now() / 1000) + (json.expires_in || 8 * 3600),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      try {
+        await supabase.auth.setSession({ access_token: next.jwt, refresh_token: "driver-no-refresh" });
+      } catch (e) {
+        // Supabase rejected the JWT — usually means the signing secret
+        // is wrong. Don't leave the UI hanging; surface the error.
+        localStorage.removeItem(STORAGE_KEY);
+        return { ok: false, error: "session_set_failed", message: String(e?.message ?? e) };
+      }
+      setAuth(next);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: "network_error", message: String(e?.message ?? e) };
     }
-    const next = {
-      jwt: json.jwt,
-      driver_id: json.driver_id,
-      exp: Math.floor(Date.now() / 1000) + (json.expires_in || 8 * 3600),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    await supabase.auth.setSession({ access_token: next.jwt, refresh_token: "driver-no-refresh" });
-    setAuth(next);
-    return { ok: true };
   }, []);
 
   const signOut = useCallback(async () => {
