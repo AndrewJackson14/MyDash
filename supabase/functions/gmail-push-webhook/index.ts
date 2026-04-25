@@ -118,5 +118,20 @@ serve(async (req) => {
   }
   try { await admin.removeChannel(channel); } catch {}
 
+  // ── 6. Trigger inbound ingest (fire-and-forget) ───────
+  // Calls gmail-ingest-inbound which fetches new INBOX messages
+  // since last_ingested_history_id, fuzzy-matches sender against
+  // client_contacts.email, and writes inbound rows to email_log.
+  // We don't await — Pub/Sub needs a fast 200 ack and the ingest
+  // function self-recovers on the next push if it fails here.
+  fetch(`${SUPABASE_URL}/functions/v1/gmail-ingest-inbound`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ user_id: watch.user_id }),
+  }).catch(e => console.warn("ingest dispatch failed:", e));
+
   return new Response("ok", { status: 200 });
 });

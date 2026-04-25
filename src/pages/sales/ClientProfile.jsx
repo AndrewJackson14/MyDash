@@ -32,7 +32,7 @@ const ClientProfile = ({
     (async () => {
       const { data, error } = await supabase
         .from("email_log")
-        .select("id, type, to_email, subject, status, error_message, sent_by, ref_type, ref_id, gmail_message_id, created_at")
+        .select("id, type, direction, from_email, to_email, subject, status, error_message, sent_by, ref_type, ref_id, gmail_message_id, created_at")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -507,28 +507,35 @@ const ClientProfile = ({
           </div>
         </Card>
 
-        {/* Sent History — every outbound email logged to this client */}
+        {/* Email History — both directions: outbound sends from us +
+            inbound replies auto-ingested from Gmail (audit M-1). */}
         <Card style={{ borderLeft: `3px solid ${Z.ac}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Sent History ({emailLog.length})</span>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Email History ({emailLog.length})</span>
             {emailLog.length > 0 && <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>Newest first</span>}
           </div>
           {emailLog.length === 0 ? (
-            <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No emails sent yet</div>
+            <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No emails yet</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
               {emailLog.map(e => {
-                const statusColor = e.status === "sent" ? Z.go : e.status === "failed" ? Z.da : e.status === "draft" ? Z.wa : Z.td;
-                const typeLabel = (e.type || "email").replace(/_/g, " ");
-                return <div key={e.id} style={{ padding: "7px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
+                const isInbound = e.direction === "inbound";
+                const statusColor = isInbound ? (Z.ac || "#3b82f6")
+                  : e.status === "sent" ? Z.go
+                  : e.status === "failed" ? Z.da
+                  : e.status === "draft" ? Z.wa
+                  : Z.td;
+                const typeLabel = isInbound ? "← inbound" : (e.type || "email").replace(/_/g, " ");
+                const counterparty = isInbound ? (e.from_email || "(unknown sender)") : e.to_email;
+                return <div key={e.id} style={{ padding: "7px 10px", background: isInbound ? (Z.ac || "#3b82f6") + "08" : Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
                     <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: statusColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{typeLabel}</span>
                     <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtTimeRelative(e.created_at)}</span>
                   </div>
                   <div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.subject || "(no subject)"}</div>
                   <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 1 }}>
-                    {e.to_email}
-                    {e.status && e.status !== "sent" && <span style={{ color: statusColor, fontWeight: FW.bold, marginLeft: 6, textTransform: "uppercase" }}>· {e.status}</span>}
+                    {isInbound ? "from " : ""}{counterparty}
+                    {!isInbound && e.status && e.status !== "sent" && <span style={{ color: statusColor, fontWeight: FW.bold, marginLeft: 6, textTransform: "uppercase" }}>· {e.status}</span>}
                   </div>
                   {e.error_message && <div style={{ fontSize: FS.micro, color: Z.da, marginTop: 2 }}>{e.error_message}</div>}
                 </div>;
