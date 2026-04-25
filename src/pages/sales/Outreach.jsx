@@ -3,6 +3,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, GlassCard, GlassStat, SolidTabs, glass } from "../../components/ui";
 
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
+import { sendGmailEmail, initiateGmailAuth } from "../../lib/gmail";
 
 const ENTRY_STATUSES = [
   { value: "queued", label: "Queued", color: Z.td },
@@ -16,13 +17,20 @@ const ENTRY_STATUSES = [
 
 const CONTACT_VIA = ["email", "phone", "in_person"];
 
-const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, helpers, navTo }) => {
+const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, helpers, navTo, currentUser }) => {
   const [view, setView] = useState("campaigns"); // campaigns | build | detail
   const [selCampaign, setSelCampaign] = useState(null);
   const [search, setSearch] = useState("");
   const [entryFilter, setEntryFilter] = useState("all");
   const [entryModal, setEntryModal] = useState(null);
   const [entryForm, setEntryForm] = useState({});
+
+  // Email blast state
+  const [blastOpen, setBlastOpen] = useState(false);
+  const [blastSubj, setBlastSubj] = useState("");
+  const [blastBody, setBlastBody] = useState("");
+  const [blastSending, setBlastSending] = useState(false);
+  const [blastProgress, setBlastProgress] = useState(null); // { sent, failed, total } during send
 
   // Campaign builder state
   const [buildName, setBuildName] = useState("");
@@ -146,6 +154,72 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
 
   const statusColor = (s) => ENTRY_STATUSES.find(es => es.value === s)?.color || Z.td;
 
+  // Email blast — sends individually so each gets logged to email_log
+  // with a real client_id (BCC would lose that linkage). Personalises
+  // each body with the client's first name and the contact's name.
+  const blastEligible = useMemo(() => {
+    if (!selCampaign) return [];
+    return campaignEntries.filter(e => {
+      if (e.status !== "queued") return false;
+      const client = (clients || []).find(c => c.id === e.clientId);
+      const email = client?.contacts?.[0]?.email;
+      return !!email;
+    }).map(e => {
+      const client = (clients || []).find(c => c.id === e.clientId);
+      return { entry: e, client, email: client?.contacts?.[0]?.email, contactName: client?.contacts?.[0]?.name || client?.name || "" };
+    });
+  }, [campaignEntries, clients, selCampaign]);
+
+  const openBlast = () => {
+    setBlastSubj(`A note from ${(team || []).find(t => t.id === currentUser?.id)?.name || "13 Stars Media"}`);
+    setBlastBody(`Hi {{firstName}},\n\nI wanted to reach out — we'd love to find a way to keep your business in front of our readers this season. Would a quick 10-min call this week work?\n\nBest,\n${(team || []).find(t => t.id === currentUser?.id)?.name || "13 Stars Media"}`);
+    setBlastProgress(null);
+    setBlastOpen(true);
+  };
+
+  const sendBlast = async () => {
+    if (!currentUser?.id || blastEligible.length === 0 || !blastSubj.trim() || !blastBody.trim()) return;
+    setBlastSending(true);
+    setBlastProgress({ sent: 0, failed: 0, total: blastEligible.length });
+    let sent = 0, failed = 0;
+    for (const target of blastEligible) {
+      const firstName = (target.contactName || "").split(" ")[0] || "there";
+      const personalisedBody = blastBody.replaceAll("{{firstName}}", firstName).replaceAll("{{name}}", target.contactName || "").replaceAll("{{client}}", target.client?.name || "");
+      const htmlBody = personalisedBody.split("\n\n").map(p => `<p style="margin:0 0 12px;font-family:-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;">${p.replaceAll("\n", "<br/>")}</p>`).join("");
+      try {
+        const result = await sendGmailEmail({
+          teamMemberId: currentUser.id,
+          to: [target.email],
+          subject: blastSubj,
+          htmlBody,
+          mode: "send",
+          emailType: "outreach",
+          clientId: target.client?.id || null,
+          refId: selCampaign.id,
+          refType: "outreach_campaign",
+        });
+        if (result.needs_auth) {
+          // First failure — kick off auth flow + abort the rest of the batch.
+          setBlastProgress({ sent, failed, total: blastEligible.length, error: "Gmail not connected — connect in popup, then re-run blast." });
+          await initiateGmailAuth(currentUser.id);
+          break;
+        }
+        if (result.success) {
+          sent++;
+          setBlastProgress({ sent, failed, total: blastEligible.length });
+          await handleUpdateEntry(target.entry.id, { status: "contacted", contactedVia: "email", contactedAt: new Date().toISOString() });
+        } else {
+          failed++;
+          setBlastProgress({ sent, failed, total: blastEligible.length, lastError: result.error || "Send failed" });
+        }
+      } catch (e) {
+        failed++;
+        setBlastProgress({ sent, failed, total: blastEligible.length, lastError: String(e?.message ?? e) });
+      }
+    }
+    setBlastSending(false);
+  };
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
     {/* CAMPAIGNS LIST */}
@@ -260,6 +334,7 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
           <SolidTabs options={[{ value: "all", label: `All (${campaignEntries.length})` }, ...ENTRY_STATUSES.filter(s => campaignEntries.some(e => e.status === s.value)).map(s => ({ value: s.value, label: `${s.label} (${campaignEntries.filter(e => e.status === s.value).length})` }))]} active={entryFilter} onChange={setEntryFilter} />
         </div>
         <div style={{ display: "flex", gap: 6 }}>
+          {selCampaign.status === "active" && blastEligible.length > 0 && <Btn sm onClick={openBlast} title={`Send a personalised email to ${blastEligible.length} queued client${blastEligible.length > 1 ? "s" : ""} via your Gmail. Each gets logged to email_log.`}><Ic.send size={12} /> Email Blast ({blastEligible.length})</Btn>}
           <Btn sm v="secondary" onClick={exportCSV}><Ic.download size={12} /> Export CSV</Btn>
           {selCampaign.status === "active" && <Btn sm v="secondary" onClick={() => helpers?.updateCampaign?.(selCampaign.id, { status: "completed" })}>Mark Complete</Btn>}
         </div>
@@ -295,6 +370,36 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
         {filteredEntries.length > 100 && <div style={{ textAlign: "center", padding: 10, fontSize: FS.sm, color: Z.td }}>Showing first 100 of {filteredEntries.length}. Use filters to narrow.</div>}
       </div>
     </>}
+
+    {/* EMAIL BLAST MODAL */}
+    <Modal open={blastOpen} onClose={() => { if (!blastSending) setBlastOpen(false); }} title={`Email Blast — ${selCampaign?.name || ""}`} width={620}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: FS.sm, color: Z.tm, lineHeight: 1.5 }}>
+          Sending <b style={{ color: Z.tx }}>one personalised email per client</b> to <b style={{ color: Z.tx }}>{blastEligible.length}</b> queued recipient{blastEligible.length === 1 ? "" : "s"}.
+          Each goes via your Gmail account (so it threads with replies) and writes to email_log with the client linked.
+          On send, each entry flips to <b>contacted</b>.
+        </div>
+        <div style={{ fontSize: FS.xs, color: Z.td, padding: "6px 10px", background: Z.sa, borderRadius: Ri }}>
+          Tokens you can use in the body: <code>{"{{firstName}}"}</code> · <code>{"{{name}}"}</code> · <code>{"{{client}}"}</code>
+        </div>
+        <Inp label="Subject" value={blastSubj} onChange={e => setBlastSubj(e.target.value)} disabled={blastSending} />
+        <div>
+          <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Body</label>
+          <textarea value={blastBody} onChange={e => setBlastBody(e.target.value)} rows={9} disabled={blastSending} style={{ width: "100%", padding: "12px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+        </div>
+        {blastProgress && <div style={{ padding: "8px 12px", background: blastProgress.error ? Z.da + "10" : Z.sa, borderRadius: Ri, fontSize: FS.sm, color: Z.tx }}>
+          <div><b>{blastProgress.sent}</b> sent · <b>{blastProgress.failed}</b> failed · {blastProgress.total} total</div>
+          {blastProgress.error && <div style={{ color: Z.da, marginTop: 4 }}>{blastProgress.error}</div>}
+          {blastProgress.lastError && !blastProgress.error && <div style={{ color: Z.da, marginTop: 4 }}>Last error: {blastProgress.lastError}</div>}
+        </div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="cancel" onClick={() => setBlastOpen(false)} disabled={blastSending}>{blastProgress?.sent > 0 ? "Close" : "Cancel"}</Btn>
+          <Btn disabled={blastSending || !blastSubj.trim() || !blastBody.trim() || blastEligible.length === 0 || blastProgress?.sent > 0} onClick={sendBlast}>
+            {blastSending ? `Sending… ${blastProgress?.sent ?? 0}/${blastProgress?.total ?? blastEligible.length}` : `Send to ${blastEligible.length}`}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
 
     {/* ENTRY DETAIL MODAL */}
     <Modal open={!!entryModal} onClose={() => setEntryModal(null)} title="Update Outreach Entry" width={440}>

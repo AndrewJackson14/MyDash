@@ -1261,7 +1261,7 @@ const SalesCRM = (props) => {
 
     {/* COMMISSIONS */}
     {tab === "Commissions" && <Suspense fallback={<SubFallback />}><Commissions sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} commissionRates={commissionRates || []} commissionLedger={commissionLedger || []} commissionPayouts={commissionPayouts || []} commissionGoals={commissionGoals || []} salespersonPubAssignments={salespersonPubAssignments || []} helpers={commissionHelpers || {}} tab={commTab} setTab={setCommTab} /></Suspense>}
-    {tab === "Outreach" && <Suspense fallback={<SubFallback />}><Outreach sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} campaigns={outreachCampaigns || []} entries={outreachEntries || []} helpers={outreachHelpers || {}} navTo={navTo} /></Suspense>}
+    {tab === "Outreach" && <Suspense fallback={<SubFallback />}><Outreach sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} campaigns={outreachCampaigns || []} entries={outreachEntries || []} helpers={outreachHelpers || {}} navTo={navTo} currentUser={currentUser} /></Suspense>}
 
     {/* INQUIRIES */}
     {tab === "Inquiries" && (() => {
