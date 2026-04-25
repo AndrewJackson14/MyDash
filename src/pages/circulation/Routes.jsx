@@ -40,6 +40,7 @@ export default function Routes({
   const locPubs = dropLocationPubs || [];
 
   const [routeModal, setRouteModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState(null); // null = create; route obj = edit
   const [detailRouteId, setDetailRouteId] = useState(null);
   const [instances, setInstances] = useState([]);
   const [routePubsMap, setRoutePubsMap] = useState(new Map()); // route_id → [{pub_id, is_primary}]
@@ -53,9 +54,45 @@ export default function Routes({
   const blankRoute = {
     driverId: "", name: "", frequency: "weekly",
     pub_ids: pubs[0] ? [pubs[0].id] : [],
-    flat_fee: 0, notes: "", stops: [],
+    flat_fee: 0, notes: "", stops: [], is_active: true,
   };
   const [routeForm, setRouteForm] = useState(blankRoute);
+
+  // Open the form modal in edit mode for an existing route. Pulls
+  // pubs (primary first), stops in stop_order, and the route fields.
+  const openEditRoute = (route) => {
+    const pubSet = (routePubsMap.get(route.id) || []).slice();
+    pubSet.sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
+    const orderedPubIds = pubSet.map(p => p.pub_id);
+    const routeStopRows = stops
+      .filter(s => s.routeId === route.id)
+      .slice()
+      .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))
+      .map(s => ({
+        dropLocationId: s.dropLocationId,
+        expected_qty: s.expected_qty || 0,
+        access_notes: s.access_notes || "",
+      }));
+    setEditingRoute(route);
+    setRouteForm({
+      driverId: route.driverId || route.defaultDriverId || "",
+      name: route.name || "",
+      frequency: route.frequency || "weekly",
+      pub_ids: orderedPubIds.length ? orderedPubIds : (pubs[0] ? [pubs[0].id] : []),
+      flat_fee: route.flatFee || 0,
+      notes: route.notes || "",
+      stops: routeStopRows,
+      is_active: route.isActive !== false,
+    });
+    setRouteModal(true);
+    setDetailRouteId(null); // close the detail drawer if we came from it
+  };
+
+  const closeRouteModal = () => {
+    setRouteModal(false);
+    setEditingRoute(null);
+    setRouteForm({ ...blankRoute });
+  };
 
   // ── Load per-route summary stats (last instance + next scheduled) ──
   const loadInstances = async () => {
@@ -96,70 +133,166 @@ export default function Routes({
   }, [routes, instances]);
 
   // ── Persist route + stops + pubs to Supabase ─────────────────────
+  // Same handler covers both Create and Edit paths. The presence of
+  // editingRoute is the branch — non-null means UPDATE the existing
+  // template; null means INSERT a new one.
   const saveRoute = async () => {
     if (!routeForm.name || routeForm.pub_ids.length === 0) return;
     const primaryPubId = routeForm.pub_ids[0];
+    const isEdit = !!editingRoute;
 
-    const { data: routeRow, error: routeErr } = await supabase.from("driver_routes").insert({
-      driver_id: routeForm.driverId || null,
-      name: routeForm.name,
-      frequency: routeForm.frequency,
-      publication_id: primaryPubId, // legacy column; trigger keeps in sync
-      default_driver_id: routeForm.driverId || null,
-      flat_fee: Number(routeForm.flat_fee) || null,
-      notes: routeForm.notes,
-      is_active: true,
-    }).select().single();
-    if (routeErr) { console.error("Route insert failed:", routeErr); return; }
+    let routeRow;
+    if (isEdit) {
+      // ── UPDATE path ────────────────────────────────────────────
+      const updates = {
+        driver_id: routeForm.driverId || null,
+        name: routeForm.name,
+        frequency: routeForm.frequency,
+        publication_id: primaryPubId, // legacy col; trigger syncs to driver_route_pubs
+        default_driver_id: routeForm.driverId || null,
+        flat_fee: Number(routeForm.flat_fee) || null,
+        notes: routeForm.notes,
+        is_active: routeForm.is_active !== false,
+      };
+      // Diff the form against the original for the audit entry.
+      const before = {
+        driver_id: editingRoute.driverId || editingRoute.defaultDriverId || null,
+        name: editingRoute.name,
+        frequency: editingRoute.frequency,
+        flat_fee: editingRoute.flatFee || null,
+        notes: editingRoute.notes || "",
+        is_active: editingRoute.isActive !== false,
+      };
+      const fieldChanges = {};
+      for (const k of Object.keys(before)) {
+        if (before[k] !== updates[k] && (before[k] || updates[k])) {
+          fieldChanges[k] = { from: before[k], to: updates[k] };
+        }
+      }
+      const { data: updated, error: updErr } = await supabase
+        .from("driver_routes").update(updates).eq("id", editingRoute.id).select().single();
+      if (updErr) { console.error("Route update failed:", updErr); return; }
+      routeRow = updated;
 
-    // Insert pub set. Primary flag matches the ordered list's first item.
-    const pubRows = routeForm.pub_ids.map(pid => ({
-      route_id: routeRow.id,
-      publication_id: pid,
-      is_primary: pid === primaryPubId,
-    }));
-    await supabase.from("driver_route_pubs").insert(pubRows);
+      // Replace pub set: delete + reinsert is simplest and the trigger
+      // re-syncs the legacy publication_id afterward.
+      await supabase.from("driver_route_pubs").delete().eq("route_id", editingRoute.id);
+      await supabase.from("driver_route_pubs").insert(routeForm.pub_ids.map(pid => ({
+        route_id: editingRoute.id, publication_id: pid, is_primary: pid === primaryPubId,
+      })));
 
-    if (routeForm.stops?.length > 0) {
-      const rows = routeForm.stops.map((s, i) => ({
-        route_id: routeRow.id,
-        drop_location_id: s.dropLocationId,
-        sort_order: i,
-        stop_order: i,
-        expected_qty: Number(s.expected_qty) || 0,
-        access_notes: s.access_notes || null,
-      }));
-      const { data: stopRows } = await supabase.from("route_stops").insert(rows).select();
-      if (stopRows) setRouteStops(prev => [...(prev || []), ...stopRows.map(sr => ({
-        id: sr.id, routeId: sr.route_id, dropLocationId: sr.drop_location_id,
-        stopOrder: sr.stop_order, expected_qty: sr.expected_qty, access_notes: sr.access_notes,
-      }))]);
+      // Replace stops: delete + reinsert. route_stops.id has no FK
+      // dependents (stop_confirmations references route_instances.id,
+      // not route_stops.id), so this is non-destructive at the
+      // confirmation level. Active in-flight instances keep their
+      // own snapshot of the stop list at dispatch time.
+      await supabase.from("route_stops").delete().eq("route_id", editingRoute.id);
+      let newStopRows = [];
+      if (routeForm.stops?.length > 0) {
+        const rows = routeForm.stops.map((s, i) => ({
+          route_id: editingRoute.id,
+          drop_location_id: s.dropLocationId,
+          sort_order: i, stop_order: i,
+          expected_qty: Number(s.expected_qty) || 0,
+          access_notes: s.access_notes || null,
+        }));
+        const { data: stopRows } = await supabase.from("route_stops").insert(rows).select();
+        newStopRows = stopRows || [];
+      }
+
+      // Local state: replace this route's fields, replace its stops,
+      // update the pubs map.
+      setDriverRoutes(prev => (prev || []).map(r => r.id === editingRoute.id ? {
+        ...r,
+        driverId: routeRow.driver_id, name: routeRow.name,
+        frequency: routeRow.frequency, publicationId: routeRow.publication_id,
+        notes: routeRow.notes, isActive: routeRow.is_active,
+        defaultDriverId: routeRow.default_driver_id, flatFee: routeRow.flat_fee,
+      } : r));
+      setRouteStops(prev => [
+        ...(prev || []).filter(s => s.routeId !== editingRoute.id),
+        ...newStopRows.map(sr => ({
+          id: sr.id, routeId: sr.route_id, dropLocationId: sr.drop_location_id,
+          stopOrder: sr.stop_order, expected_qty: sr.expected_qty, access_notes: sr.access_notes,
+        })),
+      ]);
+      setRoutePubsMap(prev => {
+        const next = new Map(prev);
+        next.set(editingRoute.id, routeForm.pub_ids.map(pid => ({ pub_id: pid, is_primary: pid === primaryPubId })));
+        return next;
+      });
+
+      await supabase.from("location_audit_log").insert({
+        entity_type: "route_template",
+        entity_id: editingRoute.id,
+        action: "updated",
+        actor_type: "office",
+        actor_team_member_id: currentUser?.id || null,
+        field_changes: Object.keys(fieldChanges).length ? fieldChanges : null,
+        context: {
+          route_id: editingRoute.id,
+          pubs: routeForm.pub_ids,
+          stop_count: routeForm.stops.length,
+        },
+      });
+    } else {
+      // ── INSERT path (new route) ────────────────────────────────
+      const { data: created, error: routeErr } = await supabase.from("driver_routes").insert({
+        driver_id: routeForm.driverId || null,
+        name: routeForm.name,
+        frequency: routeForm.frequency,
+        publication_id: primaryPubId,
+        default_driver_id: routeForm.driverId || null,
+        flat_fee: Number(routeForm.flat_fee) || null,
+        notes: routeForm.notes,
+        is_active: routeForm.is_active !== false,
+      }).select().single();
+      if (routeErr) { console.error("Route insert failed:", routeErr); return; }
+      routeRow = created;
+
+      await supabase.from("driver_route_pubs").insert(routeForm.pub_ids.map(pid => ({
+        route_id: routeRow.id, publication_id: pid, is_primary: pid === primaryPubId,
+      })));
+
+      if (routeForm.stops?.length > 0) {
+        const rows = routeForm.stops.map((s, i) => ({
+          route_id: routeRow.id,
+          drop_location_id: s.dropLocationId,
+          sort_order: i, stop_order: i,
+          expected_qty: Number(s.expected_qty) || 0,
+          access_notes: s.access_notes || null,
+        }));
+        const { data: stopRows } = await supabase.from("route_stops").insert(rows).select();
+        if (stopRows) setRouteStops(prev => [...(prev || []), ...stopRows.map(sr => ({
+          id: sr.id, routeId: sr.route_id, dropLocationId: sr.drop_location_id,
+          stopOrder: sr.stop_order, expected_qty: sr.expected_qty, access_notes: sr.access_notes,
+        }))]);
+      }
+
+      setDriverRoutes(prev => [...(prev || []), {
+        id: routeRow.id, driverId: routeRow.driver_id, name: routeRow.name,
+        frequency: routeRow.frequency, publicationId: routeRow.publication_id,
+        notes: routeRow.notes, isActive: routeRow.is_active,
+        defaultDriverId: routeRow.default_driver_id, flatFee: routeRow.flat_fee,
+        createdAt: routeRow.created_at,
+      }]);
+      setRoutePubsMap(prev => {
+        const next = new Map(prev);
+        next.set(routeRow.id, routeForm.pub_ids.map(pid => ({ pub_id: pid, is_primary: pid === primaryPubId })));
+        return next;
+      });
+
+      await supabase.from("location_audit_log").insert({
+        entity_type: "route_template",
+        entity_id: routeRow.id,
+        action: "created",
+        actor_type: "office",
+        actor_team_member_id: currentUser?.id || null,
+        context: { route_id: routeRow.id, name: routeRow.name, pubs: routeForm.pub_ids },
+      });
     }
 
-    setDriverRoutes(prev => [...(prev || []), {
-      id: routeRow.id, driverId: routeRow.driver_id, name: routeRow.name,
-      frequency: routeRow.frequency, publicationId: routeRow.publication_id,
-      notes: routeRow.notes, isActive: routeRow.is_active,
-      defaultDriverId: routeRow.default_driver_id, flatFee: routeRow.flat_fee,
-      createdAt: routeRow.created_at,
-    }]);
-    setRoutePubsMap(prev => {
-      const next = new Map(prev);
-      next.set(routeRow.id, routeForm.pub_ids.map(pid => ({ pub_id: pid, is_primary: pid === primaryPubId })));
-      return next;
-    });
-
-    await supabase.from("location_audit_log").insert({
-      entity_type: "route_template",
-      entity_id: routeRow.id,
-      action: "created",
-      actor_type: "office",
-      actor_team_member_id: currentUser?.id || null,
-      context: { route_id: routeRow.id, name: routeRow.name, pubs: routeForm.pub_ids },
-    });
-
-    setRouteModal(false);
-    setRouteForm({ ...blankRoute });
+    closeRouteModal();
   };
 
   // ── "Activate Now": create a scheduled route_instance for today ──
@@ -251,10 +384,20 @@ export default function Routes({
                 }, 0);
               const st = statsByRoute.get(r.id) || {};
               const pubSet = routePubsMap.get(r.id) || (r.publicationId ? [{ pub_id: r.publicationId, is_primary: true }] : []);
-              return <GlassCard key={r.id} style={{ padding: 12, cursor: "pointer" }} onClick={() => setDetailRouteId(r.id)}>
+              return <GlassCard key={r.id} style={{
+                padding: 12, cursor: "pointer",
+                opacity: r.isActive === false ? 0.55 : 1,
+              }} onClick={() => setDetailRouteId(r.id)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>{r.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>
+                      {r.name}
+                      {r.isActive === false && <span style={{
+                        fontSize: FS.micro, fontWeight: FW.heavy, color: Z.da,
+                        background: Z.da + "18", padding: "2px 6px", borderRadius: Ri,
+                        marginLeft: 8, textTransform: "uppercase", letterSpacing: 0.5,
+                      }}>Deactivated</span>}
+                    </div>
                     <div style={{ fontSize: FS.sm, color: Z.tm }}>
                       {driver?.name || "Unassigned"} · {ROUTE_FREQS.find(f => f.value === r.frequency)?.label || r.frequency}
                       {r.flatFee ? ` · ${fmtCurrency(r.flatFee)}/route` : ""}
@@ -279,12 +422,14 @@ export default function Routes({
                       : <span style={{ color: Z.td }}>No runs yet</span>}
                     {st.nextScheduledFor && <span>Next: <b style={{ color: Z.tx }}>{fmtDate(st.nextScheduledFor)}</b></span>}
                   </div>
-                  <ActivateNowButton
-                    routeId={r.id}
-                    activatingId={activatingId}
-                    flash={activatedFlash}
-                    onActivate={() => activateNow(r)}
-                  />
+                  {r.isActive === false
+                    ? <span style={{ fontSize: FS.xs, color: Z.tm, fontStyle: "italic" }}>Reactivate to dispatch</span>
+                    : <ActivateNowButton
+                        routeId={r.id}
+                        activatingId={activatingId}
+                        flash={activatedFlash}
+                        onActivate={() => activateNow(r)}
+                      />}
                 </div>
                 {stopLocs.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 10 }}>
                   {stopLocs.slice(0, 5).map((loc, i) => <div key={loc.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.sm, color: Z.tm }}>
@@ -300,8 +445,11 @@ export default function Routes({
           </div>}
     </GlassCard>
 
-    {/* New Route modal */}
-    <Modal open={routeModal} onClose={() => setRouteModal(false)} title="New Route" width={680} onSubmit={saveRoute}>
+    {/* New Route + Edit Route modal (same modal, branched on editingRoute) */}
+    <Modal open={routeModal} onClose={closeRouteModal}
+      title={editingRoute ? `Edit Route — ${editingRoute.name}` : "New Route"}
+      width={680} onSubmit={saveRoute}
+    >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <Inp label="Route Name" value={routeForm.name} onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))} placeholder="Paso Robles Downtown" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
@@ -381,9 +529,27 @@ export default function Routes({
         </div>
 
         <TA label="Notes" value={routeForm.notes} onChange={e => setRouteForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+
+        {editingRoute && <label style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 10px", background: routeForm.is_active ? Z.go + "12" : Z.da + "12",
+          borderRadius: Ri, fontSize: FS.sm, cursor: "pointer",
+        }}>
+          <input type="checkbox" checked={routeForm.is_active !== false}
+            onChange={e => setRouteForm(f => ({ ...f, is_active: e.target.checked }))} />
+          <span style={{ color: Z.tx, fontWeight: FW.semi }}>
+            {routeForm.is_active !== false ? "Active" : "Deactivated"} —
+            <span style={{ color: Z.tm, fontWeight: 400 }}> {routeForm.is_active !== false
+              ? "cron will dispatch instances; route appears in Route Instances"
+              : "cron skips this route; existing instances unaffected"}</span>
+          </span>
+        </label>}
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <Btn v="cancel" onClick={() => setRouteModal(false)}>Cancel</Btn>
-          <Btn onClick={saveRoute} disabled={!routeForm.name || routeForm.pub_ids.length === 0}>Create Route</Btn>
+          <Btn v="cancel" onClick={closeRouteModal}>Cancel</Btn>
+          <Btn onClick={saveRoute} disabled={!routeForm.name || routeForm.pub_ids.length === 0}>
+            {editingRoute ? "Save Changes" : "Create Route"}
+          </Btn>
         </div>
       </div>
     </Modal>
@@ -394,9 +560,11 @@ export default function Routes({
       stops={stops.filter(s => s.routeId === detailRouteId).slice().sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0))}
       locs={locs}
       team={team || []}
+      drivers={drvs}
       routePubs={routePubsMap.get(detailRouteId) || []}
       pn={pn}
       currentUser={currentUser}
+      onEdit={() => openEditRoute(routes.find(r => r.id === detailRouteId))}
       onClose={() => setDetailRouteId(null)}
     />}
   </>;
@@ -490,17 +658,30 @@ function SortableStopRow({ id, index, stop, loc, onQtyChange, onNotesChange, onR
 }
 
 // ── Route detail modal with Stops / Efficiency / Audit tabs ──────
-function RouteDetailModal({ route, stops, locs, team, routePubs, pn, currentUser, onClose }) {
+function RouteDetailModal({ route, stops, locs, team, drivers = [], routePubs, pn, currentUser, onEdit, onClose }) {
   const [tab, setTab] = useState("Stops");
   if (!route) return null;
+  const driver = drivers.find(d => d.id === (route.driverId || route.defaultDriverId));
+  const isInactive = route.isActive === false;
   return <Modal open={true} onClose={onClose} title={route.name} width={720}>
-    {routePubs.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-      {routePubs.map(p => <span key={p.pub_id} style={{
-        fontSize: FS.micro, fontWeight: FW.heavy, color: p.is_primary ? Z.ac : Z.tm,
-        background: p.is_primary ? Z.ac + "18" : Z.sa, padding: "2px 8px", borderRadius: Ri,
-        fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5,
-      }}>{p.is_primary && "★ "}{pn(p.pub_id)}</span>)}
-    </div>}
+    {/* Header row: pub badges + driver/fee/status summary + Edit button */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
+        {routePubs.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {routePubs.map(p => <span key={p.pub_id} style={{
+            fontSize: FS.micro, fontWeight: FW.heavy, color: p.is_primary ? Z.ac : Z.tm,
+            background: p.is_primary ? Z.ac + "18" : Z.sa, padding: "2px 8px", borderRadius: Ri,
+            fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5,
+          }}>{p.is_primary && "★ "}{pn(p.pub_id)}</span>)}
+        </div>}
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+          {driver ? `Driver: ${driver.name}` : <span style={{ color: Z.da }}>No driver assigned</span>}
+          {route.flatFee ? ` · $${Number(route.flatFee).toFixed(2)}/route` : <span style={{ color: Z.da }}>{" · No flat fee set"}</span>}
+          {isInactive && <span style={{ color: Z.da, fontWeight: FW.bold }}> · DEACTIVATED</span>}
+        </div>
+      </div>
+      {onEdit && <Btn sm v="secondary" onClick={onEdit}>Edit Route</Btn>}
+    </div>
     <TabRow>
       <TB tabs={["Stops", "Efficiency", "Audit Log"]} active={tab} onChange={setTab} />
     </TabRow>
