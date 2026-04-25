@@ -26,7 +26,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
   const proposals = appData.proposals || [];
   const invoices = appData.invoices || [];
   const payments = appData.payments || [];
-  const pubs = appData.publications || [];
+  const pubs = appData.pubs || appData.allPubs || [];
 
   const client = clients.find(c => c.id === clientId);
   const [tab, setTab] = useState("Overview");

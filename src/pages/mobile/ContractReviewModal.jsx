@@ -28,7 +28,10 @@ import { TOKENS, SURFACE, INK, ACCENT, GOLD, fmtMoneyFull, todayISO } from "./mo
 
 export default function ContractReviewModal({ importRow, currentUser, appData, onClose, onConverted }) {
   const clients = appData?.clients || [];
-  const pubs = appData?.publications || [];
+  // useAppData exposes pubs (active) + allPubs (everything incl. dormant).
+  // Older code paths in this tree mistakenly read .publications, which is
+  // undefined and silently produced an empty dropdown.
+  const pubs = appData?.pubs || appData?.allPubs || [];
   const draft = importRow.extracted_json || {};
 
   const prebound = importRow.client_id ? clients.find(c => c.id === importRow.client_id) : null;

@@ -133,7 +133,7 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
   const team = appData.team || [];
   const currentUser = team.find(t => t.auth_id === user?.id);
   const jurisdiction = useJurisdiction(currentUser, {
-    pubs: appData.publications || [],
+    pubs: appData.pubs || appData.allPubs || [],
     clients: appData.clients || [],
     sales: appData.sales || [],
     issues: appData.issues || [],
