@@ -15,6 +15,7 @@ import { supabase } from "../../../lib/supabase";
 const ChargeCardModal = lazy(() => import("../ChargeCardModal"));
 const EditClientModal = lazy(() => import("../EditClientModal"));
 const NewOpportunityModal = lazy(() => import("../NewOpportunityModal"));
+const UploadContractModal = lazy(() => import("../UploadContractModal"));
 
 const TABS = ["Overview", "Activity", "Financial", "Proposals"];
 
@@ -33,6 +34,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
   const [chargeSale, setChargeSale] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [newOppOpen, setNewOppOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   if (!client) {
     return <>
@@ -182,13 +184,24 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
           {comms.slice(0, 3).map(c => <CommCard key={c.id} comm={c} />)}
         </Section>}
 
-        <button onClick={() => setNewOppOpen(true)} style={{
-          padding: "14px", minHeight: 52,
-          background: GOLD, color: "#FFFFFF",
-          border: "none", borderRadius: 12,
-          fontSize: 15, fontWeight: 700, cursor: "pointer",
-          fontFamily: "inherit",
-        }}>+ New opportunity</button>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={() => setUploadOpen(true)} style={{
+            padding: "14px 12px", minHeight: 52,
+            background: ACCENT, color: "#FFFFFF",
+            border: "none", borderRadius: 12,
+            fontSize: 14, fontWeight: 700, cursor: "pointer",
+            fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>📄 Upload contract</button>
+          <button onClick={() => setNewOppOpen(true)} style={{
+            padding: "14px 12px", minHeight: 52,
+            background: GOLD, color: "#FFFFFF",
+            border: "none", borderRadius: 12,
+            fontSize: 14, fontWeight: 700, cursor: "pointer",
+            fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>＋ Opportunity</button>
+        </div>
 
         <a href={`/?desktop=1#client=${clientId}`} target="_blank" rel="noreferrer" style={{
           ...CARD, padding: "12px 14px", textDecoration: "none",
@@ -299,6 +312,15 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
         pubs={pubs}
         onClose={() => setNewOppOpen(false)}
         onSave={persistNewOpp}
+      />
+    </Suspense>}
+
+    {uploadOpen && <Suspense fallback={null}>
+      <UploadContractModal
+        currentUser={currentUser}
+        prefillClient={client}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => { /* Home tab realtime sub catches the new row + parser fires */ }}
       />
     </Suspense>}
   </>;

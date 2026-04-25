@@ -20,7 +20,7 @@ import { useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD } from "./mobileTokens";
 
-export default function UploadContractModal({ currentUser, onClose, onUploaded }) {
+export default function UploadContractModal({ currentUser, prefillClient, onClose, onUploaded }) {
   const [files, setFiles] = useState([]);  // [{file, previewUrl}]
   const [notes, setNotes] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -71,7 +71,8 @@ export default function UploadContractModal({ currentUser, onClose, onUploaded }
         setProgress({ sent: i + 1, total: files.length });
       }
 
-      // Insert the queue row. The Mac Mini worker picks this up.
+      // Insert the queue row. A DB trigger fires the contract-importer
+      // Edge Function within ~1s; a 5-min cron drain is the safety net.
       const { data, error: insErr } = await supabase
         .from("contract_imports")
         .insert({
@@ -80,6 +81,10 @@ export default function UploadContractModal({ currentUser, onClose, onUploaded }
           storage_paths: storagePaths,
           status: "pending",
           notes: notes.trim() || null,
+          // Pre-binding to a client skips the parser's most error-prone
+          // field (handwritten name) — the reviewer just confirms the
+          // line items + total instead of also matching the client.
+          client_id: prefillClient?.id || null,
         })
         .select()
         .single();
@@ -113,10 +118,18 @@ export default function UploadContractModal({ currentUser, onClose, onUploaded }
       </div>
 
       <div style={{ padding: "8px 18px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {prefillClient && <div style={{ padding: "10px 14px", background: ACCENT + "10", borderRadius: 10, border: `1px solid ${ACCENT}30`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: TOKENS.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>For client</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: INK, marginTop: 2 }}>{prefillClient.name}</div>
+          </div>
+          <span style={{ fontSize: 12, color: ACCENT, fontWeight: 700 }}>✓ pre-bound</span>
+        </div>}
+
         <div style={{ padding: "10px 14px", background: SURFACE.alt, borderRadius: 10, fontSize: 13, color: TOKENS.muted, lineHeight: 1.5 }}>
-          Snap one or more photos of the paper contract. The Mac Mini parser
-          reads them within ~30 seconds and queues a draft proposal for your
-          review.
+          Snap one or more photos of the paper contract. The parser reads
+          them within ~30 seconds and queues a draft for your review
+          {prefillClient ? "" : " — including a best-guess client match"}.
         </div>
 
         {/* Photo picker buttons */}

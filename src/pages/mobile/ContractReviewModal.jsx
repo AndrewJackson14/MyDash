@@ -31,7 +31,8 @@ export default function ContractReviewModal({ importRow, currentUser, appData, o
   const pubs = appData?.publications || [];
   const draft = importRow.extracted_json || {};
 
-  const [clientName, setClientName] = useState(draft.client?.name || "");
+  const prebound = importRow.client_id ? clients.find(c => c.id === importRow.client_id) : null;
+  const [clientName, setClientName] = useState(prebound?.name || draft.client?.name || "");
   const [matchedClientId, setMatchedClientId] = useState(importRow.client_id || null);
   const [pubId, setPubId] = useState(() => {
     const hint = (draft.publication_hint || "").toLowerCase();
