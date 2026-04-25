@@ -68,6 +68,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   const [loading, setLoading] = useState(true);
   const [sr, setSr] = useState("");
   const [fPub, setFPub] = useState("all");
+  const [fDesigner, setFDesigner] = useState("all"); // P1.20
   const [viewId, setViewId] = useState(null);
   const [createModal, setCreateModal] = useState(false);
   const [proofModal, setProofModal] = useState(false);
@@ -89,6 +90,16 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     if (!isActive || !deepLink) return;
     if (deepLink.projectId) {
       setViewId(deepLink.projectId);
+      return;
+    }
+    // P1.20: Performance per-designer click → filter the list to
+    // that designer + clear any heatmap/issue filter that might
+    // be obscuring the result.
+    if (deepLink.designer) {
+      setHeatmapFilter(null);
+      setFDesigner(deepLink.designer);
+      setView("list");
+      setViewId(null);
       return;
     }
     if (deepLink.saleId) {
@@ -153,6 +164,41 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     });
   }, [loadAdProjects]);
 
+  // P1.14 — realtime subscriptions on ad_projects + ad_proofs.
+  // When a client signs off via the public approval page, when
+  // another designer claims an unassigned project, when a new proof
+  // lands… we want every open AdProjects view to flip without a
+  // manual refresh. Two channel handlers, scoped to this component.
+  useEffect(() => {
+    if (!isOnline()) return;
+    const ch = supabase
+      .channel("adprojects-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ad_projects" }, (payload) => {
+        const row = payload.new || payload.old;
+        if (!row?.id) return;
+        if (payload.eventType === "INSERT") {
+          setProjects(prev => prev.some(p => p.id === row.id) ? prev : [row, ...prev]);
+        } else if (payload.eventType === "UPDATE") {
+          setProjects(prev => prev.map(p => p.id === row.id ? { ...p, ...row } : p));
+        } else if (payload.eventType === "DELETE") {
+          setProjects(prev => prev.filter(p => p.id !== row.id));
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "ad_proofs" }, (payload) => {
+        const row = payload.new || payload.old;
+        if (!row?.id) return;
+        if (payload.eventType === "INSERT") {
+          setProofs(prev => prev.some(p => p.id === row.id) ? prev : [row, ...prev]);
+        } else if (payload.eventType === "UPDATE") {
+          setProofs(prev => prev.map(p => p.id === row.id ? { ...p, ...row } : p));
+        } else if (payload.eventType === "DELETE") {
+          setProofs(prev => prev.filter(p => p.id !== row.id));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [setProjects]);
+
   // Save a proof (stamps saved_at so it's retained past the 7-day expiration).
   const saveProof = async (proofId) => {
     const nowIso = new Date().toISOString();
@@ -183,9 +229,10 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       list = list.filter(p => ["signed_off", "placed"].includes(p.status));
     }
     if (fPub !== "all") list = list.filter(p => p.publication_id === fPub);
+    if (fDesigner !== "all") list = list.filter(p => p.designer_id === fDesigner);
     if (sr) { const q = sr.toLowerCase(); list = list.filter(p => cn(p.client_id).toLowerCase().includes(q)); }
     return list;
-  }, [projects, tab, fPub, sr, clients, issues, today, cutoff30d]);
+  }, [projects, tab, fPub, fDesigner, sr, clients, issues, today, cutoff30d]);
 
   // ── Issue × Status grid (Active tab, board view) ───────
   // Source of truth is SALES, not ad_projects. Every closed/follow-up sale
@@ -408,16 +455,43 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   };
 
   // ── Inline field edit (brief fields) ────────────────────
+  // P1.19: per-field save-status indicator. Was fire-and-forget so a
+  // failed write left no trace; now we surface saving / saved / failed
+  // next to the field label.
+  const [savingField, setSavingField] = useState(null); // { field, status }
   const saveBriefField = async (projectId, field, value) => {
-    await supabase.from("ad_projects").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", projectId);
+    setSavingField({ field, status: "saving" });
+    const { error } = await supabase
+      .from("ad_projects")
+      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .eq("id", projectId);
+    if (error) {
+      setSavingField({ field, status: "error" });
+      return;
+    }
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, [field]: value } : p));
+    setSavingField({ field, status: "saved" });
+    // Auto-clear the "Saved" pill after 2s, but only if no other
+    // field has taken over the indicator in the meantime.
+    setTimeout(() => setSavingField(s => s?.field === field ? null : s), 2000);
+  };
+  const SaveIndicator = ({ field }) => {
+    if (savingField?.field !== field) return null;
+    const text = savingField.status === "saving" ? "Saving…" : savingField.status === "error" ? "Failed" : "Saved";
+    const color = savingField.status === "saving" ? Z.tm : savingField.status === "error" ? Z.da : Z.go;
+    return <span style={{ marginLeft: 6, fontSize: 9, color, fontWeight: FW.bold, textTransform: "uppercase", letterSpacing: 0.5 }}>{text}</span>;
   };
 
   // ── Sign off ───────────────────────────────────────────
   const signOff = async (projectId, role) => {
+    // P1.15: stamp approved_at on the designer-signoff path so the
+    // first-proof-rate + on-time-rate metrics have a stable, role-
+    // specific timestamp (separate from updated_at, which moves on
+    // every brief edit / status flip).
+    const now = new Date().toISOString();
     const updates = role === "designer"
-      ? { designer_signoff: true, designer_signoff_at: new Date().toISOString(), status: "approved" }
-      : { salesperson_signoff: true, salesperson_signoff_at: new Date().toISOString(), status: "signed_off" };
+      ? { designer_signoff: true, designer_signoff_at: now, status: "approved", approved_at: now }
+      : { salesperson_signoff: true, salesperson_signoff_at: now, status: "signed_off" };
     await supabase.from("ad_projects").update(updates).eq("id", projectId);
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...updates } : p));
   };
@@ -530,10 +604,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     const currentIdx = STAGES.indexOf(viewProject.status);
     const spName = (team || []).find(t => t.id === viewProject.salesperson_id)?.name;
 
-    // Status advance helper
+    // Status advance helper. P1.15: stamp approved_at when crossing
+    // into approved so the first-proof / on-time metrics use a
+    // stable timestamp.
     const advanceStatus = async (newStatus) => {
-      await supabase.from("ad_projects").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", viewProject.id);
-      setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, status: newStatus } : p));
+      const now = new Date().toISOString();
+      const patch = { status: newStatus, updated_at: now };
+      if (newStatus === "approved" && !viewProject.approved_at) patch.approved_at = now;
+      await supabase.from("ad_projects").update(patch).eq("id", viewProject.id);
+      setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, ...patch } : p));
     };
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -544,7 +623,28 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {viewProject.status === "brief" && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
+          {!viewProject.designer_id && currentUser?.id && <Btn sm onClick={async () => {
+            // P1.7: claim an unassigned project. Same race guard as the
+            // dashboard pickup — only writes if designer_id is still null.
+            const isCR = viewProject.art_source === "camera_ready";
+            const newStatus = viewProject.status === "brief"
+              ? (isCR ? "awaiting_art" : "designing")
+              : viewProject.status;
+            const { data: updated, error } = await supabase.from("ad_projects")
+              .update({ designer_id: currentUser.id, status: newStatus, updated_at: new Date().toISOString() })
+              .eq("id", viewProject.id)
+              .is("designer_id", null)
+              .select();
+            if (error) { console.error("assign failed:", error); return; }
+            if (!updated || updated.length === 0) {
+              await dialog.alert("Someone else just took this one — refreshing.");
+              const { data: latest } = await supabase.from("ad_projects").select("*").eq("id", viewProject.id).single();
+              if (latest) setProjects(prev => prev.map(p => p.id === viewProject.id ? latest : p));
+              return;
+            }
+            setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, designer_id: currentUser.id, status: newStatus } : p));
+          }}>Assign to me</Btn>}
+          {viewProject.status === "brief" && viewProject.designer_id && <Btn sm onClick={() => advanceStatus("designing")}>Start Designing</Btn>}
           <Btn sm v="secondary" onClick={() => requestClientAssets(viewProject)} disabled={requestingAssets} title={viewProject.asset_request_sent_at ? `Last sent ${new Date(viewProject.asset_request_sent_at).toLocaleString()}` : "Email the client a link to drop their assets"}>
             <Ic.attach size={11} /> {requestingAssets ? "Sending…" : (viewProject.asset_request_sent_at ? "Resend Asset Link" : "Request Assets from Client")}
           </Btn>
@@ -552,14 +652,49 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         </div>
       </div>
 
-      {/* Status pipeline */}
-      <div style={{ display: "flex", gap: 2 }}>
-        {STAGES.map((s, i) => {
-          const isCurrent = viewProject.status === s;
-          const isPast = currentIdx > i;
-          return <div key={s} style={{ flex: 1, padding: "6px 0", textAlign: "center", fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5, color: isCurrent ? "#fff" : isPast ? Z.go : Z.td, background: isCurrent ? st.color : isPast ? Z.go + "20" : Z.sa, borderRadius: Ri }}>{STATUSES[s]?.label || s}</div>;
-        })}
-      </div>
+      {/* Status pipeline — P1.12: each "next-stage" segment is now
+          clickable, advancing the project one step. Hover ring +
+          pointer cursor signal which segments are interactive. */}
+      {(() => {
+        const NEXT_STAGES = {
+          brief:        ["designing"],
+          awaiting_art: ["designing", "approved"],   // CR jumps straight to approved on receipt
+          designing:    ["proof_sent"],
+          proof_sent:   ["revising", "approved"],
+          revising:     ["proof_sent"],
+          approved:     ["signed_off"],
+          signed_off:   ["placed"],
+        };
+        const allowedNext = NEXT_STAGES[viewProject.status] || [];
+        const isCR = viewProject.art_source === "camera_ready";
+        const showMarkArtReceived = isCR && viewProject.status === "awaiting_art";
+        return <>
+          <div style={{ display: "flex", gap: 2 }}>
+            {STAGES.map((s, i) => {
+              const isCurrent = viewProject.status === s;
+              const isPast = currentIdx > i;
+              const isClickable = allowedNext.includes(s);
+              return <div
+                key={s}
+                onClick={isClickable ? () => advanceStatus(s) : undefined}
+                title={isClickable ? `Advance to ${STATUSES[s]?.label || s}` : undefined}
+                style={{
+                  flex: 1, padding: "6px 0", textAlign: "center",
+                  fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5,
+                  color: isCurrent ? "#fff" : isPast ? Z.go : (isClickable ? Z.tx : Z.td),
+                  background: isCurrent ? st.color : isPast ? Z.go + "20" : (isClickable ? (STATUSES[s]?.color || Z.ac) + "12" : Z.sa),
+                  borderRadius: Ri,
+                  cursor: isClickable ? "pointer" : "default",
+                  outline: isClickable ? `2px solid ${(STATUSES[s]?.color || Z.ac)}40` : "none",
+                }}
+              >{STATUSES[s]?.label || s}</div>;
+            })}
+          </div>
+          {showMarkArtReceived && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+            <Btn sm onClick={() => advanceStatus("approved")}><Ic.check size={12} /> Mark Art Received</Btn>
+          </div>}
+        </>;
+      })()}
 
       {/* Linked project banner — shown if this project is linked (secondary) */}
       {viewProject.status === "linked" && viewProject.linked_to_project_id && (() => {
@@ -706,7 +841,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   ["brief_headline", "Key Message / Headline", false],
                   ["brief_style", "Style Direction", true],
                 ].map(([field, label, tall]) => <div key={field} style={tall ? { flex: 1 } : {}}>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
                   <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={tall ? 4 : 2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }} />
                 </div>)}
 
@@ -715,13 +850,13 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     ["brief_colors", "Colors to Use / Avoid"],
                     ["brief_instructions", "Special Instructions"],
                   ].map(([field, label]) => <div key={field}>
-                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
                     <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
                   </div>)}
                 </div>
 
                 {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes</div>
+                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes<SaveIndicator field="design_notes" /></div>
                   <textarea defaultValue={viewProject.design_notes} onBlur={e => { if (e.target.value !== viewProject.design_notes) saveBriefField(viewProject.id, "design_notes", e.target.value); }} rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
                 </div>}
               </div>
@@ -886,6 +1021,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <SB value={sr} onChange={setSr} placeholder="Search clients..." />
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
+      <Sel value={fDesigner} onChange={e => setFDesigner(e.target.value)} options={[{ value: "all", label: "All Designers" }, ...((team || []).filter(t => ["Ad Designer", "Layout Designer", "Graphic Designer"].includes(t.role)).map(t => ({ value: t.id, label: t.name })))]} />
     </div>
 
     {/* View toggle + tabs */}

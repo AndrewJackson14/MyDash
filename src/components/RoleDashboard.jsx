@@ -494,6 +494,35 @@ const RoleDashboard = memo(({
       })();
   }, [isAdDesigner, currentUser?.id, _sales?.length, _issues?.length]);
 
+  // P1.14 — realtime on ad_projects so the designer dashboard
+  // reflects pickups, status flips, and approvals from anywhere
+  // (other designers' actions, public proof approvals, etc).
+  useEffect(() => {
+    if (!isAdDesigner || !isOnline()) return;
+    const ch = supabase
+      .channel("dashboard-adprojects-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ad_projects" }, (payload) => {
+        const row = payload.new || payload.old;
+        if (!row?.id) return;
+        if (payload.eventType === "INSERT") {
+          // Only ingest unassigned or own projects (mirrors the load filter).
+          if (row.designer_id && row.designer_id !== currentUser?.id) return;
+          setAdProjects(prev => prev.some(p => p.id === row.id) ? prev : [row, ...prev]);
+        } else if (payload.eventType === "UPDATE") {
+          // If an unassigned row got picked up by someone else, drop it.
+          if (row.designer_id && row.designer_id !== currentUser?.id) {
+            setAdProjects(prev => prev.filter(p => p.id !== row.id));
+            return;
+          }
+          setAdProjects(prev => prev.map(p => p.id === row.id ? { ...p, ...row } : p));
+        } else if (payload.eventType === "DELETE") {
+          setAdProjects(prev => prev.filter(p => p.id !== row.id));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isAdDesigner, currentUser?.id]);
+
   if (isAdDesigner) {
     // Active projects (not placed/signed off)
     const activeProjects = adProjects.filter(p => !["signed_off", "placed"].includes(p.status));
@@ -560,16 +589,28 @@ const RoleDashboard = memo(({
     const completedThisMonth = allCompleted.filter(p => p.updated_at?.startsWith(thisMonthStr));
     const totalDesignsCareer = allCompleted.length + _jobs.filter(j => j.status === "complete").length;
 
-    // First-proof approval rate: approved without revision (revision_count <= 1)
-    const recentCompleted = allCompleted.slice(0, 30);
-    const firstProofRate = recentCompleted.length > 0 ? Math.round(recentCompleted.filter(p => (p.revision_count || 1) <= 1).length / recentCompleted.length * 100) : 100;
+    // P1.15 — first-proof rate scoped to MY work, sorted by approved_at
+    // (or fall back to updated_at when historical rows don't have it).
+    // The previous slice(0,30) was array-order, not time, and pulled in
+    // unassigned projects by mistake.
+    const myCompleted = allCompleted
+      .filter(p => p.designer_id === currentUser?.id)
+      .sort((a, b) => (b.approved_at || b.updated_at || "").localeCompare(a.approved_at || a.updated_at || ""))
+      .slice(0, 30);
+    const firstProofRate = myCompleted.length > 0
+      ? Math.round(myCompleted.filter(p => (p.revision_count || 1) <= 1).length / myCompleted.length * 100)
+      : 100;
 
-    // On-time: completed before issue publish date
-    const onTimeCount = allCompleted.filter(p => {
+    // P1.16 — on-time uses approved_at + adDeadline (was updated_at +
+    // issue.date, both wrong: updated_at moves on every status change,
+    // issue.date is publish day not the deadline the designer was hitting).
+    const onTimeCount = myCompleted.filter(p => {
       const issue = _issues.find(i => i.id === p.issue_id);
-      return issue && p.updated_at && p.updated_at.slice(0, 10) <= issue.date;
+      if (!issue || !p.approved_at) return false;
+      const benchmark = issue.adDeadline || issue.date;
+      return benchmark && p.approved_at.slice(0, 10) <= benchmark;
     }).length;
-    const onTimeRate = allCompleted.length > 0 ? Math.round(onTimeCount / allCompleted.length * 100) : 100;
+    const onTimeRate = myCompleted.length > 0 ? Math.round(onTimeCount / myCompleted.length * 100) : 100;
 
     // 7-day high water mark: most ads approved in a single day over the past 7 days
     const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -675,7 +716,7 @@ const RoleDashboard = memo(({
             : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
               {filteredQueue.map(q => {
                 const c = statusColors[q.status] || Z.tm;
-                return <div key={q.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${c}`, cursor: "pointer" }}>
+                return <div key={q.id} onClick={() => onNavigate?.("adprojects", q.type === "project" ? { projectId: q.id } : undefined)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${c}`, cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(q.clientId)} — {q.adSize || "Ad"}</div>
                     <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 2 }}>
@@ -697,12 +738,12 @@ const RoleDashboard = memo(({
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {revisionProjects.map(p => (
-                <div key={p.id} onClick={() => onNavigate?.("adprojects")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.da + "08", borderRadius: Ri, borderLeft: `3px solid ${Z.da}`, cursor: "pointer" }}>
+                <div key={p.id} onClick={() => onNavigate?.("adprojects", { projectId: p.id })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.da + "08", borderRadius: Ri, borderLeft: `3px solid ${Z.da}`, cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{cn(p.client_id)}</div>
                     <div style={{ fontSize: FS.xs, color: Z.tm }}>v{p.revision_count || 1} · {p.updated_at ? `${Math.round((new Date() - new Date(p.updated_at)) / 86400000)}d ago` : ""}</div>
                   </div>
-                  <Btn sm v="secondary" onClick={(e) => { e.stopPropagation(); onNavigate?.("adprojects"); }}>Revise</Btn>
+                  <Btn sm v="secondary" onClick={(e) => { e.stopPropagation(); onNavigate?.("adprojects", { projectId: p.id }); }}>Revise</Btn>
                 </div>
               ))}
             </div>
@@ -729,8 +770,26 @@ const RoleDashboard = memo(({
                       <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCR ? Z.wa : Z.ac, background: (isCR ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCR ? "Camera Ready" : "We Design"}</span>
                     </div>
                     <Btn sm onClick={async () => {
-                      await supabase.from("ad_projects").update({ designer_id: currentUser.id, status: isCR ? "awaiting_art" : "designing", updated_at: new Date().toISOString() }).eq("id", p.id);
-                      setAdProjects(prev => prev.map(ap => ap.id === p.id ? { ...ap, designer_id: currentUser.id, status: isCR ? "awaiting_art" : "designing" } : ap));
+                      // P1.5: race guard — only succeeds if designer_id is still NULL
+                      // at write time. Two designers tapping Pick Up at the same moment
+                      // can no longer both win silently.
+                      const newStatus = isCR ? "awaiting_art" : "designing";
+                      const { data: updated, error } = await supabase
+                        .from("ad_projects")
+                        .update({ designer_id: currentUser.id, status: newStatus, updated_at: new Date().toISOString() })
+                        .eq("id", p.id)
+                        .is("designer_id", null)
+                        .select();
+                      if (error) { console.error("pickup failed:", error); return; }
+                      if (!updated || updated.length === 0) {
+                        // Lost the race — refresh local row so the UI reflects reality.
+                        const { data: latest } = await supabase.from("ad_projects").select("*").eq("id", p.id).single();
+                        if (latest) setAdProjects(prev => prev.map(ap => ap.id === p.id ? latest : ap));
+                        if (typeof addNotif === "function") addNotif(`${cn(p.client_id)} was just picked up by another designer`);
+                        else alert(`${cn(p.client_id)} was just picked up by another designer`);
+                        return;
+                      }
+                      setAdProjects(prev => prev.map(ap => ap.id === p.id ? { ...ap, designer_id: currentUser.id, status: newStatus } : ap));
                     }}>Pick Up →</Btn>
                   </div>;
                 })}

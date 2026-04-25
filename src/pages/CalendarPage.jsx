@@ -28,6 +28,7 @@ const ROLE_FILTERS = {
   Salesperson: ["google", "adDeadline", "salesAction", "custom"],
   "Office Manager": ["google", "publish", "adDeadline", "edDeadline", "custom"],
   "Production Manager": ["google", "publish", "adDeadline", "custom"],
+  "Ad Designer": ["google", "adDeadline", "publish", "custom"],
   Finance: ["google", "adDeadline", "custom"],
 };
 const EVENT_ICONS = { google: Ic.cal, publish: Ic.pub, adDeadline: Ic.clock, edDeadline: Ic.edit, salesAction: Ic.sale, storyDue: Ic.story, custom: Ic.star };
