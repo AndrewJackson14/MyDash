@@ -19,6 +19,7 @@ import { supabase } from "../../lib/supabase";
 import { fmtDate, fmtCurrency } from "../../lib/formatters";
 import { ROUTE_FREQS, pnFor, todayIso } from "./constants";
 import RouteAuditLog from "./RouteAuditLog";
+import RouteEfficiencyTab from "./RouteEfficiencyTab";
 
 export default function Routes({
   pubs,
@@ -354,6 +355,7 @@ export default function Routes({
       team={team || []}
       routePubs={routePubsMap.get(detailRouteId) || []}
       pn={pn}
+      currentUser={currentUser}
       onClose={() => setDetailRouteId(null)}
     />}
   </>;
@@ -421,11 +423,11 @@ function SortableStopRow({ id, index, stop, loc, onQtyChange, onNotesChange, onR
   </div>;
 }
 
-// ── Route detail modal with Stops / Audit tabs ─────────────────────
-function RouteDetailModal({ route, stops, locs, team, routePubs, pn, onClose }) {
+// ── Route detail modal with Stops / Efficiency / Audit tabs ──────
+function RouteDetailModal({ route, stops, locs, team, routePubs, pn, currentUser, onClose }) {
   const [tab, setTab] = useState("Stops");
   if (!route) return null;
-  return <Modal open={true} onClose={onClose} title={route.name} width={660}>
+  return <Modal open={true} onClose={onClose} title={route.name} width={720}>
     {routePubs.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
       {routePubs.map(p => <span key={p.pub_id} style={{
         fontSize: FS.micro, fontWeight: FW.heavy, color: p.is_primary ? Z.ac : Z.tm,
@@ -434,9 +436,9 @@ function RouteDetailModal({ route, stops, locs, team, routePubs, pn, onClose }) 
       }}>{p.is_primary && "★ "}{pn(p.pub_id)}</span>)}
     </div>}
     <TabRow>
-      <TB tabs={["Stops", "Audit Log"]} active={tab} onChange={setTab} />
+      <TB tabs={["Stops", "Efficiency", "Audit Log"]} active={tab} onChange={setTab} />
     </TabRow>
-    {tab === "Stops" && <div style={{ marginTop: 12, maxHeight: 360, overflowY: "auto" }}>
+    {tab === "Stops" && <div style={{ marginTop: 12, maxHeight: 420, overflowY: "auto" }}>
       {stops.length === 0
         ? <div style={{ padding: "18px 16px", color: Z.tm, fontSize: FS.sm }}>No stops yet.</div>
         : stops.map((s, i) => {
@@ -453,6 +455,12 @@ function RouteDetailModal({ route, stops, locs, team, routePubs, pn, onClose }) 
           </div>;
         })}
     </div>}
+    {tab === "Efficiency" && <RouteEfficiencyTab
+      route={route}
+      stops={stops}
+      locs={locs}
+      currentUser={currentUser}
+    />}
     {tab === "Audit Log" && <div style={{ marginTop: 12 }}>
       <RouteAuditLog routeId={route.id} team={team} />
     </div>}

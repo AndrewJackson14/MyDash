@@ -32,13 +32,12 @@ function corsFor(origin: string | null) {
   };
 }
 
-function authedSub(authHeader: string): string | null {
-  if (!authHeader?.startsWith("Bearer ")) return null;
+function authed(authHeader: string): boolean {
+  if (!authHeader?.startsWith("Bearer ")) return false;
   try {
     const payload = JSON.parse(atob(authHeader.slice(7).split(".")[1]));
-    if (payload.role !== "authenticated" && payload.role !== "service_role") return null;
-    return String(payload.sub || "");
-  } catch { return null; }
+    return payload.role === "authenticated" || payload.role === "service_role";
+  } catch { return false; }
 }
 
 function json(body: unknown, status: number, cors: Record<string, string>) {
@@ -52,7 +51,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ status: "failed", reason: "POST only" }, 405, cors);
 
-  if (!authedSub(req.headers.get("Authorization") || "")) {
+  if (!authed(req.headers.get("Authorization") || "")) {
     return json({ status: "failed", reason: "Not authenticated" }, 401, cors);
   }
 
