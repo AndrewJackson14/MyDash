@@ -43,7 +43,7 @@ const PRINT_COLOR = (status) => ({
 }[status] || Z.tm);
 
 export default function IssueLayoutConsole({
-  isActive, deepLink, currentUser, pubs, issues, team, sales, stories, setStories, onNavigate,
+  isActive, deepLink, currentUser, pubs, issues, team, sales, stories, clients, setStories, onNavigate,
 }) {
   const issueId = deepLink?.id;
   const issue = (issues || []).find(i => i.id === issueId);
@@ -591,7 +591,14 @@ export default function IssueLayoutConsole({
               <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Print Runs</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {printRuns.map(r => (
-                  <PrintRunRow key={r.id} run={r} currentUser={currentUser} onUpdate={(updated) => setPrintRuns(prev => prev.map(x => x.id === updated.id ? updated : x))} />
+                  <PrintRunRow
+                    key={r.id}
+                    run={r}
+                    currentUser={currentUser}
+                    issueSales={issueSales}
+                    clients={clients}
+                    onUpdate={(updated) => setPrintRuns(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                  />
                 ))}
               </div>
             </div>
@@ -640,7 +647,7 @@ export default function IssueLayoutConsole({
 }
 
 // ── Print run row with Mark Received + Generate Tearsheets ────
-function PrintRunRow({ run, currentUser, onUpdate }) {
+function PrintRunRow({ run, currentUser, issueSales = [], clients = [], onUpdate }) {
   const [marking, setMarking] = useState(false);
   const [genStatus, setGenStatus] = useState(null); // null | "running" | "done" | "error"
   const [genError, setGenError] = useState(null);
@@ -751,24 +758,41 @@ function PrintRunRow({ run, currentUser, onUpdate }) {
       )}
       {tearsheetsOpen && hasTearsheets && (
         <div style={{ marginTop: 6, padding: 8, background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 4, maxHeight: 220, overflowY: "auto" }}>
-            {tearsheets.map(t => (
-              <a
-                key={t.page}
-                href={t.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Page ${t.page} · ${(t.byte_size / 1048576).toFixed(1)} MB`}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  padding: "8px 4px", background: Z.bg, borderRadius: Ri,
-                  textDecoration: "none", color: Z.tx, border: `1px solid ${Z.bd}`,
-                }}
-              >
-                <span style={{ fontSize: 16 }}>📄</span>
-                <span style={{ fontSize: 10, fontWeight: FW.bold, fontFamily: COND }}>p{t.page}</span>
-              </a>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
+            {tearsheets.map(t => {
+              // Sales placed on this page that have a client + token —
+              // these are the per-client share targets.
+              const adsOnPage = (issueSales || []).filter(s => s.page === t.page && s.tearsheetToken);
+              return (
+                <div key={t.page} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+                  <a
+                    href={t.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Page ${t.page} · ${(t.byte_size / 1048576).toFixed(1)} MB`}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "4px 8px", background: Z.sf, borderRadius: Ri,
+                      textDecoration: "none", color: Z.tx, border: `1px solid ${Z.bd}`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span>📄</span>
+                    <span style={{ fontSize: 11, fontWeight: FW.bold, fontFamily: COND }}>p{t.page}</span>
+                  </a>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {adsOnPage.length === 0 ? (
+                      <span style={{ fontSize: 10, color: Z.td, fontFamily: COND, fontStyle: "italic" }}>(no client ads on this page)</span>
+                    ) : adsOnPage.map(s => {
+                      const client = (clients || []).find(c => c.id === s.clientId);
+                      return (
+                        <ClientShareChip key={s.id} client={client} sale={s} />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           {currentUser?.role === "Publisher" && (
             <Btn
@@ -783,6 +807,46 @@ function PrintRunRow({ run, currentUser, onUpdate }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Client share chip — copy or open the tearsheet portal URL ─
+function ClientShareChip({ client, sale }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/tearsheet/${sale.tearsheetToken}`;
+  const copy = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onAuxClick={copy}
+      onClick={copy}
+      title={`Click to copy client tearsheet link · middle-click opens in new tab`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        padding: "2px 8px",
+        background: copied ? Z.go + "20" : Z.sf,
+        border: `1px solid ${copied ? Z.go : Z.bd}`,
+        borderRadius: 999,
+        fontSize: 10, fontFamily: COND, fontWeight: FW.semi,
+        color: copied ? Z.go : Z.ac,
+        textDecoration: "none",
+        cursor: "pointer",
+      }}
+    >
+      {copied ? "✓ copied" : `🔗 ${(client?.name || "Client").slice(0, 18)}`}
+    </a>
   );
 }
 

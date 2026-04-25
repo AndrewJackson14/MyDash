@@ -205,7 +205,7 @@ export function DataProvider({ children, localData }) {
         // === BOOT: All queries in parallel, clients paginated in parallel ===
         const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
         const clientSelect = 'id,name,status,total_spend,category,address,city,state,zip,rep_id,client_code,last_art_source,contract_end_date,last_ad_date,credit_balance,card_last4,card_brand,card_exp,invoice_prefix,lapsed_reason,billing_email,billing_cc_emails,billing_address,billing_address2,billing_city,billing_state,billing_zip';
-        const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to';
+        const saleSelect = 'id,client_id,publication_id,issue_id,ad_type,ad_size,ad_width,ad_height,amount,status,date,closed_at,page,grid_row,grid_col,next_action_type,next_action_label,next_action_date,proposal_id,notes,product_type,placement_notes,contract_id,assigned_to,tearsheet_token';
         const issueSelect = 'id,pub_id,label,date,page_count,ad_deadline,ed_deadline,status,revenue_goal,sent_to_press_at,sent_to_press_by,publisher_signoff_at,publisher_signoff_by';
         // Keyset pagination — uses PK index (id > cursor), no OFFSET. Earlier
         // OFFSET pagination silently dropped pages on Postgres statement
@@ -309,6 +309,7 @@ export function DataProvider({ children, localData }) {
           digitalProductId: s.digital_product_id || null, flightStartDate: s.flight_start_date || null, flightEndDate: s.flight_end_date || null, flightMonths: s.flight_months || null,
           contractId: s.contract_id || null,
           assignedTo: s.assigned_to || null,
+          tearsheetToken: s.tearsheet_token || null,
         })));
 
         console.timeEnd('boot-transform');
