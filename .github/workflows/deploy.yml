@@ -22,6 +22,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_STRIPE_PUBLIC_KEY: ${{ secrets.VITE_STRIPE_PUBLIC_KEY }}
+          VITE_MAPBOX_CLIENT_TOKEN: ${{ secrets.VITE_MAPBOX_CLIENT_TOKEN }}
 
       - name: Deploy to server
         run: |
