@@ -136,6 +136,18 @@ All 4 edge cases stayed steel: Mail, MerchShop, AdProjects detail (which doesn't
 
 ---
 
+## [2026-04-26] Retire Wednesday Agent's `social_posts` table; free name for new social-scheduling feature
+
+- **Context:** Migration 162 (per-publication social scheduling, see `_specs/social-scheduling.md`) creates a `public.social_posts` table whose shape conflicts with an existing same-named table that backed the Wednesday Agent's per-story social drafts feature. Andrew already turned off the agent in social-media areas. Pre-flight checks confirmed: 0 live rows in the existing `social_posts`, 6 rows in the companion `social_posts_archived`, no FKs / views / RPCs / functions reference the table. Two code touchpoints: a "Social Posts" panel in `StoryEditor.jsx` and a `social_posts` permission key in `TeamModule.jsx` (also bound to the Content Editor + Managing Editor role defaults).
+- **Decision:** Retire the old table cleanly so migration 162 can use the canonical `social_posts` name. Wrote migration `163_retire_wednesday_social_posts.sql` (one-liner: `DROP TABLE IF EXISTS public.social_posts`). Preserved `social_posts_archived` as historical record. Removed the StoryEditor panel + realtime listener; removed the permission key from TeamModule and from the two role defaults. Applied migrations to Supabase in order: 163 first (drops old), then 162 (creates new four-table schema).
+- **Alternatives considered:** (a) Rename my new table to `social_outbox` — works but introduces a domain-vs-codebase mismatch with the spec. (b) Subsume the existing rows into the new schema — wrong-fit (different domain: per-story drafts vs. per-publication scheduled posts). (c) Leave both tables — couldn't, name collision is hard.
+- **Why:** The new feature subsumes the use case. The spec already plans a "Compose Social Post" button on StoryEditor that pre-fills from the active story and opens SocialComposer (Milestone 1 task 5). That's the strictly-better version of what the old panel did, with the new infrastructure (Edge Functions, multi-network, scheduling, usage tracking).
+- **Apply order caveat:** 163 sorts AFTER 162 numerically on disk but must run BEFORE 162 (drop old → create new). Codebase doesn't apply migrations via `supabase db push` (file-naming convention skips the CLI's pattern check); migrations get applied via `supabase db query --linked --file ...` one at a time. Disk order is for human review only. Header comment in 163 documents the apply-order requirement.
+- **Tradeoff to monitor:** Existing `team_members.permissions` JSONB rows that had `social_posts` in their granted-permissions array now reference an unknown module key. Inert (no module to bind to) but cosmetic clutter. Cleans up the next time those rows are edited via the permissions UI.
+- **Status:** Both migrations applied to remote. Schema verified: `social_accounts`, `social_accounts_safe` (view), `social_posts` (new shape), `social_post_results`, `provider_usage`, plus `bump_provider_usage` and `x_spend_this_month` functions. `social_posts_archived` preserved untouched.
+
+---
+
 ## [2026-04-17] Snapshot rep + contract attribution onto invoices (migration 047)
 
 - **Context:** Billing › Reports › Rep Collections (and Sales Perf, AR Aging) attributed all rep credit through `clients.rep_id`. When a client was reassigned, every historical sale and invoice silently re-credited to the new rep — there was no record of who actually closed/billed the deal. `sales` and `contracts` already carried `assigned_to`; `invoices` did not.

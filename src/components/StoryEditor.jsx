@@ -230,8 +230,6 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [mediaPickerMode, setMediaPickerMode] = useState("featured");
-  const [socialPosts, setSocialPosts] = useState([]);
-  const [socialLoading, setSocialLoading] = useState(true);
   const [imageCaption, setImageCaption] = useState("");
   const [pendingImageUrl, setPendingImageUrl] = useState("");
   const [activity, setActivity] = useState([]);
@@ -417,17 +415,9 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
       .then(({ data }) => { if (data) setActivity(data); });
   }, [story.id]);
 
-  // ── Social media posts ──────────────────────────────────────
-  useEffect(() => {
-    if (!story.id) return;
-    supabase.from("social_posts").select("*").eq("story_id", story.id)
-      .then(({ data }) => { setSocialPosts(data || []); setSocialLoading(false); });
-    const ch = supabase.channel(`social-${story.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "social_posts", filter: `story_id=eq.${story.id}` },
-        (payload) => setSocialPosts(prev => prev.some(p => p.id === payload.new.id) ? prev : [...prev, payload.new]))
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [story.id]);
+  // (Wednesday Agent's per-story social_posts panel was removed in
+  // migration 163. The new social-scheduling feature opens via the
+  // toolbar's "Compose Social Post" hook → SocialComposer.)
 
   // ── Story lock (single-editor presence channel) ────────────
   // Uses Supabase Realtime presence: each StoryEditor mount joins
@@ -1372,38 +1362,10 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             </div>
           </div>
 
-          {/* Social Media Posts — only show once editorial is Ready */}
-          {meta.status === "Ready" && (() => {
-            const PLATFORMS = { facebook: { label: "Facebook", limit: 500, color: "#1877F2" }, instagram: { label: "Instagram", limit: 2200, color: "#E4405F" }, x: { label: "X", limit: 280, color: Z.tx } };
-            if (socialLoading) return <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10, fontSize: FS.sm, color: Z.td }}>Loading social posts...</div>;
-            return <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Social Media</div>
-              {socialPosts.length === 0 ? <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>Social posts will be generated when this story is approved.</div>
-              : socialPosts.map(p => {
-                const plat = PLATFORMS[p.platform] || { label: p.platform, limit: 500, color: Z.tm };
-                const overLimit = (p.post_text || "").length > plat.limit;
-                return <div key={p.id} style={{ marginBottom: 10, padding: 8, background: Z.bg, borderRadius: Ri, border: "1px solid " + Z.bd }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: plat.color }}>{plat.label}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: p.status === "approved" ? Z.go : p.status === "posted" ? Z.go : Z.td, background: (p.status === "approved" || p.status === "posted" ? Z.go : Z.td) + "15", padding: "1px 6px", borderRadius: Ri }}>{p.status}</span>
-                  </div>
-                  <textarea value={p.post_text || ""} onChange={e => {
-                    const val = e.target.value;
-                    setSocialPosts(prev => prev.map(sp => sp.id === p.id ? { ...sp, post_text: val } : sp));
-                  }} onBlur={() => { supabase.from("social_posts").update({ post_text: p.post_text, updated_at: new Date().toISOString() }).eq("id", p.id); }}
-                    rows={3} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-                    <span style={{ fontSize: 10, color: overLimit ? Z.da : Z.td }}>{(p.post_text || "").length}/{plat.limit}</span>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {p.status === "draft" && <Btn sm v="secondary" onClick={async () => { await supabase.from("social_posts").update({ status: "approved", approved_at: new Date().toISOString() }).eq("id", p.id); setSocialPosts(prev => prev.map(sp => sp.id === p.id ? { ...sp, status: "approved" } : sp)); }}>Approve</Btn>}
-                      {(p.status === "draft" || p.status === "approved") && <Btn sm onClick={async () => { await supabase.from("social_posts").update({ status: "posted", posted_at: new Date().toISOString() }).eq("id", p.id); setSocialPosts(prev => prev.map(sp => sp.id === p.id ? { ...sp, status: "posted" } : sp)); }}>Post</Btn>}
-                    </div>
-                  </div>
-                </div>;
-              })}
-            </div>;
-          })()}
-
+          {/* Wednesday Agent's per-story social_posts panel was removed
+              with migration 163. The new social-scheduling feature opens
+              via the toolbar's "Compose Social Post" hook → SocialComposer
+              (lands in Milestone 1 task 5 of _specs/social-scheduling.md). */}
 
           {activity.length > 0 && <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>
