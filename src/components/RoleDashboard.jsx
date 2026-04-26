@@ -128,6 +128,7 @@ function DesignerWorkloadTile({ team, _issues, onNavigate, glass }) {
 const RoleDashboard = memo(({
   role, currentUser, pubs, stories, setStories, clients, sales, issues,
   team, invoices, payments, subscribers, tickets, legalNotices, creativeJobs,
+  adInquiries, loadInquiries, loadClientDetails, updateInquiry,
   onNavigate, setIssueDetailId, hideGreeting,
 }) => {
   const isDark = Z.bg === DARK.bg;
@@ -174,6 +175,18 @@ const RoleDashboard = memo(({
   // dashboard as a focused actionable tile instead of buried in
   // DirectionCard alongside generic publisher notes.
   const [editorialPings, setEditorialPings] = useState([]);
+
+  // ─── Salesperson dashboard load triggers (Sales P2) ─────────────
+  // Inquiries + client details (comms, contacts, summaries) are normally
+  // loaded only on /sales — but the dashboard's lead inbox + stale-client
+  // tiles depend on both. Trigger the same loaders here when a salesperson
+  // lands on Home; useAppData de-dupes by *Loaded flags.
+  const isSalespersonRole = role === "Salesperson" || role === "Sales Manager";
+  useEffect(() => {
+    if (!isSalespersonRole) return;
+    if (loadInquiries) loadInquiries();
+    if (loadClientDetails) loadClientDetails();
+  }, [isSalespersonRole, loadInquiries, loadClientDetails]);
 
   // ─── Layout Designer state (Anthony) ─────────────────────
   // Same hoist-to-top-of-component rule: hooks must run every render.
@@ -2123,6 +2136,74 @@ const RoleDashboard = memo(({
     const recentWins = [...closed].sort((a, b) => (b.closedAt || b.date || "").localeCompare(a.closedAt || a.date || "")).slice(0, 3);
     const adDeadlines = _issues.filter(i => i.adDeadline && daysUntil(i.adDeadline) >= 0 && daysUntil(i.adDeadline) <= 14);
 
+    // Sales P2 — Inquiry inbox. Inbound StellarPress leads where the
+    // matched client is mine, OR client_id is null (unmatched lead, free
+    // for grabs). Unmatched leads show only to Sales Managers so reps
+    // don't fight over them. SLA tier mirrors ServiceDesk: 1h target.
+    const _inquiries = adInquiries || [];
+    const inqAssignedToMe = _inquiries.filter(i =>
+      ["new", "contacted"].includes(i.status)
+      && i.client_id && myClientIds.has(i.client_id)
+    );
+    const inqUnmatched = role === "Sales Manager"
+      ? _inquiries.filter(i => i.status === "new" && !i.client_id)
+      : [];
+    const myInquiries = [...inqAssignedToMe, ...inqUnmatched]
+      .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+    const inqOverdueCount = myInquiries.filter(i =>
+      i.status === "new"
+      && i.created_at
+      && (Date.now() - new Date(i.created_at).getTime()) / 3600000 >= 1
+    ).length;
+
+    // Sales P2 — Stale clients. My clients with a closed sale on record
+    // whose latest signal (sale.closedAt OR latest comm OR client.updatedAt)
+    // is older than 60 days. Sorted by lifetime spend so the rep calls the
+    // biggest accounts first. Skips clients with an active deal already.
+    const d60ago = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    const myClientsWithCloseds = _clients.filter(c =>
+      c.repId === currentUser?.id
+      && closed.some(s => s.clientId === c.id)
+    );
+    const activeClientIds = new Set(active.map(s => s.clientId));
+    const staleClients = myClientsWithCloseds
+      .filter(c => !activeClientIds.has(c.id))
+      .map(c => {
+        const latestSale = closed
+          .filter(s => s.clientId === c.id)
+          .reduce((m, s) => {
+            const d = (s.closedAt || s.date || "").slice(0, 10);
+            return d > m ? d : m;
+          }, "");
+        const latestComm = (c.comms || []).reduce((m, x) => (x.date || "") > m ? (x.date || "") : m, "");
+        const updated = (c.updatedAt || "").slice(0, 10);
+        const lastTouch = [latestSale, latestComm, updated].sort().pop() || "";
+        return { client: c, lastTouch, spend: Number(c.totalSpend || 0) };
+      })
+      .filter(x => x.lastTouch && x.lastTouch < d60ago)
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 8);
+
+    // Sales P2 — Renewal candidates. Closed sales that ran 11-12 months ago
+    // for clients with no newer closed sale. These are the anniversary
+    // renewal pitch list — recurring publishers re-up annually.
+    const d11mo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+    const d12mo = new Date(Date.now() - 335 * 86400000).toISOString().slice(0, 10);
+    const renewalCandidates = closed
+      .filter(s => {
+        const d = (s.closedAt || s.date || "").slice(0, 10);
+        if (!d || d < d11mo || d > d12mo) return false;
+        // No newer closed sale for this client
+        const hasNewer = closed.some(x =>
+          x.clientId === s.clientId
+          && x.id !== s.id
+          && (x.closedAt || x.date || "").slice(0, 10) > d
+        );
+        return !hasNewer;
+      })
+      .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+      .slice(0, 6);
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       {/* Hero */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
@@ -2150,6 +2231,42 @@ const RoleDashboard = memo(({
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Sales P2 — Lead Inbox (inbound inquiries). Sales Manager
+              also sees unmatched leads queued for triage. SLA: 1h to
+              first response (status flips new → contacted). */}
+          {myInquiries.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Lead Inbox</div>
+              <span style={{ fontSize: FS.xs, color: inqOverdueCount > 0 ? Z.da : Z.tm, fontWeight: inqOverdueCount > 0 ? FW.bold : FW.semi }}>
+                {myInquiries.length} lead{myInquiries.length === 1 ? "" : "s"}{inqOverdueCount > 0 ? ` · ${inqOverdueCount} overdue` : ""}
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
+              {myInquiries.slice(0, 10).map(i => {
+                const ageHrs = i.created_at ? (Date.now() - new Date(i.created_at).getTime()) / 3600000 : 0;
+                const slaTone = i.status === "contacted" ? "ok" : ageHrs >= 4 ? "over" : ageHrs >= 1 ? "warn" : "due";
+                const slaPalette = slaTone === "over" ? { bg: Z.ds, color: Z.da }
+                  : slaTone === "warn" ? { bg: Z.ws, color: Z.wa }
+                  : slaTone === "ok" ? { bg: Z.ss, color: Z.su }
+                  : { bg: Z.bg, color: Z.tm };
+                const slaLabel = i.status === "contacted" ? "Replied"
+                  : ageHrs >= 24 ? `${Math.floor(ageHrs / 24)}d overdue`
+                  : ageHrs >= 1 ? `${Math.round(ageHrs)}h old`
+                  : `${Math.round(ageHrs * 60)}m old`;
+                return <div key={i.id} onClick={() => onNavigate?.("sales")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${slaPalette.color}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {i.business_name || i.name}
+                      {!i.client_id && <span style={{ marginLeft: 6, fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, borderRadius: R, padding: "1px 5px", textTransform: "uppercase" }}>Unmatched</span>}
+                    </div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>{i.email}{i.budget_range ? ` · ${i.budget_range}` : ""}</div>
+                  </div>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: slaPalette.color, background: slaPalette.bg, borderRadius: R, padding: "2px 6px", whiteSpace: "nowrap" }}>{slaLabel}</span>
+                </div>;
+              })}
+            </div>
+          </div>}
+
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Active Pipeline</div>
             {active.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No active deals</div>
@@ -2181,6 +2298,39 @@ const RoleDashboard = memo(({
         {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* Sales P2 — Stale clients (no touch in 60d+, by spend desc) */}
+          {staleClients.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Stale Clients · 60d+</div>
+              <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>top {staleClients.length} by spend</span>
+            </div>
+            {staleClients.map(({ client, lastTouch, spend }) => {
+              const days = lastTouch ? Math.floor((Date.now() - new Date(lastTouch).getTime()) / 86400000) : null;
+              return <div key={client.id} onClick={() => onNavigate?.("sales")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15`, cursor: "pointer" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={client.name}>{client.name}</div>
+                  <div style={{ fontSize: FS.xs, color: days >= 180 ? Z.da : Z.tm }}>{days != null ? `${days}d quiet` : "no recent touch"} · {fmtCurrency(spend)} lifetime</div>
+                </div>
+              </div>;
+            })}
+          </div>}
+
+          {/* Sales P2 — Renewal candidates (anniversary pitch list) */}
+          {renewalCandidates.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Renewals · 11–12mo Anniversaries</div>
+            {renewalCandidates.map(s => {
+              const months = s.closedAt || s.date ? Math.floor((Date.now() - new Date(s.closedAt || s.date).getTime()) / (30 * 86400000)) : 0;
+              return <div key={s.id} onClick={() => onNavigate?.("sales")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15`, cursor: "pointer" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={cn(s.clientId)}>{cn(s.clientId)}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{months}mo ago · {pn(s.publication)}</div>
+                </div>
+                <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac }}>{fmtCurrency(s.amount || 0)}</div>
+              </div>;
+            })}
+          </div>}
+
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Wins</div>
             {recentWins.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No closed deals yet</div>
