@@ -182,10 +182,13 @@ const KanbanCol = memo(function KanbanCol({ col, stories, pubs, team, onDrop, on
         <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{stories.length}</span>
       </div>
 
-      {/* Drop zone */}
+      {/* Drop zone — viewport-derived max height (May Sim P2.2). Old
+          fixed maxHeight:420 silently cut off cards 7-14 when Camille
+          had 14 stories in Edit on 5/4. Now scales to the viewport so
+          the column scrolls within itself instead of clipping. */}
       <div style={{
         flex: 1, display: "flex", flexDirection: "column", gap: 8,
-        overflowY: "auto", maxHeight: 420,
+        overflowY: "auto", maxHeight: "calc(100vh - 280px)",
         background: dragOver ? col.color + "08" : "transparent",
         borderRadius: Ri, transition: "background 0.15s",
       }}>
@@ -660,6 +663,21 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     // requested position (or appended).
     const destGroup = pageGroups.find(g => g.key === targetGroupKey);
     const destStories = (destGroup?.stories || []).filter(s => s.id !== draggedId);
+
+    // May Sim P2.3 — prompt before silently adding to a page that
+    // already has stories. Cross-group drops only (re-ordering within
+    // the same page is intentional and shouldn't ask). The "share page"
+    // pattern is normal for print but a tired Tuesday drop should
+    // confirm so a slip doesn't quietly land a story on the wrong page.
+    if (sourceGroupKey !== targetGroupKey && targetPage != null && destStories.length > 0) {
+      const occupants = destStories.slice(0, 3).map(s => `"${(s.title || "Untitled").slice(0, 28)}"`).join(", ");
+      const more = destStories.length > 3 ? ` + ${destStories.length - 3} more` : "";
+      const ok = window.confirm(
+        `Page ${targetPage} already has ${destStories.length} stor${destStories.length === 1 ? "y" : "ies"}: ${occupants}${more}.\n\n` +
+        `Add "${(dragged.title || "Untitled").slice(0, 40)}" to the same page?`
+      );
+      if (!ok) return;
+    }
     let insertIdx = dropBeforeId == null ? destStories.length : destStories.findIndex(s => s.id === dropBeforeId);
     if (insertIdx < 0) insertIdx = destStories.length;
     const newDest = [
