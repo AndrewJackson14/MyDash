@@ -1020,6 +1020,11 @@ export function DataProvider({ children, localData }) {
       publicationId: s.publication_id, startDate: s.start_date, expiryDate: s.expiry_date,
       renewalDate: s.renewal_date, amountPaid: Number(s.amount_paid), source: s.source, notes: s.notes,
       stripeCustomerId: s.stripe_customer_id, createdAt: s.created_at,
+      // Renewal touch tracking — Cami P2 (Subscriber Renewal Workbench)
+      firstNoticeSent: s.first_notice_sent === true,
+      secondNoticeSent: s.second_notice_sent === true,
+      thirdNoticeSent: s.third_notice_sent === true,
+      updatedAt: s.updated_at,
     })));
     if (subscriptionsRes.length > 0) setSubscriptions(subscriptionsRes.map(s => ({
       id: s.id, subscriberId: s.subscriber_id, publicationId: s.publication_id, tier: s.tier,

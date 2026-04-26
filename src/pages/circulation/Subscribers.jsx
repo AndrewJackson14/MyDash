@@ -8,6 +8,7 @@ import { fmtDate, fmtCurrency } from "../../lib/formatters";
 import { useDialog } from "../../hooks/useDialog";
 import { generateRenewalHtml, getRenewalSubject } from "../../lib/renewalTemplate";
 import { sendGmailEmail } from "../../lib/gmail";
+import { supabase } from "../../lib/supabase";
 import { SUB_TYPES, SUB_STATUSES, SUB_STATUS_COLORS, EXPORT_COLUMNS, PRINTER_PRESET, pnFor, todayIso } from "./constants";
 
 const StatusBadge = ({ status }) => {
@@ -254,57 +255,19 @@ export default function Subscribers({
       </div>
     </Modal>
 
-    {/* ═══ Renewal notices modal ═══ */}
-    <Modal open={renewalModal} onClose={() => setRenewalModal(false)} title="Send Renewal Notices" width={560}>
-      {(() => {
-        const d30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-        const expiring = subs.filter(s => s.status === "active" && s.type === "print" && s.renewalDate && s.renewalDate >= today && s.renewalDate <= d30);
-        const byPub = {};
-        expiring.forEach(s => { const pk = s.publicationId || "other"; if (!byPub[pk]) byPub[pk] = []; byPub[pk].push(s); });
-        return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
-            <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{expiring.length} subscriber{expiring.length !== 1 ? "s" : ""} expiring within 30 days</div>
-          </div>
-          {Object.entries(byPub).map(([pubId, subList]) => (
-            <div key={pubId}>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>{pn(pubId) || "Other"} ({subList.length})</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 200, overflowY: "auto" }}>
-                {subList.map(s => <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
-                  <span style={{ fontWeight: FW.semi, color: Z.tx }}>{s.firstName} {s.lastName}</span>
-                  <span style={{ color: Z.wa, fontSize: FS.xs }}>{fmtDate(s.renewalDate)}</span>
-                </div>)}
-              </div>
-            </div>
-          ))}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn v="cancel" onClick={() => setRenewalModal(false)}>Cancel</Btn>
-            <Btn onClick={async () => {
-              let sent = 0;
-              for (const sub of expiring) {
-                if (!sub.email) continue;
-                const daysToExpiry = Math.ceil((new Date(sub.renewalDate + "T12:00:00") - new Date()) / 86400000);
-                const touch = daysToExpiry <= 7 ? "third" : daysToExpiry <= 14 ? "second" : "first";
-                const pubName = pn(sub.publicationId) || "your publication";
-                const htmlBody = generateRenewalHtml({
-                  subscriberName: `${sub.firstName} ${sub.lastName}`.trim(),
-                  publicationName: pubName,
-                  expiryDate: sub.renewalDate,
-                  renewalAmount: sub.amountPaid || 0,
-                  renewLink: "",
-                  touch,
-                });
-                try {
-                  await sendGmailEmail({ teamMemberId: null, to: [sub.email], subject: getRenewalSubject(pubName, touch), htmlBody, mode: "send", emailType: "renewal", refId: sub.id, refType: "subscriber" });
-                  sent++;
-                } catch (err) { console.error("Renewal email error:", err); }
-              }
-              setRenewalModal(false);
-              await dialog.alert(`${sent} renewal notice${sent !== 1 ? "s" : ""} sent.`);
-            }}>Send Notices ({expiring.length})</Btn>
-          </div>
-        </div>;
-      })()}
-    </Modal>
+    {/* ═══ Renewal notices modal — Cami P2 ═══
+        Per-row checkboxes, computed touch (first/second/third) based
+        on what's already been sent + days-to-expiry, lapse-rescue
+        tab for already-lapsed subs. Sends via Gmail OAuth + flips
+        the *_notice_sent column so the same touch never re-fires.   */}
+    <RenewalModal
+      open={renewalModal}
+      onClose={() => setRenewalModal(false)}
+      subs={subs}
+      pn={pn}
+      setSubscribers={setSubscribers}
+      dialog={dialog}
+    />
 
     {/* ═══ Subscriber detail modal ═══ */}
     {subDetailId && (() => {
@@ -358,4 +321,233 @@ export default function Subscribers({
       </Modal>;
     })()}
   </>;
+}
+
+// ── Touch detection — picks the next renewal notice that should
+// fire for a subscriber given what's already been sent + how close
+// they are to their renewal date. Returns null if no notice should
+// fire (already at third, or too far out). Cami's escalation cadence:
+//   30+d out: first
+//   8-14d:    second
+//   ≤7d:      third
+// Subs whose renewal date passed without a third sent get a final
+// (auto-escalated) third even after expiry, so Cami can still rescue.
+function computeRenewalTouch(sub, today) {
+  if (!sub.renewalDate) return null;
+  const daysToRenewal = Math.ceil((new Date(sub.renewalDate + "T12:00:00") - new Date(today + "T12:00:00")) / 86400000);
+  if (sub.firstNoticeSent && sub.secondNoticeSent && sub.thirdNoticeSent) return null;
+  if (!sub.firstNoticeSent && daysToRenewal <= 30) return "first";
+  if (!sub.secondNoticeSent && daysToRenewal <= 14) return "second";
+  if (!sub.thirdNoticeSent && daysToRenewal <= 7) return "third";
+  return null;
+}
+
+function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
+  const today = todayIso();
+  const [mode, setMode] = useState("renewals"); // renewals | rescue
+  const [selected, setSelected] = useState(() => new Set());
+  const [sending, setSending] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+  const [sentTotal, setSentTotal] = useState(0);
+
+  // Renewal candidates — active prints with a due touch.
+  const renewalRows = (subs || [])
+    .filter(s => s.status === "active" && s.type === "print" && s.email)
+    .map(s => ({ sub: s, touch: computeRenewalTouch(s, today) }))
+    .filter(r => r.touch);
+
+  // Rescue candidates — recently lapsed/cancelled (last 60d), still
+  // has email, hasn't yet received a "third" notice (so we can give
+  // them one final win-back swing).
+  const cutoff60 = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const rescueRows = (subs || [])
+    .filter(s => ["lapsed", "expired", "cancelled"].includes(s.status) && s.email && s.type === "print")
+    .filter(s => (s.updatedAt || s.renewalDate || "") >= cutoff60)
+    .filter(s => !s.thirdNoticeSent)
+    .map(s => ({ sub: s, touch: "third" }));
+
+  const rows = mode === "renewals" ? renewalRows : rescueRows;
+
+  // Reset selection on tab switch / open
+  useEffect(() => {
+    if (!open) return;
+    setSelected(new Set(rows.map(r => r.sub.id)));
+    setSentCount(0); setSentTotal(0);
+  }, [open, mode, rows.length]);
+
+  // Group by pub for visual chunking
+  const byPub = {};
+  for (const r of rows) {
+    const pk = r.sub.publicationId || "_other";
+    if (!byPub[pk]) byPub[pk] = [];
+    byPub[pk].push(r);
+  }
+
+  const toggleAll = () => {
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map(r => r.sub.id)));
+  };
+  const toggleOne = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const send = async () => {
+    if (sending) return;
+    const queue = rows.filter(r => selected.has(r.sub.id));
+    if (queue.length === 0) return;
+    setSending(true);
+    setSentCount(0);
+    setSentTotal(queue.length);
+    let ok = 0;
+    for (const { sub, touch } of queue) {
+      try {
+        const pubName = pn(sub.publicationId) || "your publication";
+        const htmlBody = generateRenewalHtml({
+          subscriberName: `${sub.firstName} ${sub.lastName}`.trim(),
+          publicationName: pubName,
+          expiryDate: sub.renewalDate,
+          renewalAmount: sub.amountPaid || 0,
+          renewLink: "",
+          touch,
+        });
+        await sendGmailEmail({
+          teamMemberId: null, to: [sub.email],
+          subject: getRenewalSubject(pubName, touch),
+          htmlBody, mode: "send", emailType: "renewal",
+          refId: sub.id, refType: "subscriber",
+        });
+        // Flip the appropriate notice flag so the same touch doesn't
+        // re-fire next week. Skip flag-flip for rescue mode since
+        // those are already-lapsed and the email_log carries the
+        // record.
+        if (mode === "renewals") {
+          const col = touch === "first" ? "first_notice_sent" : touch === "second" ? "second_notice_sent" : "third_notice_sent";
+          await supabase.from("subscribers").update({ [col]: true, updated_at: new Date().toISOString() }).eq("id", sub.id);
+          if (typeof setSubscribers === "function") {
+            const camel = touch === "first" ? "firstNoticeSent" : touch === "second" ? "secondNoticeSent" : "thirdNoticeSent";
+            setSubscribers(prev => prev.map(x => x.id === sub.id ? { ...x, [camel]: true } : x));
+          }
+        } else {
+          // Rescue mode: stamp third so we don't pile on
+          await supabase.from("subscribers").update({ third_notice_sent: true, updated_at: new Date().toISOString() }).eq("id", sub.id);
+          if (typeof setSubscribers === "function") {
+            setSubscribers(prev => prev.map(x => x.id === sub.id ? { ...x, thirdNoticeSent: true } : x));
+          }
+        }
+        ok++;
+        setSentCount(ok);
+      } catch (err) {
+        console.error("Renewal email error:", err);
+      }
+    }
+    setSending(false);
+    await dialog.alert(`${ok} of ${queue.length} ${mode === "renewals" ? "renewal" : "rescue"} notice${ok !== 1 ? "s" : ""} sent.`);
+    onClose();
+  };
+
+  const touchColor = (t) => t === "third" ? Z.da : t === "second" ? Z.wa : Z.ac;
+  const touchLabel = (t) => t === "first" ? "1st" : t === "second" ? "2nd" : "3rd";
+
+  return (
+    <Modal open={open} onClose={() => !sending && onClose()} title={mode === "renewals" ? "Send Renewal Notices" : "Lapse Rescue Notices"} width={620}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Tab switcher */}
+        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${Z.bd}`, paddingBottom: 8 }}>
+          {[
+            ["renewals", "Renewals", renewalRows.length],
+            ["rescue", "Lapse Rescue", rescueRows.length],
+          ].map(([k, l, n]) => (
+            <button
+              key={k}
+              onClick={() => setMode(k)}
+              disabled={sending}
+              style={{
+                padding: "6px 14px", borderRadius: Ri, border: "none", cursor: "pointer",
+                fontSize: 11, fontWeight: mode === k ? FW.bold : 500,
+                background: mode === k ? Z.tx + "12" : "transparent",
+                color: mode === k ? Z.tx : Z.tm,
+                fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4,
+                display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              {l}
+              {n > 0 && <span style={{ fontSize: 10, color: mode === k ? Z.tx : Z.td }}>{n}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Banner */}
+        <div style={{ padding: "10px 14px", background: Z.bg, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: FS.sm, color: Z.tx }}>
+            {mode === "renewals"
+              ? <>Active subscribers due for the next notice based on their renewal date and what's already been sent.</>
+              : <>Recently lapsed subscribers eligible for a final win-back email.</>}
+          </div>
+          {rows.length > 0 && (
+            <button onClick={toggleAll} style={{ background: "transparent", border: "none", color: Z.ac, fontSize: 11, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND, whiteSpace: "nowrap" }}>
+              {selected.size === rows.length ? "Deselect all" : "Select all"}
+            </button>
+          )}
+        </div>
+
+        {/* Per-pub groups with row checkboxes */}
+        {rows.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
+            {mode === "renewals" ? "✨ No renewal notices due right now." : "No recently lapsed subscribers."}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" }}>
+            {Object.entries(byPub).map(([pubId, list]) => (
+              <div key={pubId}>
+                <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{pn(pubId) || "Other"} ({list.length})</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {list.map(({ sub, touch }) => {
+                    const isSelected = selected.has(sub.id);
+                    return (
+                      <label key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleOne(sub.id)} disabled={sending} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {sub.firstName} {sub.lastName}
+                          </div>
+                          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {sub.email}
+                            {sub.firstNoticeSent && " · ✓ 1st"}
+                            {sub.secondNoticeSent && " · ✓ 2nd"}
+                            {sub.thirdNoticeSent && " · ✓ 3rd"}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: FW.heavy, color: touchColor(touch), background: touchColor(touch) + "15", padding: "2px 6px", borderRadius: Ri, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>
+                          Send {touchLabel(touch)}
+                        </span>
+                        <span style={{ fontSize: 10, color: Z.wa, fontFamily: COND, flexShrink: 0, minWidth: 60, textAlign: "right" }}>{fmtDate(sub.renewalDate)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Action bar */}
+        {sending && (
+          <div style={{ padding: "8px 14px", background: Z.ac + "10", borderRadius: Ri, fontSize: FS.xs, color: Z.ac, fontFamily: COND, fontWeight: FW.bold }}>
+            Sending… {sentCount} of {sentTotal}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn v="cancel" onClick={onClose} disabled={sending}>Cancel</Btn>
+          <Btn onClick={send} disabled={sending || selected.size === 0}>
+            {sending ? `Sending… (${sentCount}/${sentTotal})` : `Send ${selected.size} Notice${selected.size !== 1 ? "s" : ""}`}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
 }
