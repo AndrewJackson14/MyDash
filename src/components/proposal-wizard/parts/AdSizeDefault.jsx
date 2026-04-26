@@ -74,8 +74,9 @@ export default function AdSizeDefault({
       {showCustom && selectedIssues.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {selectedIssues.map(iss => {
-            const ad = adSizes[iss.adSizeIdx];
+            const ad = (iss.adSizeIdx == null) ? null : adSizes[iss.adSizeIdx];
             const overridden = perIssueOverrides[`${pubId}:${iss.issueId}`];
+            const priceLabel = ad ? `$${(ad?.[autoTier] || ad?.rate || 0).toLocaleString()}` : "—";
             return (
               <div
                 key={iss.issueId}
@@ -93,23 +94,24 @@ export default function AdSizeDefault({
                   {issLabel(iss.issueId)}
                 </span>
                 <select
-                  value={iss.adSizeIdx}
-                  onChange={e => onSetIssueSize(iss.issueId, Number(e.target.value))}
+                  value={iss.adSizeIdx ?? ""}
+                  onChange={e => onSetIssueSize(iss.issueId, e.target.value === "" ? null : Number(e.target.value))}
                   style={{
                     background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri,
                     padding: "5px 8px", color: Z.tx, fontSize: FS.sm, fontFamily: COND,
                     outline: "none",
                   }}
                 >
+                  <option value="">— Pick a size —</option>
                   {adSizes.map((a, ai) => (
                     <option key={ai} value={ai}>{a.name}</option>
                   ))}
                 </select>
                 <span style={{
                   fontSize: FS.sm, fontWeight: FW.heavy,
-                  color: Z.tx, textAlign: "right", fontFamily: COND,
+                  color: ad ? Z.tx : Z.td, textAlign: "right", fontFamily: COND,
                 }}>
-                  ${(ad?.[autoTier] || ad?.rate || 0).toLocaleString()}
+                  {priceLabel}
                 </span>
                 <button
                   onClick={() => onApplyBelow(iss.issueId, iss.adSizeIdx)}

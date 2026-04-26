@@ -16,9 +16,12 @@ export const STEP_IDS = {
   REVIEW: 7,
 };
 
+// PUBLICATIONS step is folded into the CLIENT step on screen — once a
+// client is picked, the publication pills appear inline. The pub-only
+// step stays in STEP_IDS for back-compat with stored progress, but we
+// hide it from the visible bar and the wizard skips over it on next/back.
 export const STEPS = [
-  { id: STEP_IDS.CLIENT,                label: "Client",        phase: "deal"   },
-  { id: STEP_IDS.PUBLICATIONS,          label: "Publications",  phase: "deal"   },
+  { id: STEP_IDS.CLIENT,                label: "Client & Pubs", phase: "deal"   },
   { id: STEP_IDS.ISSUES,                label: "Issues",        phase: "deal", conditional: "anyPrint" },
   { id: STEP_IDS.SIZES_AND_FLIGHTS,     label: "Sizes",         phase: "deal"   },
   { id: STEP_IDS.PAYMENT_TERMS,         label: "Payment",       phase: "deal"   },

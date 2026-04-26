@@ -127,7 +127,11 @@ function reducer(state, action) {
     case "TOGGLE_ISSUE": {
       const list = state.issuesByPub[action.pubId] || [];
       const has = list.some(i => i.issueId === action.issueId);
-      const defaultIdx = state.defaultSizeByPub[action.pubId] ?? 0;
+      // Default falls back to null when no pub default has been set,
+      // so newly-toggled issues land with no size + no price until
+      // the rep picks one. selectPropLineItems treats adSizeIdx==null
+      // as a zero-price line and the UI renders blank price.
+      const defaultIdx = state.defaultSizeByPub[action.pubId] ?? null;
       const nextList = has
         ? list.filter(i => i.issueId !== action.issueId)
         : [...list, { issueId: action.issueId, adSizeIdx: defaultIdx }];
@@ -137,7 +141,11 @@ function reducer(state, action) {
       });
     }
     case "SET_ISSUES_FOR_PUB": {
-      const defaultIdx = state.defaultSizeByPub[action.pubId] ?? 0;
+      // Default falls back to null when no pub default has been set,
+      // so newly-toggled issues land with no size + no price until
+      // the rep picks one. selectPropLineItems treats adSizeIdx==null
+      // as a zero-price line and the UI renders blank price.
+      const defaultIdx = state.defaultSizeByPub[action.pubId] ?? null;
       const nextList = action.issueIds.map(id => {
         const existing = (state.issuesByPub[action.pubId] || []).find(i => i.issueId === id);
         return existing || { issueId: id, adSizeIdx: defaultIdx };
@@ -374,20 +382,24 @@ export function selectPropLineItems(state, ctx) {
     .flatMap(p => {
       const pub = pubs.find(x => x.id === p.pubId);
       return (state.issuesByPub[p.pubId] || []).map(iss => {
-        const ad = pub?.adSizes?.[iss.adSizeIdx];
+        // adSizeIdx may be null when the rep hasn't picked a size yet;
+        // ad/dims/price collapse to falsy → preview shows the issue but
+        // contributes 0 to totals. Forces the rep back to fill it in.
+        const ad = (iss.adSizeIdx == null) ? null : pub?.adSizes?.[iss.adSizeIdx];
         const issue = issueMap[iss.issueId];
         return {
           pubId: p.pubId,
           pubName: pub?.name,
-          adSize: ad?.name,
-          dims: ad?.dims,
-          adW: ad?.w,
-          adH: ad?.h,
+          adSize: ad?.name || null,
+          dims: ad?.dims || null,
+          adW: ad?.w || null,
+          adH: ad?.h || null,
           issueId: iss.issueId,
           issueLabel: issLabel ? issLabel(iss.issueId) : (issue?.label || ""),
           issueDate: issue?.date || null,
           adDeadline: issue?.adDeadline || null,
-          price: ad?.[tier] || ad?.rate || 0,
+          price: ad ? (ad?.[tier] || ad?.rate || 0) : 0,
+          adSizeIdx: iss.adSizeIdx,
         };
       });
     });
