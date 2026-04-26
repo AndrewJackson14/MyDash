@@ -1142,6 +1142,15 @@ export function DataProvider({ children, localData }) {
       bodyHtml: n.body_html || '',
       ratePlan: n.rate_plan || 'per_char',
       ratePerChar: Number(n.rate_per_char ?? 0.055),
+      // Cami P4 — billing workflow fields
+      affidavitStatus: n.affidavit_status || null,
+      affidavitPdfUrl: n.affidavit_pdf_url || null,
+      affidavitLockedAt: n.affidavit_locked_at || null,
+      invoiceSentAt: n.invoice_sent_at || null,
+      invoiceSentBy: n.invoice_sent_by || null,
+      affidavitSentAt: n.affidavit_sent_at || null,
+      affidavitSentBy: n.affidavit_sent_by || null,
+      updatedAt: n.updated_at || null,
     })));
     if (legalIssueRes.data) setLegalNoticeIssues(legalIssueRes.data.map(li => ({
       id: li.id, legalNoticeId: li.legal_notice_id, issueId: li.issue_id, pageNumber: li.page_number,
@@ -1846,6 +1855,9 @@ export function DataProvider({ children, localData }) {
             invoice_id: data.id, description: l.description,
             sale_id: l.saleId || null,
             publication_id: l.publicationId || null, issue_id: l.issueId || null,
+            // Cami P4 — persist legal_notice_id so the billing
+            // workbench can find linked invoices without scanning notes.
+            legal_notice_id: l.legalNoticeId || null,
             quantity: l.quantity || 1, unit_price: l.unitPrice, total: l.total, sort_order: i,
             transaction_type: txType,
           };

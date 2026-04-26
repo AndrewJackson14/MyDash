@@ -9,7 +9,7 @@ import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtCurrency } from "../lib/formatters";
 import { uploadMedia } from "../lib/media";
 import { sanitizeHtml } from "../lib/sanitizeHtml";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import AssetPanel from "../components/AssetPanel";
 import EntityThread from "../components/EntityThread";
 import { lazy, Suspense } from "react";
@@ -252,6 +252,161 @@ const NoticeBadge = ({ status }) => {
   const c = STATUS_COLORS[status] || STATUS_COLORS.received;
   return <span style={{ display: "inline-flex", padding: "3px 10px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap" }}>{STATUS_LABELS[status] || status}</span>;
 };
+
+// ── Cami P4 — billing action chip per notice. Surfaces what the
+// notice currently needs from a billing perspective, with a click
+// handler that opens SendLegalBillingModal in the right mode.
+function billingAction(notice) {
+  if (!notice) return null;
+  // Affidavit ready + not yet sent → highest priority
+  if (notice.affidavitPdfUrl && notice.affidavitStatus === "delivered" && !notice.affidavitSentAt) {
+    return { mode: "affidavit", label: "📜 Send affidavit", color: "#16A34A", bg: "#16A34A15" };
+  }
+  // Has invoice but never emailed
+  if (notice.invoiceId && !notice.invoiceSentAt) {
+    return { mode: "invoice", label: "✉ Send invoice", color: "#0C447C", bg: "#0C447C15" };
+  }
+  // Published with no invoice attached → needs back-fill before any send
+  if (notice.status === "published" && !notice.invoiceId && notice.clientId && Number(notice.totalAmount || 0) > 0) {
+    return { mode: "backfill", label: "⚠ Needs invoice", color: "#D97706", bg: "#D9770615" };
+  }
+  return null;
+}
+
+function SendLegalBillingModal({ notice, mode, clients, onClose, onSent }) {
+  const client = (clients || []).find(c => c.id === notice?.clientId);
+  const contacts = Array.isArray(client?.contacts) ? client.contacts : [];
+  const defaultEmail = notice?.contactEmail
+    || contacts.find(c => c?.email)?.email
+    || client?.billingEmail
+    || "";
+  const [recipient, setRecipient] = useState(defaultEmail);
+  const [cc, setCc] = useState((client?.billingCcEmails || []).filter(e => !!e).join(", "));
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const send = async () => {
+    if (sending || !recipient.trim()) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("not signed in");
+      const res = await fetch(`${EDGE_FN_URL}/send-legal-billing-email`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notice_id: notice.id,
+          mode: mode === "affidavit" ? "affidavit" : "invoice",
+          recipient_email: recipient.trim(),
+          cc_emails: cc.trim() || undefined,
+          custom_message: message.trim() || undefined,
+        }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.error || `send failed: ${res.status}`);
+      setResult({ ok: true, ...out });
+      onSent?.(out);
+      setTimeout(onClose, 1300);
+    } catch (err) {
+      setResult({ error: err.message || "send failed" });
+    }
+    setSending(false);
+  };
+
+  const title = mode === "affidavit"
+    ? "Send affidavit + invoice"
+    : mode === "backfill"
+      ? "Generate invoice"
+      : "Send initial invoice";
+
+  return (
+    <div onClick={() => !sending && onClose()} style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: Z.sf, borderRadius: R, padding: 24, width: 480, maxWidth: "94vw",
+        border: `1px solid ${Z.bd}`,
+      }}>
+        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 14 }}>
+          {notice?.title || "Legal notice"}{client?.name ? ` · ${client.name}` : ""}
+        </div>
+
+        {mode === "backfill" && (
+          <div style={{ padding: "10px 14px", background: Z.wa + "10", border: `1px solid ${Z.wa}30`, borderRadius: Ri, fontSize: FS.xs, color: Z.tx, marginBottom: 12, lineHeight: 1.5 }}>
+            This notice doesn't have an invoice yet. Open it and use the intake form to attach a client and generate one — once it's invoiced, you'll be able to send the email from here.
+          </div>
+        )}
+
+        {mode !== "backfill" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
+              <input
+                type="email"
+                value={recipient}
+                onChange={e => setRecipient(e.target.value)}
+                placeholder="client@example.com"
+                style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
+              />
+              {contacts.length > 1 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {contacts.slice(0, 5).map((c, i) => c?.email && (
+                    <button
+                      key={i}
+                      onClick={() => setRecipient(c.email)}
+                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                    >
+                      {(c.name || c.email).slice(0, 26)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
+              <input
+                type="text"
+                value={cc}
+                onChange={e => setCc(e.target.value)}
+                placeholder="optional"
+                style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder={mode === "affidavit"
+                  ? "Affidavit attached for your records — let us know if you need a paper copy."
+                  : "Invoice attached. Pay link is in the email — let us know if you need anything."}
+                rows={3}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none", resize: "vertical" }}
+              />
+            </div>
+
+            {result?.error && <div style={{ fontSize: FS.xs, color: Z.da }}>{result.error}</div>}
+            {result?.ok && <div style={{ fontSize: FS.xs, color: Z.go }}>✓ {mode === "affidavit" ? "Affidavit + invoice" : "Invoice"} sent{result.invoice_number ? ` — #${result.invoice_number}` : ""}</div>}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 14 }}>
+          <Btn sm v="secondary" onClick={onClose} disabled={sending}>{mode === "backfill" ? "Close" : "Cancel"}</Btn>
+          {mode !== "backfill" && (
+            <Btn sm onClick={send} disabled={sending || !recipient.trim() || result?.ok}>
+              {sending ? "Sending…" : result?.ok ? "Sent" : "Send"}
+            </Btn>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Step indicator for workflow
 const StepBar = ({ current }) => {
@@ -507,6 +662,9 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   const [statusFilter, setStatusFilter] = useState("all");
   const [noticeModal, setNoticeModal] = useState(false);
   const [viewId, setViewId] = useState(null);
+  // Cami P4 — billing email modal. { notice, mode } when open.
+  const [billingModal, setBillingModal] = useState(null);
+  const [needsActionOnly, setNeedsActionOnly] = useState(false);
   const [editId, setEditId] = useState(null);
   // Pending scan attachment(s) to be uploaded & tagged once the notice is saved
   const [pendingScans, setPendingScans] = useState([]);
@@ -770,12 +928,15 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
       }
 
       // Auto-invoice: skipped if "Save as Draft" was used.
+      // Cami P4 — capture the returned invoice id and write it back
+      // to the legal notice so the billing workbench can find the
+      // linked invoice in O(1) instead of scanning invoice_lines.
       if (insertInvoice && form.clientId && total > 0 && !form.skipInvoice) {
         const due = new Date(); due.setDate(due.getDate() + 30);
         const lineDesc = form.ratePlan === "per_char"
           ? `${form.title} — ${finalText.length} chars × ${runDates.length} run${runDates.length > 1 ? "s" : ""} @ $${Number(form.ratePerChar).toFixed(4)}/char${allNumbers.length ? ` (${allNumbers.join(" / ")})` : ""}`
           : `${form.title} — $${Number(form.flatRate).toFixed(2)} × ${runDates.length} run${runDates.length > 1 ? "s" : ""}${allNumbers.length ? ` (${allNumbers.join(" / ")})` : ""}`;
-        await insertInvoice({
+        const created = await insertInvoice({
           clientId: form.clientId,
           status: "sent",
           billingSchedule: "lump_sum",
@@ -794,6 +955,10 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
             total,
           }],
         });
+        if (created?.id) {
+          await supabase.from("legal_notices").update({ invoice_id: created.id }).eq("id", newNotice.id);
+          setLegalNotices(prev => (prev || []).map(n => n.id === newNotice.id ? { ...n, invoiceId: created.id } : n));
+        }
       }
     }
     setNoticeModal(false);
@@ -840,11 +1005,16 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   const isActiveTab = tab === "Active";
   let filtered = isActiveTab ? active : all;
   if (statusFilter !== "all") filtered = filtered.filter(n => n.status === statusFilter);
+  if (needsActionOnly) filtered = filtered.filter(n => billingAction(n) != null);
   if (sr) {
     const q = sr.toLowerCase();
     filtered = filtered.filter(n => n.contactName?.toLowerCase().includes(q) || n.organization?.toLowerCase().includes(q) || n.content?.toLowerCase().includes(q));
   }
   filtered = filtered.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+  // Count of all notices currently needing a billing action — drives
+  // the "Needs Action" toggle badge above the list.
+  const needsActionCount = (isActiveTab ? active : all).filter(n => billingAction(n) != null).length;
 
   // ─── Detail View ────────────────────────────────────────
   const viewNotice = all.find(n => n.id === viewId);
@@ -1065,18 +1235,60 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
 
     {/* ════════ ACTIVE / ALL TABS ════════ */}
     {(tab === "Active" || tab === "All") && <>
-      <div style={{ fontSize: FS.sm, color: Z.td }}>{filtered.length} notice{filtered.length !== 1 ? "s" : ""}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: FS.sm, color: Z.td }}>{filtered.length} notice{filtered.length !== 1 ? "s" : ""}</div>
+        {/* Cami P4 — Needs Action toggle. Filters to notices with an
+            active billing chip (send invoice, send affidavit, or
+            needs-invoice). */}
+        {needsActionCount > 0 && (
+          <button
+            onClick={() => setNeedsActionOnly(!needsActionOnly)}
+            style={{
+              background: needsActionOnly ? Z.wa + "15" : "transparent",
+              border: `1px solid ${needsActionOnly ? Z.wa : Z.bd}`,
+              borderRadius: 999,
+              padding: "5px 12px",
+              fontSize: 11,
+              fontWeight: needsActionOnly ? FW.bold : 500,
+              color: needsActionOnly ? Z.wa : Z.tm,
+              cursor: "pointer",
+              fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4,
+              display: "inline-flex", alignItems: "center", gap: 6,
+            }}
+          >
+            ⚠ Needs Action
+            <span style={{ fontSize: 10, fontWeight: FW.heavy }}>{needsActionCount}</span>
+            {needsActionOnly && <span style={{ fontSize: 12 }}>×</span>}
+          </button>
+        )}
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.length === 0 && <GlassCard><div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.base }}>No legal notices found</div></GlassCard>}
         {filtered.map(n => {
           const linkedIssues = allIssueLinks.filter(li => li.legalNoticeId === n.id);
+          const action = billingAction(n);
           return <GlassCard key={n.id} style={{ padding: 16, cursor: "pointer" }} onClick={() => setViewId(n.id)}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <NoticeBadge status={n.status} />
                   <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{NOTICE_TYPES.find(t => t.value === n.noticeType)?.label}</span>
+                  {action && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setBillingModal({ notice: n, mode: action.mode }); }}
+                      style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: Ri, fontSize: FS.xs, fontWeight: FW.bold, background: action.bg, color: action.color, border: "none", cursor: "pointer", fontFamily: COND }}
+                    >
+                      {action.label}
+                    </button>
+                  )}
+                  {/* Sent indicators when already done */}
+                  {n.invoiceSentAt && !action && (
+                    <span title={`Invoice sent ${fmtDate(n.invoiceSentAt.slice(0, 10))}`} style={{ fontSize: 10, color: Z.go, fontFamily: COND }}>✉ Invoice sent</span>
+                  )}
+                  {n.affidavitSentAt && (
+                    <span title={`Affidavit sent ${fmtDate(n.affidavitSentAt.slice(0, 10))}`} style={{ fontSize: 10, color: Z.go, fontFamily: COND }}>📜 Affidavit sent</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>
                   {n.clientId
@@ -1318,6 +1530,23 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
         </Suspense>
       );
     })()}
+
+    {/* Cami P4 — billing email modal (mode: invoice | affidavit | backfill) */}
+    {billingModal && (
+      <SendLegalBillingModal
+        notice={billingModal.notice}
+        mode={billingModal.mode}
+        clients={clients}
+        onClose={() => setBillingModal(null)}
+        onSent={(out) => {
+          // Reflect the timestamp locally so the row's chip flips.
+          const stampField = billingModal.mode === "affidavit" ? "affidavitSentAt" : "invoiceSentAt";
+          setLegalNotices(prev => (prev || []).map(n =>
+            n.id === billingModal.notice.id ? { ...n, [stampField]: new Date().toISOString() } : n
+          ));
+        }}
+      />
+    )}
   </div>;
 };
 
