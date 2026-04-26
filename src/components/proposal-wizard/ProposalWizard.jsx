@@ -487,7 +487,7 @@ const btnPrimary = {
   display: "inline-flex", alignItems: "center", gap: 6,
   border: "none", cursor: "pointer",
   borderRadius: 10, padding: "9px 22px",
-  background: "#3b82f6", color: "#FFFFFF",
+  background: "var(--accent)", color: "#FFFFFF",
   fontSize: 13, fontWeight: 700, fontFamily: COND,
 };
 

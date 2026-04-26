@@ -424,7 +424,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
         ) : (m.body || "").length > 0 && (
           <div style={{ fontSize: FS.sm, color: isSys ? Z.tm : Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
             {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
-              ? <span key={i} style={{ display: "inline-block", padding: "0 5px", margin: "0 1px", borderRadius: 3, background: "rgba(59,130,246,0.18)", color: "#3b82f6", fontWeight: FW.bold }}>@{seg.name}</span>
+              ? <span key={i} style={{ display: "inline-block", padding: "0 5px", margin: "0 1px", borderRadius: 3, background: "color-mix(in srgb, var(--accent) 18%, transparent)", color: "var(--accent)", fontWeight: FW.bold }}>@{seg.name}</span>
               : <span key={i}>{seg.value}</span>
             )}
           </div>
@@ -506,7 +506,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
                 <span style={{ fontWeight: 700, color: Z.ac, flexShrink: 0 }}>{m.sender_name}:</span>
                 <span title={m.body || ""} style={{ flex: 1, color: Z.tx, whiteSpace: "pre-wrap", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                   {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
-                    ? <span key={i} style={{ color: "#3b82f6", fontWeight: 700 }}>@{seg.name}</span>
+                    ? <span key={i} style={{ color: "var(--accent)", fontWeight: 700 }}>@{seg.name}</span>
                     : <span key={i}>{seg.value}</span>
                   )}
                 </span>

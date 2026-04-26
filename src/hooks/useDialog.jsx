@@ -69,7 +69,7 @@ function DialogHost({ dialog, close }) {
         {dialog.type === "prompt" && (
           <button onClick={() => close(null)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
         )}
-        <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: "#3b82f6", color: "#fff", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
+        <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: "var(--accent)", color: "#fff", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
       </div>
     </div>
   </>;

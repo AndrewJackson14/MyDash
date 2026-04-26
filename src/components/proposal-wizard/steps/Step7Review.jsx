@@ -132,7 +132,7 @@ export default function Step7Review({
                       style={{
                         marginLeft: 8,
                         background: "none", border: "none",
-                        color: "#3b82f6", cursor: "pointer",
+                        color: "var(--accent)", cursor: "pointer",
                         fontFamily: COND, fontSize: FS.sm,
                       }}
                     >Fix →</button>

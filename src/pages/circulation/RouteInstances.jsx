@@ -18,7 +18,7 @@ import { fmtDate, fmtCurrency } from "../../lib/formatters";
 import { pnFor, todayIso } from "./constants";
 
 const STATUS_LABELS = {
-  scheduled:   { label: "Scheduled",    color: "#3B82F6" },
+  scheduled:   { label: "Scheduled",    color: "var(--accent)" },
   sms_sent:    { label: "SMS Sent",     color: "#8B5CF6" },
   in_progress: { label: "In Progress",  color: "#F59E0B" },
   complete:    { label: "Complete",     color: "#10B981" },
@@ -362,7 +362,7 @@ function InstanceDetailModal({ instance, pubs, drivers, routes, dropLocations, p
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", marginBottom: 6 }}>Messages ({messages.length})</div>
             <div style={{ maxHeight: 140, overflowY: "auto", border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
               {messages.map(m => <div key={m.id} style={{ padding: "6px 10px", fontSize: FS.xs, borderBottom: `1px solid ${Z.bd}` }}>
-                <span style={{ fontWeight: FW.heavy, color: m.sender === "driver" ? "#B8893A" : "#3B82F6" }}>{m.sender === "driver" ? "Driver" : "Office"}</span>
+                <span style={{ fontWeight: FW.heavy, color: m.sender === "driver" ? "#B8893A" : "var(--accent)" }}>{m.sender === "driver" ? "Driver" : "Office"}</span>
                 <span style={{ color: Z.tx, marginLeft: 8 }}>{m.body}</span>
               </div>)}
             </div>

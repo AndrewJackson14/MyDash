@@ -196,7 +196,7 @@ function salesHotIssues(member, data) {
       };
     })
     .filter(Boolean);
-  cats.push({ key: "whale", title: "Lapsed Whales ($10K+/yr)", icon: "🐋", color: "#3B82F6", items: whales });
+  cats.push({ key: "whale", title: "Lapsed Whales ($10K+/yr)", icon: "🐋", color: "var(--accent)", items: whales });
 
   // 6. Month-to-goal gap — TWO calculations:
   //    (a) sales CLOSED this month  (when the deal is booked)
@@ -349,7 +349,7 @@ function editorialHotIssues(member, data) {
         storyId: s.id,
       };
     });
-  cats.push({ key: "place", title: "Ready for Page Placement", icon: "📄", color: "#3B82F6", items: waitingPlacement });
+  cats.push({ key: "place", title: "Ready for Page Placement", icon: "📄", color: "var(--accent)", items: waitingPlacement });
 
   // 5. Ideas queue depth — if Draft count is thin, surface as hot
   //    (missing assignments = future pipeline risk)
@@ -435,7 +435,7 @@ function designerHotIssues(member, data) {
         storyId: s.id,
       };
     });
-  cats.push({ key: "to-lay", title: "Ready for InDesign", icon: "📐", color: "#3B82F6", items: readyToLayout });
+  cats.push({ key: "to-lay", title: "Ready for InDesign", icon: "📐", color: "var(--accent)", items: readyToLayout });
 
   // 5. Press day countdown — upcoming issues where press is soon
   const pressSoon = issues
