@@ -17,6 +17,16 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-25] May Sim P0.1 web_status backfill — verified, no action needed
+
+- **Context:** May Sim doc P0.1 called for a backfill of 11,421 stories with `web_status='none'`, claiming a stale state from a prior bulk import. Specced as a P0 blocking onboarding (would otherwise produce a flood of false-positive "Republish" badges in EditorialDashboard).
+- **Decision:** No backfill executed. Production state was investigated before any mutation: 88,874 stories carry `web_status='published'` correctly; only 9 are `web_status='none'`, of which 7 are draft pieces (status='Draft', no `published_at`, correctly excluded from web) and 2 are obits with admin-set `published_at` but `sent_to_web=false` and `status='Ready'` — intentionally pre-staged, not yet on the web.
+- **Alternatives considered:** (a) Run the spec'd mass-backfill (would be no-op for 88,874 + harmful for the 2 obit edge cases by flipping them live before edit). (b) Force-flip the 2 outliers to web_status='published' (rejected — `sent_to_web=false` is the user-visible truth and these stories are intentionally pre-staged).
+- **Why:** The doc was written from a stale snapshot. The trigger `sync_story_web_status` (mig 081) has been quietly handling the backfill for any row touched since 2026-04 via the `sent_to_web` lockstep. The 11,421 figure was outdated by months.
+- **Status:** Verified clean. No migration. The other 12 May Sim batches (P0.2/P0.3/P0.4/P1.2/P1.3/P1.5/P1.6/P2.1/P2.2/P2.3/P2.13/P2.18) shipped sequentially in this session.
+
+---
+
 ## [2026-04-13] Increased border-radius tokens (R, Ri)
 
 - **Context:** UI felt too sharp/editorial; wanted a warmer, more modern aesthetic
