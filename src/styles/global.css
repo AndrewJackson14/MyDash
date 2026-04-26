@@ -149,6 +149,11 @@
      under glass from washing out; 20px is the v2 spec. */
   --md-glass-blur: saturate(180%) blur(20px);
 
+  /* Card inset highlight — print-debossed edge, not a glow. The
+     1px inset on top of a white card gives lift off the steel
+     canvas without introducing a drop shadow. Dark override below. */
+  --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
   /* Type families */
   --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-body:    'Geist', system-ui, sans-serif;
@@ -242,6 +247,10 @@
   --canvas:      #142433;                    /* steel-900 — page canvas (dark) */
   --hover-wash:  rgba(31, 52, 72, 0.55);     /* steel-800 @ 55% */
   --active-wash: rgba(20, 36, 51, 0.65);     /* steel-900 @ 65% */
+
+  /* Card inset highlight — debossed-edge feel on dark, very subtle.
+     Replaces drop shadow as the lift cue. */
+  --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
   /* Elevation — input inset uses the dark ink-on-paper relationship */
   --elev-input: inset 0 1px 2px rgba(0, 0, 0, 0.20);
@@ -435,6 +444,24 @@ button:active:not(:disabled),
 [role="button"]:active:not([aria-disabled="true"]),
 [data-hoverable]:active {
   background-color: var(--active-wash);
+}
+
+/* Filled-variant Btn hover (primary, danger, success, warning).
+   These keep their strong fill; hover reads as a press-darken via
+   a 9999px inset shadow at 6% black. Costs zero layout, no border
+   shift, no transform. The selectors override the bg-wash above
+   by setting `background-color` back to inherit (so the inline
+   `background: var(--action)` shorthand wins) while ALSO adding
+   the inset darken. */
+button[data-btn-filled]:hover:not(:disabled),
+[data-btn-filled]:hover:not([aria-disabled="true"]) {
+  background-color: inherit;
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.06);
+}
+button[data-btn-filled]:active:not(:disabled),
+[data-btn-filled]:active:not([aria-disabled="true"]) {
+  background-color: inherit;
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.10);
 }
 
 /* Focus-visible — hairline action ring, no glow. */

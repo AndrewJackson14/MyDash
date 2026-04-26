@@ -43,6 +43,44 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-26] UI Refresh v2 — Steel Office layer (checkpoint 2: chrome glass)
+
+- **Context:** Stop point 2 of `01-direction-decisions-v2.md` — restore the real `glass()` mixin, add `FloatingPanel`, migrate Sidebar + TopBar + MetadataStrip to glass, add Card inset highlight, add Btn filled-variant inset-darken hover.
+- **Decision:** Implemented every checkbox in the migration list for these surfaces. `glass()` returns the v2-spec inline recipe (background, border, backdropFilter + WebkitBackdropFilter, boxShadow). `FloatingPanel` is a thin wrapper over `glass()` with `RAD[1]` (2px) panel-tier corners and `data-glass` for the @supports fallback hook. Card / GlassCard / ListCard / Stat all get the `--card-highlight` 1px inset via `box-shadow: var(--card-highlight)`. Btn filled variants (primary, danger, success, warning) carry `data-btn-filled`; a global rule applies `box-shadow: inset 0 0 0 9999px rgba(0,0,0,0.06)` on hover (10% on active) without disturbing their fill.
+- **Status:** Awaiting Andrew's screenshot review of Sidebar + MetadataStrip in light + dark before checkpoint 3 (paper-surface audit + popover/table-header glass + modal backdrop) begins.
+
+### TopBar — N/A in this checkpoint
+
+- **Spec said:** Migrate `src/components/layout/TopBar.jsx` background from `var(--paper)` to `glass()`.
+- **What I did:** Skipped — TopBar was removed from the App shell in commit `4c23faa` (single-header consolidation, 2026-04-26). The MetadataStrip absorbs the TopBar's responsibilities (Back, page title, notification bell). The TopBar source file still exists but is no longer rendered, and so doesn't need a glass migration. Glass on MetadataStrip covers the surface that used to live as the TopBar.
+
+### GlassCard / ListCard moved OFF the glass mixin
+
+- **Spec said:** "GlassCard / ListCard — these consume `glass()` and currently render as hairline cards. They keep the hairline-card behavior … Glass is reserved for *floating chrome*, not in-flow content cards."
+- **What I did:** Both primitives previously called `...glass()` for their inline styles. With `glass()` now returning the real glass recipe, that would have made every list card and "GlassCard" actually glass — wrong per spec. Refactored both to render the explicit content-card recipe directly (`var(--card)` bg, `var(--rule)` border, `RAD.card` corners, `--card-highlight` inset). Their public APIs stay identical.
+- **Side effect:** `ListCard`'s active/hover background switched from `var(--action-soft)` (navy 10% wash) to `var(--hover-wash)` (steel-100 @ 45%) so list rows match every other interactive surface in the new hover system.
+
+### Card inset highlight via CSS var, not inline
+
+- **Spec said:** `box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6)` (light) / `inset 0 1px 0 rgba(255, 255, 255, 0.04)` (dark).
+- **What I did:** Defined `--card-highlight` as a CSS custom property in `:root` and `[data-theme="dark"]`, then applied `box-shadow: var(--card-highlight)` inline on Card / GlassCard / ListCard / Stat. The CSS-var indirection means the highlight theme-flips automatically with the rest of the system (no JS check needed at render time).
+
+### Btn filled-variant hover — selector specificity
+
+- **Spec said:** `box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.06)` on hover for filled variants.
+- **What I did:** Added `data-btn-filled="true"` to filled-variant Btn instances; matching CSS rule applies the inset darken. The rule also sets `background-color: inherit` to defeat the global hover-wash rule (which would otherwise win on bg-color and flatten the filled variant). Active state bumps the inset to 10% black.
+- **Caveat:** The inset-darken reads more strongly on light buttons than dark ones (the rgba black is fixed). Acceptable per spec ("costs zero layout, reads as a press/depress"). If dark filled buttons feel under-responsive, switch to a per-theme alpha via a CSS var.
+
+### `[data-glass]` opt-in hook for chrome
+
+- **What I did:** Sidebar (the `<aside>`), MetadataStrip root, and the MetadataStrip's notification popover all set `data-glass="true"` in addition to spreading `...glass()`. Belt-and-suspenders against the inline-vs-CSS-rule precedence issue logged in checkpoint 1: in browsers that DO support backdrop-filter, the inline glass styles render correctly. In browsers that DON'T, the `@supports not` block in global.css provides a near-opaque fallback — which only activates if the inline `background` doesn't beat it. Logged in checkpoint 1 as a known limitation; revisit during checkpoint 3 Safari verification.
+
+### Sidebar role-switcher inner panel
+
+- **What I did:** The admin role-switcher panel inside the (now-glass) sidebar previously had `background: var(--paper)`. Switched to `var(--card)` so it reads as an opaque card embedded in the glass chrome — matches the "cards on chrome" pattern. Trivial visual.
+
+---
+
 ## [2026-04-17] Snapshot rep + contract attribution onto invoices (migration 047)
 
 - **Context:** Billing › Reports › Rep Collections (and Sales Perf, AR Aging) attributed all rep credit through `clients.rep_id`. When a client was reassigned, every historical sale and invoice silently re-credited to the new rep — there was no record of who actually closed/billed the deal. `sales` and `contracts` already carried `assigned_to`; `invoices` did not.

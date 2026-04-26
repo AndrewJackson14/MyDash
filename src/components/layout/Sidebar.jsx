@@ -10,7 +10,7 @@
 import { useState, useEffect } from "react";
 import { Z, RADII, DUR, EASE, FONT, SIGNAL } from "../../lib/theme";
 import Ic from "../ui/Icons";
-import { NavItem, NavSection, ThemeToggle } from "../ui/Primitives";
+import { NavItem, NavSection, ThemeToggle, glass } from "../ui/Primitives";
 
 const PIN_KEY = "mydash.sidebar.pinned";
 
@@ -64,20 +64,25 @@ export default function Sidebar({
   return (
     <div data-shell="v2" style={{ width: 64, flexShrink: 0, position: "relative", zIndex: 50 }}>
       <aside
+        data-glass="true"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
           position: "absolute",
           top: 0, left: 0, bottom: 0,
           width: expanded ? 240 : 64,
-          background: "var(--paper)",
-          borderRight: `1px solid ${"var(--rule)"}`,
+          ...glass(),
+          borderRight: "1px solid var(--rule)",
           display: "flex",
           flexDirection: "column",
           transition: `width ${DUR.slow}ms ${EASE}, box-shadow ${DUR.med}ms ${EASE}`,
           zIndex: 40,
           overflow: "hidden",
-          boxShadow: (hovered && !pinned) ? Z.glassShadow : "none",
+          // Glass shadow only when hovering an unpinned rail (preserves
+          // the prior "lift while previewing" affordance).
+          boxShadow: (hovered && !pinned)
+            ? "var(--md-glass-shadow)"
+            : "none",
           fontFamily: "var(--font-body)",
         }}
       >
@@ -240,7 +245,7 @@ export default function Sidebar({
             <div style={{
               margin: "4px 0 2px",
               padding: 8,
-              background: "var(--paper)",
+              background: "var(--card)",
               borderRadius: RADII.md,
               border: `1px solid ${"var(--rule)"}`,
               maxHeight: 240, overflowY: "auto",
