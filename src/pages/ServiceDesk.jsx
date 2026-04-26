@@ -319,6 +319,57 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         <div style={{ fontSize: FS.base, color: Z.tx, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{viewTicket.description}</div>
       </GlassCard>}
 
+      {/* May Sim P2.18 — Subscriber context inline. When a ticket comes
+          in from a subscriber (subscriberId set), surface their status,
+          publication, renewal/expiry, and lifetime spend right on the
+          ticket detail so Cami doesn't have to flip to Circulation to
+          see who she's talking to. */}
+      {viewTicket.subscriberId && (() => {
+        const sub = (subscribers || []).find(s => s.id === viewTicket.subscriberId);
+        if (!sub) return null;
+        const fullName = [sub.firstName, sub.lastName].filter(Boolean).join(" ") || sub.email || "Subscriber";
+        const isLapsed = ["lapsed", "expired", "cancelled"].includes(sub.status);
+        const today10 = new Date().toISOString().slice(0, 10);
+        const lapsedDays = isLapsed && sub.expiryDate ? Math.max(0, Math.round((new Date(today10) - new Date(sub.expiryDate)) / 86400000)) : null;
+        const renewSoon = sub.renewalDate && sub.renewalDate >= today10 && sub.renewalDate <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const startedDays = sub.startDate ? Math.round((new Date(today10) - new Date(sub.startDate)) / 86400000) : null;
+        return (
+          <GlassCard>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Subscriber</div>
+              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm, background: (isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm) + "1a", padding: "2px 8px", borderRadius: R, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>{sub.status || "—"}</span>
+            </div>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 4 }}>{fullName}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginTop: 6 }}>
+              {sub.publicationId && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{pn(sub.publicationId)}</div></div>
+              )}
+              {sub.startDate && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Subscriber Since</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{fmtDate(sub.startDate)}{startedDays != null ? <span style={{ color: Z.tm, fontWeight: FW.normal }}> · {startedDays >= 365 ? `${Math.floor(startedDays / 365)}y` : `${Math.floor(startedDays / 30)}mo`}</span> : null}</div></div>
+              )}
+              {sub.renewalDate && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Renewal</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: renewSoon ? Z.wa : Z.tx }}>{fmtDate(sub.renewalDate)}{renewSoon ? <span style={{ fontSize: 10, color: Z.wa, marginLeft: 4 }}>(due soon)</span> : ""}</div></div>
+              )}
+              {sub.expiryDate && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{isLapsed ? "Expired" : "Expires"}</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: isLapsed ? Z.da : Z.tx }}>{fmtDate(sub.expiryDate)}{lapsedDays != null && lapsedDays > 0 ? <span style={{ color: Z.da, fontWeight: FW.bold }}> · {lapsedDays}d ago</span> : ""}</div></div>
+              )}
+              {sub.amountPaid > 0 && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Lifetime Paid</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>${Number(sub.amountPaid).toLocaleString()}</div></div>
+              )}
+              {(sub.email || sub.phone) && (
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Contact</div><div style={{ fontSize: FS.sm, color: Z.tx }}>{sub.email}{sub.email && sub.phone ? <br/> : null}{sub.phone}</div></div>
+              )}
+            </div>
+            {(sub.addressLine1 || sub.city) && (
+              <div style={{ marginTop: 10, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                {[sub.addressLine1, sub.addressLine2].filter(Boolean).join(", ")}
+                {sub.city && <span> · {sub.city}{sub.state ? `, ${sub.state}` : ""}{sub.zip ? ` ${sub.zip}` : ""}</span>}
+              </div>
+            )}
+          </GlassCard>
+        );
+      })()}
+
       {/* Linked entities */}
       {(viewTicket.clientId || viewTicket.publicationId || viewTicket.assignedTo) && <GlassCard>
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Details</div>
