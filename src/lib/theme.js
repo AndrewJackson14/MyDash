@@ -41,10 +41,10 @@ export const DARK = {
   pu:  "#8C8578",
   ps:  "rgba(140,133,120,0.08)",
   or:  "#D4A93C",
-  bgCanvas:     "#14120E",
-  bgChrome:     "#14120E",
-  bgHover:      "rgba(72,107,149,0.18)",  // action-soft (dark) — navy hover wash
-  bgActive:     "rgba(72,107,149,0.24)",
+  bgCanvas:     "#142433",                // steel-900 — Steel Office canvas (dark, v2)
+  bgChrome:     "#142433",                // chrome backgrounds resolve to glass at component layer
+  bgHover:      "rgba(31,52,72,0.55)",    // hover-wash steel-800 @ 55% (dark, v2)
+  bgActive:     "rgba(20,36,51,0.65)",    // active-wash steel-900 @ 65% (dark, v2)
   fgPrimary:    "#EDE8DC",
   fgSecondary:  "#EDE8DC",
   fgMuted:      "#8C8578",
@@ -77,10 +77,10 @@ export const LIGHT = {
   pu:  "#6B655A",
   ps:  "rgba(107,101,90,0.06)",
   or:  "#B8860B",
-  bgCanvas:     "#F5F1E8",
-  bgChrome:     "#F5F1E8",
-  bgHover:      "rgba(44,70,94,0.10)",   // action-soft (light) — navy hover wash
-  bgActive:     "rgba(44,70,94,0.16)",
+  bgCanvas:     "#f0f4f9",                // steel-50 — Steel Office canvas (light, v2)
+  bgChrome:     "#f0f4f9",                // chrome backgrounds resolve to glass at component layer
+  bgHover:      "rgba(219,228,239,0.45)", // hover-wash steel-100 @ 45% (light, v2)
+  bgActive:     "rgba(184,201,222,0.55)", // active-wash steel-200 @ 55% (light, v2)
   fgPrimary:    "#1A1814",
   fgSecondary:  "#1A1814",
   fgMuted:      "#6B655A",
@@ -132,6 +132,19 @@ export const SIGNAL = {
   warningHover: "#b87f1a",
   danger:       "#d64545",
   dangerHover:  "#b63232",
+};
+
+// ============================================================
+// CANVAS — Steel Office page-canvas constants (v2 2026-04-26).
+//
+// JS consumers reach for var(--canvas) whenever possible. CANVAS
+// is here for cases that need the literal hex (e.g. inline style
+// background that React serializes through). The values mirror
+// the --canvas CSS custom property in src/styles/global.css.
+// ============================================================
+export const CANVAS = {
+  light: "#f0f4f9",   // steel-50
+  dark:  "#142433",   // steel-900
 };
 
 // ============================================================
