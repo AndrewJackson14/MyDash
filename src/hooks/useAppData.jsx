@@ -1106,6 +1106,8 @@ export function DataProvider({ children, localData }) {
       clientId: t.client_id, subscriberId: t.subscriber_id, publicationId: t.publication_id, issueId: t.issue_id,
       assignedTo: t.assigned_to, escalatedTo: t.escalated_to,
       resolutionNotes: t.resolution_notes, resolvedAt: t.resolved_at, createdAt: t.created_at, updatedAt: t.updated_at,
+      // Cami P5 — first-response SLA tracking
+      firstResponseAt: t.first_response_at || null,
     })));
     if (ticketCommentRes.data) setTicketComments(ticketCommentRes.data.map(c => ({
       id: c.id, ticketId: c.ticket_id, authorId: c.author_id, authorName: c.author_name,
@@ -1934,13 +1936,25 @@ export function DataProvider({ children, localData }) {
   }, []);
 
   const updateTicket = useCallback(async (id, changes) => {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t));
+    setTickets(prev => prev.map(t => t.id === id ? { ...t, ...changes, updatedAt: new Date().toISOString() } : t));
     if (isOnline()) {
       const db = {};
       if (changes.status !== undefined) db.status = changes.status;
-      if (changes.escalatedTo !== undefined) db.escalated_to = changes.escalatedTo;
+      if (changes.priority !== undefined) db.priority = changes.priority;
+      if (changes.category !== undefined) db.category = changes.category;
+      if (changes.channel !== undefined) db.channel = changes.channel;
+      if (changes.subject !== undefined) db.subject = changes.subject;
+      if (changes.description !== undefined) db.description = changes.description;
+      if (changes.contactName !== undefined) db.contact_name = changes.contactName;
+      if (changes.contactEmail !== undefined) db.contact_email = changes.contactEmail;
+      if (changes.contactPhone !== undefined) db.contact_phone = changes.contactPhone;
+      if (changes.clientId !== undefined) db.client_id = changes.clientId || null;
+      if (changes.publicationId !== undefined) db.publication_id = changes.publicationId || null;
+      if (changes.assignedTo !== undefined) db.assigned_to = changes.assignedTo || null;
+      if (changes.escalatedTo !== undefined) db.escalated_to = changes.escalatedTo || null;
       if (changes.resolvedAt !== undefined) db.resolved_at = changes.resolvedAt;
       if (changes.resolutionNotes !== undefined) db.resolution_notes = changes.resolutionNotes;
+      if (changes.firstResponseAt !== undefined) db.first_response_at = changes.firstResponseAt;
       if (Object.keys(db).length) await supabase.from('service_tickets').update(db).eq('id', id);
     }
   }, []);

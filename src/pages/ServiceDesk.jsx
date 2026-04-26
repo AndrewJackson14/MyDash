@@ -62,8 +62,46 @@ const PriorityDot = ({ priority }) => {
   </span>;
 };
 
+// SLA targets keyed by priority: hours until first response is overdue.
+const FIRST_RESPONSE_HOURS = { 0: 24, 1: 4, 2: 1 };
+
+const needsFirstResponse = (t) => {
+  if (!t) return false;
+  if (t.firstResponseAt) return false;
+  if (!["open", "in_progress", "escalated"].includes(t.status)) return false;
+  return true;
+};
+
+// Returns { tone, label } for the SLA chip — null when no chip should render.
+const slaChip = (t) => {
+  if (!t) return null;
+  if (!["open", "in_progress", "escalated"].includes(t.status)) return null;
+  const target = FIRST_RESPONSE_HOURS[t.priority || 0] || 24;
+  if (t.firstResponseAt) {
+    const responded = Math.round((new Date(t.firstResponseAt) - new Date(t.createdAt)) / 60000);
+    return { tone: "ok", label: `Responded ${responded < 60 ? `${responded}m` : `${Math.round(responded / 60)}h`}` };
+  }
+  const elapsed = (Date.now() - new Date(t.createdAt).getTime()) / 3600000;
+  if (elapsed >= target) return { tone: "over", label: `Needs response · ${elapsed >= 24 ? `${Math.floor(elapsed / 24)}d` : `${Math.round(elapsed)}h`} overdue` };
+  if (elapsed >= target * 0.75) return { tone: "warn", label: `Needs response · due soon` };
+  return { tone: "due", label: `Needs first response` };
+};
+
+const SlaChip = ({ ticket }) => {
+  const c = slaChip(ticket);
+  if (!c) return null;
+  const palette = c.tone === "over"
+    ? { bg: Z.ds, color: Z.da }
+    : c.tone === "warn"
+    ? { bg: Z.ws, color: Z.wa }
+    : c.tone === "due"
+    ? { bg: Z.bg, color: Z.tm }
+    : { bg: Z.ss, color: Z.su };
+  return <span style={{ display: "inline-flex", alignItems: "center", borderRadius: R, padding: "1px 6px", fontSize: FS.micro, fontWeight: FW.heavy, background: palette.bg, color: palette.color, whiteSpace: "nowrap" }}>{c.label}</span>;
+};
+
 // ─── Module ─────────────────────────────────────────────────
-const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus, isActive, onNavigate }) => {
+const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, clients, subscribers, pubs, issues, team, bus, currentUser, insertTicket, updateTicket, insertTicketComment, isActive, onNavigate }) => {
   const nav = useNav(onNavigate);
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
@@ -105,6 +143,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
   const inProgressCount = allTickets.filter(t => t.status === "in_progress").length;
   const escalatedCount = allTickets.filter(t => t.status === "escalated").length;
   const resolvedToday = allTickets.filter(t => t.status === "resolved" && t.resolvedAt && new Date(t.resolvedAt).toDateString() === new Date().toDateString()).length;
+  const needsFirstCount = allTickets.filter(needsFirstResponse).length;
 
   // Average resolution time
   const resolved = allTickets.filter(t => t.resolvedAt && t.createdAt);
@@ -131,46 +170,86 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
     setTicketModal(true);
   };
 
-  const saveTicket = () => {
+  const saveTicket = async () => {
     if (!form.subject) return;
     if (editId) {
-      setTickets(prev => (prev || []).map(t => t.id === editId ? { ...t, ...form, updatedAt: new Date().toISOString() } : t));
+      if (updateTicket) {
+        await updateTicket(editId, { ...form });
+      } else {
+        setTickets(prev => (prev || []).map(t => t.id === editId ? { ...t, ...form, updatedAt: new Date().toISOString() } : t));
+      }
     } else {
-      const newId = "tk-" + Date.now();
-      setTickets(prev => [...(prev || []), { ...form, id: newId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
-      if (bus) bus.emit("ticket.created", { ticketId: newId, subject: form.subject, category: form.category, priority: form.priority });
+      let created;
+      if (insertTicket) {
+        created = await insertTicket(form);
+      } else {
+        created = { ...form, id: "tk-" + Date.now(), createdAt: new Date().toISOString() };
+      }
+      const row = { ...form, ...created, updatedAt: created?.updatedAt || new Date().toISOString() };
+      setTickets(prev => [row, ...(prev || []).filter(t => t.id !== row.id)]);
+      if (bus) bus.emit("ticket.created", { ticketId: row.id, subject: form.subject, category: form.category, priority: form.priority });
     }
     setTicketModal(false);
   };
 
-  const updateStatus = (ticketId, newStatus) => {
-    setTickets(prev => (prev || []).map(t => {
-      if (t.id !== ticketId) return t;
-      const updates = { status: newStatus, updatedAt: new Date().toISOString() };
-      if (newStatus === "resolved") updates.resolvedAt = new Date().toISOString();
-      return { ...t, ...updates };
-    }));
+  // Auto-stamp first_response_at the first time staff acts on an open ticket.
+  // Keeps Cami honest on response SLAs even when nobody clicks "respond" first.
+  const maybeFirstResponseStamp = (ticket) => {
+    if (!ticket || ticket.firstResponseAt) return null;
+    return new Date().toISOString();
   };
 
-  const escalateTicket = (ticketId, toId) => {
+  const updateStatus = async (ticketId, newStatus) => {
     const ticket = allTickets.find(t => t.id === ticketId);
-    setTickets(prev => (prev || []).map(t =>
-      t.id === ticketId ? { ...t, status: "escalated", escalatedTo: toId, updatedAt: new Date().toISOString() } : t
-    ));
+    const changes = { status: newStatus };
+    if (newStatus === "resolved") changes.resolvedAt = new Date().toISOString();
+    const stamp = maybeFirstResponseStamp(ticket);
+    if (stamp && newStatus !== "open") changes.firstResponseAt = stamp;
+    if (updateTicket) {
+      await updateTicket(ticketId, changes);
+    } else {
+      setTickets(prev => (prev || []).map(t => t.id === ticketId ? { ...t, ...changes, updatedAt: new Date().toISOString() } : t));
+    }
+  };
+
+  const escalateTicket = async (ticketId, toId) => {
+    const ticket = allTickets.find(t => t.id === ticketId);
+    const changes = { status: "escalated", escalatedTo: toId };
+    const stamp = maybeFirstResponseStamp(ticket);
+    if (stamp) changes.firstResponseAt = stamp;
+    if (updateTicket) {
+      await updateTicket(ticketId, changes);
+    } else {
+      setTickets(prev => (prev || []).map(t => t.id === ticketId ? { ...t, ...changes, updatedAt: new Date().toISOString() } : t));
+    }
     if (bus && ticket) bus.emit("ticket.escalated", { ticketId, subject: ticket.subject, escalatedTo: toId });
   };
 
-  const addComment = (ticketId) => {
+  const addComment = async (ticketId) => {
     if (!commentText.trim()) return;
-    setTicketComments(prev => [...(prev || []), {
-      id: "tc-" + Date.now(),
+    const ticket = allTickets.find(t => t.id === ticketId);
+    const author = team?.find(t => t.id === currentUser?.id) || team?.[0];
+    const comment = {
       ticketId,
-      authorId: team?.[0]?.id || "",
-      authorName: team?.[0]?.name || "Staff",
+      authorId: author?.id || null,
+      authorName: author?.name || "Staff",
       note: commentText,
       isInternal: commentInternal,
-      createdAt: new Date().toISOString(),
-    }]);
+    };
+    if (insertTicketComment) {
+      await insertTicketComment(comment);
+    } else {
+      setTicketComments(prev => [...(prev || []), { ...comment, id: "tc-" + Date.now(), createdAt: new Date().toISOString() }]);
+    }
+    // Public comments from staff count as first response.
+    if (!commentInternal) {
+      const stamp = maybeFirstResponseStamp(ticket);
+      if (stamp && updateTicket) {
+        await updateTicket(ticketId, { firstResponseAt: stamp });
+      } else if (stamp) {
+        setTickets(prev => (prev || []).map(t => t.id === ticketId ? { ...t, firstResponseAt: stamp, updatedAt: new Date().toISOString() } : t));
+      }
+    }
     setCommentText("");
     setCommentInternal(false);
   };
@@ -201,9 +280,10 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
             <PriorityDot priority={viewTicket.priority} />
             <TicketBadge status={viewTicket.status} />
+            <SlaChip ticket={viewTicket} />
             <span style={{ fontSize: FS.xs, color: Z.td }}>{CHANNELS.find(c => c.value === viewTicket.channel)?.icon} {CHANNELS.find(c => c.value === viewTicket.channel)?.label}</span>
           </div>
           <h2 style={{ margin: "4px 0", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewTicket.subject}</h2>
@@ -297,6 +377,12 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
 
     {/* ════════ BOARD VIEW (Kanban-style) ════════ */}
     {tab === "Board" && <>
+      {needsFirstCount > 0 && <div style={{ background: Z.ws, border: `1px solid ${Z.wa}`, borderRadius: R, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.heavy }}>
+          {needsFirstCount} ticket{needsFirstCount !== 1 ? "s" : ""} awaiting first response
+        </div>
+        <Btn sm v="ghost" onClick={() => setTab("List")}>View list →</Btn>
+      </div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
         <GlassStat label="Open" value={openCount} color={Z.wa} />
         <GlassStat label="In Progress" value={inProgressCount} color={Z.pu} />
@@ -327,6 +413,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
                   <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtAgo(t.createdAt)}</span>
                 </div>
                 <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, marginBottom: 3 }}>{t.subject}</div>
+                <div style={{ marginBottom: 3 }}><SlaChip ticket={t} /></div>
                 <div style={{ fontSize: FS.xs, color: Z.tm }}>
                   {t.contactName && <span>{t.contactName}</span>}
                   {t.clientId && <span> · {cn(t.clientId)}</span>}
@@ -351,14 +438,14 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         <DataTable>
           <thead>
             <tr>
-              {["Priority", "Subject", "Contact", "Category", "Channel", "Assigned", "Age", "Status"].map(h =>
+              {["Priority", "Subject", "Contact", "Category", "Channel", "Assigned", "Age", "SLA", "Status"].map(h =>
                 <th key={h} style={{ textAlign: "left", fontWeight: FW.heavy, color: Z.tm, fontSize: FS.xs, textTransform: "uppercase" }}>{h}</th>
               )}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0
-              ? <tr><td colSpan={8} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No tickets match your filters</td></tr>
+              ? <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: Z.td, fontSize: FS.base }}>No tickets match your filters</td></tr>
               : filtered.map(t => <tr key={t.id} onClick={() => setViewTicketId(t.id)} style={{ cursor: "pointer" }}>
                 <td style={{ padding: "10px 14px" }}><PriorityDot priority={t.priority} /></td>
                 <td style={{ padding: "10px 14px" }}>
@@ -370,6 +457,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
                 <td style={{ fontSize: FS.sm }}>{CHANNELS.find(c => c.value === t.channel)?.icon}</td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{t.assignedTo ? <EntityLink onClick={nav.toTeamMember(t.assignedTo)} muted>{tn(t.assignedTo)}</EntityLink> : "—"}</td>
                 <td style={{ fontSize: FS.xs, color: Z.td }}>{fmtAgo(t.createdAt)}</td>
+                <td style={{ padding: "10px 14px" }}><SlaChip ticket={t} /></td>
                 <td style={{ padding: "10px 14px" }}><TicketBadge status={t.status} /></td>
               </tr>)}
           </tbody>

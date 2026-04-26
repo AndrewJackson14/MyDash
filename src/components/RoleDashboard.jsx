@@ -1294,6 +1294,11 @@ const RoleDashboard = memo(({
     // ── Tickets / subs / legal (existing signals) ──
     const openTix = _tickets.filter(t => ["open", "in_progress"].includes(t.status));
     const escalatedTix = openTix.filter(t => t.status === "escalated" || t.priority === "urgent");
+    // Tickets in any active state with no first-response stamp yet — Cami's
+    // SLA exposure. Auto-stamped by ServiceDesk when she acts.
+    const needsFirstResp = _tickets.filter(t =>
+      ["open", "in_progress", "escalated"].includes(t.status) && !t.firstResponseAt
+    );
     const d30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
     const d14ago = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
     const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -1353,6 +1358,7 @@ const RoleDashboard = memo(({
     // ── Auto-generated checklist (priority-sorted) ──
     const checklist = [];
     if (escalatedTix.length > 0) checklist.push({ id: "esc", title: `${escalatedTix.length} escalated ticket${escalatedTix.length > 1 ? "s" : ""}`, dept: "Tickets", page: "servicedesk", priority: 0 });
+    if (needsFirstResp.length > 0) checklist.push({ id: "first-reply", title: `${needsFirstResp.length} ticket${needsFirstResp.length > 1 ? "s need" : " needs"} a first response`, dept: "Tickets", page: "servicedesk", priority: 1 });
     if (overdueInv.length > 0) checklist.push({ id: "overdue", title: `${overdueInv.length} overdue invoice${overdueInv.length > 1 ? "s" : ""} · ${fmtCurrency(overdueTotal)}`, dept: "A/R", page: "billing", priority: overdueInv.length > 5 ? 1 : 2 });
     if (tearsheetMissing.length > 0) checklist.push({ id: "tearsheets", title: `${tearsheetMissing.length} tearsheets to upload`, dept: "Tearsheets", page: "tearsheets", priority: tearsheetMissing.length > 10 ? 1 : 2 });
     if (publishedUnbilled.length > 0) checklist.push({ id: "legalbill", title: `${publishedUnbilled.length} legal notice${publishedUnbilled.length > 1 ? "s" : ""} ready to bill`, dept: "Legal", page: "legalnotices", priority: 2 });
@@ -1381,6 +1387,7 @@ const RoleDashboard = memo(({
             <div style={{ fontSize: 28, fontWeight: FW.black, color: escalatedTix.length > 0 ? Z.da : openTix.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTix.length}</div>
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Open Tickets</div>
             {escalatedTix.length > 0 && <div style={{ fontSize: 9, color: Z.da, marginTop: 1 }}>{escalatedTix.length} escalated</div>}
+            {escalatedTix.length === 0 && needsFirstResp.length > 0 && <div style={{ fontSize: 9, color: Z.wa, marginTop: 1 }}>{needsFirstResp.length} need first reply</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: tearsheetMissing.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{tearsheetMissing.length}</div>
