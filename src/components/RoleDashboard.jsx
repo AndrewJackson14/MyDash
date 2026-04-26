@@ -168,6 +168,13 @@ const RoleDashboard = memo(({
   const [pubLayoutRefGaps, setPubLayoutRefGaps] = useState([]);
   const [signingOffIssueId, setSigningOffIssueId] = useState(null);
 
+  // ─── Content Editor dashboard state (Camille P2) ────────────────
+  // "From Layout" inbox: team_notes Anthony fires from his Flag-back
+  // modal land here, scoped to the current user. Surfaced on Camille's
+  // dashboard as a focused actionable tile instead of buried in
+  // DirectionCard alongside generic publisher notes.
+  const [editorialPings, setEditorialPings] = useState([]);
+
   // ─── Layout Designer state (Anthony) ─────────────────────
   // Same hoist-to-top-of-component rule: hooks must run every render.
   // The Anthony branch reads these; non-Anthony renders ignore them.
@@ -648,6 +655,46 @@ const RoleDashboard = memo(({
     }
   };
 
+  // ─── Content Editor data load (Camille P2) ──────────────────────
+  // team_notes inbox scoped to story-context pings the current user
+  // received in the last 14 days. Anthony's Flag-back modal writes
+  // these with context_type='story', so this list IS the actionable
+  // rebound queue from layout.
+  const isContentEditorRole = ["Editor", "Managing Editor", "Copy Editor", "Content Editor", "Editor-in-Chief", "Photo Editor"].includes(role);
+  useEffect(() => {
+    if (!isContentEditorRole) return;
+    if (!currentUser?.id || !isOnline()) return;
+    const since = new Date(Date.now() - 14 * 86400000).toISOString();
+    (async () => {
+      const { data } = await supabase
+        .from("team_notes")
+        .select("id, message, context_id, from_user, created_at, is_read")
+        .eq("to_user", currentUser.id)
+        .eq("context_type", "story")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      setEditorialPings(data || []);
+    })();
+  }, [isContentEditorRole, currentUser?.id]);
+
+  // Realtime — new pings appear within seconds without a refresh.
+  useEffect(() => {
+    if (!isContentEditorRole) return;
+    if (!currentUser?.id || !isOnline()) return;
+    const ch = supabase
+      .channel(`editorial-pings-${currentUser.id}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "team_notes", filter: `to_user=eq.${currentUser.id}` },
+        (payload) => {
+          if (payload.new.context_type === "story") {
+            setEditorialPings(prev => [payload.new, ...prev].slice(0, 20));
+          }
+        })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [isContentEditorRole, currentUser?.id]);
+
   // ─── Publisher data load (Hayley P1) ────────────────────────────
   // Same top-level effect pattern as Layout Designer — guard inside,
   // not around the hook, so call order stays stable across role
@@ -788,6 +835,48 @@ const RoleDashboard = memo(({
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT: Queue */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Camille P2 — From Layout: Anthony's flag-back pings + any
+              other story-context team_notes addressed to the current
+              editor in the last 14 days. Top of the column when
+              non-empty so rebounds get fixed before new edits start. */}
+          {editorialPings.length > 0 && (
+            <div style={glass}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>↩ From Layout</span>
+                <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{editorialPings.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+                {editorialPings.map(p => {
+                  const sender = (team || []).find(t => t.id === p.from_user)?.name || "Layout";
+                  const isFlagback = /flagging|back from layout/i.test(p.message || "");
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => onNavigate?.("stories", { storyId: p.context_id })}
+                      style={{
+                        padding: "8px 10px", background: Z.bg, borderRadius: Ri,
+                        cursor: "pointer",
+                        borderLeft: `2px solid ${isFlagback ? Z.wa : Z.ac}`,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: isFlagback ? Z.wa : Z.ac, fontFamily: COND }}>
+                          {isFlagback ? "Flag back" : sender}
+                        </span>
+                        <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                          {p.created_at ? fmtDate(p.created_at.slice(0, 10)) : ""}
+                        </span>
+                      </div>
+                      <div title={p.message} style={{ fontSize: FS.xs, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {p.message}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <IncomingPipelineCard
             stories={_stories}
             team={team}
