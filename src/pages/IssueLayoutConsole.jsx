@@ -103,9 +103,11 @@ export default function IssueLayoutConsole({
           && !i.sentToPressAt && !i.sent_to_press_at)
         .sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
       if (!nextIssue) return null;
+      // "Ready" count = editorial has signed off (status==='Ready'). This
+      // matches the dominant editorial → layout handoff signal and is
+      // what the import migration sets when stories enter the issue.
       const readyCount = (stories || []).filter(s =>
-        s.print_issue_id === nextIssue.id &&
-        ((s.print_status || s.printStatus) === "ready")
+        s.print_issue_id === nextIssue.id && s.status === "Ready"
       ).length;
       return { pub: p, issue: nextIssue, readyCount };
     }).filter(Boolean);
@@ -458,7 +460,7 @@ export default function IssueLayoutConsole({
         return (
           <button
             key={p.id}
-            onClick={() => { if (!isCurrent) onNavigate?.("layout", { id: iss.id }); }}
+            onClick={() => { if (!isCurrent) onNavigate?.(`/layout?id=${encodeURIComponent(iss.id)}`); }}
             style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "8px 14px", borderRadius: 999,
