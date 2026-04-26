@@ -7,7 +7,7 @@
 // stay imported for back-compat with sub-primitives that haven't
 // been touched yet — they collapse out in subsequent batches.
 // ============================================================
-import { Component, useState, useRef, useLayoutEffect } from "react";
+import { Component, useState, useRef, useEffect, useLayoutEffect } from "react";
 import {
   Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW,
   INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, RADII,
@@ -459,32 +459,97 @@ export const TB = ({ tabs, active, onChange }) => {
 // Stat — KPI card. Press Room: Cormorant 600 numerics, ink color,
 // tabular figures. Geist mono uppercase label above. Hairline border,
 // no shadow.
-export const Stat = ({ label, value, sub }) => (
-  <div style={{
-    background: "var(--card)",
-    border: "1px solid var(--rule)",
-    borderRadius: RAD[1],
-    padding: SPACE.cardPad,
-  }}>
-    <div style={{ ...pressMeta, marginBottom: 8 }}>{label}</div>
+//
+// Motion (Phase 6 signature load): the numeric portion of `value`
+// counts up from 0 to its final value over 600ms with cubic ease-out
+// on first mount. Subsequent value updates snap. Strings that don't
+// contain a number render as-is without animation.
+const COUNT_UP_MS = 600;
+const NUM_RE = /^(\D*)(-?[\d,]+(?:\.\d+)?)(.*)$/;
+
+function useStatCountUp(value) {
+  const [display, setDisplay] = useState(value);
+  useEffect(() => {
+    if (typeof value === "number") {
+      let frame;
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / COUNT_UP_MS);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setDisplay(Math.round(value * eased * 100) / 100);
+        if (t < 1) frame = requestAnimationFrame(step);
+      };
+      frame = requestAnimationFrame(step);
+      return () => cancelAnimationFrame(frame);
+    }
+    const m = String(value ?? "").match(NUM_RE);
+    if (!m) {
+      setDisplay(value);
+      return;
+    }
+    const prefix = m[1] ?? "";
+    const target = parseFloat(m[2].replace(/,/g, ""));
+    const suffix = m[3] ?? "";
+    if (Number.isNaN(target)) {
+      setDisplay(value);
+      return;
+    }
+    const isFloat = /\./.test(m[2]);
+    const grouped = /,/.test(m[2]);
+    let frame;
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / COUNT_UP_MS);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = target * eased;
+      const formatted = isFloat
+        ? cur.toFixed(1)
+        : grouped
+          ? Math.round(cur).toLocaleString()
+          : String(Math.round(cur));
+      setDisplay(`${prefix}${formatted}${suffix}`);
+      if (t < 1) frame = requestAnimationFrame(step);
+      else setDisplay(`${prefix}${grouped ? Math.round(target).toLocaleString() : isFloat ? target.toFixed(1) : target}${suffix}`);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return display;
+}
+
+export const Stat = ({ label, value, sub, animate = true }) => {
+  const animated = useStatCountUp(animate ? value : value);
+  // When animate is explicitly false, useStatCountUp still runs once
+  // but lands on the same final value. Keep call order stable.
+  const displayed = animate ? animated : value;
+  return (
     <div style={{
-      fontSize: TYPE.size.displayMd,
-      fontWeight: TYPE.weight.display,
-      color: "var(--ink)",
-      lineHeight: TYPE.lh.display,
-      fontFamily: TYPE.family.display,
-      fontVariantNumeric: "lining-nums tabular-nums",
-    }}>{value}</div>
-    {sub && (
+      background: "var(--card)",
+      border: "1px solid var(--rule)",
+      borderRadius: RAD[1],
+      padding: SPACE.cardPad,
+    }}>
+      <div style={{ ...pressMeta, marginBottom: 8 }}>{label}</div>
       <div style={{
-        fontSize: TYPE.size.caption,
-        color: "var(--muted)",
-        marginTop: 6,
-        fontFamily: TYPE.family.body,
-      }}>{sub}</div>
-    )}
-  </div>
-);
+        fontSize: TYPE.size.displayMd,
+        fontWeight: TYPE.weight.display,
+        color: "var(--ink)",
+        lineHeight: TYPE.lh.display,
+        fontFamily: TYPE.family.display,
+        fontVariantNumeric: "lining-nums tabular-nums",
+      }}>{displayed}</div>
+      {sub && (
+        <div style={{
+          fontSize: TYPE.size.caption,
+          color: "var(--muted)",
+          marginTop: 6,
+          fontFamily: TYPE.family.body,
+        }}>{sub}</div>
+      )}
+    </div>
+  );
+};
 
 // Modal — Press Room hairline panel on a darkened paper backdrop.
 // No backdrop blur, no panel shadow. Title is a Geist h3, not Cormorant

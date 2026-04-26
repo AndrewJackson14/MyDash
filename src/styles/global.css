@@ -641,3 +641,26 @@ tbody tr td {
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* Press Room — metadata-strip caret blink (signature load). */
+@keyframes metaCaret {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Press Room — primary link hover: 2px underline draw left → right. */
+a:not([class]),
+a.press-link {
+  color: var(--ink);
+  text-decoration: none;
+  background-image: linear-gradient(var(--ink), var(--ink));
+  background-position: left bottom;
+  background-repeat: no-repeat;
+  background-size: 0 2px;
+  padding-bottom: 2px;
+  transition: background-size var(--dur-fast) var(--ease);
+}
+a:not([class]):hover,
+a.press-link:hover {
+  background-size: 100% 2px;
+}
