@@ -48,7 +48,7 @@ function buildPageGrid(items, pub) {
   return placements;
 }
 
-const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick, layoutImageUrl, onOpenLayoutModal }) => {
+const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick, layoutImageUrl, onOpenLayoutModal, adProjectBySaleId, issueAdDeadline }) => {
   const pH = pageW * (pub.height / pub.width);
   const placements = buildPageGrid(adsOnPage, pub);
   const fs = Math.max(8, pageW * 0.07);
@@ -88,19 +88,55 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       const isPending = !isPH && (p.status === "Proposal" || p.status === "Negotiation");
       const isSold = !isPH && !isPending;
 
-      // SOLD = solid green, PENDING = hatched pattern, PLACEHOLDER = gray dashed
-      const bgStyle = isSold
-        ? "rgba(34,197,94,0.25)"
-        : isPending
-          ? "repeating-linear-gradient(135deg, rgba(232,176,58,0.12), rgba(232,176,58,0.12) 3px, rgba(232,176,58,0.04) 3px, rgba(232,176,58,0.04) 6px)"
-          : "transparent";
-      const borderStyle = isSold
-        ? "1.5px solid rgba(34,197,94,0.6)"
-        : isPending
-          ? "1.5px dashed rgba(232,176,58,0.6)"
-          : "1.5px dashed rgba(138,149,168,0.4)";
-      const textColor = isSold ? "#166534" : isPending ? "#92400e" : Z.td;
-      const subColor = isSold ? "rgba(22,101,52,0.6)" : isPending ? "rgba(146,64,14,0.5)" : "rgba(138,149,168,0.6)";
+      // May Sim P1.5 — split the SOLD bucket by ad-project readiness so
+      // Anthony can see, on the flatplan itself, which placed ads are
+      // ready for press, which are still in design, and which are late.
+      const today = new Date().toISOString().slice(0, 10);
+      const adProj = isSold && adProjectBySaleId ? adProjectBySaleId.get(p.id) : null;
+      const adProjStatus = adProj?.status;
+      const isReady = isSold && adProjStatus && ["approved", "signed_off", "placed"].includes(adProjStatus);
+      const isInFlight = isSold && adProjStatus && ["proof_sent", "revising"].includes(adProjStatus);
+      const isLate = isSold && !isReady && issueAdDeadline && issueAdDeadline < today;
+      // Default isStaging covers brief / awaiting_art / designing / no project at all.
+      const isStaging = isSold && !isReady && !isInFlight && !isLate;
+
+      let bgStyle, borderStyle, textColor, subColor;
+      if (isPH) {
+        bgStyle = "transparent";
+        borderStyle = "1.5px dashed rgba(138,149,168,0.4)";
+        textColor = Z.td;
+        subColor = "rgba(138,149,168,0.6)";
+      } else if (isPending) {
+        bgStyle = "repeating-linear-gradient(135deg, rgba(232,176,58,0.12), rgba(232,176,58,0.12) 3px, rgba(232,176,58,0.04) 3px, rgba(232,176,58,0.04) 6px)";
+        borderStyle = "1.5px dashed rgba(232,176,58,0.6)";
+        textColor = "#92400e";
+        subColor = "rgba(146,64,14,0.5)";
+      } else if (isLate) {
+        // Late = past ad deadline AND not approved. Red border, soft red fill.
+        bgStyle = "rgba(232,72,85,0.18)";
+        borderStyle = "2px solid rgba(232,72,85,0.85)";
+        textColor = "#991b1b";
+        subColor = "rgba(153,27,27,0.6)";
+      } else if (isReady) {
+        bgStyle = "rgba(34,197,94,0.28)";
+        borderStyle = "1.5px solid rgba(34,197,94,0.7)";
+        textColor = "#166534";
+        subColor = "rgba(22,101,52,0.6)";
+      } else if (isInFlight) {
+        // Amber: design in motion (proof out / revising). Hatched so it
+        // visually differs from the "pending sale" hatched pattern.
+        bgStyle = "repeating-linear-gradient(45deg, rgba(232,176,58,0.22), rgba(232,176,58,0.22) 4px, rgba(232,176,58,0.08) 4px, rgba(232,176,58,0.08) 8px)";
+        borderStyle = "1.5px solid rgba(232,176,58,0.7)";
+        textColor = "#92400e";
+        subColor = "rgba(146,64,14,0.65)";
+      } else {
+        // Staging: sold + in early design state OR no project linked.
+        // Soft green to keep it visually distinct from Ready.
+        bgStyle = "rgba(34,197,94,0.12)";
+        borderStyle = "1.5px solid rgba(34,197,94,0.4)";
+        textColor = "#166534";
+        subColor = "rgba(22,101,52,0.5)";
+      }
 
       return <div
         key={p.id}
@@ -120,6 +156,19 @@ const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, o
       >
         <div style={{ fontSize: fs, fontWeight: FW.heavy, color: textColor, textAlign: "center", lineHeight: 1.1, padding: "0 2px" }}>{isPH ? (phLabels?.[p.id] || "HOLD") : clientName(p.clientId).slice(0, 18)}</div>
         <div style={{ fontSize: fsSmall, color: subColor, fontWeight: FW.semi }}>{isPH ? "Placeholder" : (p.size || p.type)}</div>
+        {/* May Sim P1.5 — readiness glyph on the flatplan tile itself,
+            so Anthony does not have to cross-reference AdProjects. */}
+        {pageW > 70 && (isReady || isInFlight || isLate || isStaging) && (
+          <span title={
+            isLate ? "Past ad deadline · ad project not approved"
+            : isReady ? `Ad ready (${adProjStatus})`
+            : isInFlight ? `Designer working (${adProjStatus})`
+            : isStaging ? `In design pipeline (${adProjStatus || "no project"})`
+            : ""
+          } style={{ position: "absolute", bottom: 2, left: 2, fontSize: Math.max(10, fsSmall * 0.95), lineHeight: 1, fontWeight: FW.heavy, color: textColor, opacity: 0.85 }}>
+            {isLate ? "⚠" : isReady ? "✓" : isInFlight ? "↻" : "…"}
+          </span>
+        )}
         {pageW > 70 && <button onClick={e => { e.stopPropagation(); onRemoveAd(p.id); }} style={{ position: "absolute", top: 1, right: 1, width: 13, height: 13, borderRadius: Ri, background: "rgba(232,72,85,0.85)", border: "none", cursor: "pointer", fontSize: 9, color: INV.light, fontWeight: FW.black, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
       </div>;
     })}
@@ -972,7 +1021,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           const pageAds = isLocked
             ? (sharedCtx.primarySalesOnShared || []).filter(s => s.page === n).map(s => ({ ...s, isPlaceholder: false, gridRow: s.pagePos?.row ?? null, gridCol: s.pagePos?.col ?? null }))
             : getPageItems(n);
-          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} layoutImageUrl={layouts[n]?.cdn_url || null} onOpenLayoutModal={(pg) => setLayoutModalPage(pg)} onClick={() => {
+          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} layoutImageUrl={layouts[n]?.cdn_url || null} onOpenLayoutModal={(pg) => setLayoutModalPage(pg)} adProjectBySaleId={adProjectBySaleId} issueAdDeadline={issues.find(i => i.id === selIssue)?.adDeadline || null} onClick={() => {
                     if (showSharedPicker && sharedCtx?.isPrimary) {
                       // Toggle this page in the issue's shared_pages array
                       const cur = issue.sharedPages || [];
