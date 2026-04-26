@@ -1,4 +1,12 @@
 import React, { lazy, Suspense } from "react";
+// ── Press Room font faces (self-hosted, Latin only) ────────
+// Cormorant 600/700/600-italic — display only (≥28px, never accent).
+// Geist + Geist Mono — variable axes for body, headers, mono.
+import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/cormorant-garamond/700.css";
+import "@fontsource/cormorant-garamond/600-italic.css";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./styles/global.css";
 import ReactDOM from "react-dom/client";
 import { AuthProvider } from "./hooks/useAuth";

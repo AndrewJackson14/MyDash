@@ -257,6 +257,129 @@
 }
 
 
+/* ════════════════════════════════════════════════════════════
+   Press Room — base typography + paper grain
+   ════════════════════════════════════════════════════════════ */
+
+html {
+  /* font-display: swap is baked into @fontsource — fallback to system stack
+     during the brief load so we don't block paint. size-adjust handled per-face. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: var(--weight-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  background: var(--paper);
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Display headings — Cormorant 600 by default. Never below 28px. */
+h1 {
+  font-family: var(--font-display);
+  font-size: var(--type-display-xl);
+  font-weight: var(--weight-display);
+  line-height: var(--lh-display);
+  color: var(--ink);
+  letter-spacing: 0;
+  margin: 0;
+}
+h2 {
+  font-family: var(--font-display);
+  font-size: var(--type-display-lg);
+  font-weight: var(--weight-display);
+  line-height: var(--lh-display);
+  color: var(--ink);
+  margin: 0;
+}
+
+/* H3–H5 — Geist 700 (the contrast between Cormorant display and
+   Geist headers is part of the aesthetic). */
+h3 {
+  font-family: var(--font-body);
+  font-size: var(--type-h3);
+  font-weight: var(--weight-body-bold);
+  line-height: var(--lh-heading);
+  color: var(--ink);
+  letter-spacing: var(--ls-headers);
+  margin: 0;
+}
+h4 {
+  font-family: var(--font-body);
+  font-size: var(--type-h4);
+  font-weight: var(--weight-body-bold);
+  line-height: var(--lh-heading);
+  color: var(--ink);
+  letter-spacing: var(--ls-headers);
+  margin: 0;
+}
+h5 {
+  font-family: var(--font-body);
+  font-size: var(--type-h5);
+  font-weight: var(--weight-body-bold);
+  line-height: var(--lh-heading);
+  color: var(--ink);
+  letter-spacing: var(--ls-headers);
+  margin: 0;
+}
+
+/* Numeric: lining + tabular figures across KPIs, tables, and timestamps. */
+.nums,
+[data-nums],
+table td,
+table th {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Mono — for IDs, timestamps, code, the metadata strip kicker. */
+code, kbd, samp, pre,
+.mono {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-mono);
+  font-feature-settings: "kern" 1, "liga" 0;
+}
+
+/* Hairline rule helper — replaces card shadows for elevation. */
+.rule {
+  border-top: 1px solid var(--rule);
+}
+
+/* ── Paper grain overlay ──────────────────────────────────────
+   Fixed to the viewport, pointer-events: none. Sits below all
+   interactive content. Visible if you look for it; load-bearing
+   if you remove it. The SVG itself is in public/grain.svg
+   (~3 KB, gzipped to ~1 KB). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("/grain.svg");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+  opacity: 0.02;
+  mix-blend-mode: multiply;
+}
+[data-theme="dark"] body::before {
+  /* Dark mode: lift the grain slightly with a screen blend so it
+     reads as paper texture, not muddy. */
+  opacity: 0.04;
+  mix-blend-mode: screen;
+}
+
+/* Page chrome must sit above the grain overlay. */
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+
 /* ── #4: Hover effects ───────────────────────────────────── */
 /* Remove default outlines globally — focus-visible handles a11y */
 button, [role="button"], a, select, input, textarea {
