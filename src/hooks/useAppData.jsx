@@ -237,7 +237,7 @@ export function DataProvider({ children, localData }) {
 
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
-        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
+        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
@@ -268,6 +268,7 @@ export function DataProvider({ children, localData }) {
             hasWebsite: !!p.has_website, websiteUrl: p.website_url || '',
             dormant: !!p.dormant,
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
+            defaultSections: Array.isArray(p.default_sections) ? p.default_sections : [],
             sharedContentWith: Array.isArray(p.site_settings?.shared_content_with) ? p.site_settings.shared_content_with : [],
             // Legal-notice pricing (migration 091). null = unconfigured; the
             // form falls back to statutory default ($0.055/char) for per-char.

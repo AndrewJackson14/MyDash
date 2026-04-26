@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
 import { supabase } from "../lib/supabase";
+import { updatePubDefaultSections } from "../lib/sections";
 import EZSchedule from "./EZSchedule";
 
 const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
@@ -799,6 +800,97 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
             </DataTable>
           </div>;
         })()}
+      </div>
+
+      {/* Default Sections — template applied to new issues. Stored as
+          publications.default_sections jsonb [{label, kind}]. Edits
+          here don't backfill existing issues; the publisher applies
+          defaults per-issue from the Issue Planner / Flatplan. */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Default Sections</div>
+        <div style={{ padding: 12, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+          <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 10, lineHeight: 1.5 }}>
+            Template list of sections offered when creating a new issue. {sel.type === "Newspaper" ? "Main sections reset page numbering (A1, A2, B1...). Sub sections are labels only." : "Magazines use linear pagination — kind is informational only."} Edits here apply to NEW issues only.
+          </div>
+          {(sel.defaultSections || []).length === 0 ? (
+            <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", marginBottom: 10 }}>No default sections set.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+              {(sel.defaultSections || []).map((ds, idx) => (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: Z.td, fontFamily: COND, width: 16, textAlign: "center" }}>{idx + 1}</span>
+                  <input
+                    value={ds.label || ""}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const next = (sel.defaultSections || []).map((d, i) => i === idx ? { ...d, label: val } : d);
+                      setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+                      setSel(s => ({ ...s, defaultSections: next }));
+                    }}
+                    onBlur={() => updatePubDefaultSections(sel.id, sel.defaultSections || []).catch(err => console.error("Default sections save failed:", err))}
+                    placeholder="Section label"
+                    style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 8px", color: Z.tx, fontSize: FS.sm, outline: "none" }}
+                  />
+                  <select
+                    value={ds.kind || "main"}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const next = (sel.defaultSections || []).map((d, i) => i === idx ? { ...d, kind: val } : d);
+                      setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+                      setSel(s => ({ ...s, defaultSections: next }));
+                      updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
+                    }}
+                    style={{ fontSize: 10, fontWeight: 700, fontFamily: COND, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tm, cursor: "pointer" }}
+                  >
+                    <option value="main">Main</option>
+                    <option value="sub">Sub</option>
+                  </select>
+                  <button
+                    onClick={() => idx > 0 && (() => {
+                      const next = [...(sel.defaultSections || [])];
+                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                      setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+                      setSel(s => ({ ...s, defaultSections: next }));
+                      updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
+                    })()}
+                    disabled={idx === 0}
+                    style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? Z.bd : Z.tm, fontSize: 12, padding: "0 4px" }}
+                    title="Move up"
+                  >▲</button>
+                  <button
+                    onClick={() => idx < (sel.defaultSections || []).length - 1 && (() => {
+                      const next = [...(sel.defaultSections || [])];
+                      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                      setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+                      setSel(s => ({ ...s, defaultSections: next }));
+                      updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
+                    })()}
+                    disabled={idx === (sel.defaultSections || []).length - 1}
+                    style={{ background: "none", border: "none", cursor: idx === (sel.defaultSections || []).length - 1 ? "default" : "pointer", color: idx === (sel.defaultSections || []).length - 1 ? Z.bd : Z.tm, fontSize: 12, padding: "0 4px" }}
+                    title="Move down"
+                  >▼</button>
+                  <button
+                    onClick={() => {
+                      const next = (sel.defaultSections || []).filter((_, i) => i !== idx);
+                      setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+                      setSel(s => ({ ...s, defaultSections: next }));
+                      updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
+                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 14, padding: "0 4px" }}
+                    title="Remove"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Btn sm v="secondary" onClick={() => {
+            const next = [...(sel.defaultSections || []), { label: "", kind: "main" }];
+            setPubs(pp => pp.map(p => p.id === sel.id ? { ...p, defaultSections: next } : p));
+            setSel(s => ({ ...s, defaultSections: next }));
+          }}>
+            <Ic.plus size={12} /> Add Section
+          </Btn>
+        </div>
       </div>
 
       {/* Discount tier info */}

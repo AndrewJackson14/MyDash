@@ -9,6 +9,7 @@ import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { deriveTransactionType } from "../lib/qboTransactionType";
 import { useNav } from "../hooks/useNav";
 import { rasterizePdfFirstPage } from "../lib/pdfRender";
+import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue } from "../lib/sections";
 
 const GRID_COLS = 2;
 const GRID_ROWS = 4;
@@ -601,6 +602,49 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [selIssue]);
 
+  // Load + subscribe to flatplan_sections for the active issue. Sections
+  // were previously local-only state — refreshing the page lost them.
+  // Now they live in flatplan_sections and the Issue Planner shares the
+  // same rows, so creates/edits in either view propagate everywhere.
+  useEffect(() => {
+    if (!selIssue) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await loadSectionsForIssue(selIssue);
+        if (cancelled) return;
+        setSections(prev => ({ ...prev, [selIssue]: rows }));
+      } catch (err) {
+        console.error("Load sections failed:", err);
+      }
+    })();
+    const ch = supabase.channel(`sections-${selIssue}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flatplan_sections", filter: `issue_id=eq.${selIssue}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = payload.old?.id;
+            if (oldId) {
+              setSections(prev => ({
+                ...prev,
+                [selIssue]: (prev[selIssue] || []).filter(s => s.id !== oldId),
+              }));
+            }
+          } else {
+            const r = payload.new;
+            if (!r) return;
+            const mapped = { id: r.id, issueId: r.issue_id, label: r.name, name: r.name, startPage: r.start_page, endPage: r.end_page, afterPage: (r.start_page ?? 1) - 1, color: r.color || null, kind: r.kind || "main", sortOrder: r.sort_order };
+            setSections(prev => {
+              const list = prev[selIssue] || [];
+              const idx = list.findIndex(s => s.id === r.id);
+              const next = idx === -1 ? [...list, mapped] : list.map(s => s.id === r.id ? mapped : s);
+              next.sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0));
+              return { ...prev, [selIssue]: next };
+            });
+          }
+        }).subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [selIssue]);
+
   // Re-sync when the embedder pushes a new seed (e.g., user picks a
   // different issue in the Production page's Issue Planning tab while
   // the embedded Flatplan is already mounted). Skips when the seed
@@ -951,7 +995,19 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       <span style={{ fontSize: FS.sm, color: Z.tm }}>Click pages below to select</span>
       {newSectionPages.length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac }}>{newSectionPages.length} selected (p.{newSectionPages.join(",")})</span>}
       <div style={{ flex: 1 }} />
-      <Btn sm onClick={() => { if (newSectionPages.length > 0) { setSections(s => ({ ...s, [selIssue]: [...(s[selIssue] || []), { afterPage: Math.min(...newSectionPages) - 1, label: newSectionLabel, pages: newSectionPages }] })); } setShowSectionPicker(false); setNewSectionPages([]); setNewSectionLabel("New Section"); }}>Save Section</Btn>
+      <Btn sm onClick={async () => {
+        if (newSectionPages.length > 0 && selIssue) {
+          const afterPage = Math.min(...newSectionPages) - 1;
+          try {
+            const row = await createSectionDb({ issueId: selIssue, afterPage, label: newSectionLabel, kind: "main" });
+            setSections(s => ({ ...s, [selIssue]: [...(s[selIssue] || []), row] }));
+          } catch (err) {
+            console.error("Create section failed:", err);
+            alert("Could not save section: " + (err.message || "unknown error"));
+          }
+        }
+        setShowSectionPicker(false); setNewSectionPages([]); setNewSectionLabel("New Section");
+      }}>Save Section</Btn>
       <button onClick={() => { setShowSectionPicker(false); setNewSectionPages([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.md }}>×</button>
     </div>}
     {!issue ? <GlassCard style={{ textAlign: "center", padding: 40, color: Z.td, fontSize: FS.md }}>Select a publication and issue above</GlassCard>
@@ -1014,14 +1070,14 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         {pages.map(n => {
           const issSections = sections[selIssue] || [];
           const sectionHere = issSections.find(s => s.afterPage === n - 1);
-          const sectionEndHere = issSections.find(s => s.pages && Math.max(...s.pages) === n);
+          const sectionEndHere = issSections.find(s => s.endPage === n || (s.pages && Math.max(...s.pages) === n));
           const isShared = sharedCtx && sharedCtx.sharedPages.includes(n);
           const isLocked = isShared && sharedCtx?.isMirror;
           const sharedLabel = isShared ? (sharedCtx.isMirror ? sharedCtx.primaryPubName : sharedCtx.siblingNames?.join(", ")) : null;
           const pageAds = isLocked
             ? (sharedCtx.primarySalesOnShared || []).filter(s => s.page === n).map(s => ({ ...s, isPlaceholder: false, gridRow: s.pagePos?.row ?? null, gridCol: s.pagePos?.col ?? null }))
             : getPageItems(n);
-          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.afterPage === sectionHere.afterPage ? { ...sec, label: val } : sec) })); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><button onClick={() => setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.afterPage !== sectionHere.afterPage) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} layoutImageUrl={layouts[n]?.cdn_url || null} onOpenLayoutModal={(pg) => setLayoutModalPage(pg)} adProjectBySaleId={adProjectBySaleId} issueAdDeadline={issues.find(i => i.id === selIssue)?.adDeadline || null} onClick={() => {
+          return <>{sectionHere && <div style={{ width: "100%", padding: "8px 0 2px" }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><input value={sectionHere.label} onChange={e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.id === sectionHere.id ? { ...sec, label: val } : sec) })); }} onBlur={(e) => { if (sectionHere.id) updateSectionDb(sectionHere.id, { label: e.target.value }).catch(err => console.error("Section rename failed:", err)); }} style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textTransform: "uppercase", background: "none", border: "none", outline: "none", fontFamily: COND, padding: 0 }} /><select value={sectionHere.kind || "main"} onChange={async e => { const val = e.target.value; setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).map(sec => sec.id === sectionHere.id ? { ...sec, kind: val } : sec) })); if (sectionHere.id) { try { await updateSectionDb(sectionHere.id, { kind: val }); } catch (err) { console.error("Section kind change failed:", err); } } }} style={{ fontSize: 9, fontWeight: 700, fontFamily: COND, background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "1px 4px", color: Z.tm, cursor: "pointer", textTransform: "uppercase" }} title={pub?.type === "Newspaper" ? "Main = resets page numbering (A1, A2). Sub = label only." : "Magazine: kind doesn't affect numbering"}><option value="main">Main</option><option value="sub">Sub</option></select><button onClick={async () => { if (sectionHere.id) { try { await deleteSectionDb(sectionHere.id); setSections(s => ({ ...s, [selIssue]: (s[selIssue] || []).filter(sec => sec.id !== sectionHere.id) })); } catch (err) { console.error("Section delete failed:", err); } } }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>×</button></div></div>}<FlatplanPage key={n} pageNum={n} pub={pub} adsOnPage={pageAds} dragId={isLocked ? null : di} onDrop={handleDrop} onDropToCell={handleDropToCell} onRemoveAd={handleRemove} onStartDrag={startDrag} clientName={cn} pageW={baseW} editorialStories={getPageStories(n)} isSelected={selPage === n} sectionSelected={showSectionPicker && newSectionPages.includes(n)} onClientModClick={onClientModClick} layoutImageUrl={layouts[n]?.cdn_url || null} onOpenLayoutModal={(pg) => setLayoutModalPage(pg)} adProjectBySaleId={adProjectBySaleId} issueAdDeadline={issues.find(i => i.id === selIssue)?.adDeadline || null} onClick={() => {
                     if (showSharedPicker && sharedCtx?.isPrimary) {
                       // Toggle this page in the issue's shared_pages array
                       const cur = issue.sharedPages || [];

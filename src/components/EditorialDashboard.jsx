@@ -6,6 +6,7 @@ import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { usePageHeader } from "../contexts/PageHeaderContext";
+import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, sectionForPage } from "../lib/sections";
 
 // Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
 const StoryEditor = lazy(() => import("./StoryEditor"));
@@ -281,6 +282,42 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
   const [showSiblings, setShowSiblings] = useState(false);
+
+  // Sections for the active issue, shared with Flatplan via the
+  // flatplan_sections table. Realtime-subscribed so creates/edits in
+  // either view propagate immediately.
+  const [issueSections, setIssueSections] = useState([]);
+  useEffect(() => {
+    if (!selIssue) { setIssueSections([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await loadSectionsForIssue(selIssue);
+        if (!cancelled) setIssueSections(rows);
+      } catch (err) {
+        console.error("[Issue Planner] load sections failed:", err);
+      }
+    })();
+    const ch = supabase.channel(`ip-sections-${selIssue}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "flatplan_sections", filter: `issue_id=eq.${selIssue}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = payload.old?.id;
+            if (oldId) setIssueSections(prev => prev.filter(s => s.id !== oldId));
+          } else {
+            const r = payload.new;
+            if (!r) return;
+            const mapped = { id: r.id, issueId: r.issue_id, label: r.name, name: r.name, startPage: r.start_page, endPage: r.end_page, afterPage: (r.start_page ?? 1) - 1, color: r.color || null, kind: r.kind || "main", sortOrder: r.sort_order };
+            setIssueSections(prev => {
+              const idx = prev.findIndex(s => s.id === r.id);
+              const next = idx === -1 ? [...prev, mapped] : prev.map(s => s.id === r.id ? mapped : s);
+              next.sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0));
+              return next;
+            });
+          }
+        }).subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [selIssue]);
 
   // When the issue changes, restore the per-issue collapsed-groups set
   // from localStorage so editors don't lose the layout they shaped.
@@ -1192,10 +1229,47 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                 {/* Quick-add: inline story for the currently-selected issue.
                     Inserts a blank row into the table without leaving the
                     planner so titles can be batched in. */}
-                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 4, gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <Btn sm v="secondary" onClick={addInlineStoryForIssue} disabled={addingInlineStory}>
                     <Ic.plus size={12} /> {addingInlineStory ? "Adding…" : "New Story"}
                   </Btn>
+                  <Btn sm v="secondary" onClick={async () => {
+                    if (!selIssue) return;
+                    const labelStr = window.prompt("Section name (e.g. A, Sports, B):", "");
+                    if (!labelStr) return;
+                    const startStr = window.prompt("Starts at page number (use the global page #, leave blank for page 1):", "");
+                    const startNum = parseInt(startStr);
+                    const afterPage = isNaN(startNum) ? 0 : Math.max(0, startNum - 1);
+                    const kindAns = (window.prompt("Type — 'main' (newspaper page reset) or 'sub' (label only). Default: main", "main") || "main").toLowerCase();
+                    const kind = kindAns === "sub" ? "sub" : "main";
+                    try {
+                      const row = await createSectionDb({ issueId: selIssue, afterPage, label: labelStr, kind });
+                      setIssueSections(prev => [...prev, row].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
+                    } catch (err) {
+                      console.error("Create section failed:", err);
+                      alert("Could not save section: " + (err.message || "unknown error"));
+                    }
+                  }} disabled={!selIssue}>
+                    <Ic.plus size={12} /> New Section
+                  </Btn>
+                  {(() => {
+                    const pId = (issues || []).find(i => i.id === selIssue)?.pubId;
+                    const pub = pubs.find(p => p.id === pId);
+                    const defaults = Array.isArray(pub?.defaultSections) ? pub.defaultSections : [];
+                    if (!defaults.length || issueSections.length > 0) return null;
+                    return <Btn sm v="secondary" onClick={async () => {
+                      if (!selIssue) return;
+                      try {
+                        const rows = await applyDefaultSectionsToIssue(selIssue, defaults);
+                        setIssueSections(prev => [...prev, ...rows].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
+                      } catch (err) {
+                        console.error("Apply default sections failed:", err);
+                        alert("Could not apply defaults: " + (err.message || "unknown error"));
+                      }
+                    }}>
+                      Apply pub defaults ({defaults.length})
+                    </Btn>;
+                  })()}
                 </div>
                 {/* Data table with inline editing */}
                 <div style={{ overflow: "hidden" }}>
@@ -1228,11 +1302,62 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                       {issueStories.length === 0 && (
                         <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
                       )}
-                      {pageGroups.map(g => {
+                      {pageGroups.map((g, gi) => {
                         const groupCollapsed = collapsedGroups.has(g.key);
                         const wordSum = g.stories.reduce((sum, s) => sum + (Number(s.word_count || s.wordCount) || 0), 0);
                         const isAppendTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId == null;
+                        // Inject a section divider above this group when a
+                        // section starts at or before this page (and either
+                        // it's the first group or the previous group fell in
+                        // a different section).
+                        const prevGroup = gi > 0 ? pageGroups[gi - 1] : null;
+                        const hereSection = g.page != null ? sectionForPage(g.page, issueSections) : null;
+                        const prevSection = prevGroup && prevGroup.page != null ? sectionForPage(prevGroup.page, issueSections) : null;
+                        const showSectionHeader = !!hereSection && (!prevSection || prevSection.id !== hereSection.id);
                         return <Fragment key={g.key}>
+                          {showSectionHeader && (
+                            <tr style={{ background: Z.bg }}>
+                              <td colSpan={11} style={{ padding: "10px 12px 4px", borderTop: `2px solid ${ACCENT.indigo}40` }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 800, color: ACCENT.indigo, fontFamily: COND, padding: "2px 6px", background: ACCENT.indigo + "15", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                                    {hereSection.kind === "sub" ? "SUB" : "SECTION"}
+                                  </span>
+                                  <input
+                                    value={hereSection.label || ""}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setIssueSections(prev => prev.map(s => s.id === hereSection.id ? { ...s, label: val } : s));
+                                    }}
+                                    onBlur={e => updateSectionDb(hereSection.id, { label: e.target.value }).catch(err => console.error("Section rename failed:", err))}
+                                    style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY, background: "transparent", border: "none", outline: "none", padding: 0, flex: 1 }}
+                                  />
+                                  <select
+                                    value={hereSection.kind || "main"}
+                                    onChange={async e => {
+                                      const val = e.target.value;
+                                      setIssueSections(prev => prev.map(s => s.id === hereSection.id ? { ...s, kind: val } : s));
+                                      try { await updateSectionDb(hereSection.id, { kind: val }); } catch (err) { console.error("Section kind change failed:", err); }
+                                    }}
+                                    title={(() => { const pId = (issues || []).find(i => i.id === selIssue)?.pubId; return pubs.find(p => p.id === pId)?.type === "Newspaper" ? "Main = resets newspaper page numbering. Sub = label only." : "Magazine: kind doesn't affect numbering"; })()}
+                                    style={{ fontSize: 10, fontWeight: 700, fontFamily: COND, background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", color: Z.tm, cursor: "pointer" }}
+                                  >
+                                    <option value="main">Main</option>
+                                    <option value="sub">Sub</option>
+                                  </select>
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Delete section "${hereSection.label}"?`)) return;
+                                      try {
+                                        await deleteSectionDb(hereSection.id);
+                                        setIssueSections(prev => prev.filter(s => s.id !== hereSection.id));
+                                      } catch (err) { console.error("Section delete failed:", err); }
+                                    }}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: "0 4px" }}
+                                  >×</button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           <tr
                             style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s" }}
                             onDragOver={(e) => {
