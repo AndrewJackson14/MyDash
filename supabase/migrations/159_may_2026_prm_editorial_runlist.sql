@@ -72,7 +72,7 @@ BEGIN
     ) AS t(title, page, word_limit, has_images, also_anm)
   LOOP
     INSERT INTO stories (
-      title, author, author_name, status,
+      title, author, status,
       publication_id, site_id,
       print_issue_id, issue_id,
       page, category,
@@ -83,7 +83,7 @@ BEGIN
     )
     SELECT
       r.title,
-      '13 Stars Manager', '13 Stars Manager', 'Ready',
+      '13 Stars Manager', 'Ready',
       'pub-paso-robles-magazine', 'pub-paso-robles-magazine',
       v_prm, v_prm,
       r.page, 'News',
