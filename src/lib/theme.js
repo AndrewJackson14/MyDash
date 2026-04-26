@@ -322,18 +322,33 @@ export const FW = {
   black: 900,   // page titles, stat values, display type
 };
 
-// Layout tokens
-export const R = 18;      // border-radius (px) — card-level rounding
-export const Ri = 10;     // border-radius (px) — internal elements (buttons, badges, inputs)
+// ============================================================
+// Press Room radius scale (approved 2026-04-26).
+// docs/ui-refresh/02-radius-proposal.md.
+// Five values: 0 / 2 / 4 / 6 / pill. Most surfaces sit at 0–2px.
+// ============================================================
+export const RAD = {
+  0:    0,        // page chrome, table containers, full-bleed sections
+  1:    2,        // cards, panels, modals, dropdowns
+  2:    4,        // buttons, inputs, badges, segmented controls
+  3:    6,        // drop-zone outlines, image previews — max for any rectangle
+  pill: 9999,     // avatars, status dots, segmented pill containers
+};
 
-// Shell v2 radius scale — named tokens, matches the wireframe.
-// R stays a scalar (18) for existing callers; RADII is the new scale.
+// Legacy radius tokens — aliased onto the Press Room scale per the
+// approved proposal. Existing callers (R / Ri / RADII / CARD.radius /
+// TBL.radius / TOGGLE.radius) keep working but render at the new
+// values. Phase 4–5 component refresh swaps these references for
+// direct RAD.* lookups, then deletes the deprecated names.
+export const R  = RAD[1];   // was 18 — card-level rounding
+export const Ri = RAD[2];   // was 10 — internal elements (buttons, inputs)
+
 export const RADII = {
-  xs: 6,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  xs: RAD[3],   // was 6   → 6 (preserved at top of scale)
+  sm: RAD[2],   // was 8   → 4
+  md: RAD[1],   // was 12  → 2
+  lg: RAD[1],   // was 16  → 2
+  xl: RAD[1],   // was 20  → 2 (modal panels)
 };
 
 // Shell v2 motion primitives.
@@ -368,7 +383,7 @@ export const SPACE = SP;
 export const CARD = {
   pad: 14,                 // internal padding
   gap: 8,                  // gap between floating cards
-  radius: 5,               // border-radius (matches R)
+  radius: RAD[2],          // was 5 → 4 (Press Room button-tier)
   hoverAlpha: 0.08,        // hover background alpha
   dividerAlpha: 0.06,      // internal divider alpha (matches My Day)
   titleSize: 14,           // list item title font size
@@ -383,7 +398,7 @@ export const TBL = {
   hoverAlpha: 0.08,        // row hover background alpha
   activeAlpha: 0.08,       // selected/active row background alpha
   borderAlpha: 0.06,       // row divider opacity (matches My Day dividers)
-  radius: 5,               // container border-radius (matches R)
+  radius: RAD[0],          // was 5 → 0 — Press Room tables are hard rectangles
 };
 
 // Input tokens — shared styling for text inputs, selects, textareas
@@ -454,8 +469,8 @@ export const TOGGLE = {
   h: 20,              // outer height
   circle: 16,         // inner circle diameter
   pad: 2,             // gap between circle and edge
-  radius: 10,         // outer border-radius (half of h)
-  circleRadius: 8,    // inner circle border-radius
+  radius: RAD.pill,   // outer is a pill — visually identical to the prior 10px (=h/2)
+  circleRadius: 8,    // inner circle border-radius (kept — half of circle diameter)
 };
 
 // Avatar dimensions — shared by all avatar/initials implementations
