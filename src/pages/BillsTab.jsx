@@ -340,6 +340,33 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
     });
   }, [localBills, statusFilter, categoryFilter, pubFilter, search]);
 
+  // May Sim P1.6 — variance flagging. For each bill, compute the rolling
+  // average of the prior 3 bills from the same vendor + category. If the
+  // current bill diverges by both > 3% AND > $100, flag yellow. The 5/15
+  // simulation: PRM May invoice landed with a $340 paper-upcharge line
+  // that wasn't in the original contract; Hayley caught it manually.
+  // Now BillsTab catches it for her.
+  const varianceMap = useMemo(() => {
+    const map = new Map();
+    // Sort once asc by date so we can walk vendor+category history.
+    const sorted = [...localBills].sort((a, b) => (a.billDate || "").localeCompare(b.billDate || ""));
+    const history = new Map(); // vendor|cat -> [amounts]
+    for (const b of sorted) {
+      const key = `${(b.vendorName || "").toLowerCase()}|${b.category || ""}`;
+      const prior = history.get(key) || [];
+      if (prior.length >= 3) {
+        const avg = prior.slice(-3).reduce((s, x) => s + x, 0) / 3;
+        const delta = (b.amount || 0) - avg;
+        const pct = avg > 0 ? Math.abs(delta) / avg : 0;
+        if (Math.abs(delta) > 100 && pct > 0.03) {
+          map.set(b.id, { avg, delta, pct, direction: delta > 0 ? "over" : "under" });
+        }
+      }
+      history.set(key, [...prior, b.amount || 0]);
+    }
+    return map;
+  }, [localBills]);
+
   // Metrics
   const metrics = useMemo(() => {
     const thisMonth = today().slice(0, 7);
@@ -582,6 +609,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
           )}
           {filtered.map(b => {
             const overdue = b.dueDate && b.dueDate < today() && b.status !== "paid" && b.status !== "void";
+            const variance = varianceMap.get(b.id);
             return (
               <tr key={b.id} style={{ cursor: "pointer" }} onClick={() => openEdit(b)}>
                 <td style={{ fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}{b.description && <div style={{ fontSize: 11, fontWeight: FW.normal, color: Z.tm, fontFamily: COND }}>{b.description}</div>}</td>
@@ -589,7 +617,14 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{b.publicationId ? pubName(b.publicationId) : <span style={{ fontStyle: "italic", color: Z.td }}>Overhead</span>}</td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{fmtDate(b.billDate)}</td>
                 <td style={{ fontSize: FS.sm, color: overdue ? Z.da : Z.tm, fontWeight: overdue ? FW.bold : FW.normal }}>{b.dueDate ? fmtDate(b.dueDate) : "—"}</td>
-                <td style={{ fontWeight: FW.bold, color: Z.tx }}>{fmtCurrency(b.amount)}</td>
+                <td style={{ fontWeight: FW.bold, color: Z.tx }}>
+                  {fmtCurrency(b.amount)}
+                  {variance && (
+                    <span title={`Avg of last 3: ${fmtCurrency(variance.avg)} · ${variance.direction === "over" ? "+" : "−"}${fmtCurrency(Math.abs(variance.delta))} (${Math.round(variance.pct * 100)}%)`} style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", background: Z.wa + "26", color: Z.wa, borderRadius: 3, fontSize: 9, fontWeight: FW.heavy, letterSpacing: 0.4, fontFamily: COND, textTransform: "uppercase" }}>
+                      ⚠ {variance.direction === "over" ? "+" : "−"}{Math.round(variance.pct * 100)}%
+                    </span>
+                  )}
+                </td>
                 <td>
                   <span style={{
                     display: "inline-block", padding: "2px 8px", borderRadius: Ri,

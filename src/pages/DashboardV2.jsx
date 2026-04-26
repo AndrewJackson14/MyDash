@@ -258,6 +258,21 @@ const DashboardV2 = (props) => {
   const [openSignal, setOpenSignal] = useState(null);
   const [drilledDept, setDrilledDept] = useState(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
+
+  // May Sim P1.2 — auto-open the morning briefing on first dashboard
+  // visit before noon. Once-per-session, dismissible. The briefing
+  // already has all the content; the gap was that Hayley had to know
+  // to click it. Doing it for her on her morning login removes the
+  // "I have to remember to check briefing" mental tax.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const now = new Date();
+    if (now.getHours() >= 12) return;
+    const todayKey = "mydash:briefing_seen:" + now.toISOString().slice(0, 10);
+    if (sessionStorage.getItem(todayKey)) return;
+    setBriefingOpen(true);
+    sessionStorage.setItem(todayKey, "1");
+  }, []);
   const [rightHandNotes, setRightHandNotes] = useState([]);
   // Rolling activity feed for the DOSE banner — newest on the right,
   // oldest slides off the left when the ring buffer overflows.
