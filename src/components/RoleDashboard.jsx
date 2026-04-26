@@ -2379,6 +2379,65 @@ const RoleDashboard = memo(({
     const d14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
     const upcomingIssues = _issues.filter(i => i.date >= today && i.date <= d7);
 
+    // Hayley P2 — MTD pacing vs same-day-last-month. The number alone
+    // doesn't tell her if she's ahead or behind; this answers "are we on
+    // track?" at a glance. Projected = MTD × (days-in-month / day-of-month).
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const lastMonth = (() => {
+      const d = new Date(); d.setMonth(d.getMonth() - 1);
+      return d.toISOString().slice(0, 7);
+    })();
+    const lastMonthSameDay = _sales
+      .filter(s => s.status === "Closed" && s.date?.startsWith(lastMonth))
+      .filter(s => Number(s.date.slice(8, 10)) <= dayOfMonth)
+      .reduce((s, x) => s + (x.amount || 0), 0);
+    const lastMonthFull = _sales
+      .filter(s => s.status === "Closed" && s.date?.startsWith(lastMonth))
+      .reduce((s, x) => s + (x.amount || 0), 0);
+    const pacingDelta = lastMonthSameDay > 0 ? Math.round(((mtdRev - lastMonthSameDay) / lastMonthSameDay) * 100) : null;
+    const projectedMonth = dayOfMonth > 0 ? Math.round(mtdRev * (daysInMonth / dayOfMonth)) : mtdRev;
+
+    // Hayley P2 — A/R aging buckets. Same definitions as CollectionsCenter:
+    // Current = not-yet-due, 1–30 = 1–30d past due, 31–60, 61–90, 90+.
+    const buckets = { current: 0, b1_30: 0, b31_60: 0, b61_90: 0, b90: 0 };
+    let arTotal = 0;
+    openInvoices.forEach(inv => {
+      const bal = Number(inv.balanceDue || 0);
+      if (bal <= 0) return;
+      arTotal += bal;
+      if (!inv.dueDate || inv.dueDate >= today) { buckets.current += bal; return; }
+      const daysPast = Math.floor((new Date(today) - new Date(inv.dueDate)) / 86400000);
+      if (daysPast <= 30) buckets.b1_30 += bal;
+      else if (daysPast <= 60) buckets.b31_60 += bal;
+      else if (daysPast <= 90) buckets.b61_90 += bal;
+      else buckets.b90 += bal;
+    });
+    // DSO ≈ A/R balance ÷ avg daily revenue last 30d. Rough but useful.
+    const d30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const last30Rev = _sales
+      .filter(s => s.status === "Closed" && (s.closedAt?.slice(0, 10) || s.date) >= d30ago)
+      .reduce((s, x) => s + (x.amount || 0), 0);
+    const dso = last30Rev > 0 ? Math.round((arTotal / last30Rev) * 30) : null;
+
+    // Hayley P2 — Issue revenue forecast. Next 4 publishing issues with
+    // their sold-ad revenue + estimated fill rate. Closed sales tied to
+    // each issue. Flags weak issues 14d+ out so we can push.
+    const upcomingForecastIssues = _issues
+      .filter(i => i.date >= today)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .slice(0, 4)
+      .map(iss => {
+        const sold = _sales
+          .filter(s => s.issueId === iss.id && s.status === "Closed")
+          .reduce((sum, s) => sum + (s.amount || 0), 0);
+        const pending = _sales
+          .filter(s => s.issueId === iss.id && !["Closed", "Follow-up"].includes(s.status))
+          .reduce((sum, s) => sum + (s.amount || 0), 0);
+        const days = daysUntil(iss.date);
+        return { iss, sold, pending, days };
+      });
+
     // Hayley P1 — issues approaching press (next 14d) that haven't
     // received her signoff yet. These are press-day blockers for
     // Anthony's readiness checklist.
@@ -2413,6 +2472,10 @@ const RoleDashboard = memo(({
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} deals</div>
+            {pacingDelta != null && <div style={{ fontSize: 10, color: pacingDelta >= 0 ? Z.go : Z.da, marginTop: 2, fontWeight: FW.bold }}>
+              {pacingDelta >= 0 ? "▲" : "▼"} {Math.abs(pacingDelta)}% vs last month · proj {fmtCurrency(projectedMonth)}
+            </div>}
+            {pacingDelta == null && lastMonthFull > 0 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 2 }}>proj {fmtCurrency(projectedMonth)} · last mo {fmtCurrency(lastMonthFull)}</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(pipelineValue)}</div>
@@ -2527,6 +2590,73 @@ const RoleDashboard = memo(({
               </div>
             </div>
           )}
+
+          {/* Hayley P2 — A/R aging + DSO. Color-coded stacked bar with
+              per-bucket values; click → Collections for action. */}
+          {arTotal > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>A/R Aging</div>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                {fmtCurrency(arTotal)} outstanding{dso != null ? ` · DSO ${dso}d` : ""}
+              </span>
+            </div>
+            <div onClick={() => onNavigate?.("collections")} style={{ display: "flex", height: 26, borderRadius: R, overflow: "hidden", cursor: "pointer" }}>
+              {[
+                { key: "current", val: buckets.current, color: Z.go, label: "Current" },
+                { key: "b1_30", val: buckets.b1_30, color: Z.ac, label: "1–30" },
+                { key: "b31_60", val: buckets.b31_60, color: Z.wa, label: "31–60" },
+                { key: "b61_90", val: buckets.b61_90, color: ACCENT.indigo, label: "61–90" },
+                { key: "b90", val: buckets.b90, color: Z.da, label: "90+" },
+              ].filter(b => b.val > 0).map(b => (
+                <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>
+                  {(b.val / arTotal) >= 0.10 ? `${Math.round((b.val / arTotal) * 100)}%` : ""}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 10 }}>
+              {[
+                { val: buckets.current, color: Z.go, label: "Current" },
+                { val: buckets.b1_30, color: Z.ac, label: "1–30d" },
+                { val: buckets.b31_60, color: Z.wa, label: "31–60d" },
+                { val: buckets.b61_90, color: ACCENT.indigo, label: "61–90d" },
+                { val: buckets.b90, color: Z.da, label: "90+d" },
+              ].map((b, i) => (
+                <div key={i} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: b.color, fontFamily: DISPLAY }}>{fmtCurrency(b.val)}</div>
+                  <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{b.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          {/* Hayley P2 — Issue revenue forecast. Next 4 issues with sold +
+              pending ad revenue. Flags weak issues (low sold, days-out
+              shrinking) so we know which issues to push reps on. */}
+          {upcomingForecastIssues.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Issue Revenue Forecast</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {upcomingForecastIssues.map(({ iss, sold, pending, days }) => {
+                // Soft "weak" flag: less than $1k sold and inside 14 days.
+                const weak = days <= 14 && sold < 1000;
+                const tone = weak ? Z.wa : Z.go;
+                return (
+                  <div key={iss.id} onClick={() => onNavigate?.(`/layout?id=${iss.id}`)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${tone}`, cursor: "pointer" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{pn(iss.pubId)} {iss.label}</div>
+                      <div style={{ fontSize: FS.xs, color: Z.tm }}>
+                        Press {fmtDate(iss.date)} · {days <= 0 ? "today" : `${days}d out`}
+                        {weak && <span style={{ color: Z.wa, fontWeight: FW.bold }}> · ⚠ weak</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(sold)}</div>
+                      {pending > 0 && <div style={{ fontSize: 10, color: Z.ac }}>+ {fmtCurrency(pending)} pending</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>}
 
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Top Closers — This Month</div>
