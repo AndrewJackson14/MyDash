@@ -7,7 +7,7 @@ import { useAppData } from "./hooks/useAppData";
 import { useAuth } from "./hooks/useAuth";
 import { useJurisdiction } from "./hooks/useJurisdiction";
 import { supabase, isOnline, EDGE_FN_URL } from "./lib/supabase";
-import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI } from "./lib/theme";
+import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI, PRESS, PRESS_LIGHT, PRESS_DARK } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
 import {
   INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
@@ -285,8 +285,12 @@ export default function App() {
 
   const handleThemeToggle = () => {
     const isDark = Z.bg === DARK.bg;
+    const next = isDark ? "light" : "dark";
     Object.assign(Z, isDark ? LIGHT : DARK);
-    try { localStorage.setItem("mydash-theme", isDark ? "light" : "dark"); } catch (e) { }
+    Object.assign(PRESS, isDark ? PRESS_LIGHT : PRESS_DARK);
+    // Press Room CSS vars (--ink / --paper / etc.) read from data-theme
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("mydash-theme", next); } catch (e) { }
     forceRender(n => n + 1);
   };
 
