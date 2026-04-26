@@ -380,43 +380,54 @@ body::before {
 }
 
 
-/* ── #4: Hover effects ───────────────────────────────────── */
-/* Remove default outlines globally — focus-visible handles a11y */
+/* ── Hover & focus — Press Room restraint ────────────────────
+   No transform: scale, no box-shadow glow. Press Room buttons
+   acknowledge a hover with a 5% opacity fade and rely on the
+   focus-visible ring for accessibility. */
 button, [role="button"], a, select, input, textarea {
-  outline: none !important;
-  transition: all var(--md-transition);
+  outline: none;
+  transition:
+    opacity   var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
-/* Buttons: soft glow + slight scale instead of brightness */
-button:hover, [role="button"]:hover {
-  box-shadow: 0 2px 12px rgba(138, 149, 168, 0.15);
-  transform: scale(1.02);
-}
-button:active, [role="button"]:active {
-  transform: scale(0.98);
-  box-shadow: none;
+button:hover:not(:disabled),
+[role="button"]:hover:not([aria-disabled="true"]) {
+  opacity: 0.88;
 }
 
-/* Table rows: warm fade */
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  opacity: 0.78;
+}
+
+/* Focus-visible — hairline accent ring, no glow. */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Table rows: subtle accent-soft wash on hover. */
 tbody tr {
-  transition: background var(--md-transition);
+  transition: background var(--dur-fast) var(--ease);
 }
 tbody tr:hover {
-  background: rgba(138, 149, 168, 0.06) !important;
-}
-
-/* Cards — soft glow on hover */
-[style*="backdrop-filter"], [style*="borderRadius: 18"] {
-  transition: box-shadow var(--md-transition);
-}
-[style*="backdrop-filter"]:hover {
-  box-shadow: 0 4px 20px rgba(138, 149, 168, 0.08);
+  background: var(--accent-soft) !important;
 }
 
 
-/* ── #6: Pill-shaped buttons ─────────────────────────────── */
+/* ── Button radius default — Press Room rectangles ───────────
+   The previous `!important` pill rule is gone. Buttons default
+   to 4px (--rad-2). Refreshed components can override inline
+   for fully-pill controls (avatars, status, segmented). */
 button, [role="button"] {
-  border-radius: var(--md-radius-pill) !important;
+  border-radius: var(--rad-2);
 }
 
 /* Exempt: grid cells, kanban drop zones, color swatches, toggle circles */
@@ -424,7 +435,7 @@ button[style*="borderRadius: 50%"],
 button[style*="border-radius: 50%"],
 [style*="position: absolute"] > button,
 svg circle {
-  border-radius: revert !important;
+  border-radius: revert;
 }
 
 

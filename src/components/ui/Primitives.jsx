@@ -1,93 +1,375 @@
 // ============================================================
-// Shared UI Primitives — MyDash Editorial Monochrome
-// R = 5px card radius, Ri = 3px internal radius, SP = spacing
+// Shared UI Primitives — Press Room
+//
+// Refreshed in Phase 4 batch 1 of the UI refresh.
+// Tokens flow through: PRESS (color), TYPE (typography), RAD
+// (radius), SPACE (spacing), ELEV (elevation). Legacy Z/FS/Ri
+// stay imported for back-compat with sub-primitives that haven't
+// been touched yet — they collapse out in subsequent batches.
 // ============================================================
 import { Component, useState, useRef, useLayoutEffect } from "react";
-import { Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW, INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, RADII, EASE, DUR, FONT, SIGNAL, NEUTRAL, isDark as _isDark } from "../../lib/theme";
+import {
+  Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW,
+  INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, RADII,
+  EASE, DUR, FONT, SIGNAL, NEUTRAL, isDark as _isDark,
+  // Press Room tokens
+  PRESS, TYPE, RAD, SPACE, ELEV,
+} from "../../lib/theme";
 import Ic from "./Icons";
+
+// ── Press Room shared style fragments ──────────────────────
+const pressBody = {
+  fontFamily: TYPE.family.body,
+  fontSize:   TYPE.size.body,
+  color:      "var(--ink)",
+};
+
+const pressLabel = {
+  fontFamily:    TYPE.family.body,
+  fontSize:      11,
+  fontWeight:    TYPE.weight.bodyBold,
+  color:         "var(--muted)",
+  letterSpacing: TYPE.ls.headers,
+  textTransform: "uppercase",
+};
+
+const pressMeta = {
+  fontFamily:    TYPE.family.mono,
+  fontSize:      TYPE.size.meta,
+  fontWeight:    TYPE.weight.mono,
+  letterSpacing: TYPE.ls.meta,
+  textTransform: "uppercase",
+  color:         "var(--muted)",
+};
+
+// Shared input surface — translucent fill, 1px hairline, no glow.
+const inputSurface = {
+  background:   "rgba(128, 128, 128, 0.06)",
+  border:       "1px solid var(--rule)",
+  borderRadius: RAD[2],
+  color:        "var(--ink)",
+  fontSize:     TYPE.size.body,
+  fontFamily:   TYPE.family.body,
+  outline:      "none",
+  boxShadow:    ELEV.input,
+  transition:   `border-color ${DUR.fast}ms ${EASE}, background ${DUR.fast}ms ${EASE}`,
+};
 
 export const ThemeToggle = ({ onToggle }) => {
   const dk = _isDark();
-  return <button onClick={onToggle} title={dk ? "Light mode" : "Dark mode"} style={{ background: Z.tx, color: Z.bg, border: "none", borderRadius: Ri, padding: "5px 12px", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 6 }}>{dk ? "☀" : "🌙"}<span>{dk ? "Light" : "Dark"}</span></button>;
+  return <button
+    onClick={onToggle}
+    title={dk ? "Light mode" : "Dark mode"}
+    style={{
+      background:    "transparent",
+      color:         "var(--ink)",
+      border:        "1px solid var(--rule)",
+      borderRadius:  RAD[2],
+      padding:       "5px 12px",
+      cursor:        "pointer",
+      fontSize:      TYPE.size.caption,
+      fontWeight:    TYPE.weight.bodyBold,
+      fontFamily:    TYPE.family.body,
+      display:       "flex",
+      alignItems:    "center",
+      gap:           6,
+    }}
+  >{dk ? "☀" : "🌙"}<span>{dk ? "Light" : "Dark"}</span></button>;
 };
 
-export const BackBtn = ({ onClick }) => <button onClick={onClick} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tx, fontSize: FS.base, fontWeight: FW.bold, fontFamily: COND, display: "flex", alignItems: "center", gap: 4, padding: "4px 0", marginBottom: 4 }}><span style={{ fontSize: FS.lg }}>&larr;</span> Back</button>;
+export const BackBtn = ({ onClick }) => <button
+  onClick={onClick}
+  style={{
+    background: "none", border: "none", cursor: "pointer",
+    color: "var(--ink)",
+    fontSize: TYPE.size.body,
+    fontWeight: TYPE.weight.bodyBold,
+    fontFamily: TYPE.family.body,
+    display: "flex", alignItems: "center", gap: 4,
+    padding: "4px 0", marginBottom: 4,
+  }}
+><span style={{ fontSize: TYPE.size.h4 }}>&larr;</span> Back</button>;
 
-export const FilterBar = ({ options, active, onChange, colorMap }) => <div style={{ display: "flex", gap: 16 }}>{options.map(o => { const val = typeof o === "string" ? o : o.value; const label = typeof o === "string" ? o : o.label; const isActive = Array.isArray(active) ? active.includes(val) : active === val; return <button key={val} onClick={() => onChange(val)} style={{ padding: 0, borderRadius: 0, border: "none", borderBottom: isActive ? `2px solid ${Z.tx}` : "2px solid transparent", background: "transparent", cursor: "pointer", fontSize: FS.base, fontWeight: isActive ? 700 : 600, color: isActive ? Z.tx : Z.td, fontFamily: COND, whiteSpace: "nowrap", paddingBottom: 4 }}>{label}</button>; })}</div>;
+export const FilterBar = ({ options, active, onChange, colorMap }) => (
+  <div style={{ display: "flex", gap: 24 }}>
+    {options.map(o => {
+      const val = typeof o === "string" ? o : o.value;
+      const label = typeof o === "string" ? o : o.label;
+      const isActive = Array.isArray(active) ? active.includes(val) : active === val;
+      return (
+        <button
+          key={val}
+          onClick={() => onChange(val)}
+          style={{
+            padding: "0 0 6px",
+            borderRadius: 0,
+            border: "none",
+            borderBottom: isActive ? `2px solid var(--ink)` : "2px solid transparent",
+            background: "transparent",
+            cursor: "pointer",
+            fontSize: TYPE.size.body,
+            fontWeight: isActive ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,
+            color: isActive ? "var(--ink)" : "var(--muted)",
+            fontFamily: TYPE.family.body,
+            whiteSpace: "nowrap",
+            letterSpacing: TYPE.ls.headers,
+          }}
+        >{label}</button>
+      );
+    })}
+  </div>
+);
 
-export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => <tr style={{ background: Z.sa }}>{columns.map(h => <th key={h} onClick={() => onSort(h)} style={{ padding: TBL.cellPad, textAlign: "left", fontWeight: TBL.headerWeight, color: Z.td, fontSize: TBL.headerSize, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, whiteSpace: "nowrap", cursor: h ? "pointer" : "default", userSelect: "none", fontFamily: COND }}>{h}{sortCol === h && <span style={{ marginLeft: 3, fontSize: 9 }}>{sortDir === "asc" ? "▲" : "▼"}</span>}</th>)}</tr>;
+export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => (
+  <tr style={{ borderBottom: `1px solid var(--rule)` }}>
+    {columns.map(h => (
+      <th
+        key={h}
+        onClick={() => onSort(h)}
+        style={{
+          padding: TBL.cellPad,
+          textAlign: "left",
+          fontWeight: TYPE.weight.bodyBold,
+          color: "var(--muted)",
+          fontSize: TYPE.size.meta,
+          textTransform: "uppercase",
+          letterSpacing: TYPE.ls.meta,
+          whiteSpace: "nowrap",
+          cursor: h ? "pointer" : "default",
+          userSelect: "none",
+          fontFamily: TYPE.family.mono,
+        }}
+      >
+        {h}
+        {sortCol === h && (
+          <span style={{ marginLeft: 6, fontSize: 9, color: "var(--ink)" }}>
+            {sortDir === "asc" ? "▲" : "▼"}
+          </span>
+        )}
+      </th>
+    ))}
+  </tr>
+);
 
-// DataTable — universal frosted glass table with standardized styles
+// DataTable — Press Room: hairline-bordered table on the card surface.
+// No blur, no glass. Tables are tables. Headers in Geist Mono uppercase.
+// Hover wash uses --accent-soft.
 export const DataTable = ({ children, style, emptyMessage }) => {
-  const isDark = Z.bg === "#08090D";
-  const glassBg = isDark ? "rgba(140,150,165,0.05)" : "rgba(0,0,0,0.02)";
-  const glassBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
-  const headerBg = isDark ? "rgba(140,150,165,0.06)" : "rgba(0,0,0,0.03)";
-  const hoverBg = isDark ? "rgba(255,255,255," + TBL.hoverAlpha + ")" : "rgba(0,0,0," + TBL.hoverAlpha + ")";
-  const activeBg = isDark ? "rgba(255,255,255," + TBL.activeAlpha + ")" : "rgba(0,0,0," + TBL.activeAlpha + ")";
-  const rowBorder = isDark ? "rgba(255,255,255," + TBL.borderAlpha + ")" : "rgba(0,0,0," + TBL.borderAlpha + ")";
   const uid = "dt" + Math.random().toString(36).slice(2, 6);
-  return <div style={{
-    overflowX: "auto", borderRadius: TBL.radius,
-    border: `1px solid ${glassBorder}`,
-    background: glassBg,
-    backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-    ...style,
-  }}>
-    <style>{`
-      .${uid} { width: 100%; border-collapse: collapse; font-size: ${TBL.bodySize}px; font-family: ${COND}; }
-      .${uid} thead tr { background: ${headerBg}; }
-      .${uid} th { padding: ${TBL.cellPad}; text-align: left; font-weight: ${TBL.headerWeight}; color: ${Z.td}; font-size: ${TBL.headerSize}px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid ${rowBorder}; white-space: nowrap; cursor: pointer; user-select: none; font-family: ${COND}; }
-      .${uid} td { padding: ${TBL.cellPad}; border-bottom: 1px solid ${rowBorder}; vertical-align: middle; font-family: ${COND}; }
-      .${uid} tbody tr { transition: background 0.1s; cursor: pointer; }
-      .${uid} tbody tr:hover { background: ${hoverBg}; }
-      .${uid} tbody tr.dt-active { background: ${activeBg}; }
-      .${uid} tbody tr:last-child td { border-bottom: none; }
-    `}</style>
-    <table className={uid}>{children}</table>
-  </div>;
+  return (
+    <div style={{
+      overflowX: "auto",
+      borderRadius: RAD[0],
+      border: "1px solid var(--rule)",
+      background: "var(--card)",
+      ...style,
+    }}>
+      <style>{`
+        .${uid} { width: 100%; border-collapse: collapse; font-size: ${TYPE.size.bodySm}px; font-family: ${TYPE.family.body}; font-variant-numeric: lining-nums tabular-nums; }
+        .${uid} thead tr { background: transparent; }
+        .${uid} th {
+          padding: 10px 14px;
+          text-align: left;
+          font-weight: ${TYPE.weight.mono};
+          color: var(--muted);
+          font-size: ${TYPE.size.meta}px;
+          text-transform: uppercase;
+          letter-spacing: ${TYPE.ls.meta};
+          border-bottom: 1px solid var(--rule);
+          white-space: nowrap;
+          cursor: pointer;
+          user-select: none;
+          font-family: ${TYPE.family.mono};
+        }
+        .${uid} td {
+          padding: 10px 14px;
+          border-bottom: 1px solid var(--rule);
+          vertical-align: middle;
+          color: var(--ink);
+          font-family: ${TYPE.family.body};
+        }
+        .${uid} tbody tr { transition: background ${DUR.fast}ms ${EASE}; cursor: pointer; }
+        .${uid} tbody tr:hover { background: var(--accent-soft); }
+        .${uid} tbody tr.dt-active { background: var(--accent-soft); }
+        .${uid} tbody tr:last-child td { border-bottom: none; }
+      `}</style>
+      <table className={uid}>{children}</table>
+    </div>
+  );
 };
 
-export const Badge = ({ status, small }) => { const c = SC[status] || { bg: Z.sa, text: Z.tm }; return <span style={{ display: "inline-flex", alignItems: "center", padding: small ? "2px 8px" : "4px 12px", borderRadius: Ri, fontSize: small ? 10 : 11, fontWeight: FW.bold, background: c.bg, color: c.text, whiteSpace: "nowrap", fontFamily: COND, letterSpacing: 0.3 }}>{status}</span>; };
+export const Badge = ({ status, small }) => {
+  const c = SC[status] || { bg: "transparent", text: "var(--muted)" };
+  return (
+    <span
+      style={{
+        display:       "inline-flex",
+        alignItems:    "center",
+        padding:       small ? "1px 6px" : "2px 8px",
+        borderRadius:  RAD[2],
+        fontSize:      small ? 10 : TYPE.size.meta,
+        fontWeight:    TYPE.weight.mono,
+        background:    c.bg,
+        color:         c.text,
+        whiteSpace:    "nowrap",
+        fontFamily:    TYPE.family.mono,
+        letterSpacing: TYPE.ls.meta,
+        textTransform: "uppercase",
+        border:        `1px solid var(--rule)`,
+      }}
+    >{status}</span>
+  );
+};
 
-const btnBase = (sm, disabled) => ({ display: "inline-flex", alignItems: "center", gap: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", borderRadius: BTN.radius, fontWeight: BTN.fontWeight, fontSize: sm ? FS.sm : BTN.fontSize, fontFamily: COND, transition: "opacity 0.15s", padding: sm ? BTN.padSm : BTN.pad, opacity: disabled ? 0.4 : 1 });
+// ── Btn + variants — Press Room ──────────────────────────────
+// Variant rationale (docs/ui-refresh/01-direction-decisions.md):
+//   primary   = high-contrast monochrome (ink → paper). Press red is
+//               reserved for danger / alert. The "do this" action gets
+//               typographic emphasis, not color emphasis.
+//   secondary = ink on transparent with hairline rule
+//   ghost     = ink on transparent, no border
+//   cancel    = muted on transparent with hairline rule (step-back)
+//   danger    = press red on white. The only solid-accent variant.
+//   success   = ok green on white. Rare — confirmations only.
+//   warning   = warn amber on white. Rare — caution affordances.
+const btnBase = (sm, disabled) => ({
+  display:      "inline-flex",
+  alignItems:   "center",
+  justifyContent: "center",
+  gap:          6,
+  border:       "1px solid transparent",
+  cursor:       disabled ? "not-allowed" : "pointer",
+  borderRadius: RAD[2],
+  fontWeight:   TYPE.weight.bodyBold,
+  fontSize:     sm ? TYPE.size.caption : TYPE.size.body,
+  fontFamily:   TYPE.family.body,
+  letterSpacing: TYPE.ls.headers,
+  transition:   `opacity ${DUR.fast}ms ${EASE}, background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
+  padding:      sm ? "5px 14px" : "8px 18px",
+  opacity:      disabled ? 0.4 : 1,
+  whiteSpace:   "nowrap",
+});
+
 const btnVariants = {
-  primary:   { background: "#3b82f6", color: INV.light },
-  success:   { background: Z.go, color: INV.light },
-  secondary: { background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" },
-  ghost:     { background: "transparent", color: Z.tm, border: "none" },
-  danger:    { background: Z.da, color: INV.light },
-  cancel:    { background: "rgba(224,80,80,0.12)", color: Z.da, border: "1px solid rgba(224,80,80,0.3)" },
-  warning:   { background: Z.wa, color: INV.light },
+  primary:   { background: "var(--ink)",       color: "var(--paper)", borderColor: "var(--ink)" },
+  secondary: { background: "transparent",      color: "var(--ink)",    borderColor: "var(--rule)" },
+  ghost:     { background: "transparent",      color: "var(--ink)",    borderColor: "transparent" },
+  cancel:    { background: "transparent",      color: "var(--muted)",  borderColor: "var(--rule)" },
+  danger:    { background: "var(--accent)",    color: "#FFFFFF",       borderColor: "var(--accent)" },
+  success:   { background: "var(--ok)",        color: "#FFFFFF",       borderColor: "var(--ok)" },
+  warning:   { background: "var(--warn)",      color: "#FFFFFF",       borderColor: "var(--warn)" },
 };
 
-export const Btn = ({ children, v = "primary", sm, onClick, style, disabled }) => {
-  return <button onClick={onClick} disabled={disabled} style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>{children}</button>;
-};
+export const Btn = ({ children, v = "primary", sm, onClick, style, disabled, type = "button" }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    disabled={disabled}
+    style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}
+  >{children}</button>
+);
 
-// Styled file-upload button — hides the native "Choose Files" control and
-// renders a label that matches Btn. Callers receive the FileList via onChange.
-export const FileBtn = ({ children = "Choose Files", v = "primary", sm, accept, multiple, onChange, disabled, style, inputRef }) => {
-  return <label style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>
+// Styled file-upload button — hides the native "Choose Files" control
+// and renders a label that matches Btn.
+export const FileBtn = ({ children = "Choose Files", v = "primary", sm, accept, multiple, onChange, disabled, style, inputRef }) => (
+  <label style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>
     {children}
-    <input ref={inputRef} type="file" accept={accept} multiple={multiple} disabled={disabled} onChange={onChange} style={{ display: "none" }} />
-  </label>;
-};
+    <input
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      multiple={multiple}
+      disabled={disabled}
+      onChange={onChange}
+      style={{ display: "none" }}
+    />
+  </label>
+);
 
-const labelStyle = { fontSize: LABEL.fontSize, fontWeight: LABEL.fontWeight, color: Z.td, letterSpacing: LABEL.letterSpacing, textTransform: LABEL.textTransform, fontFamily: COND };
+const labelStyle = pressLabel;
 
-// Shared input surface — matches global.css rgba(128,128,128,0.08)
-const inputSurface = { background: "rgba(128,128,128,0.10)", border: "1px solid rgba(128,128,128,0.20)", borderRadius: INPUT.radius, color: Z.tx, fontSize: INPUT.fontSize, outline: "none", fontFamily: COND };
+export const Inp = ({ label, ...p }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    {label && <label style={labelStyle}>{label}</label>}
+    <input style={{ ...inputSurface, padding: "8px 12px" }} {...p} />
+  </div>
+);
 
-export const Inp = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<input style={{ ...inputSurface, padding: INPUT.pad }} {...p} /></div>;
+export const Sel = ({ label, options, style, ...p }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    {label && <label style={labelStyle}>{label}</label>}
+    <div style={{ position: "relative" }}>
+      <select
+        style={{
+          ...inputSurface,
+          padding: "8px 30px 8px 12px",
+          width: "100%",
+          cursor: "pointer",
+          WebkitAppearance: "none", MozAppearance: "none", appearance: "none",
+          ...style,
+        }}
+        {...p}
+      >
+        {options.map(o => (
+          <option
+            key={typeof o === "string" ? o : o.value}
+            value={typeof o === "string" ? o : o.value}
+          >{typeof o === "string" ? o : o.label}</option>
+        ))}
+      </select>
+      <div style={{
+        position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+        pointerEvents: "none", color: "var(--muted)", fontSize: 9,
+      }}>▼</div>
+    </div>
+  </div>
+);
 
-export const Sel = ({ label, options, style, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<div style={{ position: "relative" }}><select style={{ ...inputSurface, padding: "9px 32px 9px 14px", width: "100%", cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none", ...style }} {...p}>{options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}</select><div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: Z.tm, fontSize: FS.micro }}>▼</div></div></div>;
+export const TA = ({ label, ...p }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    {label && <label style={labelStyle}>{label}</label>}
+    <textarea
+      style={{
+        ...inputSurface,
+        padding: "10px 12px",
+        resize: "vertical",
+        minHeight: 80,
+        fontFamily: TYPE.family.body,
+      }}
+      {...p}
+    />
+  </div>
+);
 
-export const TA = ({ label, ...p }) => <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <label style={labelStyle}>{label}</label>}<textarea style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: INPUT.radius, padding: "11px 14px", color: Z.tx, fontSize: INPUT.fontSize, outline: "none", resize: "vertical", minHeight: 80, fontFamily: "inherit" }} {...p} /></div>;
+export const Card = ({ children, style }) => (
+  <div style={{
+    background:   "var(--card)",
+    border:       "1px solid var(--rule)",
+    borderRadius: RAD[1],
+    padding:      SPACE.cardPad,
+    ...style,
+  }}>{children}</div>
+);
 
-export const Card = ({ children, style }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad, ...style }}>{children}</div>;
-
-export const SB = ({ value, onChange, placeholder }) => <div style={{ position: "relative", flex: 1, maxWidth: 280 }}><div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: Z.td }}><Ic.search size={15} /></div><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || "Search..."} style={{ ...inputSurface, width: "100%", padding: "9px 14px 9px 34px", boxSizing: "border-box" }} /></div>;
+export const SB = ({ value, onChange, placeholder }) => (
+  <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
+    <div style={{
+      position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+      color: "var(--muted)",
+    }}><Ic.search size={14} /></div>
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder || "Search..."}
+      style={{
+        ...inputSurface,
+        width: "100%",
+        padding: "8px 12px 8px 30px",
+        boxSizing: "border-box",
+      }}
+    />
+  </div>
+);
 
 // Pill-style tab group with a sliding active indicator. The indicator is an
 // absolutely-positioned div whose left/width are measured from the active
@@ -174,25 +456,45 @@ export const TB = ({ tabs, active, onChange }) => {
   </div>;
 };
 
-export const Stat = ({ label, value, sub }) => <div style={{ background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: R, padding: SP.cardPad }}><div style={{ ...labelStyle, marginBottom: 8 }}>{label}</div><div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>{sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}</div>;
+// Stat — KPI card. Press Room: Cormorant 600 numerics, ink color,
+// tabular figures. Geist mono uppercase label above. Hairline border,
+// no shadow.
+export const Stat = ({ label, value, sub }) => (
+  <div style={{
+    background: "var(--card)",
+    border: "1px solid var(--rule)",
+    borderRadius: RAD[1],
+    padding: SPACE.cardPad,
+  }}>
+    <div style={{ ...pressMeta, marginBottom: 8 }}>{label}</div>
+    <div style={{
+      fontSize: TYPE.size.displayMd,
+      fontWeight: TYPE.weight.display,
+      color: "var(--ink)",
+      lineHeight: TYPE.lh.display,
+      fontFamily: TYPE.family.display,
+      fontVariantNumeric: "lining-nums tabular-nums",
+    }}>{value}</div>
+    {sub && (
+      <div style={{
+        fontSize: TYPE.size.caption,
+        color: "var(--muted)",
+        marginTop: 6,
+        fontFamily: TYPE.family.body,
+      }}>{sub}</div>
+    )}
+  </div>
+);
 
-// Modal — header + scrollable body + optional sticky footer.
-// Pass an `actions` prop to render sticky buttons pinned to the
-// bottom of the modal frame (Cancel / Save / Create Notice / etc).
-// Content scrolls behind the footer. If `actions` isn't provided,
-// children render normally in a scrollable body — existing modals
-// without a footer prop still work exactly as before.
+// Modal — Press Room hairline panel on a darkened paper backdrop.
+// No backdrop blur, no panel shadow. Title is a Geist h3, not Cormorant
+// (display serif stays in display lane).
 export const Modal = ({ open, onClose, title, children, actions, width = MODAL.defaultWidth, onSubmit }) => {
   if (!open) return null;
   const dark = _isDark();
   return <div tabIndex={-1} style={{
     position: "fixed", inset: 0,
-    // Shell v2 glass overlay — tinted steel-navy in light mode,
-    // pure black in dark — plus a real 12px blur so the page
-    // below reads as pressed-behind-glass instead of just dimmed.
-    background: dark ? "rgba(0,0,0,0.55)" : "rgba(15,29,44,0.35)",
-    backdropFilter: "blur(12px) saturate(180%)",
-    WebkitBackdropFilter: "blur(12px) saturate(180%)",
+    background: dark ? "rgba(20, 18, 14, 0.65)" : "rgba(26, 24, 20, 0.40)",
     display: "flex", alignItems: "center", justifyContent: "center",
     zIndex: ZI.max,
     outline: "none",
@@ -207,105 +509,205 @@ export const Modal = ({ open, onClose, title, children, actions, width = MODAL.d
       }
     }}>
     <div onClick={e => e.stopPropagation()} style={{
-      // Shell v2 glass panel — translucent surface, heavy blur,
-      // subtle inset edge, and a layered shadow for real depth.
-      background: Z.glassBg,
-      backdropFilter: "blur(40px) saturate(180%)",
-      WebkitBackdropFilter: "blur(40px) saturate(180%)",
-      border: `1px solid ${Z.glassBorder}`,
-      borderRadius: RADII.xl,
-      boxShadow: Z.glassShadow,
+      background: "var(--card)",
+      border: "1px solid var(--rule)",
+      borderRadius: RAD[1],
       width,
       maxWidth: "92vw",
       maxHeight: "85vh",
       display: "flex",
       flexDirection: "column",
-      animation: `v2ScaleIn ${DUR.slow}ms ${EASE}`,
+      animation: `v2ScaleIn ${DUR.med}ms ${EASE}`,
     }}>
-      {/* Header — fixed top */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: MODAL.pad, borderBottom: `1px solid ${Z.glassBorder}`, flexShrink: 0 }}>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: Z.fgPrimary, fontFamily: FONT.display, letterSpacing: "-0.02em" }}>{title}</h3>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.fgMuted }}><Ic.close size={18} /></button>
+      {/* Header — galley-proof hairline below the title. */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "14px 20px",
+        borderBottom: "1px solid var(--rule)",
+        flexShrink: 0,
+      }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: TYPE.size.h3,
+          fontWeight: TYPE.weight.bodyBold,
+          color: "var(--ink)",
+          fontFamily: TYPE.family.body,
+          letterSpacing: TYPE.ls.headers,
+        }}>{title}</h3>
+        <button onClick={onClose} style={{
+          background: "none", border: "none", cursor: "pointer",
+          color: "var(--muted)", padding: 4,
+        }}><Ic.close size={18} /></button>
       </div>
       {/* Body — scrollable */}
-      <div style={{ flex: 1, overflow: "auto", padding: 24, minHeight: 0 }}>{children}</div>
-      {/* Footer — sticky bottom, only rendered when actions prop provided */}
-      {actions && <div style={{
-        display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8,
-        padding: "14px 24px",
-        borderTop: `1px solid ${Z.glassBorder}`,
-        flexShrink: 0,
-        borderBottomLeftRadius: RADII.xl,
-        borderBottomRightRadius: RADII.xl,
-      }}>{actions}</div>}
+      <div style={{ flex: 1, overflow: "auto", padding: 20, minHeight: 0 }}>{children}</div>
+      {/* Footer */}
+      {actions && (
+        <div style={{
+          display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8,
+          padding: "12px 20px",
+          borderTop: "1px solid var(--rule)",
+          flexShrink: 0,
+        }}>{actions}</div>
+      )}
     </div>
   </div>;
 };
 
-export const Bar = ({ data, keys, colors, height = 180 }) => { const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0))); return <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>{data.map((d, i) => <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>{[...keys].reverse().map(k => <div key={k} style={{ height: Math.max(2, (d[k] / mx) * (height - 30)), background: colors[k] || Z.tx, borderRadius: R }} />)}</div><span style={{ fontSize: FS.base, color: Z.tm, fontWeight: FW.bold, fontFamily: COND }}>{d.month}</span></div>)}</div>; };
+// Bar — Press Room. Sharp rectangles (RAD[0]), ink-default fill, mono
+// labels under each bar. Print-press visual.
+export const Bar = ({ data, keys, colors, height = 180 }) => {
+  const mx = Math.max(...data.map(d => keys.reduce((s, k) => s + d[k], 0)));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", width: "100%", maxWidth: 28 }}>
+            {[...keys].reverse().map(k => (
+              <div key={k} style={{
+                height: Math.max(2, (d[k] / mx) * (height - 30)),
+                background: colors[k] || "var(--ink)",
+                borderRadius: RAD[0],
+              }} />
+            ))}
+          </div>
+          <span style={{
+            fontSize: TYPE.size.meta,
+            color: "var(--muted)",
+            fontWeight: TYPE.weight.mono,
+            fontFamily: TYPE.family.mono,
+            letterSpacing: TYPE.ls.meta,
+            textTransform: "uppercase",
+          }}>{d.month}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
-// ============================================================
-// Toggle — reusable on/off switch (replaces 5+ inline implementations)
-// ============================================================
+// Toggle — Press Room. On = ink fill (the "engaged" state reads as
+// committed type, not as a green light bulb). Off = paper with hairline.
 export const Toggle = ({ checked, onChange, label, disabled }) => (
-  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
-    <div onClick={e => { e.preventDefault(); if (!disabled) onChange(!checked); }} style={{ width: TOGGLE.w, height: TOGGLE.h, borderRadius: TOGGLE.radius, background: checked ? Z.go : Z.bd, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-      <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: checked ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+  <label style={{
+    display: "inline-flex", alignItems: "center", gap: 8,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+  }}>
+    <div
+      onClick={e => { e.preventDefault(); if (!disabled) onChange(!checked); }}
+      style={{
+        width: TOGGLE.w, height: TOGGLE.h,
+        borderRadius: RAD.pill,
+        background: checked ? "var(--ink)" : "var(--paper)",
+        border: `1px solid ${checked ? "var(--ink)" : "var(--rule)"}`,
+        position: "relative",
+        transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
+        flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: TOGGLE.circle, height: TOGGLE.circle,
+        borderRadius: RAD.pill,
+        background: checked ? "var(--paper)" : "var(--ink)",
+        position: "absolute",
+        top: TOGGLE.pad - 1,
+        left: checked ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad - 1 : TOGGLE.pad - 1,
+        transition: `left ${DUR.fast}ms ${EASE}, background ${DUR.fast}ms ${EASE}`,
+      }} />
     </div>
-    {label && <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{label}</span>}
+    {label && (
+      <span style={{
+        fontSize: TYPE.size.body,
+        fontWeight: TYPE.weight.bodyMid,
+        color: "var(--ink)",
+        fontFamily: TYPE.family.body,
+      }}>{label}</span>
+    )}
   </label>
 );
 
-// ============================================================
-// Checkbox — consistent styled checkbox
-// ============================================================
+// Checkbox — Press Room. Hairline off-state, ink fill on, white check mark.
 export const Check = ({ checked, onChange, label, size = 16 }) => (
-  <label onClick={e => { e.preventDefault(); if (onChange) onChange(!checked); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-    <div style={{ width: size, height: size, borderRadius: Ri, border: `1.5px solid ${checked ? Z.go : Z.bd}`, background: checked ? Z.go : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0 }}>
-      {checked && <svg width={size - 6} height={size - 6} viewBox="0 0 10 8" fill="none"><path d="M1 4l3 3 5-6" stroke={INV.light} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+  <label
+    onClick={e => { e.preventDefault(); if (onChange) onChange(!checked); }}
+    style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+  >
+    <div style={{
+      width: size, height: size,
+      borderRadius: RAD[2],
+      border: `1px solid ${checked ? "var(--ink)" : "var(--rule)"}`,
+      background: checked ? "var(--ink)" : "transparent",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
+      flexShrink: 0,
+    }}>
+      {checked && (
+        <svg width={size - 6} height={size - 6} viewBox="0 0 10 8" fill="none">
+          <path d="M1 4l3 3 5-6" stroke="var(--paper)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
     </div>
-    {label && <span style={{ fontSize: FS.base, color: Z.tx, fontFamily: COND }}>{label}</span>}
+    {label && (
+      <span style={{
+        fontSize: TYPE.size.body,
+        color: "var(--ink)",
+        fontFamily: TYPE.family.body,
+      }}>{label}</span>
+    )}
   </label>
 );
 
-// ============================================================
-// Avatar — initials-based avatar with consistent sizing
-// ============================================================
+// Avatar — Press Room. Pill (fully round) by default — initials in
+// Geist 700 paper-on-ink. The `style` override can swap to RAD[2] for
+// rectangular tile contexts.
 export const Avi = ({ name, size = "md", style: extraStyle }) => {
   const dim = AVATAR[size] || AVATAR.md;
   const fs = AVATAR.fontSize[size] || AVATAR.fontSize.md;
   const initials = (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const hue = Math.abs([...(name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360;
   return (
-    <div style={{ width: dim, height: dim, borderRadius: R, background: `hsl(${hue}, 40%, 38%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs, fontWeight: FW.black, color: INV.light, flexShrink: 0, fontFamily: COND, ...extraStyle }}>{initials}</div>
+    <div style={{
+      width: dim, height: dim,
+      borderRadius: RAD.pill,
+      background: "var(--ink)",
+      color: "var(--paper)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: fs,
+      fontWeight: TYPE.weight.bodyBold,
+      flexShrink: 0,
+      fontFamily: TYPE.family.body,
+      letterSpacing: TYPE.ls.headers,
+      ...extraStyle,
+    }}>{initials}</div>
   );
 };
 
-// ============================================================
-// Pill — small toggle/filter button with optional icon.
-//
-// Active styling has two modes:
-//   - tint   (default): subtle ~9% tint of `color` as background, color text
-//   - solid  (solid=true): full `color` background with white text
-// `color` defaults to the foreground in tint mode and to the green accent
-// (Z.go) in solid mode — picks the right "feels active" look for each.
-// ============================================================
+// Pill — segmented filter chip. Press Room: pill silhouette stays
+// (this IS the segmented control), but active state is ink-fill +
+// paper text. No tint mode — tint reads as glass which Press rejects.
 export const Pill = ({ label, icon: Icon, active, onClick, color, disabled, solid = false }) => {
-  const accent = color || (solid ? Z.go : Z.tx);
-  const activeBg = solid ? accent : accent + "18";
-  const activeFg = solid ? "#fff" : accent;
+  // `color` and `solid` retained for API compatibility but ignored —
+  // Press Room has one active style.
+  void color; void solid;
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: "5px 12px", borderRadius: 14,
-      border: "none",
-      background: active ? activeBg : Z.sa,
-      color: active ? activeFg : Z.tx2,
-      cursor: disabled ? "not-allowed" : "pointer",
-      fontSize: FS.xs, fontWeight: active ? FW.bold : FW.semi, fontFamily: COND,
-      whiteSpace: "nowrap", transition: "all 0.15s",
-      opacity: disabled ? 0.5 : 1,
-    }}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "5px 12px",
+        borderRadius: RAD.pill,
+        border: `1px solid ${active ? "var(--ink)" : "var(--rule)"}`,
+        background: active ? "var(--ink)" : "transparent",
+        color: active ? "var(--paper)" : "var(--ink)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize: TYPE.size.caption,
+        fontWeight: active ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,
+        fontFamily: TYPE.family.body,
+        whiteSpace: "nowrap",
+        transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
       {Icon && <Icon size={11} />}
       {label}
     </button>
@@ -316,119 +718,169 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled, soli
 // Global Layout Components — used across all pages
 // ============================================================
 
-// Glass effect — reusable inline style mixin for frosted glass appearance.
-// Tightened recipe: lower alpha so the ambient wallpaper shows through,
-// an inset top highlight so the edge catches light, and a soft outer
-// drop shadow for real depth.
-export const glass = () => {
-  const dark = _isDark();
-  return {
-    background: dark ? "rgba(140,150,165,0.08)" : "rgba(255,255,255,0.65)",
-    backdropFilter: "blur(24px) saturate(140%)",
-    WebkitBackdropFilter: "blur(24px) saturate(140%)",
-    border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.8)"}`,
-    boxShadow: dark
-      ? "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.2)"
-      : "inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 24px rgba(15,23,42,0.06)",
-  };
-};
+// glass() — Press Room rejects glass. The mixin now returns the same
+// hairline card recipe used by Card/GlassCard/ListCard. Kept exported
+// for API compatibility; refresh sweeps replace `...glass()` with
+// direct token usage in Phase 5.
+export const glass = () => ({
+  background:    "var(--card)",
+  border:        "1px solid var(--rule)",
+  boxShadow:     "none",
+});
 
 export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMouseOut }) => {
   const interactive = !!onClick;
-  const handleEnter = (e) => {
-    if (interactive) {
-      e.currentTarget.style.transform = "translateY(-1px)";
-      e.currentTarget.style.background = _isDark() ? "rgba(140,150,165,0.12)" : "rgba(255,255,255,0.80)";
-    }
-    if (onMouseOver) onMouseOver(e);
-  };
-  const handleLeave = (e) => {
-    if (interactive) {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.background = _isDark() ? "rgba(140,150,165,0.08)" : "rgba(255,255,255,0.65)";
-    }
-    if (onMouseOut) onMouseOut(e);
-  };
-  return <div onClick={onClick} onMouseOver={handleEnter} onMouseOut={handleLeave} style={{
-    ...glass(),
-    borderRadius: R, padding: noPad ? 0 : "22px 24px",
-    cursor: interactive ? "pointer" : "default",
-    transition: "transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
-    ...style,
-  }}>{children}</div>;
+  return (
+    <div
+      onClick={onClick}
+      onMouseOver={onMouseOver}
+      onMouseOut={onMouseOut}
+      style={{
+        ...glass(),
+        borderRadius: RAD[1],
+        padding: noPad ? 0 : "20px 22px",
+        cursor: interactive ? "pointer" : "default",
+        transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
+        ...style,
+      }}
+    >{children}</div>
+  );
 };
 
-// ListCard — individual frosted glass card for list items (floating cards with gap)
-export const ListCard = ({ children, style, onClick, active }) => <div onClick={onClick} style={{
-  ...glass(),
-  borderRadius: CARD.radius, padding: CARD.pad,
-  cursor: onClick ? "pointer" : "default",
-  transition: "background 0.1s",
-  ...(active ? { background: _isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" } : {}),
-  ...style,
-}} onMouseEnter={e => { if (onClick) e.currentTarget.style.background = _isDark() ? "rgba(255,255,255," + CARD.hoverAlpha + ")" : "rgba(0,0,0," + CARD.hoverAlpha + ")"; }}
-   onMouseLeave={e => { e.currentTarget.style.background = active ? (_isDark() ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)") : (_isDark() ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.45)"); }}
->{children}</div>;
+// ListCard — individual hairline card for list items
+export const ListCard = ({ children, style, onClick, active }) => (
+  <div
+    onClick={onClick}
+    style={{
+      ...glass(),
+      borderRadius: RAD[1],
+      padding: CARD.pad,
+      cursor: onClick ? "pointer" : "default",
+      transition: `background ${DUR.fast}ms ${EASE}`,
+      ...(active ? { background: "var(--accent-soft)" } : {}),
+      ...style,
+    }}
+    onMouseEnter={e => { if (onClick && !active) e.currentTarget.style.background = "var(--accent-soft)"; }}
+    onMouseLeave={e => { e.currentTarget.style.background = active ? "var(--accent-soft)" : "var(--card)"; }}
+  >{children}</div>
+);
 
-// ListDivider — translucent divider for items inside a grouped card
-export const ListDivider = () => <div style={{ height: 1, background: _isDark() ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }} />;
+// ListDivider — hairline rule
+export const ListDivider = () => (
+  <div style={{ height: 1, background: "var(--rule)" }} />
+);
 
 // ListGrid — container for floating cards with standard gap
 export const ListGrid = ({ children, cols, style }) => <div style={{
   display: "grid", gridTemplateColumns: cols || "1fr", gap: CARD.gap, ...style,
 }}>{children}</div>;
 
-// Page header — Line 1: [Title] ... [right-side children (search, dropdown, +Action)]
-export const PageHeader = ({ title, count, children }) => <div style={{
-  display: "flex", justifyContent: "space-between", alignItems: "center",
-  flexWrap: "wrap", gap: 10,
-}}>
-  <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
-    {title}{count != null && <span style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tm, marginLeft: 8 }}>({count})</span>}
-  </h2>
-  {children && <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{children}</div>}
-</div>;
+// PageHeader — Cormorant display title. Press Room's biggest moment of
+// editorial type per page.
+export const PageHeader = ({ title, count, children }) => (
+  <div style={{
+    display: "flex", justifyContent: "space-between", alignItems: "center",
+    flexWrap: "wrap", gap: 10,
+  }}>
+    <h2 style={{
+      margin: 0,
+      fontSize: TYPE.size.displayLg,
+      fontWeight: TYPE.weight.display,
+      lineHeight: TYPE.lh.display,
+      color: "var(--ink)",
+      fontFamily: TYPE.family.display,
+    }}>
+      {title}
+      {count != null && (
+        <span style={{
+          fontSize: TYPE.size.body,
+          fontWeight: TYPE.weight.bodyMid,
+          color: "var(--muted)",
+          marginLeft: 12,
+          fontFamily: TYPE.family.body,
+          fontVariantNumeric: "lining-nums tabular-nums",
+        }}>({count})</span>
+      )}
+    </h2>
+    {children && (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {children}
+      </div>
+    )}
+  </div>
+);
 
-// Tab row — Line 2: [View tabs] | [Filter tabs]. Accepts multiple TB groups separated by pipe.
-export const TabRow = ({ children }) => <div style={{
-  display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflowX: "auto",
-}}>{children}</div>;
+// TabRow — horizontal layout for grouped tab strips. Hairline below.
+export const TabRow = ({ children }) => (
+  <div style={{
+    display: "flex", alignItems: "center", gap: 0,
+    flexWrap: "nowrap", overflowX: "auto",
+    borderBottom: "1px solid var(--rule)",
+  }}>{children}</div>
+);
 
-// Pipe separator for use inside TabRow
-export const TabPipe = () => <span style={{
-  margin: "0 16px", color: Z.td, fontSize: FS.lg, fontWeight: 300, userSelect: "none",
-}}>|</span>;
+// TabPipe — vertical hairline between tab groups.
+export const TabPipe = () => (
+  <span style={{
+    margin: "0 12px",
+    width: 1, height: 16,
+    background: "var(--rule)",
+    display: "inline-block",
+    alignSelf: "center",
+    userSelect: "none",
+  }} aria-hidden="true" />
+);
 
-// Solid-fill filter tabs — green active, transparent inactive
-export const SolidTabs = ({ options, active, onChange }) => <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-  {options.map(o => {
-    const val = typeof o === "string" ? o : o.value;
-    const label = typeof o === "string" ? o : o.label;
-    const isActive = active === val;
-    return <button key={val} onClick={() => onChange(val)} style={{
-      padding: "5px 14px", borderRadius: Ri, border: "none",
-      background: isActive ? Z.go : "transparent",
-      color: isActive ? INV.light : Z.td,
-      cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, whiteSpace: "nowrap",
-    }}>{label}</button>;
-  })}
-</div>;
+// SolidTabs — Press Room: filter tabs as underline-only segments.
+// Active = ink underline + ink text; inactive = muted text, no border.
+export const SolidTabs = ({ options, active, onChange }) => (
+  <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+    {options.map(o => {
+      const val = typeof o === "string" ? o : o.value;
+      const label = typeof o === "string" ? o : o.label;
+      const isActive = active === val;
+      return (
+        <button
+          key={val}
+          onClick={() => onChange(val)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 0,
+            border: "none",
+            borderBottom: isActive ? "2px solid var(--ink)" : "2px solid transparent",
+            background: "transparent",
+            color: isActive ? "var(--ink)" : "var(--muted)",
+            cursor: "pointer",
+            fontSize: TYPE.size.body,
+            fontWeight: isActive ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,
+            fontFamily: TYPE.family.body,
+            whiteSpace: "nowrap",
+            letterSpacing: TYPE.ls.headers,
+          }}
+        >{label}</button>
+      );
+    })}
+  </div>
+);
 
-// Glass stat card — metric display with frosted effect
-export const GlassStat = ({ label, value, sub, color }) => <div style={{
-  ...glass(),
-  borderRadius: R, padding: SP.cardPad,
-}}>
-  <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8, fontFamily: COND }}>{label}</div>
-  <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, letterSpacing: -0.5, fontFamily: DISPLAY }}>{value}</div>
-  {sub && <div style={{ fontSize: FS.base, color: Z.tm, marginTop: 4 }}>{sub}</div>}
-</div>;
+// GlassStat — alias of Stat. The "glass" name is preserved for API
+// back-compat; visuals are identical to Stat post-refresh.
+export const GlassStat = Stat;
 
-// Section title inside a card
-export const SectionTitle = ({ children }) => <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 16 }}>{children}</div>;
+// SectionTitle — Geist h3, not Cormorant (sub-display tier).
+export const SectionTitle = ({ children }) => (
+  <div style={{
+    fontSize: TYPE.size.h3,
+    fontWeight: TYPE.weight.bodyBold,
+    color: "var(--ink)",
+    fontFamily: TYPE.family.body,
+    letterSpacing: TYPE.ls.headers,
+    marginBottom: 16,
+  }}>{children}</div>
+);
 
-// Glass divider — translucent line inside glass cards
-export const GlassDivider = () => <div style={{ height: 1, background: _isDark() ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", margin: "4px 0" }} />;
+// GlassDivider — alias of ListDivider (no visual difference under Press).
+export const GlassDivider = ListDivider;
 
 // ============================================================
 // ErrorBoundary — catches render errors in lazy-loaded pages
