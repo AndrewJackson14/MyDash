@@ -1121,105 +1121,247 @@ const RoleDashboard = memo(({
 
   // ─── Office Admin Dashboard (Cami) — Sec 12.5 ────
   if (["Office Manager", "Office Administrator"].includes(role)) {
+    // ── Tickets / subs / legal (existing signals) ──
     const openTix = _tickets.filter(t => ["open", "in_progress"].includes(t.status));
+    const escalatedTix = openTix.filter(t => t.status === "escalated" || t.priority === "urgent");
     const d30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const d14ago = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    const d7ago = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
     const renewalsDue = _subs.filter(s => s.status === "active" && s.renewalDate && s.renewalDate >= today && s.renewalDate <= d30);
-    const recentPayments = (payments || []).filter(p => p.receivedAt && p.receivedAt >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).slice(0, 5);
-
-    // Auto-generated checklist
-    const checklist = [];
-    if (renewalsDue.length > 0) checklist.push({ id: "renewals", title: `${renewalsDue.length} renewal notices to send`, dept: "Subs", page: "circulation", priority: renewalsDue.length > 10 ? 1 : 2 });
-    if (openTix.length > 0) checklist.push({ id: "tickets", title: `${openTix.length} open service desk ticket${openTix.length > 1 ? "s" : ""}`, dept: "Tickets", page: "servicedesk", priority: openTix.some(t => t.status === "escalated") ? 1 : 2 });
-    const activeLegal = _legal.filter(n => !["published", "billed"].includes(n.status));
-    if (activeLegal.length > 0) checklist.push({ id: "legal", title: `${activeLegal.length} legal notice${activeLegal.length > 1 ? "s" : ""} pending`, dept: "Legal", page: "legalnotices", priority: 2 });
-    checklist.sort((a, b) => a.priority - b.priority);
-
-    // DOSE metrics
-    const resolvedThisWeek = _tickets.filter(t => t.status === "resolved" && t.resolvedAt && t.resolvedAt.slice(0, 10) >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).length;
     const activeSubs = _subs.filter(s => s.status === "active").length;
     const newSubsMonth = _subs.filter(s => s.status === "active" && s.startDate?.startsWith(today.slice(0, 7))).length;
-    const allClear = openTix.length === 0 && renewalsDue.length === 0 && activeLegal.length === 0;
+    // Recently lapsed — subs whose status is lapsed/expired AND
+    // updatedAt or lapsedAt fell in the last 14 days. Cami's rescue
+    // window — call them before they go cold.
+    const recentLapsed = _subs.filter(s =>
+      ["lapsed", "expired", "cancelled"].includes(s.status)
+      && (s.lapsedAt || s.updatedAt || s.endDate || "") >= d14ago
+    ).slice(0, 8);
+    const activeLegal = _legal.filter(n => !["published", "billed"].includes(n.status));
+    const publishedUnbilled = _legal.filter(n => n.status === "published");
+
+    // ── A/R aging from invoices ──
+    const _invoices = invoices || [];
+    const overdueInv = _invoices.filter(i =>
+      i.balanceDue > 0 && i.dueDate && i.dueDate < today && !["paid", "void", "cancelled"].includes(i.status)
+    );
+    const overdueTotal = overdueInv.reduce((s, i) => s + (i.balanceDue || 0), 0);
+    const overdue30Plus = overdueInv.filter(i => i.dueDate <= d7ago).length; // technically 7+ but visible bucket
+
+    // ── Tearsheet curation queue (P5j tie-in) ──
+    // Closed sales with a page assignment whose issue has shipped
+    // (sentToPressAt set) but no tearsheet uploaded yet. This is the
+    // exact scope the Tearsheet Center surfaces; we just show the
+    // count + a click-through.
+    const issuesShipped = new Set(_issues.filter(i => i.sentToPressAt).map(i => i.id));
+    const tearsheetMissing = _sales.filter(s =>
+      s.status === "Closed" && s.page && s.issueId && issuesShipped.has(s.issueId) && !s.tearsheetUrl
+    );
+    // Group by issueId → which issues are most behind
+    const tearsheetByIssue = (() => {
+      const map = new Map();
+      for (const s of tearsheetMissing) {
+        if (!map.has(s.issueId)) map.set(s.issueId, []);
+        map.get(s.issueId).push(s);
+      }
+      const arr = Array.from(map.entries()).map(([iid, items]) => {
+        const iss = _issues.find(i => i.id === iid);
+        return { iid, iss, count: items.length };
+      });
+      arr.sort((a, b) => (b.iss?.date || "").localeCompare(a.iss?.date || ""));
+      return arr.slice(0, 6);
+    })();
+
+    // ── Recent payments + DOSE signals ──
+    const recentPayments = (payments || []).filter(p => p.receivedAt && p.receivedAt >= d7ago).slice(0, 5);
+    const paymentsThisWeek = (payments || []).filter(p => p.receivedAt && p.receivedAt >= d7ago);
+    const paymentsTotalWeek = paymentsThisWeek.reduce((s, p) => s + (p.amount || 0), 0);
+
+    const resolvedThisWeek = _tickets.filter(t => t.status === "resolved" && t.resolvedAt && t.resolvedAt.slice(0, 10) >= d7ago).length;
+
+    // ── Auto-generated checklist (priority-sorted) ──
+    const checklist = [];
+    if (escalatedTix.length > 0) checklist.push({ id: "esc", title: `${escalatedTix.length} escalated ticket${escalatedTix.length > 1 ? "s" : ""}`, dept: "Tickets", page: "servicedesk", priority: 0 });
+    if (overdueInv.length > 0) checklist.push({ id: "overdue", title: `${overdueInv.length} overdue invoice${overdueInv.length > 1 ? "s" : ""} · ${fmtCurrency(overdueTotal)}`, dept: "A/R", page: "billing", priority: overdueInv.length > 5 ? 1 : 2 });
+    if (tearsheetMissing.length > 0) checklist.push({ id: "tearsheets", title: `${tearsheetMissing.length} tearsheets to upload`, dept: "Tearsheets", page: "tearsheets", priority: tearsheetMissing.length > 10 ? 1 : 2 });
+    if (publishedUnbilled.length > 0) checklist.push({ id: "legalbill", title: `${publishedUnbilled.length} legal notice${publishedUnbilled.length > 1 ? "s" : ""} ready to bill`, dept: "Legal", page: "legalnotices", priority: 2 });
+    if (renewalsDue.length > 0) checklist.push({ id: "renewals", title: `${renewalsDue.length} renewal notice${renewalsDue.length > 1 ? "s" : ""} to send`, dept: "Subs", page: "circulation", priority: renewalsDue.length > 10 ? 1 : 2 });
+    if (recentLapsed.length > 0) checklist.push({ id: "lapsed", title: `${recentLapsed.length} subscriber${recentLapsed.length > 1 ? "s" : ""} lapsed in last 14d`, dept: "Subs", page: "circulation", priority: 2 });
+    if (openTix.length > 0 && escalatedTix.length === 0) checklist.push({ id: "tickets", title: `${openTix.length} open service desk ticket${openTix.length > 1 ? "s" : ""}`, dept: "Tickets", page: "servicedesk", priority: 2 });
+    if (activeLegal.length > 0) checklist.push({ id: "legal", title: `${activeLegal.length} legal notice${activeLegal.length > 1 ? "s" : ""} pending publish`, dept: "Legal", page: "legalnotices", priority: 3 });
+    checklist.sort((a, b) => a.priority - b.priority);
+
+    const allClear = checklist.length === 0;
+
+    const cn = (id) => _clients.find(c => c.id === id)?.name || "—";
 
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
-      {/* DOSE Eye Candy */}
+      {/* Hero */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
-          {resolvedThisWeek > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
+          {resolvedThisWeek > 0 && <div title={`${resolvedThisWeek} tickets resolved this week`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
             <span style={{ fontSize: 16 }}>✅</span>
             <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{resolvedThisWeek} resolved</div><div style={{ fontSize: 10, color: Z.tm }}>this week</div></div>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: openTix.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTix.length}</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: escalatedTix.length > 0 ? Z.da : openTix.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTix.length}</div>
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Open Tickets</div>
+            {escalatedTix.length > 0 && <div style={{ fontSize: 9, color: Z.da, marginTop: 1 }}>{escalatedTix.length} escalated</div>}
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: tearsheetMissing.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{tearsheetMissing.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Tearsheets to Upload</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>shipped issues</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: overdueInv.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(overdueTotal)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue A/R</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{overdueInv.length} invoice{overdueInv.length === 1 ? "" : "s"}</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: renewalsDue.length > 5 ? Z.wa : Z.tx, fontFamily: DISPLAY }}>{renewalsDue.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Renewals Due</div>
-          </div>
-          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{activeSubs}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Subscribers</div>
-          </div>
-          <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: newSubsMonth > 0 ? Z.go : Z.td, fontFamily: DISPLAY }}>{newSubsMonth}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>New This Month</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Renewals 30d</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{activeSubs} active · {newSubsMonth} new</div>
           </div>
         </div>
+        {/* Beat strip */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {allClear && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
             <span style={{ fontSize: 14 }}>✨</span>
-            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — everything's handled</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — every queue is clear</span>
           </div>}
           {!allClear && checklist.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
             <span style={{ fontSize: 14 }}>🎯</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{checklist.length} item{checklist.length !== 1 ? "s" : ""} on today's list</span>
           </div>}
+          {paymentsThisWeek.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>💵</span>
+            <span style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.bold }}>{fmtCurrency(paymentsTotalWeek)} collected this week</span>
+          </div>}
+          {escalatedTix.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.da + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🚨</span>
+            <span style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.bold }}>{escalatedTix.length} escalated ticket{escalatedTix.length === 1 ? "" : "s"} — needs attention</span>
+          </div>}
         </div>
       </div>
+
+      {/* Two-column body */}
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
+        {/* LEFT — work queues */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Today's Checklist</div>
             {checklist.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>All clear!</div>
-            : checklist.map(item => (
-              <div key={item.id} onClick={() => onNavigate?.(item.page)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `3px solid ${item.priority <= 1 ? Z.da : Z.wa}` }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{item.title}</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {checklist.map(item => (
+                <div key={item.id} onClick={() => onNavigate?.(item.page)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `3px solid ${item.priority === 0 ? Z.da : item.priority === 1 ? Z.wa : Z.ac}` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx }}>{item.title}</div>
+                  </div>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, background: Z.sa, padding: "2px 6px", borderRadius: Ri, fontFamily: COND }}>{item.dept}</span>
                 </div>
-                <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, background: Z.sa, padding: "2px 6px", borderRadius: Ri }}>{item.dept}</span>
-              </div>
-            ))}
+              ))}
+            </div>}
           </div>
-          {/* Service desk tickets */}
+
+          {/* Tearsheets queue — issues most behind */}
+          {tearsheetByIssue.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Tearsheets to Upload</span>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("tearsheets")}>Open Tearsheet Center →</Btn>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {tearsheetByIssue.map(g => (
+                <div key={g.iid} onClick={() => onNavigate?.("tearsheets")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${Z.wa}` }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(g.iss?.pubId)} {g.iss?.label || (g.iss?.date ? fmtDate(g.iss.date) : "Issue")}</div>
+                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{g.iss?.sentToPressAt ? `pressed ${fmtDate(g.iss.sentToPressAt.slice(0, 10))}` : ""}</div>
+                  </div>
+                  <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa }}>{g.count} missing</span>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          {/* Open tickets */}
           {openTix.length > 0 && <div style={glass}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Open Tickets</div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Open Tickets ({openTix.length})</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
               {openTix.slice(0, 8).map(t => (
-                <div key={t.id} onClick={() => onNavigate?.("servicedesk")} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
-                  <div style={{ fontSize: FS.sm, color: Z.tx }}>{t.subject || t.description?.slice(0, 50) || "Ticket"}</div>
-                  <span style={{ fontSize: FS.xs, color: t.status === "escalated" ? Z.da : Z.tm }}>{t.status}</span>
+                <div key={t.id} onClick={() => onNavigate?.("servicedesk")} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${t.status === "escalated" ? Z.da : Z.bd}` }}>
+                  <div title={t.subject || t.description || "Ticket"} style={{ fontSize: FS.sm, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.subject || t.description?.slice(0, 50) || "Ticket"}</div>
+                  <span style={{ fontSize: FS.xs, color: t.status === "escalated" ? Z.da : Z.tm, fontFamily: COND, fontWeight: FW.bold, flexShrink: 0, marginLeft: 8 }}>{t.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          {/* Recently lapsed subscribers — rescue list */}
+          {recentLapsed.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Recent Lapses (rescue)</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+              {recentLapsed.map(s => (
+                <div key={s.id} onClick={() => onNavigate?.("circulation")} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div title={s.name || s.email} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name || s.email || "—"}</div>
+                    {s.email && s.name && <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{s.email}</div>}
+                  </div>
+                  <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0, marginLeft: 8 }}>{s.status}</span>
                 </div>
               ))}
             </div>
           </div>}
         </div>
+
+        {/* RIGHT — intake + reference */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* Overdue invoices */}
+          {overdueInv.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Overdue Invoices</span>
+              <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da, fontFamily: COND }}>{fmtCurrency(overdueTotal)}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
+              {overdueInv.slice(0, 8).map(inv => {
+                const overdueDays = inv.dueDate ? Math.max(0, Math.round((new Date(today) - new Date(inv.dueDate)) / 86400000)) : 0;
+                const tier = overdueDays > 60 ? Z.da : overdueDays > 30 ? Z.wa : Z.tm;
+                return (
+                  <div key={inv.id} onClick={() => onNavigate?.("billing")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${tier}` }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div title={cn(inv.clientId)} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cn(inv.clientId)}</div>
+                      <div style={{ fontSize: 9, color: Z.td, fontFamily: COND }}>#{inv.invoiceNumber || inv.id.slice(-6)} · {overdueDays}d overdue</div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: FW.bold, color: tier, fontFamily: COND, flexShrink: 0 }}>{fmtCurrency(inv.balanceDue)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {overdueInv.length > 8 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 4, fontFamily: COND, textAlign: "center" }}>+{overdueInv.length - 8} more</div>}
+          </div>}
+
+          {/* Quick Links */}
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("tearsheets")} style={{ justifyContent: "flex-start" }}>Tearsheet Center</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("billing")} style={{ justifyContent: "flex-start" }}>Billing</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("circulation")} style={{ justifyContent: "flex-start" }}>Subscriptions</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("servicedesk")} style={{ justifyContent: "flex-start" }}>Service Desk</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("legalnotices")} style={{ justifyContent: "flex-start" }}>Legal Notices</Btn>
             </div>
           </div>
+
+          {/* Recent Payments */}
           {recentPayments.length > 0 && <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Payments</div>
             {recentPayments.map(p => (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: FS.sm }}>
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: FS.sm, borderBottom: `1px solid ${Z.bd}15` }}>
                 <span style={{ color: Z.tx }}>{fmtDate(p.receivedAt)}</span>
                 <span style={{ color: Z.go, fontWeight: FW.bold }}>{fmtCurrency(p.amount)}</span>
               </div>
