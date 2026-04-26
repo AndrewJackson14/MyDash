@@ -591,7 +591,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
         </div>
 
         <FuzzyPicker label="Assign To" value={form.assignedTo} onChange={(v) => setForm(f => ({ ...f, assignedTo: v }))}
-          options={(team || []).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
+          options={(team || []).filter(t => t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
 
         {editId && <TA label="Resolution Notes" value={form.resolutionNotes} onChange={e => setForm(f => ({ ...f, resolutionNotes: e.target.value }))} rows={2} />}
 

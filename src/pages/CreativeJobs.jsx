@@ -429,7 +429,7 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           <FuzzyPicker label="Assign To" value={form.assignedTo} onChange={(v) => setForm(f => ({ ...f, assignedTo: v }))}
-            options={(team || []).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
+            options={(team || []).filter(t => t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => ({ value: t.id, label: t.name, sub: t.role }))} placeholder="Unassigned — search…" emptyLabel="Unassigned" />
           <Inp label="Due Date" type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
           <Inp label="Quoted Amount" type="number" step="0.01" value={form.quotedAmount || ""} onChange={e => setForm(f => ({ ...f, quotedAmount: Number(e.target.value) || 0 }))} />
         </div>

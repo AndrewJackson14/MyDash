@@ -1198,7 +1198,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <SB value={sr} onChange={setSr} placeholder="Search clients..." />
       <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
-      <Sel value={fDesigner} onChange={e => setFDesigner(e.target.value)} options={[{ value: "all", label: "All Designers" }, ...((team || []).filter(t => ["Ad Designer", "Layout Designer", "Graphic Designer"].includes(t.role)).map(t => ({ value: t.id, label: t.name })))]} />
+      <Sel value={fDesigner} onChange={e => setFDesigner(e.target.value)} options={[{ value: "all", label: "All Designers" }, ...((team || []).filter(t => ["Ad Designer", "Layout Designer", "Graphic Designer"].includes(t.role) && t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => ({ value: t.id, label: t.name })))]} />
     </div>
 
     {/* View toggle + tabs */}

@@ -53,7 +53,7 @@ export default function Performance({ sales, clients, stories, issues, adProject
       Production: t => ["Ad Designer", "Layout Designer", "Production", "Designer"].includes(t.role),
       Admin: t => ["Office Administrator", "Admin", "Publisher"].includes(t.role),
     }[dept];
-    const filtered = (team || []).filter(t => roleFilter ? roleFilter(t) : true);
+    const filtered = (team || []).filter(t => (roleFilter ? roleFilter(t) : true) && t.isActive !== false && !t.isHidden && !t.is_hidden);
     return [allOption, ...filtered.map(t => ({ value: t.id, label: t.name }))];
   }, [team, dept]);
 

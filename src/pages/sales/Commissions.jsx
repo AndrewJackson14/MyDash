@@ -40,7 +40,7 @@ const Commissions = ({
   const _assignments = salespersonPubAssignments || [];
   const _ledger = commissionLedger || [];
   const _payouts = commissionPayouts || [];
-  const salespeople = (team || []).filter(t => ["Sales Manager", "Salesperson"].includes(t.role));
+  const salespeople = (team || []).filter(t => ["Sales Manager", "Salesperson"].includes(t.role) && t.isActive !== false && !t.isHidden && !t.is_hidden);
   const cn = id => (clients || []).find(c => c.id === id)?.name || "—";
   const pn = id => (pubs || []).find(p => p.id === id)?.name || "—";
   const tn = id => (team || []).find(t => t.id === id)?.name || "—";

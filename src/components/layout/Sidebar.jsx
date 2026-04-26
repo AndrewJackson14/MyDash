@@ -268,7 +268,7 @@ export default function Sidebar({
                   }}
                 >↩ Back to Admin</button>
               )}
-              {(team || []).filter(t => t.email !== realUser?.email).map(t => {
+              {(team || []).filter(t => t.email !== realUser?.email && t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => {
                 const isSelected = impersonating?.id === t.id;
                 return (
                   <button
