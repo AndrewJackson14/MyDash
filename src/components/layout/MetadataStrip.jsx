@@ -21,6 +21,7 @@
 import { useEffect, useRef, useState } from "react";
 import Ic from "../ui/Icons";
 import { INV } from "../../lib/theme";
+import { glass } from "../ui/Primitives";
 
 const _d = new Date();
 const REV_DATE =
@@ -100,14 +101,20 @@ export default function MetadataStrip({
     <div
       role="banner"
       aria-label={fullText}
+      data-glass="true"
       style={{
         display: "flex",
         alignItems: "center",
         gap: 0,
         padding: "8px 24px",
+        // Glass over canvas. The mixin provides bg/border/blur/shadow;
+        // the v2 spec calls for top + bottom hairlines, so we override
+        // the all-around border into top+bottom only.
+        ...glass(),
+        border: "none",
         borderTop:    "1px solid var(--rule)",
         borderBottom: "1px solid var(--rule)",
-        background: "var(--paper)",
+        boxShadow: "none",                         // sticky strip — no glass shadow needed
         whiteSpace: "nowrap",
         overflow: "visible",
         flexShrink: 0,
@@ -201,15 +208,13 @@ export default function MetadataStrip({
           </button>
 
           {showNotifs && (
-            <div style={{
+            <div data-glass="true" style={{
               position: "absolute",
               right: 0, top: "calc(100% + 6px)",
               width: 340, maxHeight: 420,
               overflowY: "auto",
-              background: "var(--paper)",
-              border: "1px solid var(--rule)",
+              ...glass(),
               borderRadius: 4,
-              boxShadow: "none",
               zIndex: 9999,
               fontFamily: "var(--font-body)",
               textTransform: "none",

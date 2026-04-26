@@ -261,11 +261,18 @@ const btnVariants = {
   warning:   { background: "var(--warn)",      color: "#FFFFFF",       borderColor: "var(--warn)" },
 };
 
+// Filled variants opt out of the global hover-wash rule (which would
+// flatten their fill). Instead they get an inset-darken on hover
+// applied via a global CSS rule keyed on data-btn-filled. See
+// global.css §Btn filled hover.
+const FILLED_VARIANTS = new Set(["primary", "danger", "success", "warning"]);
+
 export const Btn = ({ children, v = "primary", sm, onClick, style, disabled, type = "button" }) => (
   <button
     type={type}
     onClick={onClick}
     disabled={disabled}
+    data-btn-filled={FILLED_VARIANTS.has(v) ? "true" : undefined}
     style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}
   >{children}</button>
 );
@@ -273,7 +280,10 @@ export const Btn = ({ children, v = "primary", sm, onClick, style, disabled, typ
 // Styled file-upload button — hides the native "Choose Files" control
 // and renders a label that matches Btn.
 export const FileBtn = ({ children = "Choose Files", v = "primary", sm, accept, multiple, onChange, disabled, style, inputRef }) => (
-  <label style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}>
+  <label
+    data-btn-filled={FILLED_VARIANTS.has(v) ? "true" : undefined}
+    style={{ ...btnBase(sm, disabled), ...btnVariants[v], ...style }}
+  >
     {children}
     <input
       ref={inputRef}
@@ -342,12 +352,16 @@ export const TA = ({ label, ...p }) => (
   </div>
 );
 
+// Card — opaque white-on-canvas content surface. The new visual
+// hierarchy: cards lift off the steel canvas via temperature shift
+// + a 1px inset highlight (--card-highlight), not a drop shadow.
 export const Card = ({ children, style }) => (
   <div style={{
     background:   "var(--card)",
     border:       "1px solid var(--rule)",
     borderRadius: RAD.card,
     padding:      SPACE.cardPad,
+    boxShadow:    "var(--card-highlight)",
     ...style,
   }}>{children}</div>
 );
@@ -530,6 +544,7 @@ export const Stat = ({ label, value, sub, animate = true }) => {
       border: "1px solid var(--rule)",
       borderRadius: RAD.card,
       padding: SPACE.cardPad,
+      boxShadow: "var(--card-highlight)",
     }}>
       <div style={{ ...pressMeta, marginBottom: 8 }}>{label}</div>
       <div style={{
@@ -784,16 +799,38 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled, soli
 // Global Layout Components — used across all pages
 // ============================================================
 
-// glass() — Press Room rejects glass. The mixin now returns the same
-// hairline card recipe used by Card/GlassCard/ListCard. Kept exported
-// for API compatibility; refresh sweeps replace `...glass()` with
-// direct token usage in Phase 5.
+// glass() — restored to the real Steel-Office recipe (v2 2026-04-26).
+// Used by floating chrome (Sidebar, TopBar, MetadataStrip) and by the
+// FloatingPanel primitive for popovers / sticky table headers. Card,
+// GlassCard, ListCard, and Stat are content surfaces — they do NOT
+// consume this mixin (they keep the opaque `var(--card)` recipe).
+//
+// Surfaces that consume glass() should also set the `data-glass`
+// attribute so the @supports fallback in global.css can substitute a
+// near-opaque tinted bg in browsers without backdrop-filter support.
 export const glass = () => ({
-  background:    "var(--card)",
-  border:        "1px solid var(--rule)",
-  boxShadow:     "none",
+  background:           "var(--md-glass-bg)",
+  border:               "1px solid var(--md-glass-border)",
+  backdropFilter:       "var(--md-glass-blur)",
+  WebkitBackdropFilter: "var(--md-glass-blur)",
+  boxShadow:            "var(--md-glass-shadow)",
 });
 
+// FloatingPanel — wraps glass() for popovers, dropdowns, sticky
+// headers. Default radius is RAD[1] (2px) — panel-tier, sharp.
+// Adds `data-glass` for the @supports fallback hook in global.css.
+export const FloatingPanel = ({ children, style, ...rest }) => (
+  <div
+    data-glass="true"
+    {...rest}
+    style={{ ...glass(), borderRadius: RAD[1], ...style }}
+  >{children}</div>
+);
+
+// GlassCard — name retained for back-compat with consumers; v2
+// converts this from a glass mixin consumer to a plain content card
+// (white-on-canvas with hairline + inset highlight). Glass is for
+// floating chrome only — see FloatingPanel.
 export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMouseOut }) => {
   const interactive = !!onClick;
   return (
@@ -802,32 +839,36 @@ export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMous
       onMouseOver={onMouseOver}
       onMouseOut={onMouseOut}
       style={{
-        ...glass(),
+        background:   "var(--card)",
+        border:       "1px solid var(--rule)",
         borderRadius: RAD.card,
-        padding: noPad ? 0 : "20px 22px",
-        cursor: interactive ? "pointer" : "default",
-        transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
+        padding:      noPad ? 0 : "20px 22px",
+        boxShadow:    "var(--card-highlight)",
+        cursor:       interactive ? "pointer" : "default",
+        transition:   `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
         ...style,
       }}
     >{children}</div>
   );
 };
 
-// ListCard — individual hairline card for list items
+// ListCard — content card for list rows. Same opaque recipe.
 export const ListCard = ({ children, style, onClick, active }) => (
   <div
     onClick={onClick}
     style={{
-      ...glass(),
+      background:   "var(--card)",
+      border:       "1px solid var(--rule)",
       borderRadius: RAD.card,
-      padding: CARD.pad,
-      cursor: onClick ? "pointer" : "default",
-      transition: `background ${DUR.fast}ms ${EASE}`,
-      ...(active ? { background: "var(--action-soft)" } : {}),
+      padding:      CARD.pad,
+      boxShadow:    "var(--card-highlight)",
+      cursor:       onClick ? "pointer" : "default",
+      transition:   `background ${DUR.fast}ms ${EASE}`,
+      ...(active ? { background: "var(--hover-wash)" } : {}),
       ...style,
     }}
-    onMouseEnter={e => { if (onClick && !active) e.currentTarget.style.background = "var(--action-soft)"; }}
-    onMouseLeave={e => { e.currentTarget.style.background = active ? "var(--action-soft)" : "var(--card)"; }}
+    onMouseEnter={e => { if (onClick && !active) e.currentTarget.style.background = "var(--hover-wash)"; }}
+    onMouseLeave={e => { e.currentTarget.style.background = active ? "var(--hover-wash)" : "var(--card)"; }}
   >{children}</div>
 );
 
