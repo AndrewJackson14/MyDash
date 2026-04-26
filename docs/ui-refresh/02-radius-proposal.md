@@ -1,9 +1,10 @@
 # Phase 2 — Radius Proposal
 
-> **Awaits Andrew's approval before applying.** Per `00-spec.md` §Phase 2,
-> the radius scale is the one token decision that must be confirmed before
-> the tokens layer ships. The rest of Phase 2 (colors, type, motion) can
-> proceed in parallel.
+> **Status: APPROVED 2026-04-26.** Landed alongside the rest of the Phase 2
+> tokens. Aliases for `R`, `Ri`, `RADII.*`, `--md-radius*`, `CARD.radius`,
+> `TBL.radius`, `TOGGLE.radius` now point at the new `--rad-*` scale.
+> The button-pill `!important` flip waits for the `Btn` primitive refresh
+> in Phase 4.
 
 ## Working hypothesis (from `00-spec.md` §Phase 2)
 

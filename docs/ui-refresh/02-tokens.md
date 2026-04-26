@@ -8,11 +8,12 @@ consumers.
 **Light is the default** per `01-direction-decisions.md`. Dark activates
 when `document.documentElement.dataset.theme === "dark"`.
 
-> Radius tokens are intentionally absent from this doc and from the layer
-> they describe. The `--rad-*` scale waits for Andrew's approval of
-> [02-radius-proposal.md](./02-radius-proposal.md). Until that approval
-> lands, components reach for legacy `--md-r-*` values; Phase 7 QA grep
-> catches them.
+> Radius tokens approved 2026-04-26 — see
+> [02-radius-proposal.md](./02-radius-proposal.md). Legacy `R`, `Ri`,
+> `RADII.*`, `CARD.radius`, `TBL.radius`, `TOGGLE.radius`, `--md-radius*`,
+> `--md-r-*` are now aliases pointing at the new scale. The button-pill
+> `!important` rule flip stays deferred until the `Btn` primitive lands
+> in Phase 4.
 
 ---
 
@@ -151,6 +152,49 @@ There is no `--elev-card`, `--elev-modal`, `--elev-popover`, etc. by
 design. If a refreshed component reaches for a shadow, that's a signal to
 reach for a heavier hairline (`border-bottom: 1px solid var(--rule)`) or a
 tonal shift (`background: var(--card)` over `--paper`) instead.
+
+---
+
+## Radius tokens
+
+Approved 2026-04-26. Five values total: 0 / 2 / 4 / 6 / pill.
+
+| CSS var | JS key | Value | Use |
+|---|---|---|---|
+| `--rad-0` | `RAD[0]` | `0px` | Page chrome, table containers, sidebar regions, top-bar, full-bleed sections |
+| `--rad-1` | `RAD[1]` | `2px` | Cards, panels, modals, dropdowns, popover surfaces |
+| `--rad-2` | `RAD[2]` | `4px` | Buttons, inputs, selects, textareas, badges, segmented controls |
+| `--rad-3` | `RAD[3]` | `6px` | Drop-zone outlines, image previews, file-card thumbnails — max for any rectangular surface |
+| `--rad-pill` | `RAD.pill` | `9999px` | Avatars, status dots, segmented pill containers, toggles |
+
+### Legacy aliases (deprecated; refresh removes references in Phase 4–5)
+
+| Legacy token | Alias | Effective value |
+|---|---|---|
+| `R` | `RAD[1]` | 2 (was 18) |
+| `Ri` | `RAD[2]` | 4 (was 10) |
+| `RADII.xs` | `RAD[3]` | 6 (was 6 — preserved at top of scale) |
+| `RADII.sm` | `RAD[2]` | 4 (was 8) |
+| `RADII.md` | `RAD[1]` | 2 (was 12) |
+| `RADII.lg` | `RAD[1]` | 2 (was 16) |
+| `RADII.xl` | `RAD[1]` | 2 (was 20 — modal panels) |
+| `CARD.radius` | `RAD[2]` | 4 (was 5) |
+| `TBL.radius` | `RAD[0]` | 0 (was 5 — tables become hard rectangles) |
+| `TOGGLE.radius` | `RAD.pill` | 9999 (was 10 — visually identical, conceptually correct) |
+| `--md-radius` | `var(--rad-1)` | 2px (was 18px) |
+| `--md-radius-sm` | `var(--rad-2)` | 4px (was 10px) |
+| `--md-radius-pill` | `var(--rad-pill)` | 9999px (was 999px) |
+| `--md-r-xs` / `--md-r-sm` / `--md-r-md` / `--md-r-lg` / `--md-r-xl` | aliased | 6 / 4 / 2 / 2 / 2 |
+
+`MODAL.radius` and `BTN.radius` / `INPUT.radius` flow through `R` and `Ri`
+automatically, so they pick up the new values without explicit aliasing.
+
+### Pending: button-pill `!important` flip
+
+[global.css:178–180](../../src/styles/global.css#L178-L180) currently forces
+every `<button>` to `border-radius: 999px !important`. Press Room buttons
+are 4px rectangles (`--rad-2`), with carve-outs only for genuine pill
+controls. The flip ships with the `Btn` primitive refresh in Phase 4.
 
 ---
 

@@ -31,9 +31,8 @@
   --md-go: #00a300;
   --md-da: #E05050;
   --md-wa: #D4890E;
-  --md-radius: 18px;
-  --md-radius-sm: 10px;
-  --md-radius-pill: 999px;
+  /* --md-radius* declared at the bottom of this :root block as
+     aliases to the Press Room --rad-* scale. */
   --md-font-body: 'Source Sans 3', 'DM Sans', 'Segoe UI', system-ui, sans-serif;
   --md-font-cond: 'IBM Plex Sans Condensed', 'DM Sans', sans-serif;
   --md-font-display: 'Playfair Display', Georgia, serif;
@@ -96,12 +95,13 @@
   --md-glass-border: rgba(255, 255, 255, 0.06);
   --md-glass-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6), 0 8px 24px -8px rgba(0, 0, 0, 0.4);
 
-  /* Radii scale */
-  --md-r-xs: 6px;
-  --md-r-sm: 8px;
-  --md-r-md: 12px;
-  --md-r-lg: 16px;
-  --md-r-xl: 20px;
+  /* Shell v2 radii — aliased to Press Room scale. Mapping per
+     docs/ui-refresh/02-radius-proposal.md. */
+  --md-r-xs: var(--rad-3);                   /* was 6px → 6px (preserved at top of scale) */
+  --md-r-sm: var(--rad-2);                   /* was 8px → 4px */
+  --md-r-md: var(--rad-1);                   /* was 12px → 2px */
+  --md-r-lg: var(--rad-1);                   /* was 16px → 2px */
+  --md-r-xl: var(--rad-1);                   /* was 20px → 2px (modal panels) */
 
   /* Motion */
   --md-ease:     cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -193,10 +193,21 @@
   --dur-med:  220ms;
   --dur-slow: 320ms;
 
-  /* Radius — DEFERRED. See docs/ui-refresh/02-radius-proposal.md.
-     The --rad-* scale lands in a follow-up commit after Andrew approves
-     the proposal. Until then, components reach for legacy --md-r-* or
-     hardcoded values; the QA grep in Phase 7 catches them. */
+  /* Radius — Press Room scale (approved 2026-04-26).
+     Five values total. See docs/ui-refresh/02-radius-proposal.md. */
+  --rad-0:    0px;                           /* Page chrome, table containers, full-bleed sections */
+  --rad-1:    2px;                           /* Cards, panels, modals, dropdowns */
+  --rad-2:    4px;                           /* Buttons, inputs, badges, segmented controls */
+  --rad-3:    6px;                           /* Drop-zone outlines, image previews — max for any rectangle */
+  --rad-pill: 9999px;                        /* Avatars, status dots, segmented pill containers */
+
+  /* Legacy --md-radius* aliases — point at the new scale so existing
+     CSS-only consumers flip with the rest of the app. Phase 4–5
+     component refresh removes these references; until then the
+     aliases prevent drift between rule values. */
+  --md-radius:      var(--rad-1);            /* was 18px */
+  --md-radius-sm:   var(--rad-2);            /* was 10px */
+  --md-radius-pill: var(--rad-pill);         /* was 999px */
 }
 
 [data-theme="dark"] {
