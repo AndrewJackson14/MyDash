@@ -4,6 +4,18 @@
    Philosophy: CSS handles presentation, React handles state.
    Every interactive element gets a hover. Every surface gets
    consistent rounding. Color is reserved for alerts.
+
+   ── UI refresh in progress ──────────────────────────────────
+   Press Room tokens (--ink, --paper, --rule, --type-*, --rad-*,
+   --space-*, --dur-*) are the new canonical layer, defined at
+   the bottom of :root and overridden under [data-theme="dark"].
+   Light is the default per docs/ui-refresh/01-direction-
+   decisions.md.
+
+   Legacy --md-* tokens stay intact above and continue to default
+   to dark — components migrate to the Press Room layer in
+   Phases 4–5 of the refresh. See docs/ui-refresh/02-tokens.md
+   for the full mapping.
    ============================================================ */
 
 /* ── CSS Custom Properties (dark default, light override) ── */
@@ -103,6 +115,104 @@
   --md-font-sans:       -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
   --md-font-display-sf: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
   --md-font-mono:       ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ════════════════════════════════════════════════════════════
+     Press Room — Phase 2 tokens (UI refresh)
+
+     Light is the default per 01-direction-decisions.md. Dark
+     overrides live under [data-theme="dark"] below. Component
+     migration runs in Phases 4–5; until then the legacy --md-*
+     vars above continue to drive un-refreshed components.
+     ════════════════════════════════════════════════════════════ */
+
+  /* Color tokens — Press Room light (default) */
+  --ink:         #1A1814;                    /* Body text, primary surfaces inverted */
+  --paper:       #F5F1E8;                    /* Page background — warm off-white */
+  --card:        #FFFFFF;                    /* Elevated surfaces only */
+  --rule:        rgba(26, 24, 20, 0.12);     /* Hairlines, dividers, table borders */
+  --muted:       #6B655A;                    /* Secondary text, captions, metadata */
+  --accent:      #C8301E;                    /* Single hot accent — print-press red */
+  --accent-soft: rgba(200, 48, 30, 0.08);    /* Selected row, hover wash */
+  --ok:          #3B6B3B;                    /* Success only */
+  --warn:        #B8860B;                    /* Caution */
+
+  /* Type families */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'Geist', system-ui, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, monospace;
+
+  /* Type sizes */
+  --type-display-xl: 56px;                   /* Page titles, hero KPIs */
+  --type-display-lg: 40px;                   /* Section heroes */
+  --type-display-md: 32px;                   /* KPI numbers */
+  --type-h3:         22px;                   /* Card headers, section heads */
+  --type-h4:         18px;                   /* Subsection heads, table titles */
+  --type-h5:         14px;                   /* Table column headers, form labels */
+  --type-body:       14px;                   /* Default body */
+  --type-body-sm:    13px;                   /* Dense table rows */
+  --type-caption:    12px;                   /* Captions, helper text */
+  --type-meta:       11px;                   /* Metadata strip, timestamps, IDs */
+
+  /* Type weights — discipline per 01-direction-decisions.md §Weight Discipline */
+  --weight-display:      600;                /* Cormorant default */
+  --weight-display-emph: 700;                /* Cormorant emphasis */
+  --weight-body:         400;                /* Geist body */
+  --weight-body-mid:     500;                /* Geist captions, subtle emphasis */
+  --weight-body-bold:    700;                /* Geist headings + buttons */
+  --weight-mono:         500;                /* Geist Mono — only weight in use */
+
+  /* Line heights */
+  --lh-display: 1.0;                         /* Cormorant display lockup */
+  --lh-heading: 1.25;                        /* Geist headers */
+  --lh-body:    1.55;                        /* Body */
+  --lh-meta:    1.45;                        /* Small / metadata */
+
+  /* Letter spacing */
+  --ls-meta:    0.08em;                      /* Metadata strip uppercase tracking */
+  --ls-headers: 0.02em;                      /* Optical fix for tight Geist headers */
+
+  /* Spacing scale (preserved from existing SP — Press Room is OK with this base) */
+  --space-xs:          4px;
+  --space-sm:          8px;
+  --space-md:          16px;
+  --space-lg:          24px;
+  --space-xl:          32px;
+  --space-xxl:         40px;
+  --space-card-pad:    20px;                 /* Internal card padding */
+  --space-section-gap: 28px;                 /* Gap between major sections */
+  --space-page-gap:    32px;                 /* Gap between top-level page blocks */
+
+  /* Elevation — Press Room rejects shadows. Hairlines do the work.
+     Single inset for input fields keeps form chrome readable. */
+  --elev-none:  none;
+  --elev-input: inset 0 1px 2px rgba(26, 24, 20, 0.04);
+
+  /* Motion */
+  --ease:     cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-med:  220ms;
+  --dur-slow: 320ms;
+
+  /* Radius — DEFERRED. See docs/ui-refresh/02-radius-proposal.md.
+     The --rad-* scale lands in a follow-up commit after Andrew approves
+     the proposal. Until then, components reach for legacy --md-r-* or
+     hardcoded values; the QA grep in Phase 7 catches them. */
+}
+
+[data-theme="dark"] {
+  /* Press Room — dark mode override */
+  --ink:         #EDE8DC;
+  --paper:       #14120E;                    /* Near-black with warm cast */
+  --card:        #1F1C16;
+  --rule:        rgba(237, 232, 220, 0.14);
+  --muted:       #8C8578;
+  --accent:      #E8473A;                    /* Press red, lifted for dark */
+  --accent-soft: rgba(232, 71, 58, 0.12);
+  --ok:          #7BA77B;
+  --warn:        #D4A93C;
+
+  /* Elevation — input inset uses the dark ink-on-paper relationship */
+  --elev-input: inset 0 1px 2px rgba(0, 0, 0, 0.20);
 }
 
 [data-theme="light"] {

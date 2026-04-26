@@ -127,12 +127,135 @@ export const SIGNAL = {
   dangerHover:  "#b63232",
 };
 
+// ============================================================
+// Press Room — Phase 2 tokens (UI refresh)
+//
+// These mirror the --ink / --paper / --rule / etc. CSS custom
+// properties defined in src/styles/global.css. JS callers use
+// PRESS_LIGHT / PRESS_DARK directly; the active palette is
+// exposed as PRESS, which flips with [data-theme="dark"].
+//
+// Components migrate to PRESS in Phases 4–5 of the refresh.
+// Until then the legacy LIGHT/DARK + Z proxy above keeps
+// driving the rest of the app — no runtime collision.
+// ============================================================
+export const PRESS_LIGHT = {
+  ink:         "#1A1814",
+  paper:       "#F5F1E8",
+  card:        "#FFFFFF",
+  rule:        "rgba(26, 24, 20, 0.12)",
+  muted:       "#6B655A",
+  accent:      "#C8301E",
+  accentSoft:  "rgba(200, 48, 30, 0.08)",
+  ok:          "#3B6B3B",
+  warn:        "#B8860B",
+};
+
+export const PRESS_DARK = {
+  ink:         "#EDE8DC",
+  paper:       "#14120E",
+  card:        "#1F1C16",
+  rule:        "rgba(237, 232, 220, 0.14)",
+  muted:       "#8C8578",
+  accent:      "#E8473A",
+  accentSoft:  "rgba(232, 71, 58, 0.12)",
+  ok:          "#7BA77B",
+  warn:        "#D4A93C",
+};
+
+// Active Press palette — flips with the data-theme attribute.
+// Light is the default per 01-direction-decisions.md.
+export let PRESS = { ...PRESS_LIGHT };
+
+export const isPressDark = () =>
+  typeof document !== "undefined" &&
+  document.documentElement?.dataset?.theme === "dark";
+
+// Type system — sizes, families, weights, line heights, tracking.
+// Sizes match the table in 01-direction-decisions.md §Type Scale.
+// Weights enforce the discipline rules in §Weight Discipline.
+export const TYPE = {
+  // Sizes (px)
+  size: {
+    displayXL: 56, // page titles, hero KPIs
+    displayLg: 40, // section heroes
+    displayMd: 32, // KPI numbers
+    h3:        22, // card headers, section heads
+    h4:        18, // subsection heads, table titles
+    h5:        14, // table column headers, form labels
+    body:      14, // default body
+    bodySm:    13, // dense table rows
+    caption:   12, // captions, helper text
+    meta:      11, // metadata strip, timestamps, IDs
+  },
+
+  // Family stacks
+  family: {
+    display: "'Cormorant Garamond', Georgia, serif",
+    body:    "'Geist', system-ui, sans-serif",
+    mono:    "'Geist Mono', ui-monospace, monospace",
+  },
+
+  // Weights — keep these few. Cormorant 600 only by default;
+  // Geist on 400/500/700; Geist Mono on 500. No others.
+  weight: {
+    display:     600,
+    displayEmph: 700,
+    body:        400,
+    bodyMid:     500,
+    bodyBold:    700,
+    mono:        500,
+  },
+
+  // Line heights
+  lh: {
+    display: 1.0,
+    heading: 1.25,
+    body:    1.55,
+    meta:    1.45,
+  },
+
+  // Letter spacing
+  ls: {
+    meta:    "0.08em",
+    headers: "0.02em",
+  },
+};
+
+// Elevation — Press Room rejects shadows. The single allowed
+// elevation token is the input field inset, kept light enough
+// not to read as a shadow.
+export const ELEV = {
+  none:  "none",
+  input: "inset 0 1px 2px rgba(26, 24, 20, 0.04)",
+};
+
+// Spacing — preserved from SP at the bottom of this file. New
+// callers should reach for SPACE.* (alias of SP) for clarity;
+// SP stays exported for back-compat.
+//
+// (No new export here — SPACE is added below SP, near the bottom,
+// once the existing SP block has been read.)
+
+// Radius — DEFERRED. The --rad-* scale and matching JS RAD object
+// land in a follow-up commit after Andrew approves
+// docs/ui-refresh/02-radius-proposal.md.
+
 const getInitTheme = () => {
   try { const s = localStorage.getItem("mydash-theme"); if (s) return s; } catch(e) {}
   return window.matchMedia?.("(prefers-color-scheme: light)")?.matches ? "light" : "dark";
 };
 
 export let Z = getInitTheme() === "light" ? { ...LIGHT } : { ...DARK };
+
+// Initialize the Press Room palette + sync the data-theme attribute
+// so CSS custom properties (--ink, --paper, --rule, etc.) match the
+// JS palette from first paint. App.jsx mirrors this on toggle.
+if (typeof document !== "undefined") {
+  const t = getInitTheme();
+  Object.assign(PRESS, t === "dark" ? PRESS_DARK : PRESS_LIGHT);
+  if (document.documentElement) document.documentElement.dataset.theme = t;
+}
 
 // Convenience: check active theme mode without hard-coding hex values
 export const isDark = () => Z.bg === DARK.bg;
@@ -235,6 +358,11 @@ export const SP = {        // spacing scale
   sectionGap: 28,          // gap between major sections
   pageGap: 32,             // gap between top-level page blocks
 };
+
+// Press Room alias — same scale, named to match the --space-*
+// CSS custom properties so refreshed components can grep for
+// SPACE.cardPad or var(--space-card-pad) interchangeably.
+export const SPACE = SP;
 
 // Card/List tokens — universal card and list item rules
 export const CARD = {
