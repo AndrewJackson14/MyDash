@@ -12,7 +12,26 @@ import { COND, FW } from "../lib/theme";
 import { supabase } from "../lib/supabase";
 
 const AUTO_DISMISS_MS = 8000;
+const URGENT_DISMISS_MS = 16000;
 const STAGGER_MS = 150;
+
+// May-sim P0.4 — visual treatment per urgency tier. `blocking` notes
+// stick around until the user acts (no auto-dismiss); `urgent` get a
+// longer dwell + amber border; `normal` keeps existing behavior.
+const URGENCY_STYLE = {
+  blocking: {
+    border: "1.5px solid rgba(239, 68, 68, 0.85)",
+    boxShadow: "0 10px 30px rgba(239, 68, 68, 0.32), 0 0 0 3px rgba(239, 68, 68, 0.18)",
+    badge: { bg: "rgba(239, 68, 68, 0.22)", color: "#fca5a5", label: "BLOCKING" },
+    autoDismissMs: null,
+  },
+  urgent: {
+    border: "1.5px solid rgba(245, 158, 11, 0.85)",
+    boxShadow: "0 10px 30px rgba(245, 158, 11, 0.28), 0 0 0 2px rgba(245, 158, 11, 0.18)",
+    badge: { bg: "rgba(245, 158, 11, 0.22)", color: "#fcd34d", label: "URGENT" },
+    autoDismissMs: URGENT_DISMISS_MS,
+  },
+};
 
 export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) {
   const [stack, setStack] = useState([]); // [{id, note, shown}]
@@ -91,8 +110,16 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
           setStack(prev => prev.map(x => x.id === n.id ? { ...x, shown: true } : x));
         }, STAGGER_MS);
 
-        // Auto-dismiss
-        dismissTimers.current[n.id] = setTimeout(() => dismiss(n.id), AUTO_DISMISS_MS);
+        // Auto-dismiss — blocking notes never auto-dismiss; urgent get a
+        // longer dwell so the recipient has time to read and act.
+        const tierMs = n.urgency === "blocking"
+          ? null
+          : n.urgency === "urgent"
+          ? URGENT_DISMISS_MS
+          : AUTO_DISMISS_MS;
+        if (tierMs != null) {
+          dismissTimers.current[n.id] = setTimeout(() => dismiss(n.id), tierMs);
+        }
       })
       // P1.8 — also subscribe to the notifications table so @-mention
       // events written by ChatPanel surface here. We map them into
@@ -175,6 +202,8 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         const isExpanded = expandedId === id;
         const draft = drafts[id] || "";
         const isSending = sendingId === id;
+        const urgency = note.urgency;
+        const urgencyStyle = URGENCY_STYLE[urgency] || null;
         return (
           <div
             key={id}
@@ -184,10 +213,10 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
               background: "rgba(30, 30, 35, 0.92)",
               backdropFilter: "blur(20px) saturate(180%)",
               WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: urgencyStyle?.border || "1px solid rgba(255,255,255,0.1)",
               borderRadius: 12,
               padding: "12px 14px",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2)",
+              boxShadow: urgencyStyle?.boxShadow || "0 10px 30px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2)",
               cursor: isExpanded ? "default" : "pointer",
               transform: shown ? "translateX(0)" : "translateX(400px)",
               opacity: shown ? 1 : 0,
@@ -216,6 +245,7 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
                   <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: FW.bold, textTransform: "uppercase", letterSpacing: 0.5 }}>MyDash</span>
                 </div>
                 {role && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginBottom: 4, fontWeight: FW.semi }}>{role}</div>}
+                {urgencyStyle && <span style={{ display: "inline-block", padding: "1px 6px", background: urgencyStyle.badge.bg, color: urgencyStyle.badge.color, borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3, letterSpacing: 0.5 }}>{urgencyStyle.badge.label}</span>}
                 {task && <span style={{ display: "inline-block", padding: "1px 6px", background: "rgba(255,180,0,0.25)", color: "#ffcd6b", borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3 }}>TASK: {task}</span>}
                 <div style={{
                   fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.4,
