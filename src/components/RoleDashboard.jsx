@@ -160,6 +160,14 @@ const RoleDashboard = memo(({
   const [upcomingRange, setUpcomingRange] = useState("30d");
   const [pinging, setPinging] = useState(null);
 
+  // ─── Publisher dashboard state (Hayley P1) ──────────────────────
+  // Pulled at the top so the hooks run every render regardless of role.
+  // Branch-internal code reads these; other roles render with empty.
+  const [pubProofsInReview, setPubProofsInReview] = useState([]);
+  const [pubRecentPress, setPubRecentPress] = useState([]);
+  const [pubLayoutRefGaps, setPubLayoutRefGaps] = useState([]);
+  const [signingOffIssueId, setSigningOffIssueId] = useState(null);
+
   // ─── Layout Designer state (Anthony) ─────────────────────
   // Same hoist-to-top-of-component rule: hooks must run every render.
   // The Anthony branch reads these; non-Anthony renders ignore them.
@@ -638,6 +646,79 @@ const RoleDashboard = memo(({
         laidOutAt: updates.laid_out_at,
       } : s));
     }
+  };
+
+  // ─── Publisher data load (Hayley P1) ────────────────────────────
+  // Same top-level effect pattern as Layout Designer — guard inside,
+  // not around the hook, so call order stays stable across role
+  // switches. Pulls in-review proofs, recently-shipped issues, and
+  // ad pages missing layout reference uploads.
+  const isPublisherRole = role === "Publisher" || role === "Editor-in-Chief";
+  useEffect(() => {
+    if (!isPublisherRole) return;
+    if (!isOnline()) return;
+    (async () => {
+      // Proofs awaiting review
+      const { data: proofs } = await supabase
+        .from("issue_proofs")
+        .select("id, issue_id, version, uploaded_at, page_count, status")
+        .eq("status", "review")
+        .order("uploaded_at", { ascending: false })
+        .limit(20);
+      setPubProofsInReview(proofs || []);
+
+      // Recently shipped issues — last 7 days
+      const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
+      const recent = (_issues || []).filter(i => i.sentToPressAt && i.sentToPressAt >= since7)
+        .sort((a, b) => (b.sentToPressAt || "").localeCompare(a.sentToPressAt || ""));
+      setPubRecentPress(recent);
+
+      // Layout reference gaps: issues approaching press (next 14d)
+      // where pages have ad placements but no flatplan_page_layouts
+      // row. Bounded by issueIds-in-window so the join stays cheap.
+      const cutoff14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+      const upcomingIds = (_issues || []).filter(i => i.date >= today && i.date <= cutoff14 && !i.sentToPressAt).map(i => i.id);
+      if (upcomingIds.length === 0) {
+        setPubLayoutRefGaps([]);
+      } else {
+        const [salesRes, refsRes] = await Promise.all([
+          supabase.from("sales").select("issue_id, page").in("issue_id", upcomingIds).eq("status", "Closed").not("page", "is", null),
+          supabase.from("flatplan_page_layouts").select("issue_id, page_number").in("issue_id", upcomingIds),
+        ]);
+        const refSet = new Set((refsRes.data || []).map(r => `${r.issue_id}::${r.page_number}`));
+        const adPages = new Map(); // issueId → Set of pages
+        for (const s of (salesRes.data || [])) {
+          if (!adPages.has(s.issue_id)) adPages.set(s.issue_id, new Set());
+          adPages.get(s.issue_id).add(s.page);
+        }
+        const gaps = [];
+        for (const [iid, pages] of adPages) {
+          const missing = [...pages].filter(p => !refSet.has(`${iid}::${p}`));
+          if (missing.length > 0) {
+            const iss = (_issues || []).find(i => i.id === iid);
+            if (iss) gaps.push({ issue: iss, missingPages: missing.sort((a, b) => a - b) });
+          }
+        }
+        gaps.sort((a, b) => (a.issue.date || "").localeCompare(b.issue.date || ""));
+        setPubLayoutRefGaps(gaps);
+      }
+    })();
+  }, [isPublisherRole, _issues?.length]);
+
+  // Publisher signoff handler — flips publisher_signoff_at on the
+  // issue. Same call as the Layout Console button.
+  const handlePublisherSignoff = async (issueId) => {
+    if (!currentUser?.id || signingOffIssueId === issueId) return;
+    setSigningOffIssueId(issueId);
+    try {
+      await supabase.from("issues").update({
+        publisher_signoff_at: new Date().toISOString(),
+        publisher_signoff_by: currentUser.id,
+      }).eq("id", issueId);
+    } catch (err) {
+      console.error("Publisher signoff failed:", err);
+    }
+    setSigningOffIssueId(null);
   };
 
   // ─── Content Editor Dashboard (Camille) — Sec 12.2 ────
@@ -2049,7 +2130,17 @@ const RoleDashboard = memo(({
     const overdueInvoices = openInvoices.filter(inv => inv.dueDate && inv.dueDate < today);
     const overdueBalance = overdueInvoices.reduce((s, inv) => s + Number(inv.balanceDue || 0), 0);
     const d7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const d14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
     const upcomingIssues = _issues.filter(i => i.date >= today && i.date <= d7);
+
+    // Hayley P1 — issues approaching press (next 14d) that haven't
+    // received her signoff yet. These are press-day blockers for
+    // Anthony's readiness checklist.
+    const awaitingSignoff = _issues.filter(i =>
+      i.date >= today && i.date <= d14
+      && !i.sentToPressAt
+      && !i.publisherSignoffAt
+    ).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
     // Top closers MTD by rep
     const repRevenue = {};
@@ -2065,10 +2156,14 @@ const RoleDashboard = memo(({
     // Stories needing editorial attention (queue + in-edit)
     const storyQueue = _stories.filter(s => ["Draft", "Needs Editing"].includes(s.status)).length;
 
+    // Beat-strip signals
+    const justShipped = pubRecentPress[0];
+    const allClear = awaitingSignoff.length === 0 && pubProofsInReview.length === 0 && pubLayoutRefGaps.length === 0;
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
         {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 20 }}>{greeting}</div>}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} deals</div>
@@ -2078,19 +2173,115 @@ const RoleDashboard = memo(({
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {activeSales.length} open</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
-            <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{teamSize}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active Team</div>
+            <div style={{ fontSize: 28, fontWeight: FW.black, color: awaitingSignoff.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{awaitingSignoff.length}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Awaiting Your Signoff</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>next 14 days</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: overdueInvoices.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdueInvoices.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue Invoices · {fmtCurrency(overdueBalance)}</div>
+            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue Invoices</div>
+            <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{fmtCurrency(overdueBalance)}</div>
           </div>
+        </div>
+        {/* Beat strip */}
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {justShipped && <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(justShipped.pubId)} {justShipped.label}</span> <span style={{ color: Z.tm }}>shipped</span></span>
+          </div>}
+          {allClear && !justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All clear — no signoffs or proofs waiting</span>
+          </div>}
+          {pubProofsInReview.length > 0 && <div style={{ flex: "1 1 220px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>📑</span>
+            <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{pubProofsInReview.length} proof{pubProofsInReview.length === 1 ? "" : "s"} in review</span>
+          </div>}
+          {pubLayoutRefGaps.length > 0 && <div style={{ flex: "1 1 220px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.wa + "10", borderRadius: Ri }}>
+            <span style={{ fontSize: 14 }}>🖼️</span>
+            <span style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.bold }}>{pubLayoutRefGaps.length} issue{pubLayoutRefGaps.length === 1 ? "" : "s"} need layout refs</span>
+          </div>}
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
-        {/* LEFT */}
+        {/* LEFT — production oversight queues */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Awaiting your signoff — Hayley P1 */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Awaiting Your Signoff</div>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{awaitingSignoff.length} issue{awaitingSignoff.length === 1 ? "" : "s"}</span>
+            </div>
+            {awaitingSignoff.length === 0 ? (
+              <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>✨ No issues waiting on you</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {awaitingSignoff.slice(0, 8).map(iss => {
+                  const d = daysUntil(iss.date);
+                  const urg = d <= 1 ? Z.da : d <= 3 ? Z.wa : Z.go;
+                  return (
+                    <div key={iss.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${urg}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
+                        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Press {fmtDate(iss.date)} · {d <= 0 ? "today" : d === 1 ? "tomorrow" : `${d}d`}</div>
+                      </div>
+                      <Btn sm v="secondary" onClick={() => onNavigate?.(`/layout?id=${iss.id}`)} style={{ flexShrink: 0 }}>Open</Btn>
+                      <Btn sm onClick={() => handlePublisherSignoff(iss.id)} disabled={signingOffIssueId === iss.id} style={{ flexShrink: 0 }}>
+                        {signingOffIssueId === iss.id ? "…" : "✍ Sign off"}
+                      </Btn>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Proofs in review — Hayley P1 */}
+          {pubProofsInReview.length > 0 && (
+            <div style={glass}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Proofs Awaiting Approval</span>
+                <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{pubProofsInReview.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {pubProofsInReview.map(p => {
+                  const iss = _issues.find(i => i.id === p.issue_id);
+                  return (
+                    <div key={p.id} onClick={() => iss && onNavigate?.(`/layout?id=${iss.id}`)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: iss ? "pointer" : "default" }}>
+                      <div>
+                        <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : "Issue"} · v{p.version}</div>
+                        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{p.page_count ? `${p.page_count} pages · ` : ""}uploaded {p.uploaded_at ? fmtDate(p.uploaded_at.slice(0, 10)) : "—"}</div>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.ac, padding: "2px 8px", background: Z.ac + "15", borderRadius: 999, fontFamily: COND, textTransform: "uppercase" }}>review</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Layout reference gaps — Hayley P1 */}
+          {pubLayoutRefGaps.length > 0 && (
+            <div style={glass}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Pages Need Layout Reference</span>
+                <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{pubLayoutRefGaps.length}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {pubLayoutRefGaps.slice(0, 6).map(g => (
+                  <div key={g.issue.id} onClick={() => onNavigate?.("flatplan", { pub: g.issue.pubId, issue: g.issue.id })} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${Z.wa}` }}>
+                    <div>
+                      <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(g.issue.pubId)} {g.issue.label}</div>
+                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Pages: {g.missingPages.slice(0, 8).join(", ")}{g.missingPages.length > 8 ? `… +${g.missingPages.length - 8}` : ""}</div>
+                    </div>
+                    <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{g.missingPages.length}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>Top Closers — This Month</div>
             {topReps.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No closed deals this month</div>
@@ -2108,7 +2299,7 @@ const RoleDashboard = memo(({
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Upcoming Issues (7 days)</div>
             {upcomingIssues.length === 0 ? <div style={{ padding: 12, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No issues publishing this week</div>
             : upcomingIssues.slice(0, 8).map(i => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15` }}>
-              <div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{pn(i.pubId)} {i.label}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>Publishes {fmtDate(i.date)}</div></div>
+              <div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{pn(i.pubId)} {i.label}</div><div style={{ fontSize: FS.xs, color: Z.tm }}>Publishes {fmtDate(i.date)}{i.publisherSignoffAt ? " · ✓ signed off" : ""}</div></div>
               <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: daysUntil(i.date) <= 2 ? Z.wa : Z.tm }}>{daysUntil(i.date)}d</div>
             </div>)}
           </div>
@@ -2116,6 +2307,22 @@ const RoleDashboard = memo(({
         {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* From Press — recent celebration tile */}
+          {pubRecentPress.length > 0 && (
+            <div style={glass}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>From Press (last 7 days)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {pubRecentPress.slice(0, 5).map(p => (
+                  <div key={p.id} style={{ padding: "6px 10px", background: Z.go + "08", borderRadius: Ri, borderLeft: `2px solid ${Z.go}` }}>
+                    <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>📰 {pn(p.pubId)} {p.label}</div>
+                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>shipped {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Signals</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: FS.sm }}>
@@ -2132,6 +2339,7 @@ const RoleDashboard = memo(({
               <Btn sm v="secondary" onClick={() => onNavigate?.("analytics")} style={{ justifyContent: "flex-start" }}>Reports</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("performance")} style={{ justifyContent: "flex-start" }}>Performance</Btn>
               <Btn sm v="secondary" onClick={() => onNavigate?.("team")} style={{ justifyContent: "flex-start" }}>Team</Btn>
+              <Btn sm v="secondary" onClick={() => onNavigate?.("collections")} style={{ justifyContent: "flex-start" }}>Collections</Btn>
             </div>
           </div>
         </div>
