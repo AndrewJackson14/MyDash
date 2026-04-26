@@ -34,7 +34,7 @@ function lerpColor(a, b, t) {
     b: Math.round(a.b + (b.b - a.b) * t),
   };
 }
-const BLUE = { r: 59, g: 130, b: 246 };       // #3B82F6 — serene blue
+const BLUE = { r: 59, g: 130, b: 246 };       // var(--accent) — serene blue
 const GREEN = { r: 34, g: 197, b: 94 };       // #22C55E — serene green
 const AMBER = { r: 245, g: 158, b: 11 };      // #F59E0B — warming
 const RED_DARK_MODE = { r: 239, g: 68, b: 68 };   // #EF4444 — reads fine on dark

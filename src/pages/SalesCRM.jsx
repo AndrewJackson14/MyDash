@@ -1114,7 +1114,7 @@ const SalesCRM = (props) => {
       const newCount = inquiries.filter(i => i.status === "new").length;
       const contactedCount = inquiries.filter(i => i.status === "contacted").length;
       const convertedCount = inquiries.filter(i => i.status === "converted").length;
-      const statusColors = { new: Z.ac || "#3b82f6", contacted: Z.wa || "#f59e0b", converted: Z.su || "#22c55e", dismissed: Z.tm || "#9ca3af" };
+      const statusColors = { new: Z.ac || "var(--accent)", contacted: Z.wa || "#f59e0b", converted: Z.su || "#22c55e", dismissed: Z.tm || "#9ca3af" };
       const confidenceBadge = (conf, reason) => {
         if (conf === "none") return null;
         const color = conf === "exact" ? (Z.su || "#22c55e") : (Z.wa || "#f59e0b");

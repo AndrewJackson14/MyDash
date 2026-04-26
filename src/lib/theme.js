@@ -6,83 +6,90 @@
 // Typography (size, weight, family) creates hierarchy, not color.
 // ============================================================
 
+// ============================================================
+// LIGHT / DARK — legacy palette shape, Press Room values.
+//
+// Z proxy: every page module reads `Z.bg`, `Z.tx`, etc. inline.
+// Rather than migrate every consumer, we redefine LIGHT and DARK
+// to emit Press Room-equivalent values under the legacy keys.
+// The Object.assign(Z, isDark ? LIGHT : DARK) toggle still works
+// and the entire app flips to Press visuals.
+//
+// Border tokens (bd, borderSubtle, borderStrong) stay as solid
+// hex values pre-merged from --rule onto --paper, so the existing
+// alpha-suffix concatenation pattern (`Z.bd + "22"`) keeps
+// producing valid 8-char hex.
+// ============================================================
 export const DARK = {
-  bg:  "#08090D",
-  sf:  "#0E1018",
-  sa:  "#161A24",
-  bd:  "#1C2130",
-  // tx softened ~13% from #E8ECF2 — pure-white-on-near-black was too aggressive
-  // for long reading. Keeps active-state text (TB/SliderStrip use literal #fff)
-  // and brand accents (ac) at full brightness so selection still pops.
-  tx:  "#CACDD3",
-  tx2: "#C8CED8",
-  tm:  "#8A95A8",
-  td:  "#525E72",
-  go:  "#00a300",
-  da:  "#E05050",
-  ds:  "rgba(224,80,80,0.12)",
-  wa:  "#D4890E",
-  ws:  "rgba(212,137,14,0.12)",
-  ac:  "#E8ECF2",
-  as:  "rgba(232,236,242,0.08)",
-  su:  "#E8ECF2",
-  ss:  "rgba(232,236,242,0.06)",
-  pu:  "#8A95A8",
-  ps:  "rgba(138,149,168,0.08)",
-  or:  "#D4890E",
-  // Shell v2 semantic surface tokens — keep DARK and LIGHT in lockstep
-  // so Object.assign(Z, ...) on theme toggle propagates every key.
-  bgCanvas:     "#0a0c10",
-  bgChrome:     "#0f1317",
-  bgHover:      "#171c22",
-  bgActive:     "#1a2533",
-  fgPrimary:    "#e8ebef",
-  fgSecondary:  "#9aa3af",
-  fgMuted:      "#6b7280",
-  fgAccent:     "#7fa3c8",
-  borderSubtle: "#1c2128",
-  borderStrong: "#262d36",
-  glassBg:      "rgba(18,22,27,0.72)",
-  glassBorder:  "rgba(255,255,255,0.06)",
-  glassShadow:  "0 20px 60px -20px rgba(0,0,0,0.6), 0 8px 24px -8px rgba(0,0,0,0.4)",
+  bg:  "#14120E",                          // PRESS_DARK.paper
+  sf:  "#1F1C16",                          // PRESS_DARK.card
+  sa:  "#1F1C16",                          // collapsed onto card under Press Room
+  bd:  "#32302B",                          // rule pre-merged on paper
+  tx:  "#EDE8DC",                          // PRESS_DARK.ink
+  tx2: "#EDE8DC",
+  tm:  "#8C8578",                          // PRESS_DARK.muted
+  td:  "#8C8578",
+  go:  "#7BA77B",                          // PRESS_DARK.ok
+  da:  "#E8473A",                          // PRESS_DARK.accent (Press red)
+  ds:  "rgba(232,71,58,0.12)",
+  wa:  "#D4A93C",                          // PRESS_DARK.warn
+  ws:  "rgba(212,169,60,0.12)",
+  ac:  "#EDE8DC",
+  as:  "rgba(237,232,220,0.08)",
+  su:  "#EDE8DC",
+  ss:  "rgba(237,232,220,0.06)",
+  pu:  "#8C8578",
+  ps:  "rgba(140,133,120,0.08)",
+  or:  "#D4A93C",
+  bgCanvas:     "#14120E",
+  bgChrome:     "#14120E",
+  bgHover:      "rgba(232,71,58,0.12)",    // accent-soft (dark)
+  bgActive:     "rgba(232,71,58,0.18)",
+  fgPrimary:    "#EDE8DC",
+  fgSecondary:  "#EDE8DC",
+  fgMuted:      "#8C8578",
+  fgAccent:     "#E8473A",
+  borderSubtle: "#32302B",
+  borderStrong: "#3D3B36",
+  glassBg:      "#1F1C16",                  // collapsed to card; no glass under Press
+  glassBorder:  "#32302B",
+  glassShadow:  "none",                     // Press Room rejects shadows
 };
 
 export const LIGHT = {
-  bg:  "#F4F5F7",
-  sf:  "#FFFFFF",
-  sa:  "#EBEDF0",
-  bd:  "#D8DBE2",
-  tx:  "#111318",
-  tx2: "#2D3142",
-  tm:  "#6B7280",
-  td:  "#9CA3AF",
-  go:  "#00a300",
-  da:  "#C53030",
-  ds:  "rgba(197,48,48,0.08)",
-  wa:  "#D4890E",
-  ws:  "rgba(212,137,14,0.08)",
-  ac:  "#111318",
-  as:  "rgba(17,19,24,0.06)",
-  su:  "#111318",
-  ss:  "rgba(17,19,24,0.04)",
-  pu:  "#6B7280",
-  ps:  "rgba(107,114,128,0.06)",
-  or:  "#D4890E",
-  // Shell v2 semantic surface tokens — keep DARK and LIGHT in lockstep
-  // so Object.assign(Z, ...) on theme toggle propagates every key.
-  bgCanvas:     "#f6f7f8",
-  bgChrome:     "#ffffff",
-  bgHover:      "#eceef1",
-  bgActive:     "#f0f4f9",
-  fgPrimary:    "#111418",
-  fgSecondary:  "#4b5563",
-  fgMuted:      "#6b7280",
-  fgAccent:     "#385879",
-  borderSubtle: "#dfe2e7",
-  borderStrong: "#c7ccd3",
-  glassBg:      "rgba(255,255,255,0.72)",
-  glassBorder:  "rgba(255,255,255,0.5)",
-  glassShadow:  "0 20px 60px -20px rgba(15,29,44,0.25), 0 8px 24px -8px rgba(15,29,44,0.12)",
+  bg:  "#F5F1E8",                          // PRESS_LIGHT.paper
+  sf:  "#FFFFFF",                          // PRESS_LIGHT.card
+  sa:  "#FFFFFF",
+  bd:  "#DBD7CF",                          // rule pre-merged on paper
+  tx:  "#1A1814",                          // PRESS_LIGHT.ink
+  tx2: "#1A1814",
+  tm:  "#6B655A",                          // PRESS_LIGHT.muted
+  td:  "#6B655A",
+  go:  "#3B6B3B",                          // PRESS_LIGHT.ok
+  da:  "#C8301E",                          // PRESS_LIGHT.accent (Press red)
+  ds:  "rgba(200,48,30,0.08)",
+  wa:  "#B8860B",                          // PRESS_LIGHT.warn
+  ws:  "rgba(184,134,11,0.08)",
+  ac:  "#1A1814",
+  as:  "rgba(26,24,20,0.06)",
+  su:  "#1A1814",
+  ss:  "rgba(26,24,20,0.04)",
+  pu:  "#6B655A",
+  ps:  "rgba(107,101,90,0.06)",
+  or:  "#B8860B",
+  bgCanvas:     "#F5F1E8",
+  bgChrome:     "#F5F1E8",
+  bgHover:      "rgba(200,48,30,0.08)",
+  bgActive:     "rgba(200,48,30,0.12)",
+  fgPrimary:    "#1A1814",
+  fgSecondary:  "#1A1814",
+  fgMuted:      "#6B655A",
+  fgAccent:     "#C8301E",
+  borderSubtle: "#DBD7CF",
+  borderStrong: "#C7C2B6",
+  glassBg:      "#FFFFFF",
+  glassBorder:  "#DBD7CF",
+  glassShadow:  "none",
 };
 
 // ============================================================
@@ -440,7 +447,7 @@ export const ACCENT = {
   amber: "#D4890E",
   indigo: "#6366f1",
   green: "#16a34a",
-  blue: "#3b82f6",
+  blue: "var(--accent)",
   grey: "#6B7280",
 };
 

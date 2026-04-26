@@ -414,13 +414,13 @@ export const TB = ({ tabs, active, onChange }) => {
       bottom: 4,
       left: rect.left,
       width: rect.width,
-      background: "#3B82F6",
+      background: "var(--accent)",
       borderRadius: 999,
       transition: rect.ready ? "left 0.25s cubic-bezier(0.4,0,0.2,1), width 0.25s cubic-bezier(0.4,0,0.2,1)" : "none",
       opacity: rect.ready ? 1 : 0,
       pointerEvents: "none",
       zIndex: 0,
-      boxShadow: rect.ready ? "0 2px 8px rgba(59,130,246,0.3)" : "none",
+      boxShadow: "none",
     }} />
     {tabs.map(t => {
       // Tabs are either strings ("Active") or objects ({ value, label }).
