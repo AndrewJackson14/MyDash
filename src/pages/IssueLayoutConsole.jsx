@@ -15,7 +15,6 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, glass as glassStyle } from "../components/ui";
 import EntityThread from "../components/EntityThread";
 import IssueProofingTab from "../components/IssueProofingTab";
-import SendToPressModal from "../components/SendToPressModal";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
@@ -58,9 +57,12 @@ export default function IssueLayoutConsole({
   const [pkgDownloading, setPkgDownloading] = useState(null);
   const [tab, setTab] = useState("layout"); // layout | proofing
   const [proofCount, setProofCount] = useState({ total: 0, unresolved: 0, hasReview: false });
-  const [pressModalOpen, setPressModalOpen] = useState(false);
   const [confettiVisible, setConfettiVisible] = useState(false);
-  const [printRuns, setPrintRuns] = useState([]);
+  const [pressing, setPressing] = useState(false);
+  const [signingOff, setSigningOff] = useState(false);
+
+  // Roles that can flip publisher_signoff_at on the issue.
+  const canPublisherSignoff = ["Publisher", "Editor-in-Chief"].includes(currentUser?.role || "");
 
   // Stories scoped to this issue, sorted by page then priority
   const issueStories = useMemo(() => {
@@ -93,19 +95,6 @@ export default function IssueLayoutConsole({
       setPageStatus(psRes.data || []);
       setAdProjects(apRes.data || []);
       setLayoutRefs(lrRes.data || []);
-    })();
-  }, [isActive, issueId]);
-
-  // Print runs history for the right rail
-  useEffect(() => {
-    if (!isActive || !issueId || !isOnline()) return;
-    (async () => {
-      const { data } = await supabase
-        .from("print_runs")
-        .select("*")
-        .eq("issue_id", issueId)
-        .order("shipped_at", { ascending: false });
-      setPrintRuns(data || []);
     })();
   }, [isActive, issueId]);
 
@@ -250,6 +239,52 @@ export default function IssueLayoutConsole({
       console.error("Package download failed:", err);
     }
     setPkgDownloading(null);
+  };
+
+  // ── Mark Sent to Press — simple stamp. Anthony uploads PDFs to
+  // each printer's own FTP portal externally; MyDash just records
+  // when the issue went out so downstream billing + dashboards know.
+  // Existing Flatplan.jsx Send-to-Press flow does the same stamp +
+  // triggers invoice generation; this surface gives Anthony the same
+  // action without leaving the Layout Console.
+  const markSentToPress = async () => {
+    if (pressing || !currentUser?.id) return;
+    if (!confirm(`Mark ${pub?.name || "this issue"} ${issue.label || ""} as sent to press?`)) return;
+    setPressing(true);
+    try {
+      const now = new Date().toISOString();
+      await supabase.from("issues").update({
+        sent_to_press_at: now,
+        sent_to_press_by: currentUser.id,
+      }).eq("id", issueId);
+      // Reflect locally so the UI updates without waiting on prop refresh
+      issue.sentToPressAt = now;
+      issue.sentToPressBy = currentUser.id;
+      setConfettiVisible(true);
+      setTimeout(() => setConfettiVisible(false), 4000);
+    } catch (err) {
+      console.error("Mark sent to press failed:", err);
+    }
+    setPressing(false);
+  };
+
+  // ── Publisher signoff — flips the readiness checklist's last
+  // hard blocker. Only Publisher / EIC roles can fire this.
+  const signOffIssue = async () => {
+    if (signingOff || !currentUser?.id) return;
+    setSigningOff(true);
+    try {
+      const now = new Date().toISOString();
+      await supabase.from("issues").update({
+        publisher_signoff_at: now,
+        publisher_signoff_by: currentUser.id,
+      }).eq("id", issueId);
+      issue.publisherSignoffAt = now;
+      issue.publisherSignoffBy = currentUser.id;
+    } catch (err) {
+      console.error("Publisher signoff failed:", err);
+    }
+    setSigningOff(false);
   };
 
   // ── Send-to-Press readiness checklist ────────────────────────
@@ -573,36 +608,38 @@ export default function IssueLayoutConsole({
                 return (
                   <Btn
                     sm
-                    onClick={() => setPressModalOpen(true)}
-                    disabled={hardBlocked || alreadyShipped}
-                    title={alreadyShipped ? "Already sent to press" : hardBlocked ? "Resolve checklist blockers first" : "Send to Press"}
+                    onClick={markSentToPress}
+                    disabled={hardBlocked || alreadyShipped || pressing}
+                    title={alreadyShipped ? `Sent ${fmtDate(issue.sentToPressAt.slice(0, 10))}` : hardBlocked ? "Resolve checklist blockers first" : "Stamp issue as sent to press"}
                     style={{ width: "100%" }}
                   >
-                    {alreadyShipped ? "✓ Sent to press" : "Send to Press →"}
+                    {pressing ? "Marking…" : alreadyShipped ? `✓ Sent ${fmtDate(issue.sentToPressAt.slice(0, 10))}` : "Mark Sent to Press →"}
                   </Btn>
                 );
               })()}
+              {!issue.sentToPressAt && (
+                <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textAlign: "center", marginTop: 6, lineHeight: 1.4 }}>
+                  Anthony uploads the final PDF directly to the printer's FTP. This stamp records the press date for downstream billing.
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Print runs history */}
-          {printRuns.length > 0 && (
-            <div style={glass}>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 10 }}>Print Runs</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {printRuns.map(r => (
-                  <PrintRunRow
-                    key={r.id}
-                    run={r}
-                    currentUser={currentUser}
-                    issueSales={issueSales}
-                    clients={clients}
-                    onUpdate={(updated) => setPrintRuns(prev => prev.map(x => x.id === updated.id ? updated : x))}
-                  />
-                ))}
+            {/* Publisher / EIC signoff button — surfaces only for those
+                roles when the issue isn't yet signed off. Closes the
+                last hard blocker on the readiness checklist. */}
+            {canPublisherSignoff && !issue.publisherSignoffAt && (
+              <div style={{ marginTop: 8 }}>
+                <Btn
+                  sm
+                  v="secondary"
+                  onClick={signOffIssue}
+                  disabled={signingOff}
+                  style={{ width: "100%" }}
+                >
+                  {signingOff ? "Signing off…" : "✍ Publisher signoff"}
+                </Btn>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div style={glass}>
             <EntityThread
@@ -620,359 +657,12 @@ export default function IssueLayoutConsole({
       </>
       )}
 
-      {/* Send-to-Press modal */}
-      {pressModalOpen && (
-        <SendToPressModal
-          issue={issue}
-          pub={pub}
-          currentUser={currentUser}
-          onClose={() => setPressModalOpen(false)}
-          onSent={(result) => {
-            setPressModalOpen(false);
-            setConfettiVisible(true);
-            setTimeout(() => setConfettiVisible(false), 4000);
-            // Append the new run optimistically
-            if (result?.print_run_id) {
-              supabase.from("print_runs").select("*").eq("id", result.print_run_id).single()
-                .then(({ data }) => { if (data) setPrintRuns(prev => [data, ...prev]); });
-            }
-          }}
-        />
-      )}
-
-      {/* Confetti DOSE moment */}
+      {/* Confetti DOSE moment — fires on Mark Sent to Press */}
       {confettiVisible && <ConfettiBurst />}
     </div>
   );
 }
 
-// ── Print run row with Mark Received + Generate Tearsheets ────
-function PrintRunRow({ run, currentUser, issueSales = [], clients = [], onUpdate }) {
-  const [marking, setMarking] = useState(false);
-  const [genStatus, setGenStatus] = useState(null); // null | "running" | "done" | "error"
-  const [genError, setGenError] = useState(null);
-  const [tearsheetsOpen, setTearsheetsOpen] = useState(false);
-  const isConfirmed = !!run.confirmed_at;
-  const tearsheets = Array.isArray(run.tearsheets) ? run.tearsheets : [];
-  const hasTearsheets = tearsheets.length > 0;
-
-  const markReceived = async () => {
-    if (marking || isConfirmed) return;
-    setMarking(true);
-    try {
-      const { data } = await supabase.from("print_runs").update({
-        confirmed_at: new Date().toISOString(),
-        confirmed_by_email: currentUser?.email || null,
-        status: "confirmed",
-      }).eq("id", run.id).select().single();
-      if (data) onUpdate(data);
-    } catch (err) {
-      console.error("Mark received failed:", err);
-    }
-    setMarking(false);
-  };
-
-  const generateTearsheets = async (force = false) => {
-    if (genStatus === "running") return;
-    setGenStatus("running");
-    setGenError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("not signed in");
-      const res = await fetch(`${EDGE_FN_URL}/generate-tearsheets`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ print_run_id: run.id, force }),
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out?.error || `gen failed: ${res.status}`);
-      // Pull the updated row so we get the persisted tearsheets array
-      const { data } = await supabase.from("print_runs").select("*").eq("id", run.id).single();
-      if (data) onUpdate(data);
-      setGenStatus("done");
-      setTearsheetsOpen(true);
-    } catch (err) {
-      console.error("Generate tearsheets failed:", err);
-      setGenError(err.message || "generation failed");
-      setGenStatus("error");
-    }
-  };
-
-  return (
-    <div style={{
-      padding: "8px 10px", background: Z.bg, borderRadius: Ri,
-      borderLeft: `2px solid ${isConfirmed ? Z.go : Z.ac}`,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-        <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
-          📰 {fmtDate(run.shipped_at?.slice(0, 10))}{run.pdf_size_bytes ? ` · ${(run.pdf_size_bytes / 1048576).toFixed(1)} MB` : ""}
-        </span>
-        <span style={{ fontSize: 9, fontWeight: FW.heavy, color: isConfirmed ? Z.go : Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4 }}>
-          {isConfirmed ? "✓ confirmed" : run.status || "shipped"}
-        </span>
-      </div>
-      {run.pdf_url && (
-        <div style={{ fontSize: 10, fontFamily: COND, marginBottom: 4 }}>
-          <a href={run.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: Z.ac, textDecoration: "none" }}>
-            Download PDF ↗
-          </a>
-        </div>
-      )}
-      {run.press_notes && (
-        <div title={run.press_notes} style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 4 }}>
-          {run.press_notes}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        {!isConfirmed && (
-          <Btn sm v="secondary" onClick={markReceived} disabled={marking} style={{ fontSize: 10, padding: "2px 8px" }}>
-            {marking ? "…" : "Mark received"}
-          </Btn>
-        )}
-        {!hasTearsheets && (
-          <Btn
-            sm v="secondary"
-            onClick={() => generateTearsheets(false)}
-            disabled={genStatus === "running"}
-            title="Split master PDF into per-page tearsheets"
-            style={{ fontSize: 10, padding: "2px 8px" }}
-          >
-            {genStatus === "running" ? "Generating…" : "Generate tearsheets"}
-          </Btn>
-        )}
-        {hasTearsheets && (
-          <button
-            onClick={() => setTearsheetsOpen(o => !o)}
-            style={{ background: "transparent", border: "none", color: Z.ac, fontSize: 10, fontFamily: COND, cursor: "pointer", padding: 0 }}
-          >
-            📑 {tearsheets.length} tearsheet{tearsheets.length === 1 ? "" : "s"} {tearsheetsOpen ? "▾" : "▸"}
-          </button>
-        )}
-      </div>
-      {genError && <div style={{ fontSize: 10, color: Z.da, fontFamily: COND, marginTop: 4 }}>{genError}</div>}
-      {isConfirmed && run.confirmed_at && (
-        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 4 }}>
-          Received {fmtDate(run.confirmed_at.slice(0, 10))}
-        </div>
-      )}
-      {tearsheetsOpen && hasTearsheets && (
-        <div style={{ marginTop: 6, padding: 8, background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
-            {tearsheets.map(t => {
-              // Sales placed on this page that have a client + token —
-              // these are the per-client share targets.
-              const adsOnPage = (issueSales || []).filter(s => s.page === t.page && s.tearsheetToken);
-              return (
-                <div key={t.page} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-                  <a
-                    href={t.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`Page ${t.page} · ${(t.byte_size / 1048576).toFixed(1)} MB`}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 4,
-                      padding: "4px 8px", background: Z.sf, borderRadius: Ri,
-                      textDecoration: "none", color: Z.tx, border: `1px solid ${Z.bd}`,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span>📄</span>
-                    <span style={{ fontSize: 11, fontWeight: FW.bold, fontFamily: COND }}>p{t.page}</span>
-                  </a>
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {adsOnPage.length === 0 ? (
-                      <span style={{ fontSize: 10, color: Z.td, fontFamily: COND, fontStyle: "italic" }}>(no client ads on this page)</span>
-                    ) : adsOnPage.map(s => {
-                      const client = (clients || []).find(c => c.id === s.clientId);
-                      return (
-                        <ClientShareChip key={s.id} client={client} sale={s} />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {currentUser?.role === "Publisher" && (
-            <Btn
-              sm v="ghost"
-              onClick={() => generateTearsheets(true)}
-              disabled={genStatus === "running"}
-              style={{ fontSize: 10, marginTop: 6, color: Z.tm }}
-            >
-              {genStatus === "running" ? "Regenerating…" : "↻ Regenerate"}
-            </Btn>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Client share chip — copy or send the tearsheet portal URL ─
-function ClientShareChip({ client, sale }) {
-  const [copied, setCopied] = useState(false);
-  const [sendOpen, setSendOpen] = useState(false);
-  const url = `${window.location.origin}/tearsheet/${sale.tearsheetToken}`;
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
-      console.error("Copy failed:", err);
-    }
-  };
-  return (
-    <>
-      <span
-        title={`${(client?.name || "Client")} — copy link or send email`}
-        style={{
-          display: "inline-flex", alignItems: "center",
-          background: copied ? Z.go + "20" : Z.sf,
-          border: `1px solid ${copied ? Z.go : Z.bd}`,
-          borderRadius: 999,
-          fontSize: 10, fontFamily: COND, fontWeight: FW.semi,
-          color: copied ? Z.go : Z.ac,
-          overflow: "hidden",
-        }}
-      >
-        <button
-          onClick={copy}
-          title="Copy client tearsheet link"
-          style={{ background: "transparent", border: "none", padding: "2px 8px", cursor: "pointer", color: "inherit", fontSize: 10, fontFamily: COND, fontWeight: FW.semi }}
-        >
-          {copied ? "✓ copied" : `🔗 ${(client?.name || "Client").slice(0, 18)}`}
-        </button>
-        <button
-          onClick={() => setSendOpen(true)}
-          title="Send tearsheet email to client"
-          style={{ background: "transparent", border: "none", borderLeft: `1px solid ${Z.bd}`, padding: "2px 8px", cursor: "pointer", color: Z.ac, fontSize: 10, fontFamily: COND }}
-        >
-          ✉
-        </button>
-      </span>
-      {sendOpen && (
-        <SendTearsheetModal
-          client={client}
-          sale={sale}
-          onClose={() => setSendOpen(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ── Send-tearsheet modal — calls the send-tearsheet edge function ─
-function SendTearsheetModal({ client, sale, onClose }) {
-  const contacts = Array.isArray(client?.contacts) ? client.contacts : [];
-  const defaultEmail = contacts[0]?.email || "";
-  const [recipient, setRecipient] = useState(defaultEmail);
-  const [cc, setCc] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState(null); // { ok } | { error }
-
-  const send = async () => {
-    if (sending || !recipient.trim()) return;
-    setSending(true);
-    setResult(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("not signed in");
-      const res = await fetch(`${EDGE_FN_URL}/send-tearsheet`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sale_id: sale.id,
-          recipient_email: recipient.trim(),
-          cc_emails: cc.trim() || undefined,
-          custom_message: message.trim() || undefined,
-        }),
-      });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out?.error || `send failed: ${res.status}`);
-      setResult({ ok: true });
-      setTimeout(onClose, 1200);
-    } catch (err) {
-      setResult({ error: err.message || "send failed" });
-    }
-    setSending(false);
-  };
-
-  return (
-    <div onClick={() => !sending && onClose()} style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: Z.sf, borderRadius: R, padding: 24, width: 460, maxWidth: "94vw",
-        border: `1px solid ${Z.bd}`,
-      }}>
-        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 4 }}>Send tearsheet</div>
-        <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 14 }}>To {client?.name || "client"} · Page {sale.page}</div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
-            <input
-              type="email"
-              value={recipient}
-              onChange={e => setRecipient(e.target.value)}
-              placeholder="client@example.com"
-              style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
-            />
-            {contacts.length > 1 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                {contacts.slice(0, 5).map((c, i) => c?.email && (
-                  <button
-                    key={i}
-                    onClick={() => setRecipient(c.email)}
-                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
-                  >
-                    {(c.name || c.email).slice(0, 26)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
-            <input
-              type="text"
-              value={cc}
-              onChange={e => setCc(e.target.value)}
-              placeholder="optional"
-              style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
-            <textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="Thanks for advertising with us — let me know if you need any changes for next time."
-              rows={3}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", boxSizing: "border-box", outline: "none", resize: "vertical" }}
-            />
-          </div>
-
-          {result?.error && <div style={{ fontSize: FS.xs, color: Z.da }}>{result.error}</div>}
-          {result?.ok && <div style={{ fontSize: FS.xs, color: Z.go }}>✓ Tearsheet sent</div>}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
-            <Btn sm v="secondary" onClick={onClose} disabled={sending}>Cancel</Btn>
-            <Btn sm onClick={send} disabled={sending || !recipient.trim() || result?.ok}>
-              {sending ? "Sending…" : result?.ok ? "Sent" : "Send tearsheet"}
-            </Btn>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Confetti burst — full-screen DOSE moment on send-to-press ─
 function ConfettiBurst() {

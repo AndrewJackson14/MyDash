@@ -8,6 +8,7 @@ import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
 import { useAppData } from "../../hooks/useAppData";
 import { supabase, EDGE_FN_URL } from "../../lib/supabase";
+import SendTearsheetModal from "../../components/SendTearsheetModal";
 import { fmtTimeRelative } from "../../lib/formatters";
 
 // Shared style for the four header action buttons (Call · Email ·
@@ -35,9 +36,10 @@ function actionBtnStyle(enabled, accent) {
 // flips to ✓ Uploaded immediately. Resilient to no-setSales callers
 // — falls back to a no-op (the page reload will pick up the new
 // tearsheet_url).
-function TearsheetCell({ sale, setSales }) {
+function TearsheetCell({ sale, client, setSales }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false);
   const inputRef = useRef(null);
   const hasTearsheet = !!sale.tearsheetUrl;
   const isImage = sale.tearsheetKind === "image"
@@ -110,6 +112,13 @@ function TearsheetCell({ sale, setSales }) {
             ✓ Tearsheet
           </a>
           <button
+            onClick={() => setSendOpen(true)}
+            title="Email tearsheet link to client"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.ac, fontSize: 11, fontFamily: COND }}
+          >
+            ✉
+          </button>
+          <button
             onClick={triggerPick}
             disabled={uploading}
             title="Replace tearsheet"
@@ -129,6 +138,9 @@ function TearsheetCell({ sale, setSales }) {
         </button>
       )}
       {error && <span style={{ fontSize: 9, color: Z.da, fontFamily: COND }}>{error.slice(0, 40)}</span>}
+      {sendOpen && (
+        <SendTearsheetModal client={client} sale={sale} onClose={() => setSendOpen(false)} />
+      )}
     </span>
   );
 }
@@ -1201,7 +1213,7 @@ const ClientProfile = ({
                       </span>
                     </span>
                     <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <TearsheetCell sale={a} setSales={setSales} />
+                      <TearsheetCell sale={a} client={vc} setSales={setSales} />
                       <span style={{ fontWeight: FW.heavy, color: Z.tx, minWidth: 70, textAlign: "right" }}>${(a.amount || 0).toLocaleString()}</span>
                     </span>
                   </div>)}

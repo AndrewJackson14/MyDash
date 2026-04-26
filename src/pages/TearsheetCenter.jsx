@@ -16,6 +16,7 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, Sel, SB, glass as glassStyle, PageHeader } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate } from "../lib/formatters";
+import SendTearsheetModal from "../components/SendTearsheetModal";
 
 const STATUS_FILTERS = [
   { value: "missing", label: "Missing" },
@@ -198,6 +199,7 @@ export default function TearsheetCenter({ isActive, currentUser, sales, setSales
                       <SaleRow
                         key={s.id}
                         sale={s}
+                        client={(clients || []).find(c => c.id === s.clientId)}
                         clientName={cn(s.clientId)}
                         setSales={setSales}
                       />
@@ -222,9 +224,10 @@ function StatTile({ label, value, color }) {
   );
 }
 
-function SaleRow({ sale, clientName, setSales }) {
+function SaleRow({ sale, client, clientName, setSales }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false);
   const inputRef = useRef(null);
   const hasTearsheet = !!sale.tearsheetUrl;
 
@@ -294,14 +297,23 @@ function SaleRow({ sale, clientName, setSales }) {
       </div>
       {error && <span style={{ fontSize: 10, color: Z.da, fontFamily: COND, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{error}</span>}
       {hasTearsheet && (
-        <a
-          href={sale.tearsheetUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND, fontWeight: FW.semi }}
-        >
-          {sale.tearsheetKind === "image" ? "🖼" : "📄"} View ↗
-        </a>
+        <>
+          <a
+            href={sale.tearsheetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND, fontWeight: FW.semi }}
+          >
+            {sale.tearsheetKind === "image" ? "🖼" : "📄"} View ↗
+          </a>
+          <button
+            onClick={() => setSendOpen(true)}
+            title="Email tearsheet link to client"
+            style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 8px", cursor: "pointer", fontSize: 11, color: Z.ac, fontFamily: COND }}
+          >
+            ✉ Send
+          </button>
+        </>
       )}
       <Btn
         sm
@@ -312,6 +324,9 @@ function SaleRow({ sale, clientName, setSales }) {
       >
         {uploading ? "Uploading…" : hasTearsheet ? "↺ Replace" : "⤴ Upload"}
       </Btn>
+      {sendOpen && (
+        <SendTearsheetModal client={client} sale={sale} onClose={() => setSendOpen(false)} />
+      )}
     </div>
   );
 }
