@@ -241,7 +241,7 @@ export function DataProvider({ children, localData }) {
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
-        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate,commission_payout_frequency';
+        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate,commission_payout_frequency,ooo_from,ooo_until,alerts_mirror_to';
         const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
@@ -282,7 +282,7 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20), commissionPayoutFrequency: t.commission_payout_frequency || 'monthly' })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20), commissionPayoutFrequency: t.commission_payout_frequency || 'monthly', oooFrom: t.ooo_from || null, oooUntil: t.ooo_until || null, alertsMirrorTo: t.alerts_mirror_to || null })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -2541,6 +2541,9 @@ export function DataProvider({ children, localData }) {
       if (changes.rateType !== undefined) db.rate_type = changes.rateType;
       if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
       if (changes.availability !== undefined) db.availability = changes.availability;
+      if (changes.oooFrom !== undefined) db.ooo_from = changes.oooFrom;
+      if (changes.oooUntil !== undefined) db.ooo_until = changes.oooUntil;
+      if (changes.alertsMirrorTo !== undefined) db.alerts_mirror_to = changes.alertsMirrorTo;
       if (Object.keys(db).length) {
         await supabase.from('team_members').update(db).eq('id', id);
         // Audit log for role/permission changes

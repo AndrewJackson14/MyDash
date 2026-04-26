@@ -246,6 +246,10 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
                 </div>
                 {role && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginBottom: 4, fontWeight: FW.semi }}>{role}</div>}
                 {urgencyStyle && <span style={{ display: "inline-block", padding: "1px 6px", background: urgencyStyle.badge.bg, color: urgencyStyle.badge.color, borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3, letterSpacing: 0.5 }}>{urgencyStyle.badge.label}</span>}
+                {note.mirrored_from && (() => {
+                  const mirroredName = (team || []).find(t => t.id === note.mirrored_from)?.name?.split(" ")[0] || "team";
+                  return <span title="OOO mirror — original recipient is out, you're covering" style={{ display: "inline-block", padding: "1px 6px", background: "rgba(99, 102, 241, 0.25)", color: "#a5b4fc", borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3, letterSpacing: 0.5 }}>FOR {mirroredName.toUpperCase()}</span>;
+                })()}
                 {task && <span style={{ display: "inline-block", padding: "1px 6px", background: "rgba(255,180,0,0.25)", color: "#ffcd6b", borderRadius: 3, fontSize: 10, fontWeight: FW.heavy, marginRight: 5, marginBottom: 3 }}>TASK: {task}</span>}
                 <div style={{
                   fontSize: 13, color: "rgba(255,255,255,0.92)", lineHeight: 1.4,

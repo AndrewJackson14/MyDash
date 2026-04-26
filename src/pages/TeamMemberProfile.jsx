@@ -116,7 +116,7 @@ function WorkloadPanel({ member, clients, sales, stories, tickets }) {
 // options (no hard-coding). Each row has: Assigned toggle, rate %, trigger.
 // Rate goes to commission_rates (salesperson_id+publication_id+product_type=null).
 // Trigger goes to salesperson_pub_assignments.commission_trigger.
-function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate, currentUser }) {
+function SettingsPanel({ member, pubs, team, updateTeamMember, salespersonPubAssignments, upsertPubAssignment, deletePubAssignment, commissionRates, upsertCommissionRate, currentUser }) {
   const viewerIsAdmin = !!currentUser?.permissions?.includes?.("admin");
   // Publishers also need to manage team roles + employment type, even without explicit admin permission.
   const viewerCanManageTeam = viewerIsAdmin || currentUser?.role === "Publisher";
@@ -257,6 +257,42 @@ function SettingsPanel({ member, pubs, updateTeamMember, salespersonPubAssignmen
         </div>
       </div>;
     })()}
+
+    {/* May Sim P1.3 — Out of Office + alert mirroring. When this member
+        is OOO between ooo_from and ooo_until, every team_note routed to
+        them gets auto-mirrored to alerts_mirror_to via DB trigger. The
+        backup sees a [for X] chip on each note so they know it's not
+        originally their thread. */}
+    {viewerCanManageTeam && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>Out of Office</div>
+        {(() => {
+          const today = new Date().toISOString().slice(0, 10);
+          const isOoo = member.oooFrom && member.oooUntil && member.oooFrom <= today && today <= member.oooUntil;
+          if (isOoo) return <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, borderRadius: R, padding: "2px 8px", textTransform: "uppercase" }}>OOO Today</span>;
+          if (member.oooFrom && member.oooFrom > today) return <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm }}>Scheduled</span>;
+          return null;
+        })()}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: 8 }}>
+        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>From</div>
+          <Inp type="date" value={member.oooFrom || ""} onChange={e => updateTeamMember?.(member.id, { oooFrom: e.target.value || null })} />
+        </div>
+        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Until</div>
+          <Inp type="date" value={member.oooUntil || ""} onChange={e => updateTeamMember?.(member.id, { oooUntil: e.target.value || null })} />
+        </div>
+        <div style={{ padding: 10, background: Z.sa, borderRadius: R }}>
+          <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase", marginBottom: 4 }}>Mirror Alerts To</div>
+          <Sel value={member.alertsMirrorTo || ""} onChange={e => updateTeamMember?.(member.id, { alertsMirrorTo: e.target.value || null })}
+            options={[{ value: "", label: "— No backup —" }, ...((team || []).filter(t => t.id !== member.id && t.isActive !== false && !t.isHidden).map(t => ({ value: t.id, label: `${t.name} · ${t.role}` })))]} />
+        </div>
+      </div>
+      <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 6 }}>
+        While {member.name?.split(" ")[0] || "this member"} is OOO, incoming messages, signoff requests, and ticket pings will also fire to the backup. Backup can clear the OOO at any time.
+      </div>
+    </div>}
   </div>;
 }
 
@@ -660,7 +696,7 @@ const TeamMemberProfile = ({
         {/* Two-column: Settings (Publication Assignment) + Permissions. Auto-fit
             keeps it 2-col on desktop and stacks to 1-col below ~640px viewport. */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18 }}>
-          <SettingsPanel member={member} pubs={pubs} updateTeamMember={updateTeamMember} salespersonPubAssignments={salespersonPubAssignments} upsertPubAssignment={upsertPubAssignment} deletePubAssignment={deletePubAssignment} commissionRates={commissionRates} upsertCommissionRate={upsertCommissionRate} currentUser={currentUser} />
+          <SettingsPanel member={member} pubs={pubs} team={team} updateTeamMember={updateTeamMember} salespersonPubAssignments={salespersonPubAssignments} upsertPubAssignment={upsertPubAssignment} deletePubAssignment={deletePubAssignment} commissionRates={commissionRates} upsertCommissionRate={upsertCommissionRate} currentUser={currentUser} />
           <PermissionsPanel member={member} updateTeamMember={updateTeamMember} />
         </div>
         <div style={{ borderTop: `1px solid ${Z.bd}30` }} />
