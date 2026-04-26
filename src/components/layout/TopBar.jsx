@@ -58,8 +58,8 @@ export default function TopBar({
       data-shell="v2"
       style={{
         height: 64,
-        background: Z.bgChrome,
-        borderBottom: `1px solid ${Z.borderSubtle}`,
+        background: "var(--paper)",
+        borderBottom: `1px solid ${"var(--rule)"}`,
         display: "flex",
         alignItems: "center",
         padding: "0 24px",
@@ -67,7 +67,7 @@ export default function TopBar({
         position: "sticky",
         top: 0,
         zIndex: 30,
-        fontFamily: FONT.sans,
+        fontFamily: "var(--font-body)",
       }}
     >
       {/* Back button — pre-breadcrumb, for pages that haven't published
@@ -81,16 +81,16 @@ export default function TopBar({
             display: "flex", alignItems: "center", gap: 4,
             background: "transparent", border: "none",
             cursor: "pointer",
-            color: Z.fgSecondary,
+            color: "var(--ink)",
             fontSize: 13, fontWeight: 500,
             padding: "6px 10px",
             borderRadius: RADII.sm,
-            fontFamily: FONT.sans,
+            fontFamily: "var(--font-body)",
             flexShrink: 0,
             transition: `background-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = Z.bgHover; e.currentTarget.style.color = Z.fgPrimary; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.fgSecondary; }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-soft)"; e.currentTarget.style.color = "var(--ink)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--ink)"; }}
         >
           <Ic.back size={14} /> Back
         </button>
@@ -103,13 +103,13 @@ export default function TopBar({
             const last = i === header.breadcrumb.length - 1;
             return (
               <span key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {i > 0 && <span style={{ color: Z.borderStrong, fontSize: 12 }}>›</span>}
+                {i > 0 && <span style={{ color: "var(--rule)", fontSize: 12 }}>›</span>}
                 <span
                   onClick={c.onClick}
                   style={{
                     fontSize: 13,
                     fontWeight: 500,
-                    color: last ? Z.fgPrimary : Z.fgMuted,
+                    color: last ? "var(--ink)" : "var(--muted)",
                     cursor: c.onClick ? "pointer" : "default",
                   }}
                 >
@@ -127,13 +127,13 @@ export default function TopBar({
           style={{
             fontSize: 20,
             fontWeight: 600,
-            color: Z.fgPrimary,
+            color: "var(--ink)",
             letterSpacing: "-0.02em",
             margin: 0,
             paddingLeft: header.breadcrumb?.length ? 16 : 0,
             marginLeft: header.breadcrumb?.length ? 8 : 0,
-            borderLeft: header.breadcrumb?.length ? `1px solid ${Z.borderSubtle}` : "none",
-            fontFamily: FONT.display,
+            borderLeft: header.breadcrumb?.length ? `1px solid ${"var(--rule)"}` : "none",
+            fontFamily: "var(--font-body)",
             lineHeight: 1,
             whiteSpace: "nowrap",
           }}
@@ -144,7 +144,7 @@ export default function TopBar({
 
       {/* Search */}
       <div style={{ flex: 1, maxWidth: 480, marginLeft: "auto", position: "relative" }}>
-        <div style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: Z.fgMuted, pointerEvents: "none", display: "flex" }}>
+        <div style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none", display: "flex" }}>
           <Ic.search size={14} />
         </div>
         <input
@@ -163,7 +163,7 @@ export default function TopBar({
             padding: "0 44px 0 36px",
             fontSize: 13,
             outline: "none",
-            fontFamily: FONT.sans,
+            fontFamily: "var(--font-body)",
             transition: `box-shadow ${DUR.fast}ms ${EASE}`,
           }}
           onFocus={(e) => { e.currentTarget.style.boxShadow = "0 0 0 3px rgba(72,107,149,0.18)"; }}
@@ -177,12 +177,12 @@ export default function TopBar({
             transform: "translateY(-50%)",
             fontSize: 10.5,
             fontWeight: 500,
-            color: Z.fgMuted,
+            color: "var(--muted)",
             padding: "3px 6px",
-            background: Z.bgChrome,
-            border: `1px solid ${Z.borderSubtle}`,
+            background: "var(--paper)",
+            border: `1px solid ${"var(--rule)"}`,
             borderRadius: RADII.xs,
-            fontFamily: FONT.mono,
+            fontFamily: "var(--font-mono)",
           }}
         >
           ⌘K
@@ -207,7 +207,7 @@ export default function TopBar({
                 borderRadius: RADII.md,
                 border: "1px solid transparent",
                 background: "transparent",
-                color: Z.fgSecondary,
+                color: "var(--ink)",
                 cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: `all ${DUR.fast}ms ${EASE}`,
@@ -218,14 +218,14 @@ export default function TopBar({
               {unreadCount > 0 && (
                 <span style={{
                   position: "absolute", top: 4, right: 4,
-                  background: "#d64545", color: INV.light,
+                  background: "var(--accent)", color: INV.light,
                   fontSize: 9, fontWeight: 800,
                   borderRadius: 8,
                   minWidth: 14, height: 14,
                   padding: "0 4px",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   lineHeight: 1,
-                  fontFamily: FONT.sans,
+                  fontFamily: "var(--font-body)",
                 }}>{unreadCount}</span>
               )}
             </button>
@@ -237,24 +237,24 @@ export default function TopBar({
                   right: 0, top: 44,
                   width: 340, maxHeight: 420,
                   overflowY: "auto",
-                  background: Z.bgChrome,
-                  border: `1px solid ${Z.borderSubtle}`,
+                  background: "var(--paper)",
+                  border: `1px solid ${"var(--rule)"}`,
                   borderRadius: RADII.md,
-                  boxShadow: Z.glassShadow,
+                  boxShadow: "none",
                   zIndex: 9999,
-                  fontFamily: FONT.sans,
+                  fontFamily: "var(--font-body)",
                 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${Z.borderSubtle}` }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: Z.fgPrimary }}>My Alerts</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${"var(--rule)"}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>My Alerts</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllRead}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: Z.fgAccent, textDecoration: "underline", textUnderlineOffset: 3, padding: 0 }}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 3, padding: 0 }}
                       >Mark all read</button>
                     )}
                   </div>
                   {(notifications || []).length === 0 && (
-                    <div style={{ padding: "20px 16px", textAlign: "center", color: Z.fgMuted, fontSize: 12 }}>No alerts</div>
+                    <div style={{ padding: "20px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>No alerts</div>
                   )}
                   {[...(notifications || [])]
                     .sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1))
@@ -268,13 +268,13 @@ export default function TopBar({
                         }}
                         style={{
                           padding: "10px 16px",
-                          borderBottom: `1px solid ${Z.borderSubtle}`,
+                          borderBottom: `1px solid ${"var(--rule)"}`,
                           cursor: n.route ? "pointer" : "default",
-                          background: n.read ? "transparent" : Z.bgActive,
+                          background: n.read ? "transparent" : "var(--accent-soft)",
                         }}
                       >
-                        <div style={{ fontSize: 13, color: n.read ? Z.fgMuted : Z.fgPrimary, fontWeight: n.read ? 400 : 600 }}>{n.text}</div>
-                        <div style={{ fontSize: 11, color: Z.fgMuted, marginTop: 3 }}>{n.time}</div>
+                        <div style={{ fontSize: 13, color: n.read ? "var(--muted)" : "var(--ink)", fontWeight: n.read ? 400 : 600 }}>{n.text}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>{n.time}</div>
                       </div>
                     ))}
                 </div>
@@ -292,7 +292,7 @@ export default function TopBar({
               borderRadius: RADII.md,
               border: "1px solid transparent",
               background: "transparent",
-              color: Z.fgSecondary,
+              color: "var(--ink)",
               cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: `all ${DUR.fast}ms ${EASE}`,
@@ -308,15 +308,15 @@ export default function TopBar({
             style={{
               width: 32, height: 32,
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #486b95, #2c465e)",
+              background: "var(--ink)",
               color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
               letterSpacing: "-0.01em",
-              border: `2px solid ${Z.bgChrome}`,
-              outline: `1px solid ${Z.borderSubtle}`,
+              border: `2px solid ${"var(--paper)"}`,
+              outline: `1px solid ${"var(--rule)"}`,
               transition: `outline-color ${DUR.fast}ms ${EASE}`,
             }}
           >

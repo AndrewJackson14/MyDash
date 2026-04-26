@@ -70,22 +70,22 @@ export default function Sidebar({
           position: "absolute",
           top: 0, left: 0, bottom: 0,
           width: expanded ? 240 : 64,
-          background: Z.bgChrome,
-          borderRight: `1px solid ${Z.borderSubtle}`,
+          background: "var(--paper)",
+          borderRight: `1px solid ${"var(--rule)"}`,
           display: "flex",
           flexDirection: "column",
           transition: `width ${DUR.slow}ms ${EASE}, box-shadow ${DUR.med}ms ${EASE}`,
           zIndex: 40,
           overflow: "hidden",
           boxShadow: (hovered && !pinned) ? Z.glassShadow : "none",
-          fontFamily: FONT.sans,
+          fontFamily: "var(--font-body)",
         }}
       >
         {/* Brand */}
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
           padding: 16, height: 64, flexShrink: 0,
-          borderBottom: `1px solid ${Z.borderSubtle}`,
+          borderBottom: `1px solid ${"var(--rule)"}`,
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: RADII.sm,
@@ -112,7 +112,7 @@ export default function Sidebar({
               alt="MyDash"
               style={{ height: 22, width: "auto", objectFit: "contain" }}
             />
-            <div style={{ fontSize: 10, color: Z.fgMuted, lineHeight: 1.2, letterSpacing: 0.3 }}>13 Stars Media</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.2, letterSpacing: 0.3 }}>13 Stars Media</div>
           </div>
         </div>
 
@@ -146,7 +146,7 @@ export default function Sidebar({
 
         {/* Footer: pin toggle + theme toggle + user pill + admin switcher */}
         <div style={{
-          borderTop: `1px solid ${Z.borderSubtle}`,
+          borderTop: `1px solid ${"var(--rule)"}`,
           flexShrink: 0,
           padding: 8,
           display: "flex", flexDirection: "column", gap: 4,
@@ -159,12 +159,12 @@ export default function Sidebar({
               display: "flex", alignItems: "center",
               height: 36, padding: "0 12px",
               borderRadius: 10, cursor: "pointer",
-              color: pinned ? Z.fgAccent : Z.fgMuted,
+              color: pinned ? "var(--accent)" : "var(--muted)",
               fontSize: 13,
               transition: `background-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
               whiteSpace: "nowrap",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = Z.bgHover; }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-soft)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
           >
             <span style={{ width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -196,19 +196,19 @@ export default function Sidebar({
               transition: `background-color ${DUR.fast}ms ${EASE}`,
               justifyContent: expanded ? "flex-start" : "center",
             }}
-            onMouseEnter={e => e.currentTarget.style.background = Z.bgHover}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--accent-soft)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <div style={{
               width: 28, height: 28, borderRadius: "50%",
               background: impersonating
-                ? (SIGNAL.warning + "30")
-                : "linear-gradient(135deg, #486b95, #2c465e)",
-              color: impersonating ? SIGNAL.warning : "#fff",
+                ? ("color-mix(in srgb, var(--warn) 18%, transparent)")
+                : "var(--ink)",
+              color: impersonating ? "var(--warn)" : "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
-              border: impersonating ? `1px solid ${SIGNAL.warning}` : `2px solid ${Z.bgChrome}`,
-              outline: `1px solid ${Z.borderSubtle}`,
+              border: impersonating ? `1px solid ${"var(--warn)"}` : `2px solid ${"var(--paper)"}`,
+              outline: `1px solid ${"var(--rule)"}`,
               fontSize: 11, fontWeight: 600,
               letterSpacing: "-0.01em",
             }}>{impersonating ? "!" : userInitials}</div>
@@ -216,10 +216,10 @@ export default function Sidebar({
               <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                 <div title={currentUser?.name || "User"} style={{
                   fontSize: 12, fontWeight: 600,
-                  color: impersonating ? SIGNAL.warning : Z.fgPrimary,
+                  color: impersonating ? "var(--warn)" : "var(--ink)",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>{currentUser?.name || "User"}</div>
-                <div title={currentUser?.role || ""} style={{ fontSize: 11, color: Z.fgMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser?.role || ""}</div>
+                <div title={currentUser?.role || ""} style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentUser?.role || ""}</div>
               </div>
             )}
             {expanded && isAdmin && (
@@ -228,7 +228,7 @@ export default function Sidebar({
                 title="Switch role view"
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  color: showSwitcher ? SIGNAL.warning : Z.fgMuted,
+                  color: showSwitcher ? "var(--warn)" : "var(--muted)",
                   fontSize: 14, padding: 2,
                 }}
               >⚙</button>
@@ -240,18 +240,18 @@ export default function Sidebar({
             <div style={{
               margin: "4px 0 2px",
               padding: 8,
-              background: Z.bgCanvas,
+              background: "var(--paper)",
               borderRadius: RADII.md,
-              border: `1px solid ${Z.borderSubtle}`,
+              border: `1px solid ${"var(--rule)"}`,
               maxHeight: 240, overflowY: "auto",
             }}>
               <div style={{
                 fontSize: 10, fontWeight: 700,
-                color: Z.fgMuted,
+                color: "var(--muted)",
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 marginBottom: 6,
-                fontFamily: FONT.sans,
+                fontFamily: "var(--font-body)",
               }}>View As</div>
               {impersonating && (
                 <button
@@ -260,11 +260,11 @@ export default function Sidebar({
                     display: "block", width: "100%",
                     padding: "6px 8px", marginBottom: 4,
                     borderRadius: RADII.sm,
-                    border: `1px solid ${SIGNAL.success}`,
-                    background: SIGNAL.success + "15",
+                    border: `1px solid ${"var(--ok)"}`,
+                    background: "color-mix(in srgb, var(--ok) 8%, transparent)",
                     cursor: "pointer",
-                    fontSize: 11, fontWeight: 600, color: SIGNAL.success,
-                    textAlign: "left", fontFamily: FONT.sans,
+                    fontSize: 11, fontWeight: 600, color: "var(--ok)",
+                    textAlign: "left", fontFamily: "var(--font-body)",
                   }}
                 >↩ Back to Admin</button>
               )}
@@ -278,15 +278,15 @@ export default function Sidebar({
                       display: "block", width: "100%",
                       padding: "6px 8px", marginBottom: 2,
                       borderRadius: RADII.sm, border: "none",
-                      background: isSelected ? (SIGNAL.warning + "20") : "transparent",
+                      background: isSelected ? ("color-mix(in srgb, var(--warn) 12%, transparent)") : "transparent",
                       cursor: "pointer",
                       fontSize: 11, fontWeight: 500,
-                      color: isSelected ? SIGNAL.warning : Z.fgSecondary,
-                      textAlign: "left", fontFamily: FONT.sans,
+                      color: isSelected ? "var(--warn)" : "var(--ink)",
+                      textAlign: "left", fontFamily: "var(--font-body)",
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = Z.bgHover; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? (SIGNAL.warning + "20") : "transparent"; }}
-                  >{t.name} <span style={{ color: Z.fgMuted, fontWeight: 400 }}>· {t.role}</span></button>
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-soft)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? ("color-mix(in srgb, var(--warn) 12%, transparent)") : "transparent"; }}
+                  >{t.name} <span style={{ color: "var(--muted)", fontWeight: 400 }}>· {t.role}</span></button>
                 );
               })}
             </div>
