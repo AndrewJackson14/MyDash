@@ -134,9 +134,20 @@
   --accent:      #C8301E;                    /* Hot accent — alerts, danger, caution affordances ONLY */
   --accent-soft: rgba(200, 48, 30, 0.08);    /* Alert wash */
   --action:      #2C465E;                    /* Primary action — navy blue (buttons, active tabs, charts) */
-  --action-soft: rgba(44, 70, 94, 0.10);     /* Hover wash, selected row */
+  --action-soft: rgba(44, 70, 94, 0.10);     /* Selected row, navy wash */
   --ok:          #3B6B3B;                    /* Success only */
   --warn:        #B8860B;                    /* Caution */
+
+  /* ── Steel Office canvas + hover wash (v2 2026-04-26) ────────
+     Steel becomes the primary canvas tone; paper retreats to
+     long-form/article views (opt-in via [data-surface="paper"]). */
+  --canvas:      #f0f4f9;                    /* steel-50 — page canvas (light) */
+  --hover-wash:  rgba(219, 228, 239, 0.45);  /* steel-100 @ 45% — replaces opacity:0.88 */
+  --active-wash: rgba(184, 201, 222, 0.55);  /* steel-200 @ 55% — pressed state */
+
+  /* Glass blur — applied via @supports guard. saturate keeps colors
+     under glass from washing out; 20px is the v2 spec. */
+  --md-glass-blur: saturate(180%) blur(20px);
 
   /* Type families */
   --font-display: 'Cormorant Garamond', Georgia, serif;
@@ -227,6 +238,11 @@
   --ok:          #7BA77B;
   --warn:        #D4A93C;
 
+  /* Steel Office — dark canvas + dark wash (v2) */
+  --canvas:      #142433;                    /* steel-900 — page canvas (dark) */
+  --hover-wash:  rgba(31, 52, 72, 0.55);     /* steel-800 @ 55% */
+  --active-wash: rgba(20, 36, 51, 0.65);     /* steel-900 @ 65% */
+
   /* Elevation — input inset uses the dark ink-on-paper relationship */
   --elev-input: inset 0 1px 2px rgba(0, 0, 0, 0.20);
 }
@@ -280,8 +296,16 @@ body {
   font-weight: var(--weight-body);
   line-height: var(--lh-body);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--canvas);                 /* v2: steel canvas (was --paper) */
   font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Long-form opt-in — pages that should keep the paper register
+   (StoryEditor, full-article views, EblastComposer preview, etc.)
+   set [data-surface="paper"] on their root container to scope
+   paper background back over the steel canvas. */
+[data-surface="paper"] {
+  background: var(--paper);
 }
 
 /* Display headings — Cormorant 600 by default. Never below 28px. */
@@ -355,10 +379,10 @@ code, kbd, samp, pre,
 }
 
 /* ── Paper grain overlay ──────────────────────────────────────
-   Fixed to the viewport, pointer-events: none. Sits below all
-   interactive content. Visible if you look for it; load-bearing
-   if you remove it. The SVG itself is in public/grain.svg
-   (~3 KB, gzipped to ~1 KB). */
+   Fixed to the viewport, pointer-events: none. v2: opacity dropped
+   from 0.02 → 0.015 (light) and 0.04 → 0.03 (dark) so the grain
+   reads as quiet paper-tone texture on the new cool steel canvas
+   without competing with the steel itself. */
 body::before {
   content: "";
   position: fixed;
@@ -368,13 +392,11 @@ body::before {
   background-image: url("/grain.svg");
   background-size: 200px 200px;
   background-repeat: repeat;
-  opacity: 0.02;
+  opacity: 0.015;
   mix-blend-mode: multiply;
 }
 [data-theme="dark"] body::before {
-  /* Dark mode: lift the grain slightly with a screen blend so it
-     reads as paper texture, not muddy. */
-  opacity: 0.04;
+  opacity: 0.03;
   mix-blend-mode: screen;
 }
 
@@ -385,26 +407,34 @@ body::before {
 }
 
 
-/* ── Hover & focus — Press Room restraint ────────────────────
-   No transform: scale, no box-shadow glow. Press Room buttons
-   acknowledge a hover with a 5% opacity fade and rely on the
-   focus-visible ring for accessibility. */
+/* ── Hover & focus — Steel Office wash (v2) ──────────────────
+   The previous opacity:0.88 rule read like a glitch on dark themes
+   and flattened the chrome. Replaced with a steel-tinted background
+   wash that costs zero layout and reads like a tool. Filled-variant
+   buttons (primary, danger, success, warning) override this with
+   their own inset-darken in btnVariants — see Primitives.jsx §Btn.
+
+   Selectors match the v2 spec: every interactive element except
+   inputs (which carry their own focus treatment). */
 button, [role="button"], a, select, input, textarea {
   outline: none;
   transition:
-    opacity   var(--dur-fast) var(--ease),
-    background var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color     var(--dur-fast) var(--ease),
+    color            var(--dur-fast) var(--ease);
 }
 
 button:hover:not(:disabled),
-[role="button"]:hover:not([aria-disabled="true"]) {
-  opacity: 0.88;
+[role="button"]:hover:not([aria-disabled="true"]),
+a.press-link:hover,
+[data-hoverable]:hover {
+  background-color: var(--hover-wash);
 }
 
 button:active:not(:disabled),
-[role="button"]:active:not([aria-disabled="true"]) {
-  opacity: 0.78;
+[role="button"]:active:not([aria-disabled="true"]),
+[data-hoverable]:active {
+  background-color: var(--active-wash);
 }
 
 /* Focus-visible — hairline action ring, no glow. */
@@ -423,7 +453,7 @@ tbody tr {
   transition: background var(--dur-fast) var(--ease);
 }
 tbody tr:hover {
-  background: var(--action-soft) !important;
+  background: var(--hover-wash) !important;
 }
 
 
@@ -635,6 +665,31 @@ tbody tr td {
    (wheel + touch still work) so narrow viewports can still reach
    everything in the sidebar; only the visible bar is gone. */
 .shell-v2-hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ── Glass surface fallback (v2) ──────────────────────────────
+   Surfaces that consume the `glass()` mixin in Primitives.jsx get
+   the glass treatment when the browser supports backdrop-filter.
+   Browsers without it fall back to a near-opaque tinted surface
+   so the chrome still reads as elevated, just without the blur.
+   Layout components apply [data-glass] to participate. */
+[data-glass] {
+  background: var(--md-glass-bg);
+  border: 1px solid var(--md-glass-border);
+}
+@supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
+  [data-glass] {
+    backdrop-filter: var(--md-glass-blur);
+    -webkit-backdrop-filter: var(--md-glass-blur);
+  }
+}
+@supports not ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+  [data-glass] {
+    background: rgba(255, 255, 255, 0.92);
+  }
+  [data-theme="dark"] [data-glass] {
+    background: rgba(18, 22, 27, 0.95);
+  }
+}
 
 /* Shell v2 — modal entry keyframes (consumed by the Modal
    primitive in Primitives.jsx via inline animation:). */

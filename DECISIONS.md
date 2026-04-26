@@ -4,6 +4,45 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-26] UI Refresh v2 — Steel Office layer (checkpoint 1: tokens only)
+
+- **Context:** Spec at `docs/ui-refresh/01-direction-decisions-v2.md` adds the missing "modern CRM/infrastructure" register to the Press Room v1 work — steel canvas, hover wash, glass on chrome. Three checkpoints, this commit covers checkpoint 1 (tokens + global.css + theme.js only; no component changes yet).
+- **Decision:** Implemented every checkbox under "Tokens (src/styles/global.css)" and "src/lib/theme.js" verbatim from the v2 doc. Body background flips from `var(--paper)` to `var(--canvas)` (steel-50 light / steel-900 dark). Paper register opts in via `[data-surface="paper"]`. `--hover-wash` and `--active-wash` replace the `opacity: 0.88` global hover rule. `--md-glass-blur` and `[data-glass]` `@supports`-guarded selector land but no component consumes them yet.
+- **Alternatives considered:** None for the bulk — the v2 doc was specific. The two judgment calls noted below.
+- **Why:** Stop point 1 is explicit: "Don't touch any components yet. Run the app, take a screenshot of the Today/dashboard page in light and dark mode, and report back." So component-level work (glass on Sidebar/TopBar/MetadataStrip, FloatingPanel primitive, Card inset highlight) explicitly waits for checkpoint 2 approval.
+- **Status:** Awaiting Andrew's review of the canvas tone in light + dark before checkpoint 2 begins.
+
+### Branch lineage deviation
+
+- **Spec said:** "Branch: ui-refresh/v2-steel-glass off ui-refresh/main."
+- **What I did:** Branched off `main` instead.
+- **Why:** `ui-refresh/main` and `main` had diverged because earlier phases were cherry-picked to `main` rather than merge-merged. `ui-refresh/main` was 9 commits behind `main` (missing the Phase-4 primitives, Phase-5 Z proxy, Phase-6 motion, Phase-7 QA report, the action-blue work, the TopBar consolidation, and the single-header collapse). Branching off `ui-refresh/main` would have cut v2 work against an outdated baseline. `main` is the canonical post-v1 state.
+
+### Z.bgChrome — token vs intent
+
+- **Spec said:** Update `Z.bgChrome` to point at the new steel canvas value.
+- **What I did:** Set both `Z.bgCanvas` and `Z.bgChrome` to `#f0f4f9` (light) / `#142433` (dark).
+- **Caveat:** In v2, chrome surfaces (Sidebar, TopBar, MetadataStrip) will not actually use `Z.bgChrome` — they'll consume the `glass()` mixin instead. So `Z.bgChrome` becomes a fallback / non-glass-render value. Flagging because the literal hex on `Z.bgChrome` is now load-bearing only for components that don't migrate to glass in checkpoint 2.
+
+### `[data-glass]` selector convention
+
+- **Spec said:** "Every glass surface includes a fallback" — gave the recipe but not the hook.
+- **What I did:** Used a `[data-glass]` attribute selector inside the `@supports` block. Components opt in by adding `data-glass` to their root element.
+- **Alternatives considered:** A `.glass-surface` class (the spec's example), or scoping inside the `glass()` mixin's inline-style return. Picked the data-attribute because (a) it composes cleanly with React inline styles without adding className handling, (b) keeps the fallback in CSS where the cascade can win over inline styles when the browser flag misses, (c) lets us grep for opt-in in Phase 7 QA.
+
+### `tbody tr:hover` updated alongside
+
+- **Spec said:** Hover applies to "table rows" — listed in the global rule selectors.
+- **What I did:** Also updated the existing `tbody tr:hover` `!important` rule (was `var(--action-soft)`) to `var(--hover-wash)` so table rows match every other interactive surface.
+- **Why:** The selector is too specific to be replaced by the global rule (the existing `!important` would override the global anyway). Flipping it to the same wash keeps the hover language consistent.
+
+### Paper grain opacity values
+
+- **Spec said:** `0.015` light, `0.03` dark.
+- **What I did:** Verbatim. Flagging because this is half the previous value (was 0.02 / 0.04). The grain becomes barely-perceptible on cool steel — load-bearing if you remove it but invisible if you're looking for it. Andrew's call on the v2 doc is explicit.
+
+---
+
 ## [2026-04-17] Snapshot rep + contract attribution onto invoices (migration 047)
 
 - **Context:** Billing › Reports › Rep Collections (and Sales Perf, AR Aging) attributed all rep credit through `clients.rep_id`. When a client was reassigned, every historical sale and invoice silently re-credited to the new rep — there was no record of who actually closed/billed the deal. `sales` and `contracts` already carried `assigned_to`; `invoices` did not.
