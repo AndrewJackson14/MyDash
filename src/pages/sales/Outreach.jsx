@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, GlassCard, GlassStat, SolidTabs, glass } from "../../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, Card, SB, TB, Stat, Modal, GlassCard, GlassStat, SolidTabs, glass, cardSurface } from "../../components/ui";
 
 import { fmtCurrencyWhole as fmtCurrency } from "../../lib/formatters";
 import { sendGmailEmail, initiateGmailAuth } from "../../lib/gmail";
@@ -242,7 +242,7 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
             const contacted = cEntries.filter(e => e.status !== "queued" && e.status !== "skipped").length;
             const wonBack = cEntries.filter(e => e.status === "won_back").length;
             const pctContacted = c.clientCount > 0 ? Math.round((contacted / c.clientCount) * 100) : 0;
-            return <div key={c.id} onClick={() => { setSelCampaign(c); setView("detail"); setEntryFilter("all"); setSearch(""); }} style={{ ...glass(), borderRadius: R, padding: 16, cursor: "pointer", borderLeft: `3px solid ${c.status === "active" ? Z.go : c.status === "completed" ? Z.ac : Z.bd}` }}>
+            return <div key={c.id} onClick={() => { setSelCampaign(c); setView("detail"); setEntryFilter("all"); setSearch(""); }} style={{ ...cardSurface(), borderRadius: R, padding: 16, cursor: "pointer", borderLeft: `3px solid ${c.status === "active" ? Z.go : c.status === "completed" ? Z.ac : Z.bd}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{c.name}</div>
@@ -345,7 +345,7 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
         {filteredEntries.slice(0, 100).map(e => {
           const client = (clients || []).find(c => c.id === e.clientId);
           const data = clientSalesData[e.clientId] || {};
-          return <div key={e.id} style={{ ...glass(), borderRadius: R, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `3px solid ${statusColor(e.status)}` }}>
+          return <div key={e.id} style={{ ...cardSurface(), borderRadius: R, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `3px solid ${statusColor(e.status)}` }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, cursor: "pointer" }} onClick={() => navTo?.("Clients", e.clientId)}>{client?.name || "—"}</span>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, cardSurface } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
 import { fmtDate, fmtCurrency, daysUntil } from "../lib/formatters";
 
@@ -280,7 +280,7 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
               {colJobs.map(j => {
                 const due = daysUntil(j.dueDate);
                 const isOverdue = due !== null && due < 0;
-                return <div key={j.id} onClick={() => setViewId(j.id)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer", border: `1px solid ${isOverdue ? Z.da : Z.bd}`, transition: "border-color 0.1s" }} onMouseOver={e => e.currentTarget.style.borderColor = col.color} onMouseOut={e => e.currentTarget.style.borderColor = isOverdue ? Z.da : Z.bd}>
+                return <div key={j.id} onClick={() => setViewId(j.id)} style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, cursor: "pointer", border: `1px solid ${isOverdue ? Z.da : Z.bd}`, transition: "border-color 0.1s" }} onMouseOver={e => e.currentTarget.style.borderColor = col.color} onMouseOut={e => e.currentTarget.style.borderColor = isOverdue ? Z.da : Z.bd}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <span style={{ fontSize: FS.md }}>{TYPE_ICONS[j.jobType] || "📦"}</span>
                     <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.su }}>{fmtCurrency(j.quotedAmount)}</span>

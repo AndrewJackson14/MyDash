@@ -3,7 +3,7 @@
 // Shows ad sales, editorial, production, revenue for one issue
 // ============================================================
 import { Z, DARK, COND, DISPLAY, R, Ri, FS, FW, ACCENT, INV } from "../lib/theme";
-import { Ic, Btn, Badge, GlassCard, glass } from "../components/ui";
+import { Ic, Btn, Badge, GlassCard, glass, cardSurface } from "../components/ui";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 
 const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, onNavigate }) => {
@@ -103,7 +103,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
     {/* ═══ PROGRESS STRIP — 4 equal cards ═══ */}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
       {/* Ads */}
-      <div onClick={() => onNavigate("sales")} style={{ ...glass(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${adPct >= 80 ? Z.go : adPct >= 50 ? Z.wa : Z.tm}` }}>
+      <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${adPct >= 80 ? Z.go : adPct >= 50 ? Z.wa : Z.tm}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Ads Sold</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: adPct >= 80 ? Z.go : adPct >= 50 ? Z.wa : Z.tx }}>{closedAds.length}/{totalSlots}</span>
@@ -113,7 +113,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
       </div>
 
       {/* Editorial */}
-      <div onClick={() => onNavigate("editorial")} style={{ ...glass(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${editPct >= 80 ? Z.go : editPct >= 50 ? ACCENT.blue : Z.wa}` }}>
+      <div onClick={() => onNavigate("editorial")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${editPct >= 80 ? Z.go : editPct >= 50 ? ACCENT.blue : Z.wa}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Editorial</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: editPct >= 80 ? Z.go : ACCENT.blue }}>{issStories.filter(s => !["Draft", "Needs Editing"].includes(s.status)).length}/{issStories.length}</span>
@@ -122,7 +122,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
       </div>
 
       {/* Revenue vs Goal */}
-      <div onClick={() => onNavigate("sales")} style={{ ...glass(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${revPct >= 80 ? Z.go : revPct >= 50 ? Z.wa : Z.da}` }}>
+      <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${revPct >= 80 ? Z.go : revPct >= 50 ? Z.wa : Z.da}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Revenue</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.go }}>{fmtCurrency(adRev)}</span>
@@ -134,7 +134,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
       </div>
 
       {/* Pipeline */}
-      <div onClick={() => onNavigate("sales")} style={{ ...glass(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${Z.wa}` }}>
+      <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${Z.wa}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Pipeline</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.wa }}>{fmtCurrency(pipelineRev)}</span>

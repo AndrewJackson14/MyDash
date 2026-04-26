@@ -70,7 +70,7 @@ export default function Performance({ sales, clients, stories, issues, adProject
     return `${fmt(data.range.start)} \u2014 ${fmt(new Date(data.range.end.getTime() - 1))}`;
   }, [data.range]);
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+  return <div data-surface="paper" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
       <Sel value={teamFilter} onChange={e => setTeamFilter(e.target.value)} options={teamOptions} />

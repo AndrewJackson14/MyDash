@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ZI } from "../lib/theme";
-import { Ic, Btn, Inp, Card, glass } from "../components/ui";
+import { Ic, Btn, Inp, Card, glass, cardSurface } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 
@@ -136,7 +136,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
         </div>
 
         {/* Gmail Connection */}
-        <div style={{ ...glass(), borderRadius: R, padding: 16 }}>
+        <div style={{ ...cardSurface(), borderRadius: R, padding: 16 }}>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Gmail Connection</div>
           {gmailStatus === null ? (
             <div style={{ fontSize: FS.sm, color: Z.tm }}>Checking...</div>

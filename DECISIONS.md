@@ -81,6 +81,61 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-26] UI Refresh v2 — Steel Office layer (checkpoint 3: paper opt-ins, popover glass, sticky table glass, modal backdrop)
+
+- **Context:** Stop point 3 of `01-direction-decisions-v2.md`. Apply `data-surface="paper"` to approved page roots from the audit at `docs/ui-refresh/03-paper-surfaces.md`, migrate the floating popovers and sticky table headers to glass, and update the Modal backdrop to the v2 recipe.
+- **Decision:** Implemented Andrew's approval ("Commit") on the paper-surface audit verbatim — all 14 recommended candidates received the attribute, the 4 edge cases (Mail, MerchShop, AdProjects detail, IssueDetail) stayed steel. GmailNotifPopover and NotificationPopover migrated to the glass mixin; their toast text colors flipped from hardcoded `#fff` to `var(--ink)` so they theme-flip. DataTable thead became sticky-glass (`position: sticky; top: 0` + glass background + `--md-glass-blur`). Modal backdrop became `rgba(20, 18, 14, 0.45)` + 8px blur per spec.
+
+### Critical QA-discovered regression: page-level `...glass()` callsites
+
+- **Found via QA grep checklist** (item 2: "every glass() call site should resolve to the new mixin, not the neutered hairline-card recipe"). About 30 inline `...glass()` callsites lived in page modules (Publications, DashboardV2, ServiceDesk, CreativeJobs, ProfilePanel, IssueDetail, IssueSchedule, SalesCRM, Flatplan, sales/ClientSignals, sales/Outreach). When checkpoint 2 restored `glass()` to the real Steel-Office recipe, these all became real glass — which the v2 spec explicitly forbids ("Glass is reserved for floating chrome, not in-flow content cards").
+- **Fix:** Added a `cardSurface()` helper to Primitives.jsx that returns the v2 content-card recipe (`var(--card)` bg + `var(--rule)` border + `var(--card-highlight)` inset). Sed-swept `...glass()` → `...cardSurface()` across the 11 affected page files. Each file's import line updated to add `cardSurface` alongside `glass`.
+- **Why this lands here, not earlier:** I should have caught it in checkpoint 2 alongside the GlassCard/ListCard refactor. The failure mode was loud — every kanban card and KPI tile rendered as glass on `mydash.media` between the checkpoint 2 deploy and this fix. Logging because (a) it's a real regression and (b) the v2 QA grep checklist is what surfaced it — exactly its job.
+
+### Popover toast colors
+
+- **Spec said:** "Notification + Gmail popovers — `glass()` background, glass shadow ON, hairline border."
+- **What I did:** Both popovers spread `...glass()` and set `data-glass="true"`. Their hardcoded dark-glass colors (background `rgba(30, 30, 35, 0.92)`, text `#fff`) flipped to the theme-flipping equivalents — `var(--ink)` for text. NotificationPopover's urgency styles (red rim for alerts, amber rim for caution) preserve their per-urgency border + boxShadow override on top of the glass base.
+- **Caveat:** NotificationPopover's expanded-state inputs (`background: rgba(255,255,255,0.08)`) and OOO badge tints (`rgba(99, 102, 241, 0.25)`) still carry hardcoded alpha colors. They're nested-inside-glass and intentionally low-contrast, so the visual works in both modes. Flagging for a future sweep that should route these through tokens.
+
+### DataTable sticky glass headers — API behavior change
+
+- **Spec said:** "Apply `glass()` to sticky headers; keep bottom hairline."
+- **What I did:** `DataTable` now sets `position: sticky; top: 0; z-index: 2` on `thead` and `position: sticky; top: 0; background: var(--md-glass-bg); backdrop-filter: var(--md-glass-blur)` on each `th`. Hover wash on rows flipped from `var(--action-soft)` (navy) to `var(--hover-wash)` (steel) so hover language matches the rest of v2.
+- **API behavior change:** Headers are now sticky by default — pre-v2 they weren't. Tables embedded in scroll containers will see the column headers float above scrolled rows. The doc has a checkpoint-1 note about this; flagging again here because the change is now active.
+
+### Modal backdrop fallback semantics
+
+- **Spec said:** `background: rgba(20, 18, 14, 0.45)` + `backdropFilter: blur(8px)`.
+- **What I did:** Verbatim, plus `WebkitBackdropFilter` for Safari compatibility. Removed the previous theme-conditional dim (was `rgba(0,0,0,0.55)` dark / `rgba(26,24,20,0.40)` light) — the v2 spec gives a single value that reads correctly in both modes against the new canvas.
+- **Browser fallback:** Modal backdrop has no `data-glass` attribute, so the `@supports not` rule from checkpoint 1 doesn't apply. In browsers without backdrop-filter, the page beneath bleeds through at 45% opacity — readable but the modal feels less "above" the content. Acceptable since modals are rare and short-lived. Won't add fallback chrome unless QA finds it.
+
+### Two `var(--paper)` references left in `src/components/layout/`
+
+- **Sidebar.jsx:215 — user-pill avatar's 2px outer ring.** Was `2px solid var(--paper)` to delineate the avatar from the (paper-colored) sidebar. Now the sidebar is glass, so the paper-colored ring is visually wrong (paper is warm off-white, glass is cool tinted). Cosmetic only — the avatar still reads correctly. Logging instead of fixing because the right answer is probably "use the glass mixin's border" and that's a touchier change. Queue for a follow-up cleanup.
+- **TopBar.jsx:44, 155 — dead file.** TopBar was removed from the App shell in commit `4c23faa` (single-header consolidation). The component file still exists but is no longer imported or rendered. Queue for deletion in a follow-up cleanup commit.
+
+### Imports for `cardSurface` — added in 11 page files
+
+- Added `cardSurface` to the existing `from "../components/ui"` (or `"../../components/ui"`) import line in each file. Strategy: `sed` insertion that anchored on the existing `glass` import. SalesCRM and three others used a non-trailing `glass,` order that the first sed pass missed; targeted second-pass edits caught them. Build catches any miss as "symbol cardSurface not declared" — happened twice in this checkpoint (ClientSignals, Outreach had a duplicated `cardSurface` from a botched sed; cleaned up).
+
+### `data-surface="paper"` — 14 candidates from the audit, all applied
+
+| In-app sub-components (set on outermost `return <div>`) | Public routes (wrapped in `main.jsx`) |
+|---|---|
+| StoryEditor.jsx (also flipped its inline `Z.bg` to `var(--paper)`) | ProofApproval |
+| IssueProofingTab.jsx | ProposalSign |
+| EblastComposer.jsx | PayInvoice |
+| NewsletterPage.jsx (both early-return paths) | ClientUpload |
+| KnowledgeBase.jsx | CampaignPublic |
+| Performance.jsx | TearsheetPortal |
+| AffidavitWorkspace.jsx | |
+| AffidavitTemplate.jsx | |
+
+All 4 edge cases stayed steel: Mail, MerchShop, AdProjects detail (which doesn't have a separate page module), IssueDetail.
+
+---
+
 ## [2026-04-17] Snapshot rep + contract attribution onto invoices (migration 047)
 
 - **Context:** Billing › Reports › Rep Collections (and Sales Perf, AR Aging) attributed all rep credit through `clients.rep_id`. When a client was reassigned, every historical sale and invoice silently re-credited to the new rep — there was no record of who actually closed/billed the deal. `sales` and `contracts` already carried `assigned_to`; `invoices` did not.

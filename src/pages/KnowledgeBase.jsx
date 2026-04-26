@@ -61,7 +61,7 @@ export default function KnowledgeBase({ isActive, team }) {
     setOpenId(id);
   };
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+  return <div data-surface="paper" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
       <SB value={search} onChange={setSearch} placeholder="Search articles..." />
       <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>

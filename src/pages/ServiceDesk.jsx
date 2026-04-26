@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, CARD, R, INV } from "../lib/theme";
-import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, EntityLink } from "../components/ui";
+import { Ic, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, FilterBar , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, cardSurface, EntityLink } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
 import { useNav } from "../hooks/useNav";
 import { fmtDate, fmtTime } from "../lib/formatters";
@@ -458,7 +458,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {colTickets.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: FS.sm, color: Z.td }}>No tickets</div>}
-              {colTickets.map(t => <div key={t.id} onClick={() => setViewTicketId(t.id)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }} onMouseOver={e => e.currentTarget.style.borderColor = col.color} onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
+              {colTickets.map(t => <div key={t.id} onClick={() => setViewTicketId(t.id)} style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, cursor: "pointer", border: `1px solid ${Z.bd}`, transition: "border-color 0.1s" }} onMouseOver={e => e.currentTarget.style.borderColor = col.color} onMouseOut={e => e.currentTarget.style.borderColor = Z.bd}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <PriorityDot priority={t.priority} />
                   <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtAgo(t.createdAt)}</span>

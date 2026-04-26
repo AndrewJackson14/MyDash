@@ -151,9 +151,11 @@ export const SortHeader = ({ columns, sortCol, sortDir, onSort }) => (
   </tr>
 );
 
-// DataTable — Press Room: hairline-bordered table on the card surface.
-// No blur, no glass. Tables are tables. Headers in Geist Mono uppercase.
-// Hover wash uses --accent-soft.
+// DataTable — opaque card-surface table with sticky glass headers
+// (v2). When the body scrolls inside the container, the thead floats
+// above with the glass mixin so the rep doesn't lose column context.
+// Browsers without backdrop-filter fall back to the global [data-glass]
+// @supports rule (near-opaque tint).
 export const DataTable = ({ children, style, emptyMessage }) => {
   const uid = "dt" + Math.random().toString(36).slice(2, 6);
   return (
@@ -166,8 +168,11 @@ export const DataTable = ({ children, style, emptyMessage }) => {
     }}>
       <style>{`
         .${uid} { width: 100%; border-collapse: collapse; font-size: ${TYPE.size.bodySm}px; font-family: ${TYPE.family.body}; font-variant-numeric: lining-nums tabular-nums; }
+        .${uid} thead { position: sticky; top: 0; z-index: 2; }
         .${uid} thead tr { background: transparent; }
         .${uid} th {
+          position: sticky;
+          top: 0;
           padding: 10px 14px;
           text-align: left;
           font-weight: ${TYPE.weight.mono};
@@ -175,6 +180,9 @@ export const DataTable = ({ children, style, emptyMessage }) => {
           font-size: ${TYPE.size.meta}px;
           text-transform: uppercase;
           letter-spacing: ${TYPE.ls.meta};
+          background: var(--md-glass-bg);
+          backdrop-filter: var(--md-glass-blur);
+          -webkit-backdrop-filter: var(--md-glass-blur);
           border-bottom: 1px solid var(--rule);
           white-space: nowrap;
           cursor: pointer;
@@ -189,8 +197,8 @@ export const DataTable = ({ children, style, emptyMessage }) => {
           font-family: ${TYPE.family.body};
         }
         .${uid} tbody tr { transition: background ${DUR.fast}ms ${EASE}; cursor: pointer; }
-        .${uid} tbody tr:hover { background: var(--action-soft); }
-        .${uid} tbody tr.dt-active { background: var(--action-soft); }
+        .${uid} tbody tr:hover { background: var(--hover-wash); }
+        .${uid} tbody tr.dt-active { background: var(--hover-wash); }
         .${uid} tbody tr:last-child td { border-bottom: none; }
       `}</style>
       <table className={uid}>{children}</table>
@@ -567,15 +575,17 @@ export const Stat = ({ label, value, sub, animate = true }) => {
   );
 };
 
-// Modal — Press Room hairline panel on a darkened paper backdrop.
-// No backdrop blur, no panel shadow. Title is a Geist h3, not Cormorant
-// (display serif stays in display lane).
+// Modal — v2 backdrop: tinted dim PLUS an 8px blur (less aggressive
+// than panel-glass 20px). Reveals the page beneath without replacing
+// it. Panel itself stays opaque card surface — reading content needs
+// solid contrast. Title is a Geist h3, not Cormorant.
 export const Modal = ({ open, onClose, title, children, actions, width = MODAL.defaultWidth, onSubmit }) => {
   if (!open) return null;
-  const dark = _isDark();
   return <div tabIndex={-1} style={{
     position: "fixed", inset: 0,
-    background: dark ? "rgba(20, 18, 14, 0.65)" : "rgba(26, 24, 20, 0.40)",
+    background: "rgba(20, 18, 14, 0.45)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
     display: "flex", alignItems: "center", justifyContent: "center",
     zIndex: ZI.max,
     outline: "none",
@@ -814,6 +824,18 @@ export const glass = () => ({
   backdropFilter:       "var(--md-glass-blur)",
   WebkitBackdropFilter: "var(--md-glass-blur)",
   boxShadow:            "var(--md-glass-shadow)",
+});
+
+// cardSurface() — the recipe Card / GlassCard / ListCard / Stat all
+// share. Use this for inline content-card spreads in pages (kanban
+// tiles, KPI tiles, signal panels, etc). Replaces the pre-v2 pattern
+// where pages used `...glass()` to get the hairline-card look —
+// that recipe is now real glass and reserved for chrome. Pages
+// should never spread glass() directly.
+export const cardSurface = () => ({
+  background: "var(--card)",
+  border:     "1px solid var(--rule)",
+  boxShadow:  "var(--card-highlight)",
 });
 
 // FloatingPanel — wraps glass() for popovers, dropdowns, sticky

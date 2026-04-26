@@ -281,7 +281,7 @@ export default function IssueProofingTab({ issueId, issue, currentUser, team, on
   const glass = { ...glassStyle(), borderRadius: R, padding: "18px 20px" };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 14, alignItems: "flex-start" }}>
+    <div data-surface="paper" style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 14, alignItems: "flex-start" }}>
       {/* LEFT — PDF viewer */}
       <div style={glass}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12 }}>

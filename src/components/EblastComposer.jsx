@@ -540,7 +540,7 @@ export default function EblastComposer({ pubs, currentUser }) {
 
   // ═══ RENDER ═══════════════════════════════════════════════
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div data-surface="paper" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
       {/* Draft selector row */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

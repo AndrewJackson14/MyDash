@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, cardSurface } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 
 import { supabase } from "../lib/supabase";
@@ -991,7 +991,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       <Btn sm onClick={() => setShowSharedPicker(false)}>Done</Btn>
     </div>}
 
-    {showSectionPicker && issue && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", ...glass(), borderRadius: R, marginBottom: 6 }}>
+    {showSectionPicker && issue && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", ...cardSurface(), borderRadius: R, marginBottom: 6 }}>
       <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm, flexShrink: 0 }}>New section:</span>
       <input value={newSectionLabel} onChange={e => setNewSectionLabel(e.target.value)} placeholder="Section name..." style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "5px 8px", color: Z.tx, fontSize: FS.base, fontWeight: FW.semi, fontFamily: COND, outline: "none", width: 160 }} />
       <span style={{ fontSize: FS.sm, color: Z.tm }}>Click pages below to select</span>
@@ -1063,7 +1063,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           onDragStart={() => startDrag(s.id, "sale")}
           onClick={e => { if (s.clientId && (e.metaKey || e.ctrlKey)) { e.stopPropagation(); onClientModClick(s.clientId); } }}
           title={s.clientId ? "⌘/Ctrl-click to open client" : undefined}
-          style={{ ...glass(), borderRadius: R, padding: CARD.pad, fontSize: FS.sm, cursor: "grab" }}
+          style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, fontSize: FS.sm, cursor: "grab" }}
         ><span style={{ fontWeight: FW.bold, color: Z.tx }}>{cn(s.clientId)}</span> <span style={{ color: Z.tm }}>{s.size || s.type}</span> <span style={{ color: Z.ac }}>p.{pm?.page || s.page}</span></div>; })}
       </div>
 

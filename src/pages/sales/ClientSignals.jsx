@@ -1,7 +1,7 @@
 // ClientSignals.jsx — Signal-driven client dashboard with MyPriorities
 import { useState, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, CARD, ACCENT } from "../../lib/theme";
-import { Btn, SB, glass } from "../../components/ui";
+import { Btn, SB, glass, cardSurface } from "../../components/ui";
 import { THRESHOLDS, DAYS_PER_MONTH } from "../../constants";
 import { useDialog } from "../../hooks/useDialog";
 
@@ -434,7 +434,7 @@ export default function ClientSignals({
       {myPriorityItems.map(p => {
         const c = clientMap[p.clientId];
         if (!c) return null;
-        return <div key={p.id} style={{ ...glass(), borderRadius: Ri, padding: "8px 10px" }}>
+        return <div key={p.id} style={{ ...cardSurface(), borderRadius: Ri, padding: "8px 10px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5, flex: 1, minWidth: 0 }}>
               {p.highlighted && <svg width="13" height="13" viewBox="0 0 14 14" style={{ flexShrink: 0 }}><polygon points="7,1 9,5 13,5.5 10,8.5 10.8,12.5 7,10.5 3.2,12.5 4,8.5 1,5.5 5,5" fill="#EF9F27" stroke="#BA7517" strokeWidth="0.5"/></svg>}
@@ -468,7 +468,7 @@ export default function ClientSignals({
           const count = sc.key === "inventory" ? inventorySignals.length : (signalCounts[sc.key] || 0);
           if (count === 0) return null;
           return <button key={sc.key} onClick={() => setSignalFilter(signalFilter === sc.key ? "all" : sc.key)} style={{
-            ...glass(), borderRadius: Ri, padding: "8px 6px", textAlign: "center", cursor: "pointer",
+            ...cardSurface(), borderRadius: Ri, padding: "8px 6px", textAlign: "center", cursor: "pointer",
             border: signalFilter === sc.key ? `2px solid ${sc.color}` : `1px solid ${Z.bd}`,
             background: signalFilter === sc.key ? sc.color + "12" : undefined,
           }}>
@@ -482,7 +482,7 @@ export default function ClientSignals({
       {/* ── 30-Day Wins + Pipeline Bar ────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {/* Wins */}
-        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.green}` }}>
+        <div style={{ ...cardSurface(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.green}` }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>30-Day Wins</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.green, fontFamily: DISPLAY }}>{recentWins.total}</span>
@@ -500,14 +500,14 @@ export default function ClientSignals({
         </div>
 
         {/* Pipeline */}
-        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid " + Z.ac }}>
+        <div style={{ ...cardSurface(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid " + Z.ac }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Pipeline Value</div>
           <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtK(pipelineValue)}</div>
           <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{myPriorityItems.length} active priorities</div>
         </div>
 
         {/* Conversion */}
-        <div style={{ ...glass(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.indigo}` }}>
+        <div style={{ ...cardSurface(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.indigo}` }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Conversion Rate</div>
           <div style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{conversionRate}%</div>
           <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>priorities {"\u2192"} closed (30d)</div>
@@ -534,7 +534,7 @@ export default function ClientSignals({
           const visible = isOpen ? panel.items : panel.items.slice(0, 4);
           const hasMore = panel.items.length > 4;
           const winCount = recentWins.byCategory[panel.key]?.count || 0;
-          return <div key={panel.key} style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${panel.color}`, padding: "10px 12px" }}>
+          return <div key={panel.key} style={{ ...cardSurface(), borderRadius: Ri, borderLeft: `3px solid ${panel.color}`, padding: "10px 12px" }}>
             <div onClick={() => hasMore && togglePanel(panel.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: visible.length > 0 ? 8 : 0, cursor: hasMore ? "pointer" : "default", userSelect: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: panel.color, fontFamily: COND }}>{panel.title}</span>
@@ -566,7 +566,7 @@ export default function ClientSignals({
         })}
 
         {/* Inventory panel */}
-        {(signalFilter === "all" || signalFilter === "inventory") && inventorySignals.length > 0 && <div style={{ ...glass(), borderRadius: Ri, borderLeft: `3px solid ${SIGNAL_COLORS.inventory}`, padding: "10px 12px" }}>
+        {(signalFilter === "all" || signalFilter === "inventory") && inventorySignals.length > 0 && <div style={{ ...cardSurface(), borderRadius: Ri, borderLeft: `3px solid ${SIGNAL_COLORS.inventory}`, padding: "10px 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: SIGNAL_COLORS.inventory, fontFamily: COND }}>Open inventory {"\u2014"} deadline approaching</span>
             <span style={{ fontSize: FS.sm, color: Z.td }}>{inventorySignals.length}</span>
