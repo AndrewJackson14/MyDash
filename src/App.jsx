@@ -24,6 +24,8 @@ import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import MyHelperLauncher from "./components/MyHelperLauncher";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
+import MetadataStrip from "./components/layout/MetadataStrip";
+import { getPageMeta } from "./data/pageMeta";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
 // Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
@@ -70,6 +72,8 @@ const Mail = lazy(() => import("./pages/Mail"));
 const ProfilePanel = lazy(() => import("./pages/ProfilePanel"));
 const DriverApp = lazy(() => import("./pages/driver/DriverApp"));
 const MobileApp = lazy(() => import("./pages/mobile/MobileApp"));
+// Dev surfaces — only loaded when the matching nav entry exists (DEV builds).
+const DevTypography = lazy(() => import("./pages/dev/Typography"));
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
@@ -469,6 +473,8 @@ export default function App() {
     if (isAdmin && !impersonating) return true;
     // Always visible
     if (["messaging", "mail"].includes(navId)) return true;
+    // Dev surfaces (UI-refresh sample routes) are visible to anyone in DEV.
+    if (navId.startsWith("dev-") && import.meta.env.DEV) return true;
     return userModules.includes(navId);
   };
 
@@ -511,6 +517,13 @@ export default function App() {
     { id: "emailtemplates", label: "Email Templates", icon: Ic.template },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
     { id: "dataimport", label: "Data Import", icon: Ic.up },
+    // Dev surfaces — only show in DEV builds. Phase 3 of the UI refresh
+    // adds the typography route; future phases may add color-, motion-,
+    // or component-showcase surfaces under the same section.
+    ...(import.meta.env.DEV ? [
+      { id: "_dev", section: true, label: "Dev" },
+      { id: "dev-typography", label: "Typography", icon: Ic.book },
+    ] : []),
   ].filter(n => n.section || hasModule(n.id));
 
   // Group nav items by section
@@ -585,7 +598,9 @@ export default function App() {
         fires a toast for newly-arrived unread messages. Click jumps to Mail. */}
     <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
     <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
-    <link href={FONT_URL} rel="stylesheet" />
+    {/* Press Room fonts are self-hosted via @fontsource imports in
+        src/main.jsx. Legacy <link href={FONT_URL}> dropped in the
+        Phase 3 typography commit. */}
 
     {/* ── Sidebar ──────────────────────────────────────── */}
     <Sidebar
@@ -607,6 +622,15 @@ export default function App() {
 
     {/* ── Main Content ─────────────────────────────────── */}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+      {/* ── Press Room metadata strip — galley-proof kicker on every
+          page. Format: `13 STARS / MYDASH ── {PAGE} ── REV. {DATE} ──
+          {DEPARTMENT}`. See docs/ui-refresh/01-direction.md §The One
+          Memorable Thing. */}
+      {(() => {
+        const meta = getPageMeta(pg);
+        return <MetadataStrip page={meta.label} department={meta.department} />;
+      })()}
 
       {/* ── Shell v2 TopBar — renders only when the active page
           publishes a header via usePageHeader(). Legacy pages that
@@ -663,6 +687,7 @@ export default function App() {
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></div>}
         {show("integrations") && <div style={vis("integrations")}><IntegrationsPage isActive={pg === "integrations"} pubs={pubs} /></div>}
         {show("dataimport") && <div style={vis("dataimport")}><DataImport isActive={pg === "dataimport"} onClose={() => handleNav("integrations")} /></div>}
+        {show("dev-typography") && <div style={vis("dev-typography")}><DevTypography /></div>}
         {show("permissions") && <div style={vis("permissions")}><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></div>}
         {show("team") && <div style={vis("team")}><TeamModule isActive={pg === "team"} team={team} setTeam={setTeam} sales={jSales} stories={jStories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} pubs={pubs} clients={jClients} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} onOpenMemberProfile={openTeamMemberProfile} /></div>}
         {show("team-member") && <div style={vis("team-member")}><TeamMemberProfile isActive={pg === "team-member"} memberId={selectedTeamMemberId} team={team} pubs={pubs} clients={jClients} sales={jSales} stories={jStories} setStories={setStories} issues={jIssues} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} invoices={jInvoices} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} salespersonPubAssignments={appData.salespersonPubAssignments || []} upsertPubAssignment={appData.upsertPubAssignment} deletePubAssignment={appData.deletePubAssignment} commissionRates={appData.commissionRates || []} upsertCommissionRate={appData.upsertCommissionRate} currentUser={currentUser} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></div>}
