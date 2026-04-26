@@ -329,7 +329,22 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     }
     if (fPub !== "all") list = list.filter(p => p.publication_id === fPub);
     if (fDesigner !== "all") list = list.filter(p => p.designer_id === fDesigner);
-    if (sr) { const q = sr.toLowerCase(); list = list.filter(p => cn(p.client_id).toLowerCase().includes(q)); }
+    // May Sim P2.13 — multi-token + multi-field search. Old behavior was
+    // single-substring against client name only, so "joe sushi" couldn't
+    // find "Joe's Sushi" and an ad-size like "1/4 page" couldn't be looked
+    // up at all. Now: tokenize on whitespace, require every token to land
+    // in client name OR ad size OR notes — Jen's most common needles.
+    if (sr) {
+      const tokens = sr.toLowerCase().split(/\s+/).filter(Boolean);
+      list = list.filter(p => {
+        const hay = [
+          cn(p.client_id),
+          p.ad_size || "",
+          p.design_notes || "",
+        ].join(" ").toLowerCase();
+        return tokens.every(t => hay.includes(t));
+      });
+    }
     return list;
   }, [projects, tab, fPub, fDesigner, sr, clients, issues, today, cutoff30d]);
 

@@ -32,12 +32,13 @@ function bucketColor(key) {
 }
 
 export default function CollectionsCenter({
-  isActive, currentUser, invoices, clients, payments,
+  isActive, currentUser, invoices, clients, payments, team,
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [search, setSearch] = useState("");
   const [bucketFilter, setBucketFilter] = useState("all");
   const [sendModalClient, setSendModalClient] = useState(null);
+  const [delegateClient, setDelegateClient] = useState(null);
 
   const cn = (id) => (clients || []).find(c => c.id === id)?.name || "—";
   const cb = (id) => (clients || []).find(c => c.id === id);
@@ -215,6 +216,7 @@ export default function CollectionsCenter({
                       })}
                     </div>
                     <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: oldestColor, fontFamily: DISPLAY, minWidth: 100, textAlign: "right" }}>{fmtCurrency(g.total)}</div>
+                    <Btn sm v="secondary" onClick={() => setDelegateClient(cb(g.clientId))} title="Hand this off to the client's rep">↪ Delegate</Btn>
                     <Btn sm onClick={() => setSendModalClient(cb(g.clientId))}>✉ Send statement</Btn>
                   </div>
                 </div>
@@ -256,6 +258,105 @@ export default function CollectionsCenter({
           onClose={() => setSendModalClient(null)}
         />
       )}
+
+      {delegateClient && (
+        <DelegateModal
+          client={delegateClient}
+          team={team}
+          currentUser={currentUser}
+          invoices={(invoices || []).filter(i => i.clientId === delegateClient.id && i.balanceDue > 0 && !["paid", "void", "cancelled"].includes(i.status))}
+          onClose={() => setDelegateClient(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Delegate Modal — May Sim P2.1 ────────────────────────────────
+// Cami needs to hand off an AR call to the rep who closed the deal.
+// Picks a recipient (defaults to the client's primary rep), composes
+// a quick message, and fires it as an "urgent" team_note so the rep's
+// NotificationPopover surfaces it with an amber border instead of
+// blending in with general traffic.
+function DelegateModal({ client, team, currentUser, invoices, onClose }) {
+  const defaultRepId = client?.repId || "";
+  const [repId, setRepId] = useState(defaultRepId);
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const totalDue = (invoices || []).reduce((s, i) => s + Number(i.balanceDue || 0), 0);
+  const oldestDays = (invoices || []).reduce((m, i) => {
+    if (!i.dueDate) return m;
+    const d = Math.round((new Date() - new Date(i.dueDate)) / 86400000);
+    return d > m ? d : m;
+  }, 0);
+
+  const reps = (team || []).filter(t => ["Salesperson", "Sales Manager"].includes(t.role) && t.isActive !== false && !t.isHidden);
+
+  const send = async () => {
+    if (!repId) return;
+    const rep = (team || []).find(t => t.id === repId);
+    if (!rep?.authId) {
+      setResult({ ok: false, message: "Selected rep has no auth_id — can't notify." });
+      return;
+    }
+    setSending(true);
+    const message = `[Task: AR follow-up] ${client.name} — ${fmtCurrency(totalDue)} open${oldestDays > 0 ? `, ${oldestDays}d overdue` : ""}.${note.trim() ? `\n\n${note.trim()}` : ""}\n\nCan you call the client?`;
+    const { error } = await supabase.from("team_notes").insert({
+      from_user: currentUser?.authId || currentUser?.id || null,
+      to_user: rep.authId,
+      message,
+      urgency: "urgent",
+      context_type: "client",
+      context_id: client.id,
+      context_page: "/collections",
+    });
+    setSending(false);
+    if (error) { setResult({ ok: false, message: error.message }); return; }
+    setResult({ ok: true, message: `Sent to ${rep.name}` });
+    setTimeout(onClose, 1200);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...glassStyle(), borderRadius: R, padding: "20px 24px", width: 480, maxWidth: "100%" }}>
+        <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 4 }}>Delegate AR follow-up</div>
+        <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 14 }}>
+          {client.name} · {fmtCurrency(totalDue)} open{oldestDays > 0 ? ` · ${oldestDays}d overdue` : ""}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Send to rep</div>
+          <Sel value={repId} onChange={e => setRepId(e.target.value)} options={[
+            { value: "", label: "— Select rep —" },
+            ...reps.map(r => ({ value: r.id, label: `${r.name}${r.id === defaultRepId ? " (primary)" : ""}` })),
+          ]} />
+          {!defaultRepId && <div style={{ fontSize: 10, color: Z.wa, marginTop: 4, fontFamily: COND }}>This client has no primary rep on file.</div>}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Add a note (optional)</div>
+          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Tried 3x on the listed number, no callback. Try the cell on the contact card." rows={3} style={{ width: "100%", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: 8, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+        </div>
+
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 14, fontFamily: COND }}>
+          Fires as an <span style={{ color: Z.wa, fontWeight: FW.heavy }}>urgent</span> team_note so it stands out in the rep's notifications.
+        </div>
+
+        {result && (
+          <div style={{ padding: "8px 12px", marginBottom: 10, borderRadius: Ri, background: result.ok ? "rgba(34,197,94,0.12)" : "rgba(232,72,85,0.12)", color: result.ok ? "#16A34A" : "#DC2626", fontSize: FS.sm, fontWeight: FW.semi }}>
+            {result.ok ? "✓ " : "⚠ "}{result.message}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+          <Btn sm v="secondary" onClick={onClose} disabled={sending}>Cancel</Btn>
+          <Btn sm onClick={send} disabled={sending || !repId || result?.ok}>
+            {sending ? "Sending…" : result?.ok ? "Sent" : "↪ Delegate"}
+          </Btn>
+        </div>
+      </div>
     </div>
   );
 }
