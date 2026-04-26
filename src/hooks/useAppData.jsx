@@ -106,6 +106,12 @@ export function DataProvider({ children, localData }) {
   const [mailingLists, setMailingLists] = useState([]);
   // Editions (editions)
   const [editions, setEditions] = useState([]);
+  // Public holidays (May Sim P0.3) — lookup table for shifting deadlines
+  // off federal holidays. ~22 rows for 2026-2027; loaded lazily on first
+  // request from a renderer that needs it (IssueSchedule, RoleDashboard).
+  const [publicHolidays, setPublicHolidays] = useState([]);
+  const [publicHolidaysLoaded, setPublicHolidaysLoaded] = useState(false);
+
   // Ad inquiries (inbound from StellarPress)
   const [adInquiries, setAdInquiries] = useState([]);
   // Ad projects — design workflow state, one per sale (see migration 027)
@@ -1063,6 +1069,16 @@ export function DataProvider({ children, localData }) {
     })));
     setEditionsLoaded(true);
   }, [editionsLoaded]);
+
+  // Public holidays loader — small table, single fetch per session.
+  const loadHolidays = useCallback(async () => {
+    if (publicHolidaysLoaded || !isOnline()) return;
+    const { data } = await supabase.from('public_holidays')
+      .select('id, holiday_date, label, observed_by_pubs')
+      .order('holiday_date');
+    if (data) setPublicHolidays(data);
+    setPublicHolidaysLoaded(true);
+  }, [publicHolidaysLoaded]);
 
   // Ad Inquiries (inbound from StellarPress)
   const [inquiriesLoaded, setInquiriesLoaded] = useState(false);
@@ -2717,6 +2733,8 @@ export function DataProvider({ children, localData }) {
     editions, setEditions, loadEditions, editionsLoaded,
     // Ad Inquiries
     adInquiries, setAdInquiries, loadInquiries, inquiriesLoaded, updateInquiry,
+    // Public holidays (May Sim P0.3)
+    publicHolidays, loadHolidays, publicHolidaysLoaded,
     // Digital ad products catalog
     digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded,
     insertTicket, updateTicket, insertTicketComment,
@@ -2745,6 +2763,7 @@ export function DataProvider({ children, localData }) {
     commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments,
     outreachCampaigns, outreachEntries, myPriorities,
     subscriptions, subscriptionPayments, mailingLists, editions, adInquiries,
+    publicHolidays, publicHolidaysLoaded,
     mediaAssets, adProjects, adProjectBySaleId,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
@@ -2756,6 +2775,7 @@ export function DataProvider({ children, localData }) {
     retainInquiriesRealtime,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
+    loadHolidays,
     loadAdProjects, getDesignStateForSale, upsertAdProject,
     linkAdProject, unlinkAdProject, findLinkCandidates,
   ]);

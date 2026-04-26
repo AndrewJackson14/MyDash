@@ -8,6 +8,7 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass, EntityLink } from "../components/ui";
 import { useNav } from "../hooks/useNav";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
+import { holidaySetForPub, holidayLabelMap, shiftDeadline, fmtDeadlineBadge } from "../lib/holidays";
 
 // ─── Small helpers ────────────────────────────────────────────
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -107,7 +108,24 @@ function useIssueMetrics(iss, pub, sales, stories) {
 // ══════════════════════════════════════════════════════════════
 // THIS WEEK CARD — Big action-leaning card per publication
 // ══════════════════════════════════════════════════════════════
-const ThisWeekCard = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
+// May Sim P0.3 — render a "SHIFTED — was X, now Y" pill next to the
+// deadline label when the issue's deadline lands on a holiday/weekend.
+const DeadlineShiftPill = ({ originalISO, holidaySet, labelMap }) => {
+  if (!originalISO) return null;
+  const shift = shiftDeadline(originalISO, holidaySet, labelMap);
+  if (!shift.shifted) return null;
+  return (
+    <span title={shift.holidayLabel ? `Shifted off ${shift.holidayLabel}` : "Shifted off weekend"} style={{
+      display: "inline-block", padding: "1px 6px", borderRadius: R,
+      background: Z.wa + "22", color: Z.wa, fontSize: 9, fontWeight: FW.heavy,
+      letterSpacing: 0.4, textTransform: "uppercase", marginLeft: 4,
+    }}>
+      ⇦ shifted · was {fmtDeadlineBadge(originalISO).replace(/^(\w{3}) /, "$1 ")} · now {fmtDeadlineBadge(shift.effective)}
+    </span>
+  );
+};
+
+const ThisWeekCard = ({ iss, pub, sales, stories, holidaySet, labelMap, onOpenIssue, onNavigate }) => {
   const nav = useNav(onNavigate);
   const m = useIssueMetrics(iss, pub, sales, stories);
   const status = statusFor(iss, m);
@@ -150,10 +168,10 @@ const ThisWeekCard = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => 
       </div>
 
       {/* Deadlines */}
-      <div style={{ display: "flex", gap: 10, padding: "6px 0", fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
-        <span>Ad close <Countdown date={iss.adDeadline} /></span>
+      <div style={{ display: "flex", gap: 10, padding: "6px 0", fontSize: FS.sm, color: Z.tm, fontFamily: COND, flexWrap: "wrap", alignItems: "center" }}>
+        <span>Ad close <Countdown date={iss.adDeadline} /><DeadlineShiftPill originalISO={iss.adDeadline} holidaySet={holidaySet} labelMap={labelMap} /></span>
         <span style={{ color: Z.border }}>·</span>
-        <span>Ed close <Countdown date={iss.edDeadline} /></span>
+        <span>Ed close <Countdown date={iss.edDeadline} /><DeadlineShiftPill originalISO={iss.edDeadline} holidaySet={holidaySet} labelMap={labelMap} /></span>
         <span style={{ color: Z.border }}>·</span>
         <span>Publish <Countdown date={iss.date} /></span>
       </div>
@@ -261,7 +279,12 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
 // ══════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════
-const IssueSchedule = ({ pubs, issues, sales, stories, onNavigate, onOpenIssue, isActive }) => {
+const IssueSchedule = ({ pubs, issues, sales, stories, publicHolidays, loadHolidays, onNavigate, onOpenIssue, isActive }) => {
+  // May Sim P0.3 — pull holidays once when this page mounts so we can
+  // surface "SHIFTED" badges next to deadlines that land on a holiday.
+  useEffect(() => { if (loadHolidays) loadHolidays(); }, [loadHolidays]);
+  const holidaySet = useMemo(() => holidaySetForPub(publicHolidays, null), [publicHolidays]);
+  const labelMap = useMemo(() => holidayLabelMap(publicHolidays), [publicHolidays]);
   const { setHeader, clearHeader } = usePageHeader();
   useEffect(() => {
     if (isActive) {
@@ -393,6 +416,7 @@ const IssueSchedule = ({ pubs, issues, sales, stories, onNavigate, onOpenIssue, 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
             {thisWeekIssues.map(iss => (
               <ThisWeekCard key={iss.id} iss={iss} pub={pubFor(iss.pubId)} sales={sales} stories={stories}
+                holidaySet={holidaySet} labelMap={labelMap}
                 onOpenIssue={openIssue} onNavigate={nav} />
             ))}
           </div>
