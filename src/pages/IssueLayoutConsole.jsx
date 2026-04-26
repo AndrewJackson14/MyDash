@@ -12,9 +12,10 @@
 // ============================================================
 import { useState, useEffect, useMemo } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
-import { Btn, glass as glassStyle } from "../components/ui";
+import { Btn, Modal, glass as glassStyle } from "../components/ui";
 import EntityThread from "../components/EntityThread";
 import IssueProofingTab from "../components/IssueProofingTab";
+import { FlatplanPage } from "./Flatplan";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
@@ -60,6 +61,9 @@ export default function IssueLayoutConsole({
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [pressing, setPressing] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
+  const [discussionCounts, setDiscussionCounts] = useState({});
+  const [pageModalNum, setPageModalNum] = useState(null);
+  const [discussionStory, setDiscussionStory] = useState(null);
 
   // Roles that can flip publisher_signoff_at on the issue.
   const canPublisherSignoff = ["Publisher", "Editor-in-Chief"].includes(currentUser?.role || "");
@@ -82,6 +86,62 @@ export default function IssueLayoutConsole({
     if (!issueId) return [];
     return (sales || []).filter(s => s.issueId === issueId && s.status === "Closed");
   }, [sales, issueId]);
+
+  // Publication switcher: for each pub, find its next unsent issue and
+  // count stories with print_status === 'ready' (Anthony's input queue).
+  // A pub with no upcoming unsent issue is hidden — nothing to lay out.
+  const pubSwitchers = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (pubs || []).map(p => {
+      const nextIssue = (issues || [])
+        .filter(i => (i.pubId || i.publicationId) === p.id && i.date >= today && !i.sentToPressAt && !i.sent_to_press_at)
+        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
+      if (!nextIssue) return null;
+      const readyCount = (stories || []).filter(s =>
+        s.print_issue_id === nextIssue.id &&
+        ((s.print_status || s.printStatus) === "ready")
+      ).length;
+      return { pub: p, issue: nextIssue, readyCount };
+    }).filter(Boolean);
+  }, [pubs, issues, stories]);
+
+  // Pages that actually have stories assigned — Anthony only wants to
+  // see pages with editorial work. Ad-only pages disappear.
+  const pagesWithStories = useMemo(() => {
+    const set = new Set();
+    issueStories.forEach(s => { if (s.page) set.add(s.page); });
+    return [...set].sort((a, b) => a - b);
+  }, [issueStories]);
+
+  // Per-story non-system message counts so we can show a Discussion
+  // button only when there's actually a thread worth opening.
+  // Two queries: thread IDs by ref_id, then message counts by thread.
+  useEffect(() => {
+    if (!isActive || !issueStories.length || !isOnline()) return;
+    let cancelled = false;
+    (async () => {
+      const ids = issueStories.map(s => s.id);
+      const { data: threads } = await supabase
+        .from("message_threads")
+        .select("id, ref_id")
+        .eq("ref_type", "story")
+        .in("ref_id", ids);
+      if (cancelled || !threads?.length) return;
+      const threadIds = threads.map(t => t.id);
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("thread_id")
+        .in("thread_id", threadIds)
+        .eq("is_system", false);
+      if (cancelled) return;
+      const byThread = {};
+      (msgs || []).forEach(m => { byThread[m.thread_id] = (byThread[m.thread_id] || 0) + 1; });
+      const byStory = {};
+      threads.forEach(t => { if (byThread[t.id]) byStory[t.ref_id] = byThread[t.id]; });
+      setDiscussionCounts(byStory);
+    })();
+    return () => { cancelled = true; };
+  }, [isActive, issueStories]);
 
   // Load per-page completion state, ad projects, and layout refs
   useEffect(() => {
@@ -180,19 +240,19 @@ export default function IssueLayoutConsole({
     setSavingPageNum(null);
   };
 
-  // ── Print status advance ────────────────────────────────────
-  const advancePrintStatus = async (story) => {
+  // ── Print status set (bidirectional) ────────────────────────
+  // Replaces the legacy advance-only button. Any state can be selected,
+  // so Anthony can roll a story back from on_page → ready when needed.
+  // The placed_by stamp still fires on the *first* transition into
+  // on_page (preserves audit history) but is left intact when moving
+  // back out — that's still the most-recent placer, which is correct.
+  const setPrintStatus = async (story, next) => {
     if (advancingId === story.id) return;
     const current = story.print_status || story.printStatus || "none";
-    const next = NEXT_PRINT[current];
-    if (!next) return;
+    if (next === current) return;
     setAdvancingId(story.id);
     try {
-      const updates = {
-        print_status: next,
-      };
-      // First transition to on_page also stamps placed_by + laid_out_at
-      // (mirrors the dashboard Mark On Page handler).
+      const updates = { print_status: next };
       if (next === "on_page" && !story.placedBy && !story.placed_by) {
         updates.placed_by = currentUser.id;
         updates.laid_out_at = new Date().toISOString();
@@ -208,7 +268,7 @@ export default function IssueLayoutConsole({
         } : s));
       }
     } catch (err) {
-      console.error("Advance print status failed:", err);
+      console.error("Set print status failed:", err);
     }
     setAdvancingId(null);
   };
@@ -397,6 +457,48 @@ export default function IssueLayoutConsole({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: 28 }}>
+      {/* Publication switcher — pill row showing each pub's next unsent
+          issue with a Ready-count badge for stories awaiting layout. */}
+      {pubSwitchers.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {pubSwitchers.map(({ pub: p, issue: iss, readyCount }) => {
+            const isCurrent = iss.id === issueId;
+            return (
+              <button
+                key={p.id}
+                onClick={() => { if (!isCurrent) onNavigate?.("layout", { id: iss.id }); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 14px", borderRadius: 999,
+                  border: `1px solid ${isCurrent ? (p.color || Z.ac) : Z.bd}`,
+                  background: isCurrent ? (p.color || Z.ac) + "18" : "transparent",
+                  cursor: isCurrent ? "default" : "pointer",
+                  color: isCurrent ? Z.tx : Z.tm,
+                  fontFamily: COND,
+                }}
+                title={`Next: ${iss.label || ""} · ${readyCount} ready for layout`}
+              >
+                <span style={{ fontSize: FS.sm, fontWeight: isCurrent ? FW.black : FW.bold }}>
+                  {p.name}
+                </span>
+                <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                  {iss.label || ""}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: FW.heavy,
+                  color: readyCount > 0 ? ACCENT.indigo : Z.td,
+                  background: readyCount > 0 ? ACCENT.indigo + "20" : "transparent",
+                  border: readyCount > 0 ? "none" : `1px solid ${Z.bd}`,
+                  padding: "1px 7px", borderRadius: 999,
+                  fontFamily: COND, letterSpacing: 0.4,
+                }}>
+                  {readyCount} READY
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* Header */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
@@ -476,7 +578,6 @@ export default function IssueLayoutConsole({
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 720, overflowY: "auto" }}>
               {issueStories.map(s => {
                 const status = s.print_status || s.printStatus || "none";
-                const next = NEXT_PRINT[status];
                 const color = PRINT_COLOR(status);
                 return (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${color}` }}>
@@ -491,27 +592,42 @@ export default function IssueLayoutConsole({
                         {s.author || "—"}{s.wordCount || s.word_count ? ` · ${s.wordCount || s.word_count}w` : ""}
                       </div>
                     </div>
-                    <span style={{ fontSize: 9, fontWeight: FW.heavy, color, padding: "2px 6px", background: color + "15", borderRadius: Ri, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>
-                      {PRINT_LABEL[status]}
-                    </span>
+                    {discussionCounts[s.id] > 0 && (
+                      <button
+                        onClick={() => setDiscussionStory(s)}
+                        title={`${discussionCounts[s.id]} discussion message${discussionCounts[s.id] === 1 ? "" : "s"}`}
+                        style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}
+                      >
+                        💬 <span style={{ fontWeight: FW.bold }}>{discussionCounts[s.id]}</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => downloadPkg(s)}
                       disabled={pkgDownloading === s.id}
                       title="Download InDesign story package (.zip)"
-                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0 }}
                     >
                       {pkgDownloading === s.id ? "…" : "Pkg"}
                     </button>
-                    {next && (
-                      <Btn
-                        sm
-                        onClick={() => advancePrintStatus(s)}
-                        disabled={advancingId === s.id}
-                        style={{ flexShrink: 0 }}
-                      >
-                        {advancingId === s.id ? "…" : `→ ${PRINT_LABEL[next]}`}
-                      </Btn>
-                    )}
+                    <select
+                      value={status}
+                      disabled={advancingId === s.id}
+                      onChange={(e) => setPrintStatus(s, e.target.value)}
+                      title="Set print status"
+                      style={{
+                        flexShrink: 0,
+                        fontSize: 10, fontWeight: FW.heavy,
+                        color, background: color + "15",
+                        border: `1px solid ${color}40`, borderRadius: Ri,
+                        padding: "3px 6px", fontFamily: COND,
+                        textTransform: "uppercase", letterSpacing: 0.4,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {PRINT_FLOW.map(k => (
+                        <option key={k} value={k}>{PRINT_LABEL[k]}</option>
+                      ))}
+                    </select>
                   </div>
                 );
               })}
@@ -524,11 +640,14 @@ export default function IssueLayoutConsole({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Pages</div>
             <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-              {pageStatus.filter(p => p.completed_at).length} of {totalPages} complete
+              {pageStatus.filter(p => p.completed_at && pagesWithStories.includes(p.page_number)).length} of {pagesWithStories.length} with stories complete
             </span>
           </div>
+          {pagesWithStories.length === 0 ? (
+            <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No pages have stories assigned yet</div>
+          ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10, maxHeight: 720, overflowY: "auto" }}>
-            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(pageNum => {
+            {pagesWithStories.map(pageNum => {
               const pageStories = issueStories.filter(s => s.page === pageNum);
               const pageAds = issueSales.filter(s => s.page === pageNum);
               const pageRef = layoutRefs.find(r => r.page_number === pageNum);
@@ -544,9 +663,13 @@ export default function IssueLayoutConsole({
                   opacity: isComplete ? 0.85 : 1,
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
-                      Page {pageNum}{isComplete && <span style={{ marginLeft: 6, color: Z.go }}>✓</span>}
-                    </span>
+                    <button
+                      onClick={() => setPageModalNum(pageNum)}
+                      title="Show this page from the flatplan"
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, fontFamily: COND, textDecoration: "underline" }}
+                    >
+                      Page {pageNum}{isComplete && <span style={{ marginLeft: 6, color: Z.go, textDecoration: "none" }}>✓</span>}
+                    </button>
                     {pageRef && (
                       <a href={pageRef.cdn_url} target="_blank" rel="noopener noreferrer" title="Open Hayley's layout reference" style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND }}>
                         ref ↗
@@ -583,6 +706,7 @@ export default function IssueLayoutConsole({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* RIGHT — Readiness + Discussion */}
@@ -655,6 +779,86 @@ export default function IssueLayoutConsole({
         </div>
       </div>
       </>
+      )}
+
+      {/* Page-flatplan modal — clicking a Page N header in the Pages
+          panel opens a read-only render of that page from the flatplan,
+          so Anthony can see exactly where ads sit before laying it out. */}
+      {pageModalNum != null && pub && (() => {
+        const pageAds = (issueSales || [])
+          .filter(s => s.page === pageModalNum)
+          .map(s => ({
+            ...s,
+            gridRow: s.pagePos?.row ?? null,
+            gridCol: s.pagePos?.col ?? null,
+            isPlaceholder: false,
+          }));
+        const adProjectBySaleId = new Map();
+        adProjects.forEach(ap => { if (ap.sale_id) adProjectBySaleId.set(ap.sale_id, ap); });
+        const cn = (id) => (clients || []).find(c => c.id === id)?.name || "";
+        const layoutImageUrl = layoutRefs.find(r => r.page_number === pageModalNum)?.cdn_url || null;
+        const pageStoriesForRender = issueStories.filter(s => s.page === pageModalNum);
+        return (
+          <Modal
+            open={true}
+            onClose={() => setPageModalNum(null)}
+            title={`Page ${pageModalNum} — ${pub?.name || ""} ${issue.label || ""}`}
+            width={680}
+          >
+            <div style={{ display: "flex", justifyContent: "center", padding: 12 }}>
+              <FlatplanPage
+                pageNum={pageModalNum}
+                pub={pub}
+                adsOnPage={pageAds}
+                dragId={null}
+                onDrop={() => {}}
+                onDropToCell={() => {}}
+                onRemoveAd={() => {}}
+                onStartDrag={() => {}}
+                clientName={cn}
+                pageW={420}
+                editorialStories={pageStoriesForRender}
+                isSelected={false}
+                sectionSelected={false}
+                phLabels={{}}
+                layoutImageUrl={layoutImageUrl}
+                adProjectBySaleId={adProjectBySaleId}
+                issueAdDeadline={issue?.adDeadline || null}
+              />
+            </div>
+            <div style={{ padding: "0 12px 12px", fontSize: FS.xs, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
+              {pageAds.length === 0
+                ? "No ads on this page."
+                : `${pageAds.length} ad${pageAds.length === 1 ? "" : "s"} placed.`}
+              {pageStoriesForRender.length > 0 && ` ${pageStoriesForRender.length} editorial.`}
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Per-story discussion modal — opened from the Discussion button
+          in the Stories panel. Shows only when the story has at least
+          one non-system message; uses EntityThread so the same
+          composer/realtime stack renders inside the modal. */}
+      {discussionStory && (
+        <Modal
+          open={true}
+          onClose={() => setDiscussionStory(null)}
+          title={`Discussion — ${discussionStory.title || "Untitled"}`}
+          width={560}
+        >
+          <div style={{ padding: "8px 4px" }}>
+            <EntityThread
+              refType="story"
+              refId={discussionStory.id}
+              title={`Story: ${discussionStory.title || "Untitled"}`}
+              team={team}
+              currentUser={currentUser}
+              label="Story discussion"
+              height={420}
+            />
+          </div>
+        </Modal>
       )}
 
       {/* Confetti DOSE moment — fires on Mark Sent to Press */}

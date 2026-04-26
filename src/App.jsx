@@ -482,7 +482,7 @@ export default function App() {
     { id: "adprojects", label: "Design Studio", icon: Ic.palette },
     { id: "medialibrary", label: "Media Library", icon: Ic.image },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
-    { id: "layout", label: "Layout Console", icon: Ic.flat },
+    { id: "layout", label: "Layout Console", icon: Ic.book },
     { id: "printers", label: "Printers", icon: Ic.truck },
     { id: "tearsheets", label: "Tearsheet Center", icon: Ic.image },
     { id: "collections", label: "Collections", icon: Ic.invoice },

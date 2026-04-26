@@ -48,7 +48,7 @@ function buildPageGrid(items, pub) {
   return placements;
 }
 
-const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick, layoutImageUrl, onOpenLayoutModal, adProjectBySaleId, issueAdDeadline }) => {
+export const FlatplanPage = ({ pageNum, pub, adsOnPage, dragId, onDrop, onDropToCell, onRemoveAd, onStartDrag, clientName, pageW, editorialStories, isSelected, sectionSelected, onClick, phLabels, onClientModClick, layoutImageUrl, onOpenLayoutModal, adProjectBySaleId, issueAdDeadline }) => {
   const pH = pageW * (pub.height / pub.width);
   const placements = buildPageGrid(adsOnPage, pub);
   const fs = Math.max(8, pageW * 0.07);
