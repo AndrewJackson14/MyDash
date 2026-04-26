@@ -9,6 +9,7 @@
 // viewport, stacked vertically. Dismissed notifications animate out.
 import { useEffect, useState, useRef, useCallback } from "react";
 import { COND, FW } from "../lib/theme";
+import { glass } from "./ui/Primitives";
 import { supabase } from "../lib/supabase";
 
 const AUTO_DISMISS_MS = 8000;
@@ -207,21 +208,22 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
         return (
           <div
             key={id}
+            data-glass="true"
             onClick={() => !isExpanded && expand(id)}
             style={{
               pointerEvents: "auto",
-              background: "rgba(30, 30, 35, 0.92)",
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              border: urgencyStyle?.border || "1px solid rgba(255,255,255,0.1)",
+              ...glass(),
+              // Urgency variants override the glass border + shadow for
+              // alert / overdue urgencies (red/amber rim).
+              ...(urgencyStyle?.border ? { border: urgencyStyle.border } : {}),
+              ...(urgencyStyle?.boxShadow ? { boxShadow: urgencyStyle.boxShadow } : {}),
               borderRadius: 12,
               padding: "12px 14px",
-              boxShadow: urgencyStyle?.boxShadow || "0 10px 30px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.2)",
               cursor: isExpanded ? "default" : "pointer",
               transform: shown ? "translateX(0)" : "translateX(400px)",
               opacity: shown ? 1 : 0,
               transition: "transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.35s ease-out",
-              color: "#fff",
+              color: "var(--ink)",
               minWidth: 320,
             }}
           >

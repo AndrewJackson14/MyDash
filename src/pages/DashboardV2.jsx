@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, INV, ACCENT, ZI } from "../lib/theme";
-import { Ic, Btn, GlassCard, Modal, glass, EntityLink } from "../components/ui";
+import { Ic, Btn, GlassCard, Modal, glass, cardSurface, EntityLink } from "../components/ui";
 import { useNav } from "../hooks/useNav";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { fmtCurrencyWhole as fmtCurrency, initials as ini } from "../lib/formatters";
@@ -1245,7 +1245,7 @@ const DeptDrillIn = ({ dept, pressure, meta, color, focusItems, deadlineAlerts, 
     `}</style>
     <div onClick={e => e.stopPropagation()} style={{
       width: "min(1100px, 100%)", maxHeight: "90vh",
-      ...glass(),
+      ...cardSurface(),
       borderRadius: R,
       borderTop: `3px solid ${color}`,
       padding: "32px 36px",

@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect, memo, lazy, Suspense } from "react";
 import { useDialog } from "../hooks/useDialog";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill, FilterPillStrip } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, cardSurface, Pill, FilterPillStrip } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail } from "../lib/gmail";
@@ -710,7 +710,7 @@ const SalesCRM = (props) => {
               </div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, marginTop: 8, overflowY: "auto", maxHeight: 420 }}>
                 {closedContracts.slice(0, 8).map(({ contract: c, orderCount, totalValue }) => (
-                  <div key={c.id} onClick={() => onNavigate?.("contracts")} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "pointer" }} title="Open Contracts page">
+                  <div key={c.id} onClick={() => onNavigate?.("contracts")} style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, cursor: "pointer" }} title="Open Contracts page">
                     <div style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, marginBottom: 2, fontFamily: COND }}>{cn(c.clientId)}</div>
                     <div style={{ color: Z.tm, fontSize: FS.sm, marginBottom: 2 }}>{c.name || "Contract"}</div>
                     <div style={{ fontWeight: FW.black, color: Z.su, fontSize: FS.base }}>${Number(totalValue || 0).toLocaleString()}</div>
@@ -729,7 +729,7 @@ const SalesCRM = (props) => {
           return <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragSaleId) { moveToStage(dragSaleId, stage); setDragSaleId(null); } }} style={{ background: Z.bg === "#08090D" ? "rgba(140,150,165,0.06)" : "rgba(255,255,255,0.25)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", minHeight: 100 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 4px 6px", borderBottom: `2px solid ${PIPELINE_COLORS[stage]}` }}><span style={{ fontSize: FS.sm, fontWeight: FW.black, color: PIPELINE_COLORS[stage] }}>{stage}</span><span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td }}>{ss.length}{stRev > 0 ? ` · $${(stRev / 1000).toFixed(0)}K` : ""}</span></div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, marginTop: 8, overflowY: "auto", maxHeight: 420 }}>
-              {ss.slice(0, 8).map(s => <div key={s.id} draggable onDragStart={() => setDragSaleId(s.id)} onClick={() => handleCardClick(s)} style={{ ...glass(), borderRadius: R, padding: CARD.pad, cursor: "grab" }}>
+              {ss.slice(0, 8).map(s => <div key={s.id} draggable onDragStart={() => setDragSaleId(s.id)} onClick={() => handleCardClick(s)} style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, cursor: "grab" }}>
                 <div onClick={e => { e.stopPropagation(); navTo("Clients", s.clientId); }} style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, cursor: "pointer", marginBottom: 2, fontFamily: COND }} title="Go to profile">{cn(s.clientId)}</div>
                 {s.type !== "TBD" && <div style={{ color: Z.tm, fontSize: FS.sm, marginBottom: 2 }}>{pn(s.publication)} · {s.type}</div>}
                 {s.amount > 0 && <div style={{ fontWeight: FW.black, color: Z.su, fontSize: FS.base }}>${s.amount.toLocaleString()}</div>}
@@ -820,14 +820,14 @@ const SalesCRM = (props) => {
           ["Signed", "$" + (proposals.filter(p => p.status === "Signed & Converted").reduce((s,p) => s + (p.total||0), 0)/1000).toFixed(0) + "K", Z.ac],
           ["Conversion", Math.round(proposals.filter(p => p.status === "Signed & Converted").length / Math.max(1, proposals.filter(p => p.status !== "Draft").length) * 100) + "%", Z.pu],
           ["Avg Deal", "$" + Math.round(proposals.filter(p => p.total > 0).reduce((s,p) => s + p.total, 0) / Math.max(1, proposals.filter(p => p.total > 0).length)).toLocaleString(), Z.or],
-        ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
+        ].map(([l, v, c]) => <div key={l} style={{ ...cardSurface(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
       </div>
       {(() => {
         let fp = [...proposals].sort((a, b) => (b.date || b.sentAt || "").localeCompare(a.date || a.sentAt || ""));
         if (propStatus === "all") fp = fp.filter(p => p.status !== "Cancelled");
         else fp = fp.filter(p => p.status === propStatus);
         if (propSearch) { const q = propSearch.toLowerCase(); fp = fp.filter(p => (p.name || "").toLowerCase().includes(q) || cn(p.clientId).toLowerCase().includes(q) || propPubNames(p).toLowerCase().includes(q)); }
-        return fp.length === 0 ? <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No proposals match filters</GlassCard> : fp.map(p => <div key={p.id} onClick={() => setViewPropId(p.id)} style={{ ...glass(), borderRadius: R, padding: 16, cursor: "pointer" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.name}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{cn(p.clientId)} · {p.lines.length} items</div><div style={{ fontSize: FS.sm, color: Z.ac }}>{propPubNames(p)}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su }}>${p.total.toLocaleString()}</span><Badge status={p.status} small />
+        return fp.length === 0 ? <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No proposals match filters</GlassCard> : fp.map(p => <div key={p.id} onClick={() => setViewPropId(p.id)} style={{ ...cardSurface(), borderRadius: R, padding: 16, cursor: "pointer" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.name}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{cn(p.clientId)} · {p.lines.length} items</div><div style={{ fontSize: FS.sm, color: Z.ac }}>{propPubNames(p)}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su }}>${p.total.toLocaleString()}</span><Badge status={p.status} small />
         {p.sentAt && <span
           title={`Sent ${new Date(p.sentAt).toLocaleString()}${p.sentTo?.length ? `\nTo: ${p.sentTo.join(", ")}` : ""}`}
           style={{
@@ -937,7 +937,7 @@ const SalesCRM = (props) => {
           ["Deals Closed", String(filtered.length), Z.ac],
           ["Avg Deal", "$" + Math.round(totalRev / Math.max(1, filtered.length)).toLocaleString(), Z.wa],
           ["Top Seller", topRep ? topRep[0].split(" ")[0] : "\u2014", Z.ac],
-        ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Seller" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
+        ].map(([l, v]) => <div key={l} style={{ ...cardSurface(), borderRadius: R, padding: "12px 16px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div>{l === "Top Seller" && topRep && <div style={{ fontSize: FS.xs, color: Z.tm }}>${(topRep[1]/1000).toFixed(0)}K revenue</div>}</div>)}
       </div>
       {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>}
       {/* TABLE */}
@@ -1007,7 +1007,7 @@ const SalesCRM = (props) => {
               ["Term", `${viewContract.startDate || "?"} \u2192 ${viewContract.endDate || "?"}`],
               ["Value", `$${(viewContract.totalValue || 0).toLocaleString()}`],
               ["Salesperson", viewContract.assignedTo ? repName(viewContract.assignedTo) : "\u2014"],
-            ].map(([l, v]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: 12 }}>
+            ].map(([l, v]) => <div key={l} style={{ ...cardSurface(), borderRadius: R, padding: 12 }}>
               <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</div>
               <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, marginTop: 4 }}>{v}</div>
             </div>)}
@@ -1076,13 +1076,13 @@ const SalesCRM = (props) => {
           ["Ready", String(totalReady), Z.ac],
           ["Warm Up", String(totalWarm), Z.wa],
           ["At Risk", String(totalAtRisk), totalAtRisk > 0 ? Z.da : Z.ac],
-        ].map(([l, v, c]) => <div key={l} style={{ ...glass(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
+        ].map(([l, v, c]) => <div key={l} style={{ ...cardSurface(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
       </div>
       {scored.length === 0 && <GlassCard style={{ textAlign: "center", padding: 20, color: Z.ac, fontSize: FS.lg, fontWeight: FW.bold }}>All caught up — no renewals due</GlassCard>}
       {/* THREE LANES */}
       {[{ label: "Ready to Renew", items: ready, total: totalReady, color: Z.ac, action: "Send Renewal" }, { label: "Warm Up Needed", items: warm, total: totalWarm, color: Z.wa, action: "Schedule Check-in" }, { label: "At Risk", items: atRisk, total: totalAtRisk, color: Z.da, action: "Review Account" }].map(lane => lane.items.length === 0 ? null : <div key={lane.label}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0 4px", borderBottom: `2px solid ${lane.color}` }}><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{lane.label}</span><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: INV.light, background: lane.color, padding: "1px 7px", borderRadius: R }}>{lane.items.length}{lane.total > lane.items.length ? ` of ${lane.total}` : ""}</span></div>
-        {lane.items.slice(0, 25).map(s => <div key={s.clientId || s.id} style={{ ...glass(), borderRadius: R, padding: 16, marginTop: 4 }}>
+        {lane.items.slice(0, 25).map(s => <div key={s.clientId || s.id} style={{ ...cardSurface(), borderRadius: R, padding: 16, marginTop: 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{cn(s.clientId)}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>${(s.totalSpend || s.amount || 0).toLocaleString()} total · {s.saleCount || 1} orders · {s.pubCount || 1} pub{(s.pubCount || 1) > 1 ? "s" : ""}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Last: {s.lastDate || s.date}</div></div>
             <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: lane.color }}>{s.score}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>score</div></div>
@@ -1160,7 +1160,7 @@ const SalesCRM = (props) => {
             {sortedInquiries.map(inq => {
               const matchedClient = inq.client_id ? (clients || []).find(c => c.id === inq.client_id) : null;
               const rep = matchedClient?.repId ? (props.team || []).find(t => t.id === matchedClient.repId) : null;
-              return <div key={inq.id} style={{ ...glass(), padding: CARD.pad, borderRadius: R, border: "1px solid " + Z.bd, display: "flex", flexDirection: "column", gap: 8 }}>
+              return <div key={inq.id} style={{ ...cardSurface(), padding: CARD.pad, borderRadius: R, border: "1px solid " + Z.bd, display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* Header row */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1 }}>

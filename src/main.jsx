@@ -34,22 +34,39 @@ const ClientPortfolioPortal = isAdsPortfolioPage ? lazy(() => import("./pages/Cl
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    {/* Public routes flagged data-surface="paper" per
+        docs/ui-refresh/03-paper-surfaces.md — heritage register
+        is correct for client-facing reading/sign/pay/upload pages.
+        ClientPortal, MerchShop, ClientPortfolioPortal stay steel
+        (dashboard / commerce / gallery shapes). */}
     {isApprovalPage ? (
-      <Suspense fallback={null}><ProofApproval /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><ProofApproval /></Suspense>
+      </div>
     ) : isSignPage ? (
-      <Suspense fallback={null}><ProposalSign /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><ProposalSign /></Suspense>
+      </div>
     ) : isPortalPage ? (
       <Suspense fallback={null}><ClientPortal /></Suspense>
     ) : isPayPage ? (
-      <Suspense fallback={null}><PayInvoice /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><PayInvoice /></Suspense>
+      </div>
     ) : isUploadPage ? (
-      <Suspense fallback={null}><ClientUpload /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><ClientUpload /></Suspense>
+      </div>
     ) : isShopPage ? (
       <Suspense fallback={null}><MerchShop /></Suspense>
     ) : isReportPage ? (
-      <Suspense fallback={null}><CampaignPublic /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><CampaignPublic /></Suspense>
+      </div>
     ) : isTearsheetPage ? (
-      <Suspense fallback={null}><TearsheetPortal /></Suspense>
+      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+        <Suspense fallback={null}><TearsheetPortal /></Suspense>
+      </div>
     ) : isAdsPortfolioPage ? (
       <Suspense fallback={null}><ClientPortfolioPortal /></Suspense>
     ) : (

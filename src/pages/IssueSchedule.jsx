@@ -5,7 +5,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
-import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass, EntityLink } from "../components/ui";
+import { Ic, Btn, Sel, Badge, GlassCard, PageHeader, glass, cardSurface, EntityLink } from "../components/ui";
 import { useNav } from "../hooks/useNav";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { holidaySetForPub, holidayLabelMap, shiftDeadline, fmtDeadlineBadge } from "../lib/holidays";
@@ -146,7 +146,7 @@ const ThisWeekCard = ({ iss, pub, sales, stories, holidaySet, labelMap, onOpenIs
 
   return (
     <div onClick={() => onOpenIssue(iss.id)} style={{
-      ...glass(), borderRadius: R, padding: 16, cursor: "pointer",
+      ...cardSurface(), borderRadius: R, padding: 16, cursor: "pointer",
       borderLeft: `3px solid ${color}`, display: "flex", flexDirection: "column", gap: 6,
       transition: "transform 0.15s",
     }}>

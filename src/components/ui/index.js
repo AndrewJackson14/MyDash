@@ -8,7 +8,7 @@ export {
   Toggle, Check, Avi, Pill,
   GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, GlassDivider,
   TabRow, TabPipe, DataTable,
-  ListCard, ListDivider, ListGrid, glass,
+  ListCard, ListDivider, ListGrid, glass, cardSurface, FloatingPanel,
   ErrorBoundary,
 } from "./Primitives";
 export { FilterPillStrip } from "./FilterPillStrip";
