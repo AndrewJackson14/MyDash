@@ -2007,6 +2007,7 @@ const RoleDashboard = memo(({
     const publishedMtd = published.filter(s => (s.publishedAt || s.updatedAt || "").startsWith(thisMonth));
     const inProgress = myStories.filter(s => ["Pitched", "Draft", "Edit", "Needs Editing", "Editing"].includes(s.status));
     const drafts = inProgress.filter(s => ["Pitched", "Draft"].includes(s.status));
+    const pitches = inProgress.filter(s => s.status === "Pitched");
     const inEdit = inProgress.filter(s => ["Edit", "Needs Editing", "Editing"].includes(s.status));
     const overdue = inProgress.filter(s => s.dueDate && s.dueDate < today);
     const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -2021,6 +2022,40 @@ const RoleDashboard = memo(({
       .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
       .slice(0, 5);
 
+    // Writer P2 — 8-week productivity sparkline. Bin published stories
+    // into ISO-week buckets ending today; bar height = stories that
+    // week. Helps the writer see velocity without leaving the dashboard.
+    const weekBins = Array.from({ length: 8 }, (_, i) => {
+      const start = new Date(); start.setDate(start.getDate() - (7 - i) * 7);
+      const end = new Date(start); end.setDate(end.getDate() + 7);
+      return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10), count: 0 };
+    });
+    published.forEach(s => {
+      const d = (s.publishedAt || s.updatedAt || "").slice(0, 10);
+      if (!d) return;
+      const bin = weekBins.find(b => d >= b.start && d < b.end);
+      if (bin) bin.count++;
+    });
+    const thisWeekCount = weekBins[weekBins.length - 1].count;
+    const maxWeekCount = Math.max(1, ...weekBins.map(b => b.count));
+    const last4wAvg = weekBins.slice(-4).reduce((s, b) => s + b.count, 0) / 4;
+    const prior4wAvg = weekBins.slice(0, 4).reduce((s, b) => s + b.count, 0) / 4;
+    const velocityDelta = prior4wAvg > 0 ? Math.round(((last4wAvg - prior4wAvg) / prior4wAvg) * 100) : null;
+
+    // Writer P2 — Beat radar. Top categories from stories published in
+    // the last 90 days. Counts only — surfaces what beats are getting
+    // attention vs neglected so the writer can balance coverage.
+    const d90ago = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    const beatCounts = {};
+    published.filter(s => (s.publishedAt || s.updatedAt || "").slice(0, 10) >= d90ago).forEach(s => {
+      const cat = s.category || "Uncategorized";
+      beatCounts[cat] = (beatCounts[cat] || 0) + 1;
+    });
+    const topBeats = Object.entries(beatCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    const beatTotal = Object.values(beatCounts).reduce((s, n) => s + n, 0);
+
     return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
       {/* Hero */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "28px 32px" }}>
@@ -2033,6 +2068,7 @@ const RoleDashboard = memo(({
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: drafts.length > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{drafts.length}</div>
             <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Drafts</div>
+            {pitches.length > 0 && <div style={{ fontSize: 9, color: Z.tm, marginTop: 1 }}>{pitches.length} pitch{pitches.length === 1 ? "" : "es"}</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: inEdit.length > 0 ? Z.wa : Z.tm, fontFamily: DISPLAY }}>{inEdit.length}</div>
@@ -2048,6 +2084,30 @@ const RoleDashboard = memo(({
       <div style={{ display: "grid", gridTemplateColumns: dashCols, gap: 16 }}>
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Writer P2 — Pitch tracker. Idea backlog (status=Pitched).
+              Surfaced separately so pitches don't get drowned in the
+              In-Progress list with active drafts. */}
+          {pitches.length > 0 && <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>💡 Pitch Backlog</div>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{pitches.length} idea{pitches.length === 1 ? "" : "s"}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+              {pitches.map(s => {
+                const age = s.createdAt ? Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 86400000) : null;
+                return <div key={s.id} onClick={() => onNavigate?.("stories")} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${ACCENT.indigo}`, cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={s.title || "Untitled pitch"}>{s.title || "Untitled pitch"}</div>
+                    <div style={{ fontSize: FS.xs, color: Z.tm }}>
+                      {pn(s.publication) || "—"}
+                      {age != null && ` · ${age}d sitting`}
+                    </div>
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>}
+
           <div style={glass}>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 12 }}>My Stories — In Progress</div>
             {inProgress.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>Nothing in progress — pitch something new</div>
@@ -2095,6 +2155,44 @@ const RoleDashboard = memo(({
         {/* RIGHT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <DirectionCard />
+
+          {/* Writer P2 — 8-week productivity sparkline. Each bar = one
+              ISO-week of published stories. Velocity delta compares last
+              4 weeks to prior 4. */}
+          <div style={glass}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Velocity · 8 weeks</div>
+              <span style={{ fontSize: FS.xs, color: thisWeekCount > 0 ? Z.go : Z.tm, fontWeight: FW.bold }}>{thisWeekCount} this wk</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 48, padding: "0 2px" }}>
+              {weekBins.map((b, i) => {
+                const h = (b.count / maxWeekCount) * 100;
+                const isCurrent = i === weekBins.length - 1;
+                return <div key={i} title={`${b.start} — ${b.count}`} style={{ flex: 1, height: `${Math.max(h, 4)}%`, background: isCurrent ? Z.go : ACCENT.indigo + "80", borderRadius: 2, minHeight: 2 }} />;
+              })}
+            </div>
+            {velocityDelta != null && <div style={{ fontSize: 10, color: velocityDelta >= 0 ? Z.go : Z.wa, marginTop: 6, fontWeight: FW.bold }}>
+              {velocityDelta >= 0 ? "▲" : "▼"} {Math.abs(velocityDelta)}% last 4wk vs prior 4wk
+            </div>}
+          </div>
+
+          {/* Writer P2 — Beat radar. Top categories from last 90 days
+              of published stories. Surfaces over/under-coverage. */}
+          {topBeats.length > 0 && <div style={glass}>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Beat Radar · Last 90d</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {topBeats.map(([beat, count]) => (
+                <div key={beat} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: FS.xs, color: Z.tx, fontWeight: FW.semi, width: 90, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={beat}>{beat}</span>
+                  <div style={{ flex: 1, height: 8, background: Z.bg, borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${(count / topBeats[0][1]) * 100}%`, background: ACCENT.indigo, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, width: 22, textAlign: "right" }}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>}
+
           <div style={glass}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Recent Bylines</div>
             {recentBylines.length === 0 ? <div style={{ padding: 8, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No published stories yet</div>
