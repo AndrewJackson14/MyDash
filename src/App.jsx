@@ -23,7 +23,6 @@ import { useGmailUnread } from "./hooks/useGmailUnread";
 import AmbientPressureLayer from "./components/AmbientPressureLayer";
 import MyHelperLauncher from "./components/MyHelperLauncher";
 import Sidebar from "./components/layout/Sidebar";
-import TopBar from "./components/layout/TopBar";
 import MetadataStrip from "./components/layout/MetadataStrip";
 import { getPageMeta } from "./data/pageMeta";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
@@ -623,28 +622,24 @@ export default function App() {
     {/* ── Main Content ─────────────────────────────────── */}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-      {/* ── Press Room metadata strip — galley-proof kicker on every
-          page. Format: `13 STARS / MYDASH ── {PAGE} ── REV. {DATE} ──
-          {DEPARTMENT}`. See docs/ui-refresh/01-direction.md §The One
-          Memorable Thing. */}
+      {/* ── Single header — Press Room metadata strip carrying
+          Back (left), the galley-proof line (center), and the
+          notification bell (right). Andrew override 2026-04-26:
+          the legacy <TopBar> is gone — this strip IS the header. */}
       {(() => {
         const meta = getPageMeta(pg);
-        return <MetadataStrip page={meta.label} department={meta.department} />;
+        return (
+          <MetadataStrip
+            page={meta.label}
+            department={meta.department}
+            onBack={pg !== "dashboard" ? goBack : null}
+            notifications={notifications}
+            setNotifications={setNotifications}
+            onMarkAllRead={appData.markAllNotificationsRead}
+            onNavigate={handleNav}
+          />
+        );
       })()}
-
-      {/* ── Shell v2 TopBar — renders only when the active page
-          publishes a header via usePageHeader(). Legacy pages that
-          don't publish keep their existing inline header below. */}
-      <TopBar
-        user={currentUser ? { name: currentUser.name, initials: (currentUser.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() } : null}
-        onUserClick={() => { if (currentUser?.id) handleNav("team", { memberId: currentUser.id }); }}
-        notifications={notifications}
-        setNotifications={setNotifications}
-        onMarkAllRead={appData.markAllNotificationsRead}
-        onNavigate={handleNav}
-        onBack={pg !== "dashboard" ? goBack : null}
-        onSearchSubmit={(q) => { const t = (q || "").trim(); if (t) handleNav("/editorial?q=" + encodeURIComponent(t)); }}
-      />
 
       {/* ── Page Content ──────────────────────────────────── */}
       <main data-main style={{ flex: 1, overflow: "auto", padding: pg === "dashboard" ? 0 : 28, background: "transparent" }}>
