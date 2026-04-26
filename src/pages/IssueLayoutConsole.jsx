@@ -439,66 +439,76 @@ export default function IssueLayoutConsole({
 
   // ── Render ──────────────────────────────────────────────────
   if (!isActive) return null;
+
+  const glass = { ...glassStyle(), borderRadius: R, padding: "18px 20px" };
+
+  // Pill row is rendered for every render path (including no-issue and
+  // not-found) so it can serve as the entry-point selector — clicking
+  // a pub's pill is how Anthony picks an issue to lay out.
+  const pubSwitcherRow = pubSwitchers.length > 0 && (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {pubSwitchers.map(({ pub: p, issue: iss, readyCount }) => {
+        const isCurrent = iss.id === issueId;
+        return (
+          <button
+            key={p.id}
+            onClick={() => { if (!isCurrent) onNavigate?.("layout", { id: iss.id }); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 14px", borderRadius: 999,
+              border: `1px solid ${isCurrent ? (p.color || Z.ac) : Z.bd}`,
+              background: isCurrent ? (p.color || Z.ac) + "18" : "transparent",
+              cursor: isCurrent ? "default" : "pointer",
+              color: isCurrent ? Z.tx : Z.tm,
+              fontFamily: COND,
+            }}
+            title={`Next: ${iss.label || ""} · ${readyCount} ready for layout`}
+          >
+            <span style={{ fontSize: FS.sm, fontWeight: isCurrent ? FW.black : FW.bold }}>
+              {p.name}
+            </span>
+            <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+              {iss.label || ""}
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: FW.heavy,
+              color: readyCount > 0 ? ACCENT.indigo : Z.td,
+              background: readyCount > 0 ? ACCENT.indigo + "20" : "transparent",
+              border: readyCount > 0 ? "none" : `1px solid ${Z.bd}`,
+              padding: "1px 7px", borderRadius: 999,
+              fontFamily: COND, letterSpacing: 0.4,
+            }}>
+              {readyCount} READY
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (!issueId) return (
-    <div style={{ padding: 28, color: Z.tm, fontFamily: COND }}>
-      No issue selected. Open Layout Console from your dashboard's Today's Issues card.
+    <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+      {pubSwitcherRow}
+      <div style={{ color: Z.tm, fontFamily: COND }}>
+        Pick a publication above to open its next issue, or open Layout Console from your dashboard's Today's Issues card.
+      </div>
     </div>
   );
   if (!issue) return (
-    <div style={{ padding: 28, color: Z.tm, fontFamily: COND }}>
-      Issue not found, or it isn't loaded yet. <Btn sm v="secondary" onClick={() => onNavigate?.("dashboard")}>Back to dashboard</Btn>
+    <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+      {pubSwitcherRow}
+      <div style={{ color: Z.tm, fontFamily: COND }}>
+        Issue not found, or it isn't loaded yet. <Btn sm v="secondary" onClick={() => onNavigate?.("dashboard")}>Back to dashboard</Btn>
+      </div>
     </div>
   );
 
   const d = daysUntil(issue.date);
   const deadlineColor = d <= 1 ? Z.da : d <= 3 ? Z.wa : Z.go;
 
-  const glass = { ...glassStyle(), borderRadius: R, padding: "18px 20px" };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: 28 }}>
-      {/* Publication switcher — pill row showing each pub's next unsent
-          issue with a Ready-count badge for stories awaiting layout. */}
-      {pubSwitchers.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {pubSwitchers.map(({ pub: p, issue: iss, readyCount }) => {
-            const isCurrent = iss.id === issueId;
-            return (
-              <button
-                key={p.id}
-                onClick={() => { if (!isCurrent) onNavigate?.("layout", { id: iss.id }); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "8px 14px", borderRadius: 999,
-                  border: `1px solid ${isCurrent ? (p.color || Z.ac) : Z.bd}`,
-                  background: isCurrent ? (p.color || Z.ac) + "18" : "transparent",
-                  cursor: isCurrent ? "default" : "pointer",
-                  color: isCurrent ? Z.tx : Z.tm,
-                  fontFamily: COND,
-                }}
-                title={`Next: ${iss.label || ""} · ${readyCount} ready for layout`}
-              >
-                <span style={{ fontSize: FS.sm, fontWeight: isCurrent ? FW.black : FW.bold }}>
-                  {p.name}
-                </span>
-                <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
-                  {iss.label || ""}
-                </span>
-                <span style={{
-                  fontSize: 10, fontWeight: FW.heavy,
-                  color: readyCount > 0 ? ACCENT.indigo : Z.td,
-                  background: readyCount > 0 ? ACCENT.indigo + "20" : "transparent",
-                  border: readyCount > 0 ? "none" : `1px solid ${Z.bd}`,
-                  padding: "1px 7px", borderRadius: 999,
-                  fontFamily: COND, letterSpacing: 0.4,
-                }}>
-                  {readyCount} READY
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {pubSwitcherRow}
       {/* Header */}
       <div style={{ ...glassStyle(), borderRadius: R, padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
