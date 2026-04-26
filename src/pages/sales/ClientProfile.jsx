@@ -871,14 +871,14 @@ const ClientProfile = ({
             <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
               {emailLog.map(e => {
                 const isInbound = e.direction === "inbound";
-                const statusColor = isInbound ? (Z.ac || "var(--accent)")
+                const statusColor = isInbound ? (Z.ac || "var(--action)")
                   : e.status === "sent" ? Z.go
                   : e.status === "failed" ? Z.da
                   : e.status === "draft" ? Z.wa
                   : Z.td;
                 const typeLabel = isInbound ? "← inbound" : (e.type || "email").replace(/_/g, " ");
                 const counterparty = isInbound ? (e.from_email || "(unknown sender)") : e.to_email;
-                return <div key={e.id} style={{ padding: "7px 10px", background: isInbound ? (Z.ac || "var(--accent)") + "08" : Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
+                return <div key={e.id} style={{ padding: "7px 10px", background: isInbound ? (Z.ac || "var(--action)") + "08" : Z.bg, borderRadius: Ri, borderLeft: `2px solid ${statusColor}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
                     <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: statusColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{typeLabel}</span>
                     <span style={{ fontSize: FS.micro, color: Z.td }}>{fmtTimeRelative(e.created_at)}</span>

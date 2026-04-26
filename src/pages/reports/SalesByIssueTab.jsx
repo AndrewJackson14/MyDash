@@ -13,8 +13,8 @@ const VIEW_OPTIONS = [
 // Color map for ad_project.status — green when creative is done, amber in-flight,
 // blue for not-started (brief), muted fallback.
 const AD_STATUS_COLOR = {
-  brief:         { bg: "color-mix(in srgb, var(--accent) 15%, transparent)", fg: "var(--accent)" },
-  awaiting_art:  { bg: "color-mix(in srgb, var(--accent) 15%, transparent)", fg: "var(--accent)" },
+  brief:         { bg: "color-mix(in srgb, var(--action) 15%, transparent)", fg: "var(--action)" },
+  awaiting_art:  { bg: "color-mix(in srgb, var(--action) 15%, transparent)", fg: "var(--action)" },
   designing:     { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
   proof_sent:    { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
   revising:      { bg: "rgba(212,137,14,0.18)", fg: "#D4890E" },
@@ -26,7 +26,7 @@ const AD_STATUS_COLOR = {
 // Color map for invoices.status.
 const INV_STATUS_COLOR = {
   draft:           { bg: "rgba(140,150,165,0.18)", fg: "#8A95A8" },
-  sent:            { bg: "color-mix(in srgb, var(--accent) 15%, transparent)",  fg: "var(--accent)" },
+  sent:            { bg: "color-mix(in srgb, var(--action) 15%, transparent)",  fg: "var(--action)" },
   partially_paid:  { bg: "rgba(212,137,14,0.18)",  fg: "#D4890E" },
   overdue:         { bg: "rgba(224,80,80,0.15)",   fg: "#E05050" },
   paid:            { bg: "rgba(0,163,0,0.18)",     fg: "#00a300" },

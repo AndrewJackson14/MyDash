@@ -171,7 +171,7 @@ export default function ReferenceAssetUploader({
       >
         <span style={{ fontSize: 22, color: Z.tm }}>⬆</span>
         <div style={{ fontSize: FS.base, color: Z.tx, fontWeight: FW.bold }}>
-          Drag files here or <span style={{ color: "var(--accent)", textDecoration: "underline" }}>browse</span>
+          Drag files here or <span style={{ color: "var(--action)", textDecoration: "underline" }}>browse</span>
         </div>
         <div style={{ fontSize: FS.xs, color: Z.tm, textAlign: "center" }}>
           JPG, PNG, HEIC, WebP, GIF, PDF, AI, EPS, SVG, PSD · 25 MB max per file

@@ -286,7 +286,7 @@ function OrgAppearancePanel() {
   const DEFAULT_STATUS_COLORS = {
     Pitched:  { bg: "rgba(144,102,232,0.12)", fg: "#7c3aed" },
     Draft:    { bg: "rgba(138,149,168,0.12)", fg: "#8a95a8" },
-    Edit:     { bg: "color-mix(in srgb, var(--accent) 12%, transparent)",  fg: "var(--accent)" },
+    Edit:     { bg: "color-mix(in srgb, var(--action) 12%, transparent)",  fg: "var(--action)" },
     Ready:    { bg: "rgba(34,197,94,0.12)",   fg: "#16a34a" },
     Archived: { bg: "rgba(138,149,168,0.08)", fg: "#9ca3af" },
   };
@@ -384,7 +384,7 @@ function OrgAppearancePanel() {
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Serenity Color</div>
           <div style={{ display: "flex", gap: 6 }}>
-            {[{ k: "blue", label: "Blue", color: "var(--accent)" }, { k: "green", label: "Green", color: "#22C55E" }].map(opt => (
+            {[{ k: "blue", label: "Blue", color: "var(--action)" }, { k: "green", label: "Green", color: "#22C55E" }].map(opt => (
               <button key={opt.k} onClick={() => setS(p => ({ ...p, serenity_color: opt.k }))} style={{
                 flex: 1, padding: "8px 10px", borderRadius: 4,
                 border: `2px solid ${s.serenity_color === opt.k ? opt.color : Z.bd}`,

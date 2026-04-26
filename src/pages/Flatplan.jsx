@@ -964,7 +964,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       {canSendToPress && issue && <Btn sm onClick={handleSendToPress} disabled={sendingToPress} style={issue.sentToPressAt ? { background: Z.go + "15", color: Z.go, border: `1px solid ${Z.go}40` } : {}}>{sendingToPress ? "Sending..." : issue.sentToPressAt ? "✓ Sent to Press" : "Send to Press"}</Btn>}
       {issue && prevIssueExists && <Btn sm v="secondary" onClick={copyFromPrevious}>Copy Prev Issue</Btn>}
       <Btn sm v="secondary" onClick={() => setShowSectionPicker(true)}>+ Section</Btn>
-      {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "var(--accent)" : Z.bd}`, background: showSharedPicker ? "color-mix(in srgb, var(--accent) 15%, transparent)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "var(--accent)" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
+      {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "var(--action)" : Z.bd}`, background: showSharedPicker ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "var(--action)" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
       <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
     </div>
@@ -983,10 +983,10 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     </div>
 
     {/* Shared-page picker — primary pub only. Click pages to toggle. */}
-    {showSharedPicker && issue && sharedCtx?.isPrimary && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "color-mix(in srgb, var(--accent) 6%, transparent)", border: "1px solid color-mix(in srgb, var(--accent) 20%, transparent)", borderRadius: R, marginBottom: 6 }}>
-      <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: "var(--accent)", flexShrink: 0 }}>↔ Shared pages:</span>
+    {showSharedPicker && issue && sharedCtx?.isPrimary && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "color-mix(in srgb, var(--action) 6%, transparent)", border: "1px solid color-mix(in srgb, var(--action) 20%, transparent)", borderRadius: R, marginBottom: 6 }}>
+      <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: "var(--action)", flexShrink: 0 }}>↔ Shared pages:</span>
       <span style={{ fontSize: FS.sm, color: Z.tm }}>Click pages below to toggle shared. Shared pages mirror to {sharedCtx.siblingNames?.join(", ")}.</span>
-      {(issue.sharedPages || []).length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: "var(--accent)" }}>p.{(issue.sharedPages || []).join(",")}</span>}
+      {(issue.sharedPages || []).length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: "var(--action)" }}>p.{(issue.sharedPages || []).join(",")}</span>}
       <div style={{ flex: 1 }} />
       <Btn sm onClick={() => setShowSharedPicker(false)}>Done</Btn>
     </div>}

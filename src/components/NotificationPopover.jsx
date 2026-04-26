@@ -305,7 +305,7 @@ export function NotificationPopover({ currentUser, team, onOpenMemberProfile }) 
                   onClick={() => sendReply(note)}
                   disabled={isSending || !draft.trim()}
                   style={{
-                    background: draft.trim() ? "var(--accent)" : "rgba(255,255,255,0.12)",
+                    background: draft.trim() ? "var(--action)" : "rgba(255,255,255,0.12)",
                     border: "none",
                     borderRadius: 8,
                     color: "#fff",

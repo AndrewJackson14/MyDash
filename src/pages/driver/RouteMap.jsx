@@ -21,7 +21,7 @@ const COLOR_CURRENT  = "#B8893A";  // gold
 const COLOR_DONE     = "#2F855A";  // green
 const COLOR_SKIPPED  = "#C53030";  // red
 const COLOR_UPCOMING = "#FFFFFF";  // white
-const COLOR_GPS      = "var(--accent)";  // blue
+const COLOR_GPS      = "var(--action)";  // blue
 
 export default function RouteMap({
   stops,           // [{id, lat, lng, name, status: 'delivered' | 'skipped' | 'pending' | 'current'}]

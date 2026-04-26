@@ -159,12 +159,12 @@ export default function Sidebar({
               display: "flex", alignItems: "center",
               height: 36, padding: "0 12px",
               borderRadius: 10, cursor: "pointer",
-              color: pinned ? "var(--accent)" : "var(--muted)",
+              color: pinned ? "var(--action)" : "var(--muted)",
               fontSize: 13,
               transition: `background-color ${DUR.fast}ms ${EASE}, color ${DUR.fast}ms ${EASE}`,
               whiteSpace: "nowrap",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-soft)"; }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--action-soft)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
           >
             <span style={{ width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -196,7 +196,7 @@ export default function Sidebar({
               transition: `background-color ${DUR.fast}ms ${EASE}`,
               justifyContent: expanded ? "flex-start" : "center",
             }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--accent-soft)"}
+            onMouseEnter={e => e.currentTarget.style.background = "var(--action-soft)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <div style={{
@@ -284,7 +284,7 @@ export default function Sidebar({
                       color: isSelected ? "var(--warn)" : "var(--ink)",
                       textAlign: "left", fontFamily: "var(--font-body)",
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-soft)"; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--action-soft)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = isSelected ? ("color-mix(in srgb, var(--warn) 12%, transparent)") : "transparent"; }}
                   >{t.name} <span style={{ color: "var(--muted)", fontWeight: 400 }}>· {t.role}</span></button>
                 );

@@ -354,7 +354,7 @@ const HotIssueRow = ({ item, accent, onClick }) => {
   // Heat dot color picks from the item's heat level
   const heatColor = item.heat >= 75 ? "#EF4444"
     : item.heat >= 50 ? "#F59E0B"
-    : item.heat >= 25 ? "var(--accent)"
+    : item.heat >= 25 ? "var(--action)"
     : "#10B981";
   return <div
     onClick={onClick}

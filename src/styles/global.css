@@ -131,8 +131,10 @@
   --card:        #FFFFFF;                    /* Elevated surfaces only */
   --rule:        rgba(26, 24, 20, 0.12);     /* Hairlines, dividers, table borders */
   --muted:       #6B655A;                    /* Secondary text, captions, metadata */
-  --accent:      #C8301E;                    /* Single hot accent — print-press red */
-  --accent-soft: rgba(200, 48, 30, 0.08);    /* Selected row, hover wash */
+  --accent:      #C8301E;                    /* Hot accent — alerts, danger, caution affordances ONLY */
+  --accent-soft: rgba(200, 48, 30, 0.08);    /* Alert wash */
+  --action:      #2C465E;                    /* Primary action — navy blue (buttons, active tabs, charts) */
+  --action-soft: rgba(44, 70, 94, 0.10);     /* Hover wash, selected row */
   --ok:          #3B6B3B;                    /* Success only */
   --warn:        #B8860B;                    /* Caution */
 
@@ -196,9 +198,10 @@
   /* Radius — Press Room scale (approved 2026-04-26).
      Five values total. See docs/ui-refresh/02-radius-proposal.md. */
   --rad-0:    0px;                           /* Page chrome, table containers, full-bleed sections */
-  --rad-1:    2px;                           /* Cards, panels, modals, dropdowns */
+  --rad-1:    2px;                           /* Panels, modals, dropdowns */
   --rad-2:    4px;                           /* Buttons, inputs, badges, segmented controls */
-  --rad-3:    6px;                           /* Drop-zone outlines, image previews — max for any rectangle */
+  --rad-3:    6px;                           /* Drop-zone outlines, image previews */
+  --rad-card: 13px;                          /* Cards — pronounced rounding (Andrew override 2026-04-26) */
   --rad-pill: 9999px;                        /* Avatars, status dots, segmented pill containers */
 
   /* Legacy --md-radius* aliases — point at the new scale so existing
@@ -219,6 +222,8 @@
   --muted:       #8C8578;
   --accent:      #E8473A;                    /* Press red, lifted for dark */
   --accent-soft: rgba(232, 71, 58, 0.12);
+  --action:      #486B95;                    /* STEEL.500 — lifted navy for dark */
+  --action-soft: rgba(72, 107, 149, 0.18);
   --ok:          #7BA77B;
   --warn:        #D4A93C;
 
@@ -402,14 +407,14 @@ button:active:not(:disabled),
   opacity: 0.78;
 }
 
-/* Focus-visible — hairline accent ring, no glow. */
+/* Focus-visible — hairline action ring, no glow. */
 button:focus-visible,
 [role="button"]:focus-visible,
 a:focus-visible,
 select:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 1px solid var(--action);
   outline-offset: 2px;
 }
 
@@ -418,7 +423,7 @@ tbody tr {
   transition: background var(--dur-fast) var(--ease);
 }
 tbody tr:hover {
-  background: var(--accent-soft) !important;
+  background: var(--action-soft) !important;
 }
 
 
@@ -648,12 +653,12 @@ tbody tr td {
   50%, 100% { opacity: 0; }
 }
 
-/* Press Room — primary link hover: 2px underline draw left → right. */
+/* Primary link hover: 2px navy underline draw left → right. */
 a:not([class]),
 a.press-link {
-  color: var(--ink);
+  color: var(--action);
   text-decoration: none;
-  background-image: linear-gradient(var(--ink), var(--ink));
+  background-image: linear-gradient(var(--action), var(--action));
   background-position: left bottom;
   background-repeat: no-repeat;
   background-size: 0 2px;

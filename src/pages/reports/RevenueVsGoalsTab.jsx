@@ -311,7 +311,7 @@ const RevenueVsGoalsTab = ({ pubs, onNavigate }) => {
             const statusColor = m.future ? Z.tm : pacingColor(m.pct);
             const barPct = m.goal > 0 ? Math.min(100, (m.actual / m.goal) * 100) : 0;
             const overflow = m.goal > 0 && m.actual > m.goal;
-            return <tr key={m.short} style={inWindow ? { background: "color-mix(in srgb, var(--accent) 6%, transparent)" } : undefined}>
+            return <tr key={m.short} style={inWindow ? { background: "color-mix(in srgb, var(--action) 6%, transparent)" } : undefined}>
               <td style={{ fontWeight: inWindow ? FW.heavy : FW.semi, color: Z.tx }}>{m.short}</td>
               <td style={{ textAlign: "right", fontFamily: DISPLAY, color: Z.td }}>
                 {m.goal === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(m.goal)}

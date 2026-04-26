@@ -54,7 +54,7 @@ const PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label:
 const DEFAULT_statusColors = {
   Pitched:  { bg: "rgba(144,102,232,0.12)", fg: "#7c3aed" },
   Draft:    { bg: "rgba(138,149,168,0.12)", fg: Z.tm },
-  Edit:     { bg: "color-mix(in srgb, var(--accent) 12%, transparent)",  fg: "var(--accent)" },
+  Edit:     { bg: "color-mix(in srgb, var(--action) 12%, transparent)",  fg: "var(--action)" },
   Ready:    { bg: "rgba(34,197,94,0.12)",   fg: "#16a34a" },
   Archived: { bg: "rgba(138,149,168,0.08)", fg: "#9ca3af" },
 };
@@ -1155,8 +1155,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {siblingCtx && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: showSiblings ? "var(--accent)" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
-                        <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: showSiblings ? "var(--action)" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
+                        <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "var(--action)" }} />
                         + {siblingCtx.map(sc => sc.pub.name).join(", ")}
                       </label>
                     )}
@@ -1430,8 +1430,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             title={(isSibling || isMirror) ? "" : "Drag to reorder"}
                           >☰</td>
                           <td style={{ padding: "5px 8px", maxWidth: 280 }}>
-                            {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", background: "color-mix(in srgb, var(--accent) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
-                            {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", background: "color-mix(in srgb, var(--accent) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
+                            {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
+                            {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
                             {hasSavedTitle
                               ? <span onClick={() => !isSibling && openDetail(s)} style={{ fontWeight: 700, color: isSibling ? Z.tm : Z.ac, cursor: isSibling ? "default" : "pointer", display: "inline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
                               : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => updateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
@@ -1449,9 +1449,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                                       style={{
                                         fontSize: 9, fontWeight: 700, fontFamily: COND, letterSpacing: 0.3,
                                         padding: "2px 7px", borderRadius: 10, cursor: "pointer",
-                                        background: linked ? "color-mix(in srgb, var(--accent) 15%, transparent)" : Z.sa,
-                                        color: linked ? "var(--accent)" : Z.tm,
-                                        border: `1px solid ${linked ? "color-mix(in srgb, var(--accent) 40%, transparent)" : Z.bd}`,
+                                        background: linked ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa,
+                                        color: linked ? "var(--action)" : Z.tm,
+                                        border: `1px solid ${linked ? "color-mix(in srgb, var(--action) 40%, transparent)" : Z.bd}`,
                                       }}
                                     >
                                       {linked ? "↔" : "⊕"} {sibPub.name}

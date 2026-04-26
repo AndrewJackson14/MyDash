@@ -344,7 +344,7 @@ const YearOverYearTab = ({ pubs, onNavigate }) => {
             const inWindow = curWindow.some(w => w.year === Number(curYear) && w.month === row.monthIdx);
             const max = Math.max(row.cur, row.cmp, 1);
             const dColor = deltaColor(row.dPct);
-            return <tr key={row.month} style={inWindow ? { background: "color-mix(in srgb, var(--accent) 6%, transparent)" } : undefined}>
+            return <tr key={row.month} style={inWindow ? { background: "color-mix(in srgb, var(--action) 6%, transparent)" } : undefined}>
               <td style={{ fontWeight: inWindow ? FW.heavy : FW.semi, color: inWindow ? Z.tx : Z.tx }}>{row.month}</td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontFamily: DISPLAY, color: Z.tx }}>
                 {row.cur === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(row.cur)}

@@ -43,8 +43,8 @@ export const DARK = {
   or:  "#D4A93C",
   bgCanvas:     "#14120E",
   bgChrome:     "#14120E",
-  bgHover:      "rgba(232,71,58,0.12)",    // accent-soft (dark)
-  bgActive:     "rgba(232,71,58,0.18)",
+  bgHover:      "rgba(72,107,149,0.18)",  // action-soft (dark) — navy hover wash
+  bgActive:     "rgba(72,107,149,0.24)",
   fgPrimary:    "#EDE8DC",
   fgSecondary:  "#EDE8DC",
   fgMuted:      "#8C8578",
@@ -79,8 +79,8 @@ export const LIGHT = {
   or:  "#B8860B",
   bgCanvas:     "#F5F1E8",
   bgChrome:     "#F5F1E8",
-  bgHover:      "rgba(200,48,30,0.08)",
-  bgActive:     "rgba(200,48,30,0.12)",
+  bgHover:      "rgba(44,70,94,0.10)",   // action-soft (light) — navy hover wash
+  bgActive:     "rgba(44,70,94,0.16)",
   fgPrimary:    "#1A1814",
   fgSecondary:  "#1A1814",
   fgMuted:      "#6B655A",
@@ -152,8 +152,10 @@ export const PRESS_LIGHT = {
   card:        "#FFFFFF",
   rule:        "rgba(26, 24, 20, 0.12)",
   muted:       "#6B655A",
-  accent:      "#C8301E",
+  accent:      "#C8301E",                  // Press red — alerts/danger only
   accentSoft:  "rgba(200, 48, 30, 0.08)",
+  action:      "#2C465E",                  // STEEL.700 navy — primary actions
+  actionSoft:  "rgba(44, 70, 94, 0.10)",
   ok:          "#3B6B3B",
   warn:        "#B8860B",
 };
@@ -166,6 +168,8 @@ export const PRESS_DARK = {
   muted:       "#8C8578",
   accent:      "#E8473A",
   accentSoft:  "rgba(232, 71, 58, 0.12)",
+  action:      "#486B95",                  // STEEL.500 navy lifted for dark
+  actionSoft:  "rgba(72, 107, 149, 0.18)",
   ok:          "#7BA77B",
   warn:        "#D4A93C",
 };
@@ -336,9 +340,10 @@ export const FW = {
 // ============================================================
 export const RAD = {
   0:    0,        // page chrome, table containers, full-bleed sections
-  1:    2,        // cards, panels, modals, dropdowns
+  1:    2,        // panels, modals, dropdowns
   2:    4,        // buttons, inputs, badges, segmented controls
-  3:    6,        // drop-zone outlines, image previews — max for any rectangle
+  3:    6,        // drop-zone outlines, image previews
+  card: 13,       // cards — pronounced rounding (Andrew override 2026-04-26)
   pill: 9999,     // avatars, status dots, segmented pill containers
 };
 
@@ -390,7 +395,7 @@ export const SPACE = SP;
 export const CARD = {
   pad: 14,                 // internal padding
   gap: 8,                  // gap between floating cards
-  radius: RAD[2],          // was 5 → 4 (Press Room button-tier)
+  radius: RAD.card,        // 13px — pronounced (Andrew override 2026-04-26)
   hoverAlpha: 0.08,        // hover background alpha
   dividerAlpha: 0.06,      // internal divider alpha (matches My Day)
   titleSize: 14,           // list item title font size

@@ -104,12 +104,12 @@ export const FilterBar = ({ options, active, onChange, colorMap }) => (
             padding: "0 0 6px",
             borderRadius: 0,
             border: "none",
-            borderBottom: isActive ? `2px solid var(--ink)` : "2px solid transparent",
+            borderBottom: isActive ? `2px solid var(--action)` : "2px solid transparent",
             background: "transparent",
             cursor: "pointer",
             fontSize: TYPE.size.body,
             fontWeight: isActive ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,
-            color: isActive ? "var(--ink)" : "var(--muted)",
+            color: isActive ? "var(--action)" : "var(--muted)",
             fontFamily: TYPE.family.body,
             whiteSpace: "nowrap",
             letterSpacing: TYPE.ls.headers,
@@ -189,8 +189,8 @@ export const DataTable = ({ children, style, emptyMessage }) => {
           font-family: ${TYPE.family.body};
         }
         .${uid} tbody tr { transition: background ${DUR.fast}ms ${EASE}; cursor: pointer; }
-        .${uid} tbody tr:hover { background: var(--accent-soft); }
-        .${uid} tbody tr.dt-active { background: var(--accent-soft); }
+        .${uid} tbody tr:hover { background: var(--action-soft); }
+        .${uid} tbody tr.dt-active { background: var(--action-soft); }
         .${uid} tbody tr:last-child td { border-bottom: none; }
       `}</style>
       <table className={uid}>{children}</table>
@@ -251,8 +251,9 @@ const btnBase = (sm, disabled) => ({
 });
 
 const btnVariants = {
-  primary:   { background: "var(--ink)",       color: "var(--paper)", borderColor: "var(--ink)" },
-  secondary: { background: "transparent",      color: "var(--ink)",    borderColor: "var(--rule)" },
+  // Primary action = navy blue. Press red is reserved for danger/alert.
+  primary:   { background: "var(--action)",    color: "#FFFFFF",       borderColor: "var(--action)" },
+  secondary: { background: "transparent",      color: "var(--action)", borderColor: "var(--action)" },
   ghost:     { background: "transparent",      color: "var(--ink)",    borderColor: "transparent" },
   cancel:    { background: "transparent",      color: "var(--muted)",  borderColor: "var(--rule)" },
   danger:    { background: "var(--accent)",    color: "#FFFFFF",       borderColor: "var(--accent)" },
@@ -345,7 +346,7 @@ export const Card = ({ children, style }) => (
   <div style={{
     background:   "var(--card)",
     border:       "1px solid var(--rule)",
-    borderRadius: RAD[1],
+    borderRadius: RAD.card,
     padding:      SPACE.cardPad,
     ...style,
   }}>{children}</div>
@@ -406,15 +407,15 @@ export const TB = ({ tabs, active, onChange }) => {
     background: "rgba(140,150,165,0.08)",
     border: "none",
   }}>
-    {/* Sliding active indicator — blue so the selected tab reads
-        as an action affordance, not a heavy black block. */}
+    {/* Sliding active indicator — navy so the selected tab reads
+        as an action affordance. Press red is reserved for alerts. */}
     <div style={{
       position: "absolute",
       top: 4,
       bottom: 4,
       left: rect.left,
       width: rect.width,
-      background: "var(--accent)",
+      background: "var(--action)",
       borderRadius: 999,
       transition: rect.ready ? "left 0.25s cubic-bezier(0.4,0,0.2,1), width 0.25s cubic-bezier(0.4,0,0.2,1)" : "none",
       opacity: rect.ready ? 1 : 0,
@@ -527,7 +528,7 @@ export const Stat = ({ label, value, sub, animate = true }) => {
     <div style={{
       background: "var(--card)",
       border: "1px solid var(--rule)",
-      borderRadius: RAD[1],
+      borderRadius: RAD.card,
       padding: SPACE.cardPad,
     }}>
       <div style={{ ...pressMeta, marginBottom: 8 }}>{label}</div>
@@ -631,7 +632,7 @@ export const Bar = ({ data, keys, colors, height = 180 }) => {
             {[...keys].reverse().map(k => (
               <div key={k} style={{
                 height: Math.max(2, (d[k] / mx) * (height - 30)),
-                background: colors[k] || "var(--ink)",
+                background: colors[k] || "var(--action)",
                 borderRadius: RAD[0],
               }} />
             ))}
@@ -761,9 +762,9 @@ export const Pill = ({ label, icon: Icon, active, onClick, color, disabled, soli
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "5px 12px",
         borderRadius: RAD.pill,
-        border: `1px solid ${active ? "var(--ink)" : "var(--rule)"}`,
-        background: active ? "var(--ink)" : "transparent",
-        color: active ? "var(--paper)" : "var(--ink)",
+        border: `1px solid ${active ? "var(--action)" : "var(--rule)"}`,
+        background: active ? "var(--action)" : "transparent",
+        color: active ? "#FFFFFF" : "var(--ink)",
         cursor: disabled ? "not-allowed" : "pointer",
         fontSize: TYPE.size.caption,
         fontWeight: active ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,
@@ -802,7 +803,7 @@ export const GlassCard = ({ children, style, noPad, onClick, onMouseOver, onMous
       onMouseOut={onMouseOut}
       style={{
         ...glass(),
-        borderRadius: RAD[1],
+        borderRadius: RAD.card,
         padding: noPad ? 0 : "20px 22px",
         cursor: interactive ? "pointer" : "default",
         transition: `background ${DUR.fast}ms ${EASE}, border-color ${DUR.fast}ms ${EASE}`,
@@ -818,15 +819,15 @@ export const ListCard = ({ children, style, onClick, active }) => (
     onClick={onClick}
     style={{
       ...glass(),
-      borderRadius: RAD[1],
+      borderRadius: RAD.card,
       padding: CARD.pad,
       cursor: onClick ? "pointer" : "default",
       transition: `background ${DUR.fast}ms ${EASE}`,
-      ...(active ? { background: "var(--accent-soft)" } : {}),
+      ...(active ? { background: "var(--action-soft)" } : {}),
       ...style,
     }}
-    onMouseEnter={e => { if (onClick && !active) e.currentTarget.style.background = "var(--accent-soft)"; }}
-    onMouseLeave={e => { e.currentTarget.style.background = active ? "var(--accent-soft)" : "var(--card)"; }}
+    onMouseEnter={e => { if (onClick && !active) e.currentTarget.style.background = "var(--action-soft)"; }}
+    onMouseLeave={e => { e.currentTarget.style.background = active ? "var(--action-soft)" : "var(--card)"; }}
   >{children}</div>
 );
 
@@ -912,9 +913,9 @@ export const SolidTabs = ({ options, active, onChange }) => (
             padding: "8px 14px",
             borderRadius: 0,
             border: "none",
-            borderBottom: isActive ? "2px solid var(--ink)" : "2px solid transparent",
+            borderBottom: isActive ? "2px solid var(--action)" : "2px solid transparent",
             background: "transparent",
-            color: isActive ? "var(--ink)" : "var(--muted)",
+            color: isActive ? "var(--action)" : "var(--muted)",
             cursor: "pointer",
             fontSize: TYPE.size.body,
             fontWeight: isActive ? TYPE.weight.bodyBold : TYPE.weight.bodyMid,

@@ -39,7 +39,7 @@ const DEPT_META = {
 // Heat (0–100) → semantic color. Single source so tiles, bars, and
 // labels all agree.
 const heatColor = (h) => {
-  if (h < 25) return "var(--accent)"; // blue — calm
+  if (h < 25) return "var(--action)"; // blue — calm
   if (h < 50) return "#10B981"; // green — steady
   if (h < 75) return "#F59E0B"; // amber — warming
   return "#EF4444";             // red — hot
@@ -468,7 +468,7 @@ const DashboardV2 = (props) => {
   // globalPressure. Calm = blue, neutral = green, hot = red.
   // Transitions slowly so changes feel like the room reacting.
   const ambientTint = useMemo(() => {
-    if (globalPressure < 25) return { color: "color-mix(in srgb, var(--accent) 14%, transparent)", label: "Calm" };
+    if (globalPressure < 25) return { color: "color-mix(in srgb, var(--action) 14%, transparent)", label: "Calm" };
     if (globalPressure < 50) return { color: "rgba(16,185,129,0.10)", label: "Steady" };
     if (globalPressure < 75) return { color: "rgba(245,158,11,0.13)", label: "Warming up" };
     return { color: "rgba(239,68,68,0.16)", label: "Hot — needs you" };
@@ -1110,7 +1110,7 @@ const KIND_COLOR = {
   payment: "#10B981",
   legal: "#F59E0B",
   job: "#6366F1",
-  story: "var(--accent)",
+  story: "var(--action)",
 };
 
 // Compact label for each event kind — short enough to fit in a pill.
@@ -1547,7 +1547,7 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
 
   const stats = [
     { label: "Revenue MTD", value: fmtCurrency(revenueCommand.adRevMTD), color: "#10B981" },
-    { label: "This Month's Issues", value: fmtCurrency(revenueCommand.issueRevThisMonth), color: "var(--accent)" },
+    { label: "This Month's Issues", value: fmtCurrency(revenueCommand.issueRevThisMonth), color: "var(--action)" },
     { label: "AR 60+ Days", value: fmtCurrency(revenueCommand.overdueBalance), color: revenueCommand.overdueInvCount > 0 ? "#EF4444" : "#22C55E", sub: revenueCommand.overdueInvCount > 0 ? `${revenueCommand.overdueInvCount} past 60 days` : "All current" },
     { label: "Pipeline", value: fmtCurrency(revenueCommand.pipelineValue), color: "#6366F1", sub: `${revenueCommand.pipelineCount} deals` },
   ];

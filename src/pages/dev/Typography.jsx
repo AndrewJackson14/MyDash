@@ -193,8 +193,10 @@ export default function Typography() {
             ["--card",        "Elevated surfaces"],
             ["--rule",        "Hairlines, dividers"],
             ["--muted",       "Secondary, captions"],
-            ["--accent",      "Press red — UI chrome only"],
-            ["--accent-soft", "Selection, hover wash"],
+            ["--action",      "Primary action — navy blue"],
+            ["--action-soft", "Selection, hover wash"],
+            ["--accent",      "Press red — alerts/danger only"],
+            ["--accent-soft", "Alert wash"],
             ["--ok",          "Success only"],
             ["--warn",        "Caution"],
           ].map(([token, use]) => (
@@ -239,8 +241,8 @@ export default function Typography() {
             }}>
               <div style={{
                 height: 56,
-                background: "var(--accent-soft)",
-                border: "1px solid var(--accent)",
+                background: "var(--action-soft)",
+                border: "1px solid var(--action)",
                 borderRadius: `var(${token})`,
               }} />
               <div style={{ ...meta, color: "var(--ink)" }}>{token}</div>
