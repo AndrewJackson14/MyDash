@@ -89,12 +89,18 @@ export default function IssueLayoutConsole({
 
   // Publication switcher: for each pub, find its next unsent issue and
   // count stories with print_status === 'ready' (Anthony's input queue).
-  // A pub with no upcoming unsent issue is hidden — nothing to lay out.
+  // A pub with no upcoming unsent issue within 45 days is hidden —
+  // nothing to lay out yet. The 45-day window keeps the row scoped to
+  // issues that are actually in production now.
   const pubSwitchers = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
+    const horizon = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
     return (pubs || []).map(p => {
       const nextIssue = (issues || [])
-        .filter(i => (i.pubId || i.publicationId) === p.id && i.date >= today && !i.sentToPressAt && !i.sent_to_press_at)
+        .filter(i => (i.pubId || i.publicationId) === p.id
+          && i.date >= today
+          && i.date <= horizon
+          && !i.sentToPressAt && !i.sent_to_press_at)
         .sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
       if (!nextIssue) return null;
       const readyCount = (stories || []).filter(s =>
