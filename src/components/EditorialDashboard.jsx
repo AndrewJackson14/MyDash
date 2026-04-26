@@ -6,7 +6,7 @@ import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { usePageHeader } from "../contexts/PageHeaderContext";
-import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, sectionForPage } from "../lib/sections";
+import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, sectionForPage, pageLabel } from "../lib/sections";
 
 // Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
 const StoryEditor = lazy(() => import("./StoryEditor"));
@@ -287,6 +287,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   // flatplan_sections table. Realtime-subscribed so creates/edits in
   // either view propagate immediately.
   const [issueSections, setIssueSections] = useState([]);
+  // Page-label formatter scoped to the active issue's pub type and
+  // sections — newspapers get "A1, B2", magazines stay linear.
+  const fmtPage = useMemo(() => {
+    const pubId = (issues || []).find(i => i.id === selIssue)?.pubId;
+    const pubType = pubs.find(p => p.id === pubId)?.type;
+    return (page) => pageLabel(page, issueSections, pubType);
+  }, [issueSections, issues, selIssue, pubs]);
   useEffect(() => {
     if (!selIssue) { setIssueSections([]); return; }
     let cancelled = false;
@@ -1219,7 +1226,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                         const pgStories = getStories(pg);
                         const hasContent = pgStories.length > 0;
                         return <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.td }}>{pg}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.td }}>{fmtPage(pg)}</div>
                           {pgStories.slice(0, 3).map((s, idx) => <div key={s.id} title={`P${priVal(s)} — ${s.title}`} style={{ fontSize: 8, fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center", opacity: idx === 0 ? 1 : 0.75 }}>{(s.title || "").slice(0, 12)}</div>)}
                         </div>;
                       })}
@@ -1373,7 +1380,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             <td colSpan={11} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: 11, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 <span style={{ width: 12, color: Z.tm }}>{groupCollapsed ? "▸" : "▾"}</span>
-                                <span>{g.label}</span>
+                                <span>{g.key === "unassigned" ? g.label : `Page ${fmtPage(g.page)}`}</span>
                                 <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>{g.stories.length} {g.stories.length === 1 ? "story" : "stories"}{wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}{g.jumpsIn.length ? ` · ${g.jumpsIn.length} jumping in` : ""}</span>
                                 {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: 10, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
                               </div>

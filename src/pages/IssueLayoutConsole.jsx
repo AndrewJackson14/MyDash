@@ -19,6 +19,7 @@ import { FlatplanPage } from "./Flatplan";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
+import { loadSectionsForIssue, pageLabel } from "../lib/sections";
 
 const PRINT_FLOW = ["none", "ready", "on_page", "proofread", "approved"];
 const NEXT_PRINT = {
@@ -64,6 +65,7 @@ export default function IssueLayoutConsole({
   const [discussionCounts, setDiscussionCounts] = useState({});
   const [pageModalNum, setPageModalNum] = useState(null);
   const [discussionStory, setDiscussionStory] = useState(null);
+  const [issueSections, setIssueSections] = useState([]);
 
   // Roles that can flip publisher_signoff_at on the issue.
   const canPublisherSignoff = ["Publisher", "Editor-in-Chief"].includes(currentUser?.role || "");
@@ -165,6 +167,27 @@ export default function IssueLayoutConsole({
       setLayoutRefs(lrRes.data || []);
     })();
   }, [isActive, issueId]);
+
+  // Load sections for the active issue so page displays can render
+  // newspaper-style "A1, B2" instead of bare global page numbers.
+  useEffect(() => {
+    if (!issueId) { setIssueSections([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await loadSectionsForIssue(issueId);
+        if (!cancelled) setIssueSections(rows);
+      } catch (err) { console.error("Layout console sections load failed:", err); }
+    })();
+    return () => { cancelled = true; };
+  }, [issueId]);
+
+  // Local page-label formatter — magazines stay linear, newspapers
+  // get section-letter prefixed labels (A1, B2, ...).
+  const fmtPage = useMemo(() => {
+    const pubType = pub?.type;
+    return (page) => pageLabel(page, issueSections, pubType);
+  }, [issueSections, pub]);
 
   // Quick proof count for the tab badge — not the full proof load,
   // just enough to know if there's a proof in review and how many
@@ -599,8 +622,8 @@ export default function IssueLayoutConsole({
                 const color = PRINT_COLOR(status);
                 return (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${color}` }}>
-                    <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, width: 26, flexShrink: 0, textAlign: "right" }}>
-                      {s.page ? `p${s.page}` : "—"}
+                    <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, width: 32, flexShrink: 0, textAlign: "right" }}>
+                      {s.page ? fmtPage(s.page) : "—"}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -683,10 +706,10 @@ export default function IssueLayoutConsole({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <button
                       onClick={() => setPageModalNum(pageNum)}
-                      title="Show this page from the flatplan"
+                      title={`Show this page from the flatplan (global page ${pageNum})`}
                       style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.ac, fontFamily: COND, textDecoration: "underline" }}
                     >
-                      Page {pageNum}{isComplete && <span style={{ marginLeft: 6, color: Z.go, textDecoration: "none" }}>✓</span>}
+                      Page {fmtPage(pageNum)}{isComplete && <span style={{ marginLeft: 6, color: Z.go, textDecoration: "none" }}>✓</span>}
                     </button>
                     {pageRef && (
                       <a href={pageRef.cdn_url} target="_blank" rel="noopener noreferrer" title="Open Hayley's layout reference" style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND }}>
@@ -820,12 +843,13 @@ export default function IssueLayoutConsole({
           <Modal
             open={true}
             onClose={() => setPageModalNum(null)}
-            title={`Page ${pageModalNum} — ${pub?.name || ""} ${issue.label || ""}`}
+            title={`Page ${fmtPage(pageModalNum)} — ${pub?.name || ""} ${issue.label || ""}`}
             width={680}
           >
             <div style={{ display: "flex", justifyContent: "center", padding: 12 }}>
               <FlatplanPage
                 pageNum={pageModalNum}
+                pageDisplay={fmtPage(pageModalNum)}
                 pub={pub}
                 adsOnPage={pageAds}
                 dragId={null}
