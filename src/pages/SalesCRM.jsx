@@ -4,22 +4,22 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/t
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, Pill, FilterPillStrip } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
-import { sendGmailEmail, initiateGmailAuth } from "../lib/gmail";
+import { sendGmailEmail } from "../lib/gmail";
 import { generatePdf } from "../lib/pdf";
 import { supabase } from "../lib/supabase";
-import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../lib/proposalTemplate";
 import { generateContractHtml } from "../lib/contractTemplate";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { fmtTimeRelative } from "../lib/formatters";
 import ClientList from "./sales/ClientList";
 import EntityThread from "../components/EntityThread";
+import ProposalWizard from "../components/proposal-wizard/ProposalWizard";
 // Heavy sub-views — only load when the user opens the relevant tab/row
 const ClientProfile = lazy(() => import("./sales/ClientProfile"));
 const ClientSignals = lazy(() => import("./sales/ClientSignals"));
 const Commissions = lazy(() => import("./sales/Commissions"));
 const Outreach = lazy(() => import("./sales/Outreach"));
 const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading…</div>;
-import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS, getAutoTier, getAutoTermLabel } from "./sales/constants";
+import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS } from "./sales/constants";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 
 // Constants imported from ./sales/constants
@@ -78,8 +78,10 @@ const SalesCRM = (props) => {
   const [fPub, setFPub] = useState("all");
   const [myPipeline, setMyPipeline] = useState(true); // default: show only my deals
   const [cmo, setCmo] = useState(false);
-  const [propMo, setPropMo] = useState(false);
-  const [propPending, setPropPending] = useState(null);
+  // wizardState — null when wizard is closed; { mode, clientId, proposalId?,
+  // pendingSaleId?, initialPrefill? } when open. Replaces the legacy propMo
+  // boolean + ~20 prop* useState calls (proposal-wizard-spec.md §4).
+  const [wizardState, setWizardState] = useState(null);
   const [oppMo, setOppMo] = useState(false);
   const [oppSendKit, setOppSendKit] = useState(false);
   const [oppKitPubs, setOppKitPubs] = useState([]);
@@ -101,27 +103,6 @@ const SalesCRM = (props) => {
   const [editOppId, setEditOppId] = useState(null);
   const [opp, setOpp] = useState({ company: "", contact: "", email: "", phone: "", source: "Referral", notes: "", nextAction: "Send media kit", nextActionDate: "" });
   const OPP_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client"];
-  const [propClient, setPropClient] = useState("");
-  const [propPayPlan, setPropPayPlan] = useState(false);
-  const [propPayTiming, setPropPayTiming] = useState("per_issue");
-  const [propChargeDay, setPropChargeDay] = useState(1);
-  const [propArtSource, setPropArtSource] = useState("we_design"); // we_design | camera_ready
-  const [propBrief, setPropBrief] = useState({ headline: "", style: "", colors: "", instructions: "" });
-  const [propStep, setPropStep] = useState("build");
-  const [propName, setPropName] = useState("");
-  const [editPropId, setEditPropId] = useState(null);
-  const [propPubs, setPropPubs] = useState([]);
-  const [propAddPubId, setPropAddPubId] = useState("");
-  const [propExpandedPub, setPropExpandedPub] = useState(null);
-  // Phase 4: digital ad lines (parallel to print propPubs). Each row is one
-  // digital line; the proposal can mix print + digital freely. Cadence is
-  // set once per proposal, only shown when at least one digital line exists.
-  const [propDigitalLines, setPropDigitalLines] = useState([]);
-  const [propDeliveryCadence, setPropDeliveryCadence] = useState("monthly");
-  const [propDeliveryContactId, setPropDeliveryContactId] = useState(null);
-  const [propEmailRecipients, setPropEmailRecipients] = useState([]);
-  const [propEmailMsg, setPropEmailMsg] = useState("");
-  const [propSending, setPropSending] = useState(false);
   const [viewPropId, setViewPropId] = useState(null);
   const [emailMo, setEmailMo] = useState(false);
   const [calMo, setCalMo] = useState(false);
@@ -348,7 +329,14 @@ const SalesCRM = (props) => {
   const moveToStage = (saleId, ns) => {
     const s = sales.find(x => x.id === saleId);
     if (["Proposal", "Negotiation", "Closed", "Follow-up"].includes(ns) && !hasProposal(saleId)) {
-      setPropPending(saleId); openProposal(s?.clientId); return;
+      setWizardState({
+        mode: "new",
+        clientId: s?.clientId || clients[0]?.id || "",
+        pendingSaleId: saleId,
+      });
+      setViewPropId(null);
+      if (loadDigitalAdProducts) loadDigitalAdProducts();
+      return;
     }
     if (ns === "Negotiation") {
       const sentProp = proposals.find(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Signed & Converted"));
@@ -450,260 +438,83 @@ const SalesCRM = (props) => {
   const sendKit = () => { saveOpp(false); setOppKitSent(true); const cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id; logActivity(`Rate cards sent`, "comm", cid, opp.company); if (cid) { setClients(cl => cl.map(c => c.id === cid ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: `Sent rate cards: ${oppKitPubs.map(pid => pn(pid)).join(", ")}` }] } : c)); setSales(sl => sl.map(s => s.clientId === cid && s.status === "Discovery" ? { ...s, status: "Presentation", nextAction: STAGE_AUTO_ACTIONS.Presentation, nextActionDate: opp.nextActionDate } : s)); } };
   const oppToProposal = () => { saveOpp(false); const cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id || (editOppId && sales.find(s => s.id === editOppId)?.clientId); if (cid) setSales(sl => sl.map(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal" } : s)); setOppMo(false); openProposal(cid); };
 
-  // Pre-populate art source from client history
-  useEffect(() => {
-    if (!propClient) return;
-    const client = clients.find(c => c.id === propClient);
-    setPropArtSource(client?.lastArtSource || client?.last_art_source || "we_design");
-  }, [propClient]);
+  // ─── Proposal wizard entry points ────────────────────────
+  // proposal-wizard-spec.md §4 — wizardState replaces ~20 prop* useState
+  // calls. The wizard owns its own state via useProposalWizard; SalesCRM
+  // only owns these three setter wrappers + the closeWizard handler.
+  const openProposal = (clientId) => {
+    setWizardState({
+      mode: "new",
+      clientId: clientId || clients[0]?.id || "",
+    });
+    setViewPropId(null);
+    if (loadDigitalAdProducts) loadDigitalAdProducts();
+  };
 
-  const openProposal = (clientId) => { const cid = clientId || clients[0]?.id || ""; const clientName = cn(cid); setPropClient(cid); setPropPubs([]); setPropDigitalLines([]); setPropDeliveryCadence("monthly"); setPropDeliveryContactId(null); setPropPayPlan(false); setPropPayTiming("per_issue"); setPropArtSource("we_design"); setPropStep("build"); setPropName(`${clientName} \u2014 Proposal ${new Date().toLocaleDateString()}`); setEditPropId(null); setPropAddPubId(pubs[0]?.id || ""); setPropExpandedPub(null); setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true); if (loadDigitalAdProducts) loadDigitalAdProducts(); };
+  const editProposal = (propId) => {
+    const p = proposals.find(x => x.id === propId);
+    if (!p) return;
+    setWizardState({
+      mode: "edit",
+      clientId: p.clientId,
+      proposalId: propId,
+    });
+    setViewPropId(null);
+    if (loadDigitalAdProducts) loadDigitalAdProducts();
+  };
 
-  // Open renewal proposal pre-populated from client's previous closed sales
+  // Renewal: pre-fill wizard state from prior closed sales for this client.
+  // Picks the most-frequent ad size per pub and selects the next 12 issues.
   const openRenewalProposal = (clientId) => {
     const cid = clientId || clients[0]?.id || "";
     const clientName = cn(cid);
-    // Get client's closed sales grouped by publication + ad size
     const clientSales = sales.filter(s => s.clientId === cid && s.status === "Closed");
     const pubGroups = {};
     clientSales.forEach(s => {
-      if (!pubGroups[s.publication]) pubGroups[s.publication] = { pubId: s.publication, adSizes: {} };
+      if (!pubGroups[s.publication]) pubGroups[s.publication] = { pubId: s.publication, sizes: {} };
       const sizeKey = s.size || s.type || "Ad";
-      pubGroups[s.publication].adSizes[sizeKey] = (pubGroups[s.publication].adSizes[sizeKey] || 0) + 1;
+      pubGroups[s.publication].sizes[sizeKey] = (pubGroups[s.publication].sizes[sizeKey] || 0) + 1;
     });
-    // Build proposal pubs with upcoming issues, using the most common ad size
-    const renewPubs = Object.values(pubGroups).map(pg => {
+    const pubsArr = [];
+    const issuesByPub = {};
+    const defaultSizeByPub = {};
+    Object.values(pubGroups).forEach(pg => {
       const pub = pubs.find(p => p.id === pg.pubId);
-      if (!pub) return null;
-      const topSize = Object.entries(pg.adSizes).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-      const adSizeIdx = (pub.adSizes || []).findIndex(a => a.name === topSize);
+      if (!pub) return;
+      const topSize = Object.entries(pg.sizes).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+      const idx = (pub.adSizes || []).findIndex(a => a.name === topSize);
+      const defaultIdx = idx >= 0 ? idx : 0;
+      defaultSizeByPub[pg.pubId] = defaultIdx;
       const futureIssues = issues.filter(i => i.pubId === pg.pubId && i.date >= today).slice(0, 12);
-      return { pubId: pg.pubId, issues: futureIssues.map(iss => ({ issueId: iss.id, adSizeIdx: adSizeIdx >= 0 ? adSizeIdx : 0 })) };
-    }).filter(Boolean);
-    setPropClient(cid); setPropPubs(renewPubs); setPropDigitalLines([]); setPropDeliveryCadence("monthly"); setPropDeliveryContactId(null); setPropPayPlan(false); setPropStep("build");
-    setPropName(`${clientName} \u2014 Renewal ${new Date().toLocaleDateString()}`);
-    setEditPropId(null); setPropAddPubId(pubs[0]?.id || "");
-    setPropExpandedPub(renewPubs[0]?.pubId || null);
-    setPropEmailRecipients([]); setPropEmailMsg(""); setViewPropId(null); setPropMo(true);
+      pubsArr.push({ pubId: pg.pubId, formats: { print: true, digital: false } });
+      issuesByPub[pg.pubId] = futureIssues.map(iss => ({ issueId: iss.id, adSizeIdx: defaultIdx }));
+    });
+
+    setWizardState({
+      mode: "renewal",
+      clientId: cid,
+      initialPrefill: {
+        clientId: cid,
+        proposalName: `${clientName} — Renewal ${new Date().toLocaleDateString()}`,
+        pubs: pubsArr,
+        issuesByPub,
+        defaultSizeByPub,
+      },
+    });
+    setViewPropId(null);
     if (loadDigitalAdProducts) loadDigitalAdProducts();
   };
-  const closePropMo = () => { if (propPending && propStep === "build") { setSales(sl => sl.map(s => s.id === propPending ? { ...s, status: "Presentation" } : s)); logActivity("Proposal cancelled — back to Presentation", "pipeline", sales.find(s => s.id === propPending)?.clientId, cn(sales.find(s => s.id === propPending)?.clientId)); } setPropPending(null); setPropMo(false); };
-  const editProposal = (propId) => { const p = proposals.find(x => x.id === propId); if (!p) return; setPropClient(p.clientId); setPropName(p.name); setEditPropId(propId); setPropPayPlan(p.payPlan); setPropStep("build"); setViewPropId(null); const grouped = {}; const digitalLines = []; (p.lines || []).forEach(li => { if (li.digitalProductId || li.digital_product_id) { digitalLines.push({ pubId: li.pubId, digitalProductId: li.digitalProductId || li.digital_product_id, flightStartDate: li.flightStartDate || li.flight_start_date || "", flightEndDate: li.flightEndDate || li.flight_end_date || "", flightMonths: li.flightMonths || li.flight_months || 1, price: li.price || 0 }); return; } if (!grouped[li.pubId]) grouped[li.pubId] = { pubId: li.pubId, issues: [] }; const pub = pubs.find(x => x.id === li.pubId); const ai = (pub?.adSizes || []).findIndex(a => a.name === li.adSize); grouped[li.pubId].issues.push({ issueId: li.issueId, adSizeIdx: ai >= 0 ? ai : 0 }); }); setPropPubs(Object.values(grouped)); setPropDigitalLines(digitalLines); setPropDeliveryCadence(p.deliveryReportCadence || p.delivery_report_cadence || "monthly"); setPropDeliveryContactId(p.deliveryReportContactId || p.delivery_report_contact_id || null); setPropExpandedPub(Object.keys(grouped)[0] || null); setPropMo(true); if (loadDigitalAdProducts) loadDigitalAdProducts(); };
-  const addPropPub = () => { if (!propAddPubId || propPubs.some(pp => pp.pubId === propAddPubId)) return; setPropPubs(pp => [...pp, { pubId: propAddPubId, issues: [] }]); setPropExpandedPub(propAddPubId); };
-  const removePropPub = (pubId) => { setPropPubs(pp => pp.filter(p => p.pubId !== pubId)); };
-  const togglePropIssue = (pi, iid) => { setPropPubs(pp => pp.map((p, i) => { if (i !== pi) return p; const ex = p.issues.find(x => x.issueId === iid); if (ex) return { ...p, issues: p.issues.filter(x => x.issueId !== iid) }; return { ...p, issues: [...p.issues, { issueId: iid, adSizeIdx: p.issues[p.issues.length - 1]?.adSizeIdx || 0 }] }; })); };
-  const setIssueAdSize = (pi, iid, ai) => { setPropPubs(pp => pp.map((p, i) => i !== pi ? p : { ...p, issues: p.issues.map(x => x.issueId === iid ? { ...x, adSizeIdx: ai } : x) })); };
-  const applyAdSizeBelow = (pi, iid, ai) => { setPropPubs(pp => pp.map((p, i) => { if (i !== pi) return p; const idx = p.issues.findIndex(x => x.issueId === iid); return { ...p, issues: p.issues.map((x, j) => j >= idx ? { ...x, adSizeIdx: ai } : x) }; })); };
-  const selectIssueRange = (pi, mo) => { const pp = propPubs[pi]; if (!pp) return; const cut = new Date(today); cut.setMonth(cut.getMonth() + mo); const cs = cut.toISOString().slice(0, 10); const pubIss = issues.filter(i => i.pubId === pp.pubId && i.date >= today && i.date <= cs); const ds = pp.issues[0]?.adSizeIdx || 0; setPropPubs(pps => pps.map((p, i) => i !== pi ? p : { ...p, issues: pubIss.map(iss => ({ issueId: iss.id, adSizeIdx: ds })) })); };
-  const totalInsertions = propPubs.reduce((s, pp) => s + pp.issues.length, 0);
-  const autoTier = getAutoTier(totalInsertions); const autoTermLabel = getAutoTermLabel(totalInsertions);
-  const allIssueDates = propPubs.flatMap(pp => pp.issues.map(iss => issues.find(i => i.id === iss.issueId)?.date)).filter(Boolean).sort();
-  const monthSpan = allIssueDates.length >= 2 ? Math.max(1, Math.ceil((new Date(allIssueDates[allIssueDates.length - 1]) - new Date(allIssueDates[0])) / (30.44 * 86400000)) + 1) : 1;
-  // Digital line helpers — pricing tier picked by months: 1mo, 6mo, 12mo
-  const digitalRateForMonths = (product, months) => {
-    if (!product) return 0;
-    const m = Number(months) || 1;
-    if (m >= 12 && product.rate_12mo) return Number(product.rate_12mo) * m;
-    if (m >= 6 && product.rate_6mo) return Number(product.rate_6mo) * m;
-    return Number(product.rate_monthly || 0) * m;
-  };
-  const addDigitalLine = () => setPropDigitalLines(d => [...d, { pubId: pubs[0]?.id || "", digitalProductId: "", flightStartDate: today, flightEndDate: "", flightMonths: 1, price: 0, _customPrice: false }]);
-  const removeDigitalLine = (idx) => setPropDigitalLines(d => d.filter((_, i) => i !== idx));
-  const updateDigitalLine = (idx, patch) => setPropDigitalLines(d => d.map((ln, i) => {
-    if (i !== idx) return ln;
-    const next = { ...ln, ...patch };
-    // Auto-recalc months from flight dates if user edited a date
-    if (patch.flightStartDate !== undefined || patch.flightEndDate !== undefined) {
-      if (next.flightStartDate && next.flightEndDate) {
-        const ms = (new Date(next.flightEndDate) - new Date(next.flightStartDate)) / (30.44 * 86400000);
-        next.flightMonths = Math.max(1, Math.round(ms));
-      }
+
+  const closeWizard = () => {
+    // Mirror the legacy closePropMo pipeline-revert: when openProposal was
+    // launched mid-pipeline (via setPropPending), Cancel reverts to the
+    // prior stage. wizardState.pendingSaleId carries that sale id.
+    if (wizardState?.pendingSaleId) {
+      setSales(sl => sl.map(s => s.id === wizardState.pendingSaleId ? { ...s, status: "Presentation" } : s));
+      const s = sales.find(s2 => s2.id === wizardState.pendingSaleId);
+      logActivity("Proposal cancelled — back to Presentation", "pipeline", s?.clientId, cn(s?.clientId));
     }
-    // Auto-recalc end_date from start + months if user edited months
-    if (patch.flightMonths !== undefined && next.flightStartDate) {
-      const start = new Date(next.flightStartDate);
-      start.setMonth(start.getMonth() + Number(next.flightMonths || 1));
-      next.flightEndDate = start.toISOString().slice(0, 10);
-    }
-    // Auto-price unless the user has manually edited price
-    if (!next._customPrice && (patch.digitalProductId !== undefined || patch.flightMonths !== undefined || patch.flightStartDate !== undefined || patch.flightEndDate !== undefined)) {
-      const product = (digitalAdProducts || []).find(p => p.id === next.digitalProductId);
-      next.price = digitalRateForMonths(product, next.flightMonths);
-    }
-    if (patch.price !== undefined) next._customPrice = true;
-    return next;
-  }));
-  const digitalLineItems = propDigitalLines.filter(d => d.digitalProductId && d.flightStartDate && d.flightEndDate).map(d => {
-    const product = (digitalAdProducts || []).find(p => p.id === d.digitalProductId);
-    const pub = pubs.find(p => p.id === d.pubId);
-    return {
-      pubId: d.pubId, pubName: pub?.name,
-      adSize: product?.name || "Digital", dims: product ? `${product.width || ""}x${product.height || ""}`.replace(/^x$/, "") : "",
-      adW: product?.width || 0, adH: product?.height || 0,
-      issueId: null, issueLabel: null, issueDate: null,
-      digitalProductId: d.digitalProductId,
-      flightStartDate: d.flightStartDate, flightEndDate: d.flightEndDate, flightMonths: d.flightMonths,
-      price: Number(d.price) || 0,
-    };
-  });
-  const propLineItems = [...propPubs.flatMap(pp => { const pub = pubs.find(p => p.id === pp.pubId); return pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; const issue = issueMap[iss.issueId]; return { pubId: pp.pubId, pubName: pub?.name, adSize: ad?.name, dims: ad?.dims, adW: ad?.w, adH: ad?.h, issueId: iss.issueId, issueLabel: issLabel(iss.issueId), issueDate: issue?.date || null, adDeadline: issue?.adDeadline || null, price: ad?.[autoTier] || ad?.rate || 0 }; }); }), ...digitalLineItems];
-  const pTotal = propLineItems.reduce((s, li) => s + li.price, 0);
-  const pMonthly = monthSpan > 1 ? Math.ceil(pTotal / monthSpan) : pTotal;
-  const pubSummary = (pp) => { const pub = pubs.find(p => p.id === pp.pubId); const t = pp.issues.reduce((s, iss) => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return s + (ad?.[autoTier] || ad?.rate || 0); }, 0); return `${pp.issues.length} issues · $${t.toLocaleString()}`; };
-  const goToEmailStep = () => { if (propLineItems.length === 0) return; const cl = clients.find(c => c.id === propClient); setPropEmailRecipients((cl?.contacts || []).filter(c => c.email).map(c => c.email)); setPropEmailMsg(`Dear ${cl?.contacts?.[0]?.name || ""},\n\nPlease find the attached proposal.\n\nTotal: $${pTotal.toLocaleString()}\n\nBest,\n${COMPANY.sales.name}`); setPropStep("email"); };
-
-  // Live preview HTML for the email step — same generator the actual
-  // send uses, so the rep sees exactly what the client will receive
-  // (per-pub config overrides are skipped here; preview shows the
-  // default template, which is what 95% of sends use).
-  const propPreviewHtml = useMemo(() => {
-    if (propStep !== "email" || !propClient) return "";
-    try {
-      const cl = clients.find(c => c.id === propClient);
-      if (!cl) return "";
-      const teamMember = (props.team || []).find(t => t.id === currentUser?.id) || (props.team || [])[0] || { name: COMPANY?.sales?.name || "Sales", email: COMPANY?.sales?.email || "", phone: COMPANY?.sales?.phone || "" };
-      const propData = {
-        clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-        lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource,
-        briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null,
-        monthly: pMonthly, chargeDay: propChargeDay,
-      };
-      return generateProposalHtml({
-        config: { ...DEFAULT_PROPOSAL_CONFIG, paymentTiming: propPayTiming },
-        proposal: propData, client: cl, salesperson: teamMember, pubs: pubs || [],
-        introText: propEmailMsg,
-        signLink: "https://mydash.media/sign/preview",
-      });
-    } catch (e) {
-      return `<html><body style="font-family:sans-serif;padding:24px;color:#94a3b8"><strong>Preview unavailable</strong><br/><small>${String(e?.message ?? e)}</small></body></html>`;
-    }
-  }, [propStep, propClient, propName, propLineItems, propPayPlan, propPayTiming, propArtSource, propBrief, propChargeDay, propEmailMsg, autoTermLabel, monthSpan, pTotal, pMonthly, clients, pubs, issueMap, props.team, currentUser?.id]);
-  const toggleRecipient = (email) => setPropEmailRecipients(r => r.includes(email) ? r.filter(e => e !== email) : [...r, email]);
-  const submitProposal = async () => {
-    if (!propClient || propLineItems.length === 0 || propEmailRecipients.length === 0) return;
-    let renewalDate = null;
-    if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
-    const propData = {
-      clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-      lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-      total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
-      deliveryReportCadence: digitalLineItems.length > 0 ? propDeliveryCadence : null, deliveryReportContactId: digitalLineItems.length > 0 ? propDeliveryContactId : null,
-      status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
-    };
-    if (editPropId) {
-      await updateProposal(editPropId, { ...propData, status: "Sent", sentAt: new Date().toISOString() });
-    } else {
-      const result = await insertProposal(propData);
-      if (result?.id && propPending) {
-        setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s));
-        setPropPending(null);
-      }
-    }
-    setSales(sl => sl.map(s => s.clientId === propClient && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal", nextAction: STAGE_AUTO_ACTIONS.Proposal } : s));
-    setPropStep("sent");
-    logActivity(`Proposal "${propName}" — $${pTotal.toLocaleString()}`, "proposal", propClient, cn(propClient));
-    addNotif(`Proposal "${propName}" sent`);
-  };
-
-  // Send proposal email via Gmail Edge Function
-  const sendProposalEmail = async (mode) => {
-    if (!propClient || propLineItems.length === 0 || propEmailRecipients.length === 0) return;
-    setPropSending(true);
-    try {
-      // Save the proposal
-      let renewalDate = null;
-      if (monthSpan > 1) { const rd = new Date(today); rd.setMonth(rd.getMonth() + monthSpan); renewalDate = rd.toISOString().slice(0, 10); }
-      const propData = {
-        clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan,
-        lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })),
-        total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay,
-      deliveryReportCadence: digitalLineItems.length > 0 ? propDeliveryCadence : null, deliveryReportContactId: digitalLineItems.length > 0 ? propDeliveryContactId : null,
-        status: "Sent", date: today, renewalDate, sentTo: propEmailRecipients, sentAt: new Date().toISOString(),
-      };
-      let proposalId = editPropId;
-      if (editPropId) {
-        await updateProposal(editPropId, { ...propData, status: "Sent", sentAt: new Date().toISOString() });
-      } else {
-        const result = await insertProposal(propData);
-        if (result?.id) proposalId = result.id;
-      }
-
-      // Create signature record with proposal snapshot
-      const cl = clients.find(c => c.id === propClient);
-      const primaryContact = (cl?.contacts || []).find(c => c.email) || {};
-      let signLink = "";
-      if (proposalId) {
-        const snapshot = { ...propData, clientName: cn(propClient) };
-        const { data: sigData, error: sigErr } = await supabase.from("proposal_signatures").insert({
-          proposal_id: proposalId,
-          signer_name: primaryContact.name || cn(propClient),
-          signer_email: propEmailRecipients[0] || primaryContact.email || "",
-          proposal_snapshot: snapshot,
-        }).select("access_token").single();
-        if (sigErr) console.error("[proposal] Signature insert error:", sigErr);
-        if (sigData?.access_token) signLink = `${window.location.origin}/sign/${sigData.access_token}`;
-      }
-
-      // Load proposal template config (default for this pub or fallback)
-      const clientName = cn(propClient);
-      const teamMember = currentUser || (props.team || []).find(t => t.permissions?.includes("admin")) || props.team?.[0];
-      if (!teamMember) throw new Error("No team member found");
-
-      let templateConfig = { ...DEFAULT_PROPOSAL_CONFIG };
-      const pubIds = [...new Set(propLineItems.map(l => l.pubId || l.publication))];
-      const { data: templates } = await supabase.from("email_templates")
-        .select("config").eq("category", "proposal").eq("is_default", true).limit(1);
-      if (templates?.[0]?.config) templateConfig = { ...templateConfig, ...templates[0].config };
-
-      // Override template payment timing with salesperson's per-deal selection
-      templateConfig.paymentTiming = propPayTiming;
-
-      const htmlBody = generateProposalHtml({
-        config: templateConfig,
-        proposal: { ...propData, total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, termMonths: monthSpan },
-        client: cl,
-        salesperson: teamMember,
-        pubs: pubs || [],
-        introText: propEmailMsg,
-        signLink,
-      });
-
-      const result = await sendGmailEmail({
-        teamMemberId: teamMember.id,
-        to: propEmailRecipients,
-        subject: `Proposal: ${propName} \u2014 ${clientName}`,
-        htmlBody, mode,
-        emailType: "proposal", clientId: propClient, refId: proposalId, refType: "proposal",
-      });
-      if (result.needs_auth) {
-        const auth = await initiateGmailAuth(teamMember.id);
-        if (auth.error) addNotif(`Gmail auth error: ${auth.error}`);
-        else addNotif("Connect your Gmail account in the popup, then click Send again.");
-        setPropSending(false);
-        return;
-      } else if (result.success) {
-        addNotif(mode === "send" ? `Proposal emailed to ${propEmailRecipients.join(", ")}` : `Gmail draft created — check your drafts`);
-        logActivity(`Proposal "${propName}" — $${pTotal.toLocaleString()} (${mode === "send" ? "emailed" : "draft"})`, "proposal", propClient, cn(propClient));
-        setPropStep("sent");
-        // Log history event
-        if (proposalId) {
-          supabase.from("proposals").update({
-            history: supabase.rpc ? undefined : undefined, // Can't append JSONB client-side easily, use raw SQL
-          }).eq("id", proposalId); // handled by RPC on conversion; manual append for sent:
-          const { data: propRow } = await supabase.from("proposals").select("history").eq("id", proposalId).single();
-          const hist = Array.isArray(propRow?.history) ? propRow.history : [];
-          hist.push({ event: "sent", date: new Date().toISOString(), detail: `Sent to ${propEmailRecipients.join(", ")}` });
-          await supabase.from("proposals").update({ history: hist }).eq("id", proposalId);
-        }
-      } else {
-        addNotif(`Email failed: ${result.error || "Unknown error"}`);
-      }
-    } catch (err) {
-      console.error("sendProposalEmail error:", err);
-      addNotif(`Email error: ${err.message}`);
-    }
-    setPropSending(false);
+    setWizardState(null);
   };
 
   const signProposal = async (propId) => {
@@ -1632,147 +1443,46 @@ const SalesCRM = (props) => {
         <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}><Btn v="cancel" onClick={() => setOppMo(false)}>Cancel</Btn><Btn v="cancel" onClick={() => { if (!opp.company) return; setOppSendKit(true); setOppKitMsg(`Hi ${opp.contact},\n\nRate cards attached.\n\nBest,\n${COMPANY.sales.name}`); }}><Ic.mail size={12} /> Rate Cards</Btn><Btn v="cancel" onClick={oppToProposal}><Ic.send size={12} /> Create Proposal</Btn><Btn onClick={() => saveOpp()}>{editOppId ? "Save" : "Create"}</Btn></div></div>}
     </Modal>
 
-    {/* PROPOSAL BUILDER */}
-    <Modal open={propMo} onClose={closePropMo} title={propStep === "sent" ? "Sent!" : propStep === "email" ? `Send Proposal \u2014 ${cn(propClient)}` : `Build Proposal \u2014 ${cn(propClient)}`} width={1100}>
-      {propStep === "sent" ? <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", padding: 16 }}><Ic.check size={28} color={Z.su} /><div style={{ fontSize: FS.base, color: Z.tm }}>Proposal sent — {propLineItems.length} items · <b style={{ color: Z.su }}>${pTotal.toLocaleString()}</b></div><div style={{ fontSize: FS.sm, color: Z.td, maxWidth: 340, textAlign: "center" }}>When the client signs, this will convert to a contract and create confirmed sales orders.</div><div style={{ display: "flex", gap: 6, marginTop: 4 }}><Btn v="success" onClick={async () => { await signProposal(editPropId || proposals[proposals.length - 1]?.id); setPropMo(false); setPropPending(null); }}>Client Signed → Convert to Contract</Btn><Btn v="secondary" onClick={() => { setPropMo(false); setPropPending(null); }}>Close</Btn></div></div>
-      : propStep === "email" ? <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.1fr)", gap: 14, height: "60vh" }}><div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}><div><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Recipients</label>
-        {/* Saved contacts as toggle buttons */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{(clients.find(c => c.id === propClient)?.contacts || []).filter(c => c.email).map(ct => <button key={ct.email} onClick={() => toggleRecipient(ct.email)} style={{ padding: "5px 10px", borderRadius: R, border: `1px solid ${propEmailRecipients.includes(ct.email) ? Z.go : Z.bd}`, background: propEmailRecipients.includes(ct.email) ? Z.go : Z.bg, cursor: "pointer" }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: propEmailRecipients.includes(ct.email) ? INV.light : Z.tx }}>{ct.name}</span><div style={{ fontSize: FS.sm, color: propEmailRecipients.includes(ct.email) ? INV.light + "b3" : Z.tm }}>{ct.email}</div></button>)}</div>
-        {/* Manual email entry */}
-        <div style={{ display: "flex", gap: 6 }}>
-          <input id="propManualEmail" placeholder="Add email address..." style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, outline: "none", fontFamily: "inherit" }} onKeyDown={e => { if (e.key === "Enter") { const v = e.target.value.trim(); if (v && v.includes("@") && !propEmailRecipients.includes(v)) { setPropEmailRecipients(r => [...r, v]); e.target.value = ""; } } }} />
-          <Btn sm v="secondary" onClick={() => { const inp = document.getElementById("propManualEmail"); const v = inp?.value?.trim(); if (v && v.includes("@") && !propEmailRecipients.includes(v)) { setPropEmailRecipients(r => [...r, v]); inp.value = ""; } }}>Add</Btn>
-        </div>
-        {/* Selected recipients */}
-        {propEmailRecipients.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{propEmailRecipients.map(e => <span key={e} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: Ri, background: Z.go + "15", fontSize: FS.xs, color: Z.go, fontWeight: FW.bold }}>{e} <button onClick={() => setPropEmailRecipients(r => r.filter(x => x !== e))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.go, fontSize: 12, fontWeight: 900 }}>×</button></span>)}</div>}
-      </div><div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}><label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Message</label><textarea value={propEmailMsg} onChange={e => setPropEmailMsg(e.target.value)} style={{ flex: 1, width: "100%", padding: "12px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.base, fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }} /></div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexShrink: 0 }}><Btn v="secondary" onClick={() => setPropStep("build")}>Back</Btn><Btn v="secondary" disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("draft")}>{propSending ? "Creating..." : "Save Gmail Draft"}</Btn><Btn disabled={propEmailRecipients.length === 0 || propSending} onClick={() => sendProposalEmail("send")}><Ic.send size={12} /> {propSending ? "Sending..." : "Send Now"}</Btn></div></div>
-        {/* Live preview of the rendered proposal — what the client sees */}
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Preview · what the client sees</label>
-            <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>updates as you type</span>
-          </div>
-          <iframe
-            title="Proposal preview"
-            srcDoc={propPreviewHtml}
-            sandbox=""
-            style={{ flex: 1, width: "100%", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: "#FFFFFF" }}
-          />
-        </div></div>
-      : <div style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: "45vh" }}><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><FuzzyPicker label="Client" value={propClient} onChange={setPropClient} options={clients.map(c => ({ value: c.id, label: c.name }))} placeholder="Search clients…" /><Inp label="Proposal Name" value={propName} onChange={e => setPropName(e.target.value)} /></div>
-        <div>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Art Source</div>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[["we_design", "We Will Design"], ["camera_ready", "Camera-Ready Art"]].map(([v, l]) => (
-              <button key={v} onClick={() => setPropArtSource(v)} style={{ flex: 1, padding: "8px 14px", borderRadius: Ri, border: `1px solid ${propArtSource === v ? (v === "we_design" ? Z.ac : Z.wa) : Z.bd}`, background: propArtSource === v ? (v === "we_design" ? Z.ac + "12" : Z.wa + "12") : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: propArtSource === v ? FW.bold : FW.normal, color: propArtSource === v ? (v === "we_design" ? Z.ac : Z.wa) : Z.tm, fontFamily: COND }}>{l}</button>
-            ))}
-          </div>
-        </div>
-        {/* Campaign Brief — flows to ad_projects.brief_* on conversion.
-            May Sim P0.2: when art_source = "we_design" the brief becomes
-            REQUIRED. The 5/5 Tuesday simulation produced an empty brief
-            landing in Jen's queue because validation didn't exist. Headline
-            + style + colors are the minimum Jen needs to start designing;
-            instructions stays optional as a catch-all. */}
-        {propArtSource === "we_design" && (() => {
-          const headlineMissing = !(propBrief.headline || "").trim();
-          const styleMissing = !(propBrief.style || "").trim();
-          const colorsMissing = !(propBrief.colors || "").trim();
-          const errStyle = { boxShadow: `inset 0 0 0 2px ${Z.da}` };
-          return <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, border: (headlineMissing || styleMissing || colorsMissing) ? `1px solid ${Z.da}40` : "none" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Creative Brief <span style={{ color: Z.da }}>(required — Jen needs this to start)</span></div>
-              {(headlineMissing || styleMissing || colorsMissing) && <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.da, fontFamily: COND }}>{[headlineMissing && "Headline", styleMissing && "Style", colorsMissing && "Colors"].filter(Boolean).join(" · ")} missing</span>}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div style={headlineMissing ? errStyle : null}><Inp label="Headline / CTA *" value={propBrief.headline} onChange={e => setPropBrief(b => ({ ...b, headline: e.target.value }))} placeholder="e.g. Grand Opening Sale — 20% Off" /></div>
-              <div style={styleMissing ? errStyle : null}><Inp label="Style Direction *" value={propBrief.style} onChange={e => setPropBrief(b => ({ ...b, style: e.target.value }))} placeholder="e.g. Modern, clean, wine-country feel" /></div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div style={colorsMissing ? errStyle : null}><Inp label="Brand Colors *" value={propBrief.colors} onChange={e => setPropBrief(b => ({ ...b, colors: e.target.value }))} placeholder="e.g. Navy + gold, or use logo colors" /></div>
-              <Inp label="Special Instructions" value={propBrief.instructions} onChange={e => setPropBrief(b => ({ ...b, instructions: e.target.value }))} placeholder="e.g. Include QR code to website" />
-            </div>
-          </div>;
-        })()}
-        <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}><div style={{ flex: 1 }}><Sel label="Add Publication" data-prop-pub value={propAddPubId} onChange={e => setPropAddPubId(e.target.value)} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} /></div><Btn onClick={addPropPub} disabled={propPubs.some(pp => pp.pubId === propAddPubId)}><Ic.plus size={12} /> Add</Btn></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 320, overflowY: "auto" }}>{propPubs.map((pp, pi) => { const pub = pubs.find(p => p.id === pp.pubId); const isExp = propExpandedPub === pp.pubId; if (!isExp) return <button key={pp.pubId} onClick={() => setPropExpandedPub(pp.pubId)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", ...glass(), borderRadius: Ri, cursor: "pointer", width: "100%" }}><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{pub?.name} ▸</span><span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>{pubSummary(pp)}</span></button>; const pI = issues.filter(i => i.pubId === pp.pubId && i.date >= today).slice(0, 24); return <div key={pp.pubId} style={{ background: Z.bg, border: `1px solid ${Z.ac}40`, borderRadius: R, padding: CARD.pad }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span onClick={() => setPropExpandedPub(null)} style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, cursor: "pointer" }}>{pub?.name} ▾</span>
-          <button onClick={() => removePropPub(pp.pubId)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button></div>
-          <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>{[3,6,12].map(m => <button key={m} onClick={() => selectIssueRange(pi, m)} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{m}mo</button>)}<button onClick={() => setPropPubs(pps => pps.map((p, i) => i !== pi ? p : { ...p, issues: [] }))} style={{ padding: "3px 10px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm }}>Clear</button></div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>{pI.map(iss => { const sel = pp.issues.some(x => x.issueId === iss.id); return <button key={iss.id} onClick={() => togglePropIssue(pi, iss.id)} style={{ padding: "4px 8px", borderRadius: R, border: `1px solid ${sel ? Z.go : Z.bd}`, background: sel ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, color: sel ? INV.light : Z.tm }}>{iss.label}</button>; })}</div>{pp.issues.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{pp.issues.map(iss => { const ad = pub?.adSizes?.[iss.adSizeIdx]; return <div key={iss.issueId} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 60px 24px", gap: 5, padding: "4px 6px", background: Z.sa, borderRadius: R }}><span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{issLabel(iss.issueId)}</span><select value={iss.adSizeIdx} onChange={e => setIssueAdSize(pi, iss.issueId, +e.target.value)} style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: R, padding: "3px", color: Z.tx, fontSize: FS.sm, outline: "none" }}>{(pub?.adSizes || []).map((a, ai) => <option key={ai} value={ai}>{a.name}</option>)}</select><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${(ad?.[autoTier] || 0).toLocaleString()}</span><button onClick={() => applyAdSizeBelow(pi, iss.issueId, iss.adSizeIdx)} title="Apply below" style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: R, cursor: "pointer", fontSize: FS.sm, color: Z.tx, fontWeight: FW.heavy }}>↓</button></div>; })}</div>}</div>; })}</div>
-        {/* Digital Ads section — parallel to print propPubs above. Each row
-             is one digital line (pub × product × flight). Pricing autocalcs
-             from rate × months unless the user edits the price field. */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Digital Ads</div>
-            <Btn sm v="secondary" onClick={addDigitalLine} disabled={!digitalAdProductsLoaded || (digitalAdProducts || []).length === 0}><Ic.plus size={11} /> Add Digital Line</Btn>
-          </div>
-          {!digitalAdProductsLoaded && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Loading digital products...</div>}
-          {digitalAdProductsLoaded && propDigitalLines.length === 0 && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>No digital lines. Click Add Digital Line to include leaderboard, sidebar, eblast, etc.</div>}
-          {propDigitalLines.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{propDigitalLines.map((dl, di) => {
-            const productsForPub = (digitalAdProducts || []).filter(p => p.pub_id === dl.pubId);
-            return <div key={di} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.6fr 1fr 1fr 0.7fr 1fr 24px", gap: 4, padding: "5px 6px", background: Z.sa, borderRadius: R, alignItems: "end" }}>
-              <Sel value={dl.pubId} onChange={e => updateDigitalLine(di, { pubId: e.target.value, digitalProductId: "" })} options={dropdownPubs.map(p => ({ value: p.id, label: p.name }))} />
-              <Sel value={dl.digitalProductId} onChange={e => updateDigitalLine(di, { digitalProductId: e.target.value })} options={[{ value: "", label: productsForPub.length ? "— Select product —" : "(no products for this pub)" }, ...productsForPub.map(p => ({ value: p.id, label: `${p.name} ($${Number(p.rate_monthly).toLocaleString()}/mo)` }))]} />
-              <Inp type="date" value={dl.flightStartDate} onChange={e => updateDigitalLine(di, { flightStartDate: e.target.value })} />
-              <Inp type="date" value={dl.flightEndDate} onChange={e => updateDigitalLine(di, { flightEndDate: e.target.value })} />
-              <Inp type="number" value={dl.flightMonths} onChange={e => updateDigitalLine(di, { flightMonths: Number(e.target.value) || 1 })} />
-              <Inp type="number" value={dl.price} onChange={e => updateDigitalLine(di, { price: Number(e.target.value) || 0 })} />
-              <button onClick={() => removeDigitalLine(di)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, fontWeight: FW.black }}>×</button>
-            </div>;
-          })}</div>}
-        </div>
-
-        {/* Delivery Reports — proposal-level cadence + recipient. Only shown
-             when the proposal has at least one digital line; print-only
-             proposals don't generate delivery reports. */}
-        {digitalLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Delivery Reports</div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {[["weekly", "Weekly"], ["monthly", "Monthly"], ["end_of_flight", "End of flight only"], ["annual", "Annual (12mo+)"]].map(([v, l]) => (
-              <button key={v} onClick={() => setPropDeliveryCadence(v)} style={{ padding: "5px 12px", borderRadius: R, border: `1px solid ${propDeliveryCadence === v ? Z.go : Z.bd}`, background: propDeliveryCadence === v ? Z.go : "transparent", cursor: "pointer", fontSize: FS.sm, fontWeight: propDeliveryCadence === v ? FW.bold : FW.normal, color: propDeliveryCadence === v ? INV.light : Z.tm, fontFamily: COND }}>{l}</button>
-            ))}
-          </div>
-          <Sel label="Send To" value={propDeliveryContactId || ""} onChange={e => setPropDeliveryContactId(e.target.value || null)} options={[{ value: "", label: "— No email recipient (post to client profile only) —" }, ...((clients.find(c => c.id === propClient)?.contacts || []).filter(c => c.email).map(c => ({ value: c.id || c.email, label: `${c.name} <${c.email}>` })))]} />
-        </div>}
-
-        {propLineItems.length > 0 && <div style={{ background: Z.sa, borderRadius: R, padding: CARD.pad, border: `1px solid ${Z.bd}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: FS.sm, color: Z.tm }}>{totalInsertions} print insertions{digitalLineItems.length > 0 ? ` + ${digitalLineItems.length} digital` : ""} · {autoTermLabel}</span><span style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>${pTotal.toLocaleString()}</span></div>
-          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, fontFamily: COND }}>Payment Terms</div>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[["per_issue", "Per Issue"], ["monthly", `Monthly (${monthSpan}mo × $${pMonthly.toLocaleString()})`], ["lump_sum", "Lump Sum Upfront"]].map(([v, l]) => (
-              <button key={v} onClick={() => { setPropPayTiming(v); setPropPayPlan(v === "monthly"); }} style={{ flex: 1, padding: "6px 10px", borderRadius: Ri, border: `1px solid ${propPayTiming === v ? Z.ac : Z.bd}`, background: propPayTiming === v ? Z.ac + "12" : "transparent", cursor: "pointer", fontSize: FS.xs, fontWeight: propPayTiming === v ? FW.bold : FW.normal, color: propPayTiming === v ? Z.ac : Z.tm, fontFamily: COND }}>{l}</button>
-            ))}
-          </div>
-          {propPayTiming === "per_issue" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Client pays before each issue publishes</div>}
-          {propPayTiming === "monthly" && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: FS.xs, color: Z.tm }}>Auto-charge on the</span>
-            {[1, 15].map(d => <button key={d} onClick={() => setPropChargeDay(d)} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${propChargeDay === d ? Z.ac : Z.bd}`, background: propChargeDay === d ? Z.ac + "12" : "transparent", cursor: "pointer", fontSize: FS.xs, fontWeight: propChargeDay === d ? FW.bold : FW.normal, color: propChargeDay === d ? Z.ac : Z.tm, fontFamily: COND }}>{d === 1 ? "1st" : "15th"}</button>)}
-            <span style={{ fontSize: FS.xs, color: Z.tm }}>of each month</span>
-          </div>}
-          {propPayTiming === "lump_sum" && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>Full payment of ${pTotal.toLocaleString()} due before first issue</div>}
-        </div>}
-        {(() => {
-          // May Sim P0.2 — block Next:Send if we_design brief is incomplete.
-          // Save Draft is allowed (drafts are work-in-progress) but Next:Send
-          // is what kicks the proposal to the client → contract → Jen's
-          // queue. Empty brief at signing is the production failure mode.
-          const briefIncomplete = propArtSource === "we_design" && (
-            !(propBrief.headline || "").trim()
-            || !(propBrief.style || "").trim()
-            || !(propBrief.colors || "").trim()
-          );
-          return <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
-            {briefIncomplete && <span style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND, marginRight: "auto" }}>⚠ Brief required before send — Jen needs Headline + Style + Colors</span>}
-            <Btn v="cancel" onClick={closePropMo}>Cancel</Btn>
-            <Btn v="cancel" disabled={propLineItems.length === 0 || propSending} onClick={async () => { setPropSending(true); try { const dp = { clientId: propClient, name: propName, term: autoTermLabel, termMonths: monthSpan, lines: propLineItems.map(li => ({ ...li, issueDate: li.issueDate || issueMap[li.issueId]?.date || null, adDeadline: li.adDeadline || issueMap[li.issueId]?.adDeadline || null })), total: pTotal, payPlan: propPayPlan, payTiming: propPayTiming, artSource: propArtSource, briefHeadline: propBrief.headline || null, briefStyle: propBrief.style || null, briefColors: propBrief.colors || null, briefInstructions: propBrief.instructions || null, monthly: pMonthly, chargeDay: propChargeDay, status: "Draft", date: today, renewalDate: null, sentTo: [] }; if (editPropId) { await updateProposal(editPropId, dp); } else { const result = await insertProposal(dp); if (result?.id && propPending) { setSales(sl => sl.map(s => s.id === propPending ? { ...s, proposalId: result.id, status: "Proposal" } : s)); setPropPending(null); } } setPropMo(false); } finally { setPropSending(false); } }}>{propSending ? "Saving..." : "Save Draft"}</Btn>
-            <Btn disabled={propLineItems.length === 0 || propSending || briefIncomplete} onClick={goToEmailStep}><Ic.send size={12} /> Next: Send</Btn>
-          </div>;
-        })()}
-      </div>}
-    </Modal>
+    {/* PROPOSAL WIZARD — replaces the legacy single-modal builder.
+        See proposal-wizard-spec.md and src/components/proposal-wizard/. */}
+    {wizardState && (
+      <ProposalWizard
+        mode={wizardState.mode}
+        clientId={wizardState.clientId}
+        proposalId={wizardState.proposalId}
+        pendingSaleId={wizardState.pendingSaleId}
+        initialPrefill={wizardState.initialPrefill}
+        clients={clients}
+        pubs={pubs}
+        issues={issues}
+        digitalAdProducts={digitalAdProducts}
+        proposals={proposals}
+        team={props.team}
+        currentUser={currentUser}
+        insertProposal={insertProposal}
+        updateProposal={updateProposal}
+        loadDigitalAdProducts={loadDigitalAdProducts}
+        onClose={closeWizard}
+        onSent={(propId) => {
+          setSales(sl => sl.map(s =>
+            s.clientId === wizardState.clientId && (s.status === "Discovery" || s.status === "Presentation")
+              ? { ...s, status: "Proposal", nextAction: STAGE_AUTO_ACTIONS.Proposal }
+              : s
+          ));
+          if (wizardState.pendingSaleId) {
+            setSales(sl => sl.map(s => s.id === wizardState.pendingSaleId
+              ? { ...s, proposalId: propId, status: "Proposal" }
+              : s));
+          }
+          logActivity(`Proposal sent`, "proposal", wizardState.clientId, cn(wizardState.clientId));
+          addNotif(`Proposal sent`);
+        }}
+        onSignedFromConfirm={async (propId) => {
+          await signProposal(propId);
+          setWizardState(null);
+        }}
+      />
+    )}
 
     {/* EMAIL COMPOSE MODAL */}
     <Modal open={emailMo} onClose={() => setEmailMo(false)} title="Compose Email" width={600}>

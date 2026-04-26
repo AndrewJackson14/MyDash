@@ -379,6 +379,7 @@ async function insertMediaRow({ file, uploadFile, storagePath, cdnUrl, originalU
     sale_id: metadata.saleId || null,
     ad_project_id: metadata.adProjectId || null,
     legal_notice_id: metadata.legalNoticeId || null,
+    source_proposal_id: metadata.sourceProposalId || null,
     uploaded_by: metadata.uploadedBy || null,
     alt_text: metadata.altText || null,
     caption: metadata.caption || null,
