@@ -1462,6 +1462,7 @@ const SalesCRM = (props) => {
         insertProposal={insertProposal}
         updateProposal={updateProposal}
         loadDigitalAdProducts={loadDigitalAdProducts}
+        loadClientDetails={props.loadClientDetails}
         onClose={closeWizard}
         onSent={(propId) => {
           setSales(sl => sl.map(s =>

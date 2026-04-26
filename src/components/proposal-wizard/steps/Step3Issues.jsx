@@ -9,6 +9,7 @@
 import { useState, useEffect } from "react";
 import { Z, FS, FW, COND } from "../../../lib/theme";
 import IssuePicker from "../parts/IssuePicker";
+import { FilterPillStrip } from "../../ui/FilterPillStrip";
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
@@ -57,45 +58,22 @@ export default function Step3Issues({ state, actions, pubs, issues, validation }
         subtitle="Use the quick-pick range or click individual issues."
       />
 
-      {/* Tab strip */}
+      {/* Tab strip — uses the app-wide blue sliding pill style. */}
       {printPubs.length > 1 && (
-        <div style={{
-          display: "flex", gap: 0, borderBottom: `1px solid ${Z.bd}`,
-          overflowX: "auto",
-        }}>
-          {printPubs.map(p => {
+        <FilterPillStrip
+          slider
+          color={Z.ac}
+          options={printPubs.map(p => {
             const pub = pubs.find(x => x.id === p.pubId);
-            const isActive = activeTab === p.pubId;
             const count = (state.issuesByPub[p.pubId] || []).length;
-            const hasError = !!errors[`issues:${p.pubId}`];
-            return (
-              <button
-                key={p.pubId}
-                onClick={() => setActiveTab(p.pubId)}
-                style={{
-                  padding: "10px 16px",
-                  border: "none",
-                  borderBottom: isActive ? `2px solid ${Z.tx}` : "2px solid transparent",
-                  background: "transparent",
-                  fontSize: FS.base,
-                  fontWeight: isActive ? FW.heavy : FW.bold,
-                  color: hasError ? Z.da : isActive ? Z.tx : Z.tm,
-                  fontFamily: COND, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}
-              >
-                {pub?.name || p.pubId}
-                <span style={{
-                  fontSize: 10, padding: "1px 7px", borderRadius: 999,
-                  background: count > 0 ? Z.go + "30" : Z.sa,
-                  color: count > 0 ? Z.go : Z.tm,
-                  fontWeight: FW.heavy,
-                }}>{count}</span>
-              </button>
-            );
+            return {
+              value: p.pubId,
+              label: `${pub?.name || p.pubId} · ${count}`,
+            };
           })}
-        </div>
+          value={activeTab}
+          onChange={setActiveTab}
+        />
       )}
 
       {/* Active tab content */}

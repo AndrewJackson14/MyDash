@@ -102,7 +102,7 @@ export default function WizardStepBar({ state, currentStep, completedSteps, onGo
                   fontSize: 11, fontWeight: FW.heavy,
                   flexShrink: 0,
                 }}>
-                  {completed ? <Ic.check size={11} color={INV.light} /> : s.id}
+                  {completed ? <Ic.check size={11} color={INV.light} /> : (idx + 1)}
                 </span>
                 <span style={{
                   fontSize: FS.sm,

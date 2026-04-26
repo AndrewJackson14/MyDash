@@ -14,6 +14,7 @@ import Ic from "../../ui/Icons";
 import AdSizeDefault from "../parts/AdSizeDefault";
 import DigitalFlightRow from "../parts/DigitalFlightRow";
 import { selectAutoTier } from "../useProposalWizard";
+import { FilterPillStrip } from "../../ui/FilterPillStrip";
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
@@ -60,50 +61,23 @@ export default function Step4SizesAndFlights({
         subtitle="Default ad size flows to every issue. Customize individual issues if needed."
       />
 
-      {/* Tab strip — one tab per pub */}
-      <div style={{
-        display: "flex", borderBottom: `1px solid ${Z.bd}`,
-        overflowX: "auto",
-      }}>
-        {state.pubs.map(p => {
-          const pub = pubs.find(x => x.id === p.pubId);
-          const isActive = activeTab === p.pubId;
-          const formatHints = [
-            p.formats?.print   ? "P" : "",
-            p.formats?.digital ? "D" : "",
-          ].filter(Boolean).join("·");
-          const hasError =
-            !!errors[`size:${p.pubId}`] ||
-            !!errors[`digital:${p.pubId}`] ||
-            state.digitalLines.some(d =>
-              d.pubId === p.pubId &&
-              [`digitalProduct:${d.id}`, `flightStart:${d.id}`, `flightEnd:${d.id}`, `flightRange:${d.id}`].some(k => errors[k])
-            );
-          return (
-            <button
-              key={p.pubId}
-              onClick={() => setActiveTab(p.pubId)}
-              style={{
-                padding: "10px 16px", border: "none",
-                borderBottom: isActive ? `2px solid ${Z.tx}` : "2px solid transparent",
-                background: "transparent",
-                fontSize: FS.base, fontWeight: isActive ? FW.heavy : FW.bold,
-                color: hasError ? Z.da : isActive ? Z.tx : Z.tm,
-                fontFamily: COND, cursor: "pointer", whiteSpace: "nowrap",
-                display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              {pub?.name || p.pubId}
-              {formatHints && (
-                <span style={{
-                  fontSize: 9, padding: "1px 5px", borderRadius: 4,
-                  background: Z.bd, color: Z.tm, fontWeight: FW.heavy, letterSpacing: 0.5,
-                }}>{formatHints}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Tab strip — app-wide blue sliding pill style. */}
+      {state.pubs.length > 1 && (
+        <FilterPillStrip
+          slider
+          color={Z.ac}
+          options={state.pubs.map(p => {
+            const pub = pubs.find(x => x.id === p.pubId);
+            const fmtHints = [p.formats?.print ? "P" : "", p.formats?.digital ? "D" : ""].filter(Boolean).join("·");
+            return {
+              value: p.pubId,
+              label: fmtHints ? `${pub?.name || p.pubId} · ${fmtHints}` : (pub?.name || p.pubId),
+            };
+          })}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
+      )}
 
       {/* Active pub content */}
       {activePub && (

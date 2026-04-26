@@ -16,15 +16,36 @@ export function hasAnyDigitalFormat(state) {
   return state.pubs.some(p => p.formats?.digital);
 }
 
+// Step 1 now covers BOTH the legacy client step and the legacy
+// publications step (they're folded onto one screen). Validation
+// short-circuits on missing client so the rep isn't yelled at about
+// pubs they haven't seen yet.
 export function validateStep1(state) {
   const errors = {};
-  if (!state.clientId) errors.clientId = "Pick a client to continue";
+  if (!state.clientId) {
+    errors.clientId = "Pick a client to continue";
+    return { valid: false, errors };
+  }
   if (!state.proposalName?.trim()) errors.proposalName = "Proposal needs a name";
+  if (state.pubs.length === 0) {
+    errors.pubs = "Add at least one publication";
+  } else {
+    state.pubs.forEach(p => {
+      if (!p.formats?.print && !p.formats?.digital) {
+        errors[`pub:${p.pubId}`] = "Pick print, digital, or both";
+      }
+    });
+  }
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
+// Legacy validateStep2 — the wizard skips the PUBLICATIONS step now,
+// but the function stays for any code path still referencing it
+// (validateStep7 aggregates everything). Returns the pub-only slice
+// of validateStep1 so aggregations stay accurate.
 export function validateStep2(state) {
   const errors = {};
+  if (!state.clientId) return { valid: true, errors };
   if (state.pubs.length === 0) {
     errors.pubs = "Add at least one publication";
   } else {

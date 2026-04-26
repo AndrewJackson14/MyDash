@@ -93,10 +93,10 @@ export default function Step7Review({
         subtitle="One last check — then off to the client."
       />
 
-      {/* Two-column layout */}
+      {/* Two-column layout — 1/3 summary, 2/3 send + preview */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "1fr 2fr",
         gap: 16,
         minHeight: 0,
       }}>
@@ -248,9 +248,11 @@ export default function Step7Review({
             </div>
           </div>
 
-          {/* Preview iframe */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minHeight: 280 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {/* Preview iframe — clamped to a viewport-relative max so it
+              never overflows the wizard modal even when the proposal
+              renders a long table. iframe scrolls internally. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minHeight: 0, maxHeight: "calc(100vh - 320px)", overflow: "hidden" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <span style={{
                 fontSize: 11, fontWeight: FW.heavy, color: Z.td,
                 letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
@@ -264,7 +266,7 @@ export default function Step7Review({
               style={{
                 flex: 1, width: "100%",
                 border: `1px solid ${Z.bd}`, borderRadius: Ri,
-                background: "#FFFFFF", minHeight: 280,
+                background: "#FFFFFF", minHeight: 0,
               }}
             />
           </div>

@@ -36,7 +36,6 @@ import WizardFooter       from "./chrome/WizardFooter";
 import WizardSummaryPanel from "./chrome/WizardSummaryPanel";
 
 import Step1Client            from "./steps/Step1Client";
-import Step2Publications      from "./steps/Step2Publications";
 import Step3Issues            from "./steps/Step3Issues";
 import Step4SizesAndFlights   from "./steps/Step4SizesAndFlights";
 import Step5PaymentTerms      from "./steps/Step5PaymentTerms";
@@ -65,12 +64,21 @@ export default function ProposalWizard({
   insertProposal,
   updateProposal,
   loadDigitalAdProducts,
+  loadClientDetails,
   // Lifecycle
   onClose,
   onSent,
   onSignedFromConfirm,
 }) {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // Ensure client contacts/billing info is loaded — Step 5's delivery
+  // recipient picker pulls from client.contacts + billingEmail. SalesCRM
+  // doesn't trigger this load itself; the wizard does on mount.
+  useEffect(() => {
+    if (typeof loadClientDetails === "function") loadClientDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Build the static ctx the reducer + selectors need.
   const issueMap = useMemo(() => {
@@ -152,6 +160,8 @@ export default function ProposalWizard({
   const handleNext = () => {
     if (stepValidation.valid) actions.markCompleted(state.currentStep);
     let next = state.currentStep + 1;
+    // PUBLICATIONS step is folded into the CLIENT step body — skip it.
+    if (next === STEP_IDS.PUBLICATIONS) next++;
     if (next === STEP_IDS.ISSUES && !hasAnyPrintFormat(state)) next++;
     if (next > STEP_IDS.REVIEW) next = STEP_IDS.REVIEW;
     actions.gotoStep(next);
@@ -160,6 +170,7 @@ export default function ProposalWizard({
   const handleBack = () => {
     let prev = state.currentStep - 1;
     if (prev === STEP_IDS.ISSUES && !hasAnyPrintFormat(state)) prev--;
+    if (prev === STEP_IDS.PUBLICATIONS) prev--;
     if (prev < STEP_IDS.CLIENT) prev = STEP_IDS.CLIENT;
     actions.gotoStep(prev);
   };
@@ -309,9 +320,10 @@ export default function ProposalWizard({
   let activeStep = null;
   switch (state.currentStep) {
     case STEP_IDS.CLIENT:
-      activeStep = <Step1Client {...stepProps} />; break;
     case STEP_IDS.PUBLICATIONS:
-      activeStep = <Step2Publications {...stepProps} />; break;
+      // PUBLICATIONS folded into CLIENT screen — render Step 1 for both
+      // so any saved draft that lands on step 2 still shows correctly.
+      activeStep = <Step1Client {...stepProps} />; break;
     case STEP_IDS.ISSUES:
       activeStep = <Step3Issues {...stepProps} />; break;
     case STEP_IDS.SIZES_AND_FLIGHTS:

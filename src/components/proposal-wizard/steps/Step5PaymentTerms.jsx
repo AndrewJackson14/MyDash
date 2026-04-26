@@ -7,7 +7,7 @@
 // ============================================================
 
 import { Z, FS, FW, COND, Ri, R, CARD, INV } from "../../../lib/theme";
-import { Sel } from "../../ui/Primitives";
+import { Sel, Inp } from "../../ui/Primitives";
 import {
   selectPropLineItems,
   selectPTotal,
@@ -94,7 +94,23 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
   const lines    = selectPropLineItems(state, ctx);
 
   const client = clients.find(c => c.id === state.clientId);
-  const contacts = (client?.contacts || []).filter(c => c.email);
+  // Pull every email we know about for this client: contacts, primary
+  // billing email, and any cc addresses the client config carries.
+  // Dedupe so the datalist isn't noisy.
+  const emailSuggestions = (() => {
+    const out = [];
+    const seen = new Set();
+    const push = (email, label) => {
+      const e = (email || "").trim();
+      if (!e || seen.has(e.toLowerCase())) return;
+      seen.add(e.toLowerCase());
+      out.push({ email: e, label: label || e });
+    };
+    (client?.contacts || []).forEach(c => { if (c.email) push(c.email, `${c.name || "Contact"} <${c.email}>`); });
+    if (client?.billingEmail) push(client.billingEmail, `Billing: ${client.billingEmail}`);
+    (client?.billingCcEmails || []).forEach(e => { if (e) push(e, `CC: ${e}`); });
+    return out;
+  })();
 
   const hasDigital = state.digitalLines.length > 0;
 
@@ -190,18 +206,31 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
             <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{errors.deliveryCadence}</div>
           )}
 
-          <Sel
-            label="Send To"
-            value={state.deliveryContactId || ""}
-            onChange={e => actions.setDeliveryContact(e.target.value || null)}
-            options={[
-              { value: "", label: "— No email recipient (post to client profile only) —" },
-              ...contacts.map(c => ({
-                value: c.id || c.email,
-                label: `${c.name} <${c.email}>`,
-              })),
-            ]}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>Send To</label>
+            <input
+              type="email"
+              list="delivery-email-options"
+              value={state.deliveryContactId || ""}
+              onChange={e => actions.setDeliveryContact(e.target.value || null)}
+              placeholder={emailSuggestions[0]?.email || "name@example.com (leave blank to skip email)"}
+              style={{
+                background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri,
+                padding: "8px 10px", color: Z.tx, fontSize: FS.sm, fontFamily: COND,
+                outline: "none",
+              }}
+            />
+            <datalist id="delivery-email-options">
+              {emailSuggestions.map(s => (
+                <option key={s.email} value={s.email}>{s.label}</option>
+              ))}
+            </datalist>
+            {emailSuggestions.length === 0 && (
+              <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                No saved emails for this client. Enter any address or leave blank to post reports to the client profile only.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
