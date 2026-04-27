@@ -122,11 +122,31 @@ export function DataProvider({ children, localData }) {
   const [digitalAdProductsLoaded, setDigitalAdProductsLoaded] = useState(false);
 
   const [loaded, setLoaded] = useState(!isOnline());
+  // bootStatus reflects whether the initial boot fetch landed clean,
+  // landed degraded (some tables succeeded, some failed), or never landed
+  // at all. The shell renders an inline banner off this so users know
+  // when they're looking at fallback / partial data instead of live state.
+  //   loading  — boot in flight
+  //   ok       — every boot table loaded successfully
+  //   degraded — at least one table failed; UI shows what loaded
+  //   timeout  — failsafe 5s timer fired before any boot finished
+  //   offline  — isOnline() returned false; running on seed data
+  const [bootStatus, setBootStatus] = useState(isOnline() ? 'loading' : 'offline');
+  const [bootFailures, setBootFailures] = useState([]); // table names that errored
 
-  // Failsafe timeout
+  // Failsafe timeout — mark the boot as 'timeout' so the shell banner
+  // can distinguish "loaded fine" from "gave up waiting." Previously we
+  // just flipped loaded=true and the UI rendered seed data as if it were
+  // real, with no signal back to the user.
   useEffect(() => {
     if (!isOnline()) return;
-    const timer = setTimeout(() => { if (!loaded) { console.warn('Supabase timeout — loading local'); setLoaded(true); } }, 5000);
+    const timer = setTimeout(() => {
+      if (!loaded) {
+        console.warn('Supabase timeout — loading local');
+        setLoaded(true);
+        setBootStatus(prev => prev === 'loading' ? 'timeout' : prev);
+      }
+    }, 5000);
     return () => clearTimeout(timer);
   }, [loaded]);
 
@@ -242,19 +262,45 @@ export function DataProvider({ children, localData }) {
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
         const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate,commission_payout_frequency,ooo_from,ooo_until,alerts_mirror_to';
-        const [pubsRes, teamRes, notifsRes, adSizesRes] = await Promise.all([
+        // Use allSettled so a single table failure doesn't blank the whole
+        // boot. Each fulfilled slot keeps its real { data, error } shape;
+        // each rejected slot collapses to a safe { data: null, error }
+        // sentinel + records the table name in `failures` so the shell
+        // banner can name what's missing.
+        const failures = [];
+        const settledObj = (res, table) => {
+          if (res.status === 'fulfilled') return res.value;
+          failures.push(table);
+          console.error(`Boot: ${table} fetch rejected`, res.reason);
+          return { data: null, error: res.reason };
+        };
+        const settledArr = (res, table) => {
+          if (res.status === 'fulfilled') return res.value;
+          failures.push(table);
+          console.error(`Boot: ${table} fetch rejected`, res.reason);
+          return [];
+        };
+
+        const settled1 = await Promise.allSettled([
           supabase.from('publications').select(pubSelect).order('name'),
           supabase.from('team_members').select(teamSelect).order('name'),
           supabase.from('notifications').select('id,title,detail,type,created_at,read,link').order('created_at', { ascending: false }).limit(50),
           supabase.from('ad_sizes').select('*').order('sort_order'),
         ]);
+        const pubsRes    = settledObj(settled1[0], 'publications');
+        const teamRes    = settledObj(settled1[1], 'team_members');
+        const notifsRes  = settledObj(settled1[2], 'notifications');
+        const adSizesRes = settledObj(settled1[3], 'ad_sizes');
 
         // Paginate clients, issues, and sales in parallel
-        const [allClientsRaw, allIssuesRaw, allSalesRaw] = await Promise.all([
+        const settled2 = await Promise.allSettled([
           fetchAllRows('clients', clientSelect, { order: 'name' }),
           fetchAllRows('issues', issueSelect, { order: 'date' }),
           fetchAllRows('sales', saleSelect, { order: 'date', orderOpts: { ascending: false }, gte: ['date', cutoff] }),
         ]);
+        const allClientsRaw = settledArr(settled2[0], 'clients');
+        const allIssuesRaw  = settledArr(settled2[1], 'issues');
+        const allSalesRaw   = settledArr(settled2[2], 'sales');
 
         console.log('Boot:', { pubs: pubsRes.data?.length, clients: allClientsRaw.length, issues: allIssuesRaw.length, sales: allSalesRaw.length });
 
@@ -326,9 +372,22 @@ export function DataProvider({ children, localData }) {
         })));
 
         console.timeEnd('boot-transform');
+        // Surface the per-table boot health to the shell. If anything in
+        // failures[] is non-empty the banner shows; otherwise the UI is
+        // confident the data is current.
+        if (failures.length > 0) {
+          setBootFailures(failures);
+          setBootStatus('degraded');
+        } else {
+          setBootStatus('ok');
+        }
         setLoaded(true);
       } catch (err) {
+        // This catch only fires for unexpected throws above the
+        // settled-helpers (e.g., schema lookup failures). The per-table
+        // failures path above doesn't throw — allSettled never rejects.
         console.error('Supabase fetch error', err);
+        setBootStatus('failed');
         setLoaded(true);
       }
     };
@@ -2723,7 +2782,7 @@ export function DataProvider({ children, localData }) {
     // MyPriorities
     loadPriorities, prioritiesLoaded, myPriorities, setMyPriorities,
     addPriority, removePriority, highlightPriority, autoRemoveClosedPriorities,
-    loaded,
+    loaded, bootStatus, bootFailures,
     // Original write helpers
     updateClient, updateClientContact, insertClient, deleteClient,
     updatePubGoal, updateIssueGoal,
