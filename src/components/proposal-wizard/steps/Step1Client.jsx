@@ -70,7 +70,9 @@ export default function Step1Client({ state, actions, clients, pubs, validation 
             label="Client"
             value={state.clientId}
             onChange={(v) => { wasAutoRef.current = true; actions.setClient(v); }}
-            options={clients.map(c => ({ value: c.id, label: c.name }))}
+            options={[...clients]
+              .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+              .map(c => ({ value: c.id, label: c.name }))}
             placeholder="Search clients…"
           />
           <ErrInline msg={errors.clientId} />

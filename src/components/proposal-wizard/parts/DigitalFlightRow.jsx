@@ -44,8 +44,15 @@ export default function DigitalFlightRow({
   onUpdate,
   onRemove,
 }) {
-  const productsForPub = (digitalAdProducts || []).filter(p => p.pub_id === line.pubId);
+  // Surface ALL active digital products for the line's pub. Loaded
+  // via loadDigitalAdProducts (is_active=true filter). If a product
+  // appears missing, check Publications → Digital Products config —
+  // products are scoped per pub_id and not shared across siblings.
+  const productsForPub = (digitalAdProducts || [])
+    .filter(p => p.pub_id === line.pubId)
+    .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999) || (a.name || "").localeCompare(b.name || ""));
   const product = productsForPub.find(p => p.id === line.digitalProductId);
+  const pubName = (pubs || []).find(p => p.id === line.pubId)?.name || line.pubId;
 
   const patch = (next) => {
     // Cascading recalcs — keep months / end / price coherent without
@@ -94,11 +101,11 @@ export default function DigitalFlightRow({
         gap: 8, alignItems: "end",
       }}>
         <Sel
-          label="Product"
+          label={`Product · ${productsForPub.length} for ${pubName}`}
           value={line.digitalProductId}
           onChange={e => patch({ digitalProductId: e.target.value })}
           options={[
-            { value: "", label: productsForPub.length ? "— Select product —" : "(no products for this pub)" },
+            { value: "", label: productsForPub.length ? "— Select product —" : `No products configured for ${pubName} — add in Publications` },
             ...productsForPub.map(p => ({
               value: p.id,
               label: `${p.name} ($${Number(p.rate_monthly).toLocaleString()}/mo)`,

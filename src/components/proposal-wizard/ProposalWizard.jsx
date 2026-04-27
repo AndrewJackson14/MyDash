@@ -148,9 +148,14 @@ export default function ProposalWizard({
   const canSend = finalValidation.valid;
 
   // Soft validation rule: Next is enabled even when current step
-  // has errors (errors highlight inline). Step 7 → Send IS hard-
-  // gated by canSend.
-  const canGoNext = state.currentStep < STEP_IDS.REVIEW;
+  // has errors (errors highlight inline). Exceptions:
+  //   - Step 4 (Sizes & Flights) is hard-gated — Andrew wants the
+  //     rep to confirm a size + a digital product for every selected
+  //     pub before advancing. Inline errors stay visible regardless.
+  //   - Step 7 → Send is hard-gated by canSend (see Footer).
+  const isHardGated = state.currentStep === STEP_IDS.SIZES_AND_FLIGHTS;
+  const canGoNext = state.currentStep < STEP_IDS.REVIEW
+    && (!isHardGated || stepValidation.valid);
 
   const stepBarSteps = STEPS.filter(s => {
     if (s.conditional === "anyPrint") return hasAnyPrintFormat(state);

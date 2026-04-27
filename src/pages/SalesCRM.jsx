@@ -443,9 +443,12 @@ const SalesCRM = (props) => {
   // calls. The wizard owns its own state via useProposalWizard; SalesCRM
   // only owns these three setter wrappers + the closeWizard handler.
   const openProposal = (clientId) => {
+    // No default client when launched from the CRM-wide "New Proposal"
+    // button — rep should explicitly pick one. Only seed clientId when
+    // openProposal is called from a specific client/sale context.
     setWizardState({
       mode: "new",
-      clientId: clientId || clients[0]?.id || "",
+      clientId: clientId || "",
     });
     setViewPropId(null);
     if (loadDigitalAdProducts) loadDigitalAdProducts();

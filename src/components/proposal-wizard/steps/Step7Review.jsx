@@ -54,9 +54,20 @@ export default function Step7Review({
       actions.setEmailRecipients(contactEmails);
     }
     if (!state.emailMessage) {
-      const firstName = client.contacts?.[0]?.name || "";
+      // Friendlier default — affirms the relationship and invites a
+      // conversation rather than reading like a faceless invoice cover.
+      // Reps can always edit before sending.
+      const fullName = client.contacts?.[0]?.name || "";
+      const firstName = (fullName.split(" ")[0] || "").trim();
+      const greeting = firstName ? `Hi ${firstName},` : "Hi there,";
+      const senderName = currentUser?.name || COMPANY.sales.name;
+      const senderFirst = (senderName.split(" ")[0] || senderName).trim();
       actions.setEmailMessage(
-        `Dear ${firstName},\n\nPlease find the attached proposal.\n\nTotal: $${total.toLocaleString()}\n\nBest,\n${currentUser?.name || COMPANY.sales.name}`
+        `${greeting}\n\n` +
+        `Thanks for taking the time to talk through your goals — it's been a pleasure getting to know you and ${client.name || "your team"}. Based on what you shared, here's the proposal we put together. The details are below; the full breakdown is in the attached preview.\n\n` +
+        `Investment: $${total.toLocaleString()}\n\n` +
+        `Take a look and let me know what you think — I'm happy to walk through any of it together or adjust anything that doesn't quite fit. Looking forward to making this happen.\n\n` +
+        `Talk soon,\n${senderFirst}`
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

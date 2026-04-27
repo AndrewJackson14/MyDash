@@ -206,31 +206,51 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
             <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{errors.deliveryCadence}</div>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>Send To</label>
-            <input
-              type="email"
-              list="delivery-email-options"
-              value={state.deliveryContactId || ""}
-              onChange={e => actions.setDeliveryContact(e.target.value || null)}
-              placeholder={emailSuggestions[0]?.email || "name@example.com (leave blank to skip email)"}
-              style={{
-                background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri,
-                padding: "8px 10px", color: Z.tx, fontSize: FS.sm, fontFamily: COND,
-                outline: "none",
-              }}
-            />
-            <datalist id="delivery-email-options">
-              {emailSuggestions.map(s => (
-                <option key={s.email} value={s.email}>{s.label}</option>
-              ))}
-            </datalist>
-            {emailSuggestions.length === 0 && (
-              <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
-                No saved emails for this client. Enter any address or leave blank to post reports to the client profile only.
+          {/* Recipient picker — pulls from client.contacts +
+              billingEmail + billingCcEmails so the rep just clicks
+              the right person. "Custom email…" reveals an inline
+              text input for one-off addresses. */}
+          {(() => {
+            const isCustom = state.deliveryContactId && !emailSuggestions.some(s => s.email === state.deliveryContactId);
+            const selectValue = isCustom ? "__custom__" : (state.deliveryContactId || "");
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Sel
+                  label={`Send To · ${emailSuggestions.length} on file for this client`}
+                  value={selectValue}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === "__custom__") actions.setDeliveryContact("");
+                    else actions.setDeliveryContact(v || null);
+                  }}
+                  options={[
+                    { value: "", label: "— No email recipient (post to client profile only) —" },
+                    ...emailSuggestions.map(s => ({ value: s.email, label: s.label })),
+                    { value: "__custom__", label: "Custom email…" },
+                  ]}
+                />
+                {(isCustom || selectValue === "__custom__") && (
+                  <input
+                    type="email"
+                    autoFocus
+                    value={state.deliveryContactId || ""}
+                    onChange={e => actions.setDeliveryContact(e.target.value || null)}
+                    placeholder="name@example.com"
+                    style={{
+                      background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri,
+                      padding: "8px 10px", color: Z.tx, fontSize: FS.sm, fontFamily: COND,
+                      outline: "none",
+                    }}
+                  />
+                )}
+                {emailSuggestions.length === 0 && (
+                  <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                    No saved emails for this client. Pick "Custom email…" to enter one, or leave blank to post reports to the client profile only.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
     </div>
