@@ -222,9 +222,18 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
       // social-cron worker is the only thing that ever flips them to
       // publishing — keeps the lifecycle linear.
       const isScheduled = when === "later";
+      // social_posts.author_id FKs to auth.users(id), not team_members(id).
+      // The MyDash currentUser shape is a team row with the auth user id
+      // exposed as `authId` — use that, fall back to a live auth lookup
+      // for any role that boots without a team row pre-resolved.
+      let authorId = currentUser?.authId || null;
+      if (!authorId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        authorId = user?.id || null;
+      }
       const insertRow = {
         pub_id: pubId,
-        author_id: currentUser?.id || null,
+        author_id: authorId,
         body_text: body,
         targets,
         media: images,
