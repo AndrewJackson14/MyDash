@@ -18,7 +18,6 @@ import { Ic } from "../../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtMoney, fmtMoneyFull, fmtRelative, todayISO } from "../mobileTokens";
 import { supabase } from "../../../lib/supabase";
 
-const UploadContractModal = lazy(() => import("../UploadContractModal"));
 const ContractReviewModal = lazy(() => import("../ContractReviewModal"));
 
 export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
@@ -32,7 +31,6 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
   const myFirstName = currentUser?.name?.split(" ")[0] || "there";
 
   // ── Contract imports ─────────────────────────────────────
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [reviewImport, setReviewImport] = useState(null);
   const [imports, setImports] = useState([]);
   const [importsError, setImportsError] = useState(null);
@@ -185,31 +183,9 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
         <KpiCard label="Pending $" primary={fmtMoney(kpis.pendingPayout)} sub="commission" />
       </div>
 
-      {/* Quick actions — Upload Contract + jump-into-pipeline */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <button onClick={() => setUploadOpen(true)} style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "14px 12px", minHeight: 56,
-          background: ACCENT, color: "#FFFFFF",
-          border: "none", borderRadius: 12,
-          fontSize: 14, fontWeight: 700, cursor: "pointer",
-          fontFamily: "inherit",
-        }}>
-          <Ic.up size={20} color="#FFFFFF" />
-          <span>Upload contract</span>
-        </button>
-        <button onClick={() => navTo("/mobile/pipeline")} style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "14px 12px", minHeight: 56,
-          background: SURFACE.elevated, color: INK,
-          border: `1px solid ${TOKENS.rule}`, borderRadius: 12,
-          fontSize: 14, fontWeight: 700, cursor: "pointer",
-          fontFamily: "inherit",
-        }}>
-          <Ic.lineGraph size={20} />
-          <span>Open pipeline</span>
-        </button>
-      </div>
+      {/* Quick actions removed per Andrew 2026-04-26 — Upload Contract
+          lives on the client profile; Pipeline tab is one tap away in
+          the bottom nav. */}
 
       {/* In review — extracted contract drafts awaiting confirmation */}
       {importsExtracted.length > 0 && <Section title="In review" count={importsExtracted.length}>
@@ -288,14 +264,6 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
       </Section>}
 
     </div>
-
-    {uploadOpen && <Suspense fallback={null}>
-      <UploadContractModal
-        currentUser={currentUser}
-        onClose={() => setUploadOpen(false)}
-        onUploaded={() => { /* realtime sub picks the new row up automatically */ }}
-      />
-    </Suspense>}
 
     {reviewImport && <Suspense fallback={null}>
       <ContractReviewModal

@@ -132,7 +132,9 @@ export default function MobileApp() {
 function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user }) {
   const appData = useAppData();
   const team = appData.team || [];
-  const currentUser = team.find(t => t.auth_id === user?.id);
+  // useAppData maps team rows to camelCase (`authId`) so look up by
+  // either form — older builds in the wild may have read snake_case.
+  const currentUser = team.find(t => (t.authId || t.auth_id) === user?.id);
   const jurisdiction = useJurisdiction(currentUser, {
     pubs: appData.pubs || appData.allPubs || [],
     clients: appData.clients || [],

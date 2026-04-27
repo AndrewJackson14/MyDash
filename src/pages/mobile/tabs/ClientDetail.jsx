@@ -17,6 +17,7 @@ const ChargeCardModal = lazy(() => import("../ChargeCardModal"));
 const EditClientModal = lazy(() => import("../EditClientModal"));
 const NewOpportunityModal = lazy(() => import("../NewOpportunityModal"));
 const UploadContractModal = lazy(() => import("../UploadContractModal"));
+const MobileProposalWizard = lazy(() => import("../MobileProposalWizard"));
 
 const TABS = ["Overview", "Activity", "Financial", "Proposals"];
 
@@ -36,6 +37,7 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
   const [editOpen, setEditOpen] = useState(false);
   const [newOppOpen, setNewOppOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
 
   if (!client) {
     return <>
@@ -226,13 +228,17 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
           }}><Ic.plus size={18} color="#FFFFFF" /><span>Opportunity</span></button>
         </div>
 
-        <a href={`/?desktop=1#client=${clientId}`} target="_blank" rel="noreferrer" style={{
-          ...CARD, padding: "12px 14px", textDecoration: "none",
-          color: ACCENT, display: "flex", justifyContent: "space-between", alignItems: "center",
+        <button onClick={() => setProposalOpen(true)} style={{
+          padding: "14px 16px", minHeight: 56,
+          background: ACCENT, color: "#FFFFFF",
+          border: "none", borderRadius: 12,
+          fontSize: 15, fontWeight: 700, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          fontFamily: "inherit",
         }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>Build a proposal on desktop</div>
-          <Ic.external size={18} color={ACCENT} />
-        </a>
+          <Ic.plus size={18} color="#FFFFFF" />
+          <span>Proposal</span>
+        </button>
       </>}
 
       {tab === "Activity" && <>
@@ -355,6 +361,17 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
         prefillClient={client}
         onClose={() => setUploadOpen(false)}
         onUploaded={() => { /* Home tab realtime sub catches the new row + parser fires */ }}
+      />
+    </Suspense>}
+
+    {proposalOpen && <Suspense fallback={null}>
+      <MobileProposalWizard
+        mode="new"
+        clientId={clientId}
+        appData={appData}
+        currentUser={currentUser}
+        onClose={() => setProposalOpen(false)}
+        onSent={() => setProposalOpen(false)}
       />
     </Suspense>}
   </>;
