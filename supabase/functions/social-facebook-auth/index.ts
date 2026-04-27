@@ -43,15 +43,16 @@ const FB_DIALOG_BASE = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`;
 // Scopes:
 //   pages_show_list / pages_read_engagement / pages_manage_posts —
 //     needed to list user's Pages and post to them
-//   instagram_basic / instagram_content_publish — IG content publishing
-//     (granted via the linked IG Business account on the Page)
 //   business_management — required to read business-owned Pages
+//
+// Instagram is handled via Meta's native Page → Instagram cross-post
+// feature (configured in Meta Business Suite per Page), so we don't
+// request instagram_* scopes or post to IG directly. Posting to a FB
+// Page automatically mirrors to its linked IG account.
 const SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
   "pages_manage_posts",
-  "instagram_basic",
-  "instagram_content_publish",
   "business_management",
 ].join(",");
 

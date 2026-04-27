@@ -33,10 +33,13 @@ const AUTH_BASE = EDGE_FN_URL;
 // live destination, but the table is keyed for future M2/M3 wiring.
 const LIMITS = { x: 280, facebook: 63206, instagram: 2200, linkedin: 3000 };
 
+// Instagram intentionally absent: Meta's native Page → IG cross-post
+// (configured per-Page in Business Suite) handles the IG mirror as a
+// side-effect of every FB post. Avoiding a second OAuth flow + App
+// Review for Instagram-specific scopes.
 const DESTS = [
   { id: "x", label: "X", color: "#000000", live: true },
   { id: "facebook", label: "Facebook", color: "#1877F2", live: true },
-  { id: "instagram", label: "Instagram", color: "#E1306C", live: true },
   { id: "linkedin", label: "LinkedIn", color: "#0A66C2", live: false },
 ];
 
@@ -45,27 +48,22 @@ async function getAuthHeader() {
   return session?.access_token ? `Bearer ${session.access_token}` : "";
 }
 
-// Per-publication connection check. Returns a {x, facebook, instagram}
-// shape per pub_id so the destination toggles can gate themselves
-// accurately. IG availability is derived from the FB row's
-// instagram_linked flag (one OAuth, two destinations per Meta's model).
+// Per-publication connection check. Returns a {x, facebook} shape per
+// pub_id so the destination toggles can gate themselves accurately.
+// Instagram doesn't appear here — it rides on Meta's native Page → IG
+// cross-post setup, not a separate connection in MyDash.
 async function fetchConnectionMap(pubIds) {
-  const empty = { x: new Set(), facebook: new Set(), instagram: new Set() };
+  const empty = { x: new Set(), facebook: new Set() };
   if (!pubIds.length) return empty;
-  // social_accounts_safe is read-only and elides tokens — exactly what we
-  // need for a "is connected" check from the client.
   const { data } = await supabase
     .from("social_accounts_safe")
-    .select("pub_id, provider, status, instagram_linked")
+    .select("pub_id, provider, status")
     .in("pub_id", pubIds);
-  const result = { x: new Set(), facebook: new Set(), instagram: new Set() };
+  const result = { x: new Set(), facebook: new Set() };
   for (const row of data || []) {
     if (row.status !== "connected") continue;
     if (row.provider === "x") result.x.add(row.pub_id);
-    if (row.provider === "facebook") {
-      result.facebook.add(row.pub_id);
-      if (row.instagram_linked) result.instagram.add(row.pub_id);
-    }
+    if (row.provider === "facebook") result.facebook.add(row.pub_id);
   }
   return result;
 }
@@ -87,8 +85,8 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
   const [tab, setTab] = useState("Compose");
   const [pubId, setPubId] = useState(activePubs[0]?.id || "");
   const [body, setBody] = useState("");
-  const [enabled, setEnabled] = useState({ x: true, facebook: false, instagram: false, linkedin: false });
-  const [connections, setConnections] = useState({ x: new Set(), facebook: new Set(), instagram: new Set() });
+  const [enabled, setEnabled] = useState({ x: true, facebook: false, linkedin: false });
+  const [connections, setConnections] = useState({ x: new Set(), facebook: new Set() });
   const [posting, setPosting] = useState(false);
   const [resultModal, setResultModal] = useState(null);
 
@@ -222,11 +220,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
   const scheduledInPast = scheduledIso ? new Date(scheduledIso).getTime() <= Date.now() + 30000 : false;
   const scheduleValid = when === "now" || (when === "later" && scheduledFor && !scheduledInPast);
 
-  // IG-specific gate: Meta's API rejects text-only IG posts. If IG is
-  // active but no images attached, block submit with a clear hint.
-  const igActiveNoImage = activeDestIds.includes("instagram") && images.length === 0;
-
-  const canPost = !!pubId && !!body.trim() && anyEnabled && !overLimit && !igActiveNoImage && !posting && !uploading && scheduleValid;
+  const canPost = !!pubId && !!body.trim() && anyEnabled && !overLimit && !posting && !uploading && scheduleValid;
 
   const handleSubmit = async () => {
     if (!canPost) return;
@@ -342,16 +336,12 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                 {DESTS.map((d) => {
                   const connected = isConnected(d.id);
                   const disabled = !d.live || !connected;
-                  // IG-specific subtext: even if connected, prompt for an
-                  // image since text-only IG posts get rejected by Meta.
                   const subtext = !d.live
                     ? "Coming soon"
                     : !connected
-                      ? d.id === "instagram"
-                        ? "Link an IG Business account to your FB Page"
-                        : "Connect this publication first"
-                      : d.id === "instagram" && images.length === 0
-                        ? "Connected · attach an image to enable"
+                      ? "Connect this publication first"
+                      : d.id === "facebook"
+                        ? "Connected · auto cross-posts to Instagram"
                         : "Connected";
                   return (
                     <label
@@ -489,12 +479,6 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                 </div>
               )}
             </div>
-
-            {igActiveNoImage && (
-              <div style={{ marginTop: 8, padding: 8, background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.da}`, fontSize: FS.xs, color: Z.da }}>
-                Instagram posts require at least one image. Attach an image or uncheck Instagram.
-              </div>
-            )}
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
               <Btn onClick={handleSubmit} disabled={!canPost}>

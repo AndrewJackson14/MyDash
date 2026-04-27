@@ -331,73 +331,6 @@ async function postToFacebook(account: AccountRow, body: string, mediaUrls: stri
   };
 }
 
-// ── Instagram post ─────────────────────────────────────────
-// Uses the FB row's Page Access Token + the linked IG account id.
-// Two-step container flow:
-//   1. POST /{ig_id}/media with image_url + caption → returns container id
-//   2. Poll /{container_id}?fields=status_code until FINISHED (or 30s)
-//   3. POST /{ig_id}/media_publish with creation_id → returns ig media id
-//
-// Single image only in v1 — carousels are M3 polish.
-async function postToInstagram(
-  fbAccount: AccountRow & { instagram_account_id?: string },
-  body: string,
-  mediaUrls: string[],
-): Promise<{
-  ok: boolean;
-  external_id?: string;
-  external_url?: string;
-  error?: string;
-}> {
-  if (!fbAccount.instagram_account_id) return { ok: false, error: "No linked Instagram Business account" };
-  if (mediaUrls.length === 0) return { ok: false, error: "Instagram requires at least one image" };
-
-  const igId = fbAccount.instagram_account_id;
-  const token = fbAccount.access_token;
-  const imageUrl = mediaUrls[0]; // single-image only for v1
-
-  // Step 1 — create container.
-  const containerRes = await fetch(`${META_GRAPH}/${igId}/media`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_url: imageUrl, caption: body, access_token: token }),
-  });
-  if (!containerRes.ok) return { ok: false, error: `Instagram container: ${await pickMetaError(containerRes)}` };
-  const containerJson = await containerRes.json();
-  const containerId = containerJson.id as string;
-  if (!containerId) return { ok: false, error: "Instagram container: no id returned" };
-
-  // Step 2 — poll until FINISHED. IG container processing is usually
-  // instant for static images but can take up to ~10s. Cap at 30s.
-  const deadline = Date.now() + 30000;
-  while (Date.now() < deadline) {
-    const statusRes = await fetch(`${META_GRAPH}/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
-    if (statusRes.ok) {
-      const sj = await statusRes.json();
-      if (sj.status_code === "FINISHED") break;
-      if (sj.status_code === "ERROR" || sj.status_code === "EXPIRED") {
-        return { ok: false, error: `Instagram container ${sj.status_code}` };
-      }
-    }
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-
-  // Step 3 — publish.
-  const pubRes = await fetch(`${META_GRAPH}/${igId}/media_publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ creation_id: containerId, access_token: token }),
-  });
-  if (!pubRes.ok) return { ok: false, error: `Instagram publish: ${await pickMetaError(pubRes)}` };
-  const pubJson = await pubRes.json();
-  const igMediaId = pubJson.id as string;
-  return {
-    ok: true,
-    external_id: igMediaId,
-    external_url: igMediaId ? `https://www.instagram.com/p/${igMediaId}` : undefined,
-  };
-}
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -542,13 +475,14 @@ serve(async (req: Request) => {
         continue;
       }
 
-      // ── Facebook / Instagram path ───────────────────────
-      // Both share the same social_accounts row (provider='facebook')
-      // since FB OAuth grants the linked IG via the Page. Load once.
-      if (dest === "facebook" || dest === "instagram") {
+      // ── Facebook path ───────────────────────────────────
+      // Instagram is NOT posted to directly — Meta's native Page → IG
+      // cross-post handles the mirror as a side-effect of every FB
+      // post. So we only have a 'facebook' destination here.
+      if (dest === "facebook") {
         const { data: fbAccount } = await admin
           .from("social_accounts")
-          .select("id, pub_id, provider, external_id, access_token, refresh_token, token_expiry, status, instagram_account_id")
+          .select("id, pub_id, provider, external_id, access_token, refresh_token, token_expiry, status")
           .eq("pub_id", post.pub_id)
           .eq("provider", "facebook")
           .maybeSingle();
@@ -557,11 +491,11 @@ serve(async (req: Request) => {
           const msg = fbAccount ? `Facebook account ${fbAccount.status}` : "Facebook account not connected";
           await admin.from("social_post_results").insert({
             post_id: postId,
-            destination: dest,
+            destination: "facebook",
             status: "failed",
             error_message: msg,
           });
-          results.push({ destination: dest, ok: false, error: msg });
+          results.push({ destination: "facebook", ok: false, error: msg });
           continue;
         }
 
@@ -569,14 +503,12 @@ serve(async (req: Request) => {
           .map((m: { url?: string; type?: string }) => (m?.type === "image" || !m?.type) && m?.url ? m.url : null)
           .filter((u: string | null): u is string => !!u);
 
-        const out = dest === "facebook"
-          ? await postToFacebook(fbAccount as AccountRow, post.body_text, allMedia)
-          : await postToInstagram(fbAccount as AccountRow & { instagram_account_id?: string }, post.body_text, allMedia);
+        const out = await postToFacebook(fbAccount as AccountRow, post.body_text, allMedia);
 
         if (out.ok) {
           await admin.from("social_post_results").insert({
             post_id: postId,
-            destination: dest,
+            destination: "facebook",
             status: "success",
             external_post_id: out.external_id || null,
             external_url: out.external_url || null,
@@ -585,24 +517,40 @@ serve(async (req: Request) => {
           // Meta API is free for our scale. Track writes for analytics
           // but estimated_cost_usd stays at 0 — no spend cap.
           await admin.rpc("bump_provider_usage", {
-            p_provider: dest,
+            p_provider: "facebook",
             p_pub_id: post.pub_id,
             p_writes: 1,
             p_cost_usd: 0,
           });
-          results.push({ destination: dest, ok: true });
+          results.push({ destination: "facebook", ok: true });
         } else {
           const msg = out.error || "Unknown failure";
           await admin.from("social_post_results").insert({
             post_id: postId,
-            destination: dest,
+            destination: "facebook",
             status: "failed",
             error_message: msg,
           });
-          results.push({ destination: dest, ok: false, error: msg });
+          results.push({ destination: "facebook", ok: false, error: msg });
         }
 
         await new Promise((r) => setTimeout(r, 200));
+        continue;
+      }
+
+      // ── Instagram — explicit no-op ──────────────────────
+      // Old social_posts rows might have IG enabled (from when the
+      // composer offered it). Don't try to publish — Meta's native
+      // cross-post handles IG. Mark skipped with a clear note.
+      if (dest === "instagram") {
+        const msg = "Instagram is auto cross-posted from Facebook — no direct publish";
+        await admin.from("social_post_results").insert({
+          post_id: postId,
+          destination: "instagram",
+          status: "skipped",
+          error_message: msg,
+        });
+        results.push({ destination: "instagram", ok: false, error: msg });
         continue;
       }
 

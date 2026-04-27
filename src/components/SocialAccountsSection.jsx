@@ -153,13 +153,10 @@ export function SocialAccountsSection({ pubId }) {
           );
         })}
 
-        {/* Instagram — derived from the Facebook row. We render it inline so
-            the matrix shape is "X / FB / IG / LinkedIn" matching the
-            destination toggles in the composer. Status follows the FB
-            connection: if FB is connected and the Page has a linked IG
-            Business account, IG shows as connected. Otherwise the row
-            explains the fix-it path (link IG to Page in Meta Business
-            Suite, then reconnect). */}
+        {/* Instagram — explainer card. We don't post to IG directly;
+            Meta's native Page → Instagram cross-post (configured per
+            Page in Business Suite) mirrors every FB post automatically.
+            Avoids a second OAuth flow + Instagram-specific App Review. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
           <div style={{ width: 26, height: 26, borderRadius: R, background: "#E1306C", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: FS.xs, fontWeight: FW.heavy, flexShrink: 0 }}>
             I
@@ -167,13 +164,9 @@ export function SocialAccountsSection({ pubId }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>Instagram</div>
             <div style={{ fontSize: FS.xs, color: Z.tm }}>
-              {fbStatus.loading
-                ? "Checking…"
-                : !fbStatus.connected
-                  ? "Connect Facebook first"
-                  : fbStatus.instagramLinked
-                    ? (fbStatus.instagramLabel || "Connected via Facebook")
-                    : "No IG Business account linked to this Page"}
+              {fbStatus.connected
+                ? "Auto cross-posted from Facebook (configure in Meta Business Suite)"
+                : "Connect Facebook to enable auto cross-post"}
             </div>
           </div>
         </div>

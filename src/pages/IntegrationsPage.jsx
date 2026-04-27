@@ -441,10 +441,14 @@ export default IntegrationsPage;
 // Org-wide view of every publication's per-network status plus a
 // month-to-date X usage panel. Reads from social_accounts_safe (token
 // columns elided) so this is safe for any authenticated user.
+// Instagram column shows "via FB" because we don't post to IG directly —
+// Meta's native Page → IG cross-post (configured in Business Suite)
+// mirrors every FB post automatically. Status column tracks FB but
+// labels it as "via FB" so users understand the model.
 const PROVIDERS_M = [
   { id: "x", label: "X", live: true },
-  { id: "facebook", label: "Facebook", live: false },
-  { id: "instagram", label: "Instagram", live: false },
+  { id: "facebook", label: "Facebook", live: true },
+  { id: "instagram", label: "Instagram", live: true, viaFacebook: true },
   { id: "linkedin", label: "LinkedIn", live: false },
 ];
 const X_BUDGET_USD = 100;
@@ -478,13 +482,14 @@ const SocialIntegrationsTab = ({ pubs = [] }) => {
   }, []);
 
   // Build pub_id → { provider → row } lookup once for the matrix.
+  // Instagram column is synthesized from the facebook row regardless of
+  // instagram_linked — Meta's cross-post handles the mirror, so any
+  // connected FB Page implies an IG-reachable destination.
   const byPubProvider = {};
   for (const a of accounts) {
     if (!byPubProvider[a.pub_id]) byPubProvider[a.pub_id] = {};
     byPubProvider[a.pub_id][a.provider] = a;
-    // Synthesize an instagram row from the facebook row's instagram_linked
-    // flag — Instagram doesn't have its own social_accounts entry.
-    if (a.provider === "facebook" && a.instagram_linked) {
+    if (a.provider === "facebook") {
       byPubProvider[a.pub_id]["instagram"] = { ...a, provider: "instagram" };
     }
   }
@@ -542,7 +547,7 @@ const SocialIntegrationsTab = ({ pubs = [] }) => {
     <GlassCard noPad>
       <div style={{ padding: "16px 22px 8px" }}>
         <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Publication × Network</div>
-        <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>X is live. Facebook / Instagram / LinkedIn unlock as their platform approvals land.</div>
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>X and Facebook are live. Instagram mirrors via Meta's native FB → IG cross-post (configure per Page in Business Suite). LinkedIn is M3.</div>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm }}>
