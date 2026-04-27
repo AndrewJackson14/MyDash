@@ -31,6 +31,7 @@ export const MODULES = [
   { key: "flatplan", label: "Flatplan", section: "Content" },
   { key: "adprojects", label: "Ad Projects", section: "Content" },
   { key: "newsletters", label: "Newsletters", section: "Content" },
+  { key: "social-composer", label: "Social Composer", section: "Content" },
   { key: "sitesettings", label: "MySites", section: "Content" },
   { key: "medialibrary", label: "Media Library", section: "Content" },
   { key: "circulation", label: "Circulation", section: "Operations" },
@@ -48,11 +49,11 @@ export const MODULES = [
 
 export const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
-  "Editor-in-Chief": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation"],
+  "Editor-in-Chief": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation", "social-composer"],
   "Sales Manager": ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects", "publications", "schedule", "analytics"],
   Salesperson: ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects"],
-  "Content Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary"],
-  "Managing Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary"],
+  "Content Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
+  "Managing Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
   "Writer/Reporter": ["dashboard", "calendar", "editorial"],
   "Stringer": ["dashboard", "calendar", "editorial"],
   "Copy Editor": ["dashboard", "calendar", "editorial", "medialibrary"],

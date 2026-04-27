@@ -158,7 +158,7 @@ const IntegrationsPage = ({ pubs, isActive }) => {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Title moved to TopBar via usePageHeader; no inline header needed. */}
 
-    <TabRow><TB tabs={["Overview", "QuickBooks", "Google Workspace", "StellarPress", "Database"]} active={tab} onChange={setTab} /></TabRow>
+    <TabRow><TB tabs={["Overview", "QuickBooks", "Google Workspace", "Social", "StellarPress", "Database"]} active={tab} onChange={setTab} /></TabRow>
 
     {/* ════════ OVERVIEW ════════ */}
     {tab === "Overview" && <>
@@ -389,6 +389,9 @@ const IntegrationsPage = ({ pubs, isActive }) => {
       </GlassCard>
     </>}
 
+    {/* ════════ SOCIAL TAB ════════ */}
+    {tab === "Social" && <SocialIntegrationsTab pubs={pubs} />}
+
     {/* ════════ STELLARPRESS TAB ════════ */}
     {tab === "StellarPress" && <>
       <div style={{ fontSize: FS.base, color: Z.tm, marginBottom: 4 }}>StellarPress is connected via the shared Supabase database. Stories published in MyDash Editorial are instantly available on StellarPress public sites.</div>
@@ -433,3 +436,150 @@ const IntegrationsPage = ({ pubs, isActive }) => {
 };
 
 export default IntegrationsPage;
+
+// ─── SocialIntegrationsTab ─────────────────────────────────────
+// Org-wide view of every publication's per-network status plus a
+// month-to-date X usage panel. Reads from social_accounts_safe (token
+// columns elided) so this is safe for any authenticated user.
+const PROVIDERS_M = [
+  { id: "x", label: "X", live: true },
+  { id: "facebook", label: "Facebook", live: false },
+  { id: "instagram", label: "Instagram", live: false },
+  { id: "linkedin", label: "LinkedIn", live: false },
+];
+const X_BUDGET_USD = 100;
+
+const SocialIntegrationsTab = ({ pubs = [] }) => {
+  const activePubs = (pubs || []).filter((p) => !p.dormant);
+  const [accounts, setAccounts] = useState([]);
+  const [usage, setUsage] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // social_accounts_safe is the token-stripped view — this gives us
+      // pub_id, provider, status, account_label without ever exposing
+      // tokens to the client. (Direct social_accounts SELECTs return
+      // zero rows for authenticated users by RLS design.)
+      const { data: accs } = await supabase
+        .from("social_accounts_safe")
+        .select("pub_id, provider, status, account_label, instagram_linked");
+      const period = new Date().toISOString().slice(0, 7); // YYYY-MM (UTC)
+      const { data: us } = await supabase
+        .from("provider_usage")
+        .select("provider, pub_id, period, writes_count, estimated_cost_usd")
+        .eq("period", period);
+      if (!cancelled) {
+        setAccounts(accs || []);
+        setUsage(us || []);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Build pub_id → { provider → row } lookup once for the matrix.
+  const byPubProvider = {};
+  for (const a of accounts) {
+    if (!byPubProvider[a.pub_id]) byPubProvider[a.pub_id] = {};
+    byPubProvider[a.pub_id][a.provider] = a;
+    // Synthesize an instagram row from the facebook row's instagram_linked
+    // flag — Instagram doesn't have its own social_accounts entry.
+    if (a.provider === "facebook" && a.instagram_linked) {
+      byPubProvider[a.pub_id]["instagram"] = { ...a, provider: "instagram" };
+    }
+  }
+
+  const expired = accounts.filter((a) => a.status === "expired");
+
+  // X usage aggregate. Sum across pubs because the X spend cap is org-wide.
+  const xUsage = usage.filter((u) => u.provider === "x");
+  const xWrites = xUsage.reduce((s, u) => s + (u.writes_count || 0), 0);
+  const xSpend = xUsage.reduce((s, u) => s + Number(u.estimated_cost_usd || 0), 0);
+  const xRemaining = Math.max(0, X_BUDGET_USD - xSpend);
+  const xPct = Math.min(100, (xSpend / X_BUDGET_USD) * 100);
+
+  return <>
+    {/* ── X usage panel ────────────────────────────────── */}
+    <GlassCard>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>X Usage — Month to Date</span>
+        <span style={{ fontSize: FS.xs, color: Z.tm }}>Cap: ${X_BUDGET_USD}/mo (set in X dev console)</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 12 }}>
+        <Stat label="Posts" value={xWrites} sub="this month" />
+        <Stat label="Estimated Spend" value={`$${xSpend.toFixed(2)}`} sub={`of $${X_BUDGET_USD}`} color={xPct >= 80 ? Z.wa : Z.su} />
+        <Stat label="Remaining" value={`$${xRemaining.toFixed(2)}`} sub={`${(100 - xPct).toFixed(0)}% left`} color={xPct >= 80 ? Z.wa : Z.su} />
+      </div>
+      {/* Budget progress bar */}
+      <div style={{ height: 8, background: Z.bg, borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ width: `${xPct}%`, height: "100%", background: xPct >= 80 ? Z.wa : Z.su, transition: "width 240ms ease" }} />
+      </div>
+      {xPct >= 80 && <div style={{ marginTop: 8, fontSize: FS.xs, color: Z.wa, fontWeight: FW.heavy }}>⚠ Approaching budget cap. The publish worker will halt X posts once estimated spend reaches ${X_BUDGET_USD}.</div>}
+    </GlassCard>
+
+    {/* ── Tokens needing reconnection ──────────────────── */}
+    {expired.length > 0 && (
+      <GlassCard style={{ borderLeft: `3px solid ${Z.da}` }}>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Tokens Needing Reconnection</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {expired.map((a, i) => {
+            const pub = activePubs.find((p) => p.id === a.pub_id);
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+                <div>
+                  <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{pub?.name || a.pub_id} · {a.provider.toUpperCase()}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{a.account_label}</div>
+                </div>
+                <span style={{ fontSize: FS.xs, color: Z.da, fontWeight: FW.heavy }}>Open Publications → {pub?.name || ""} to reconnect</span>
+              </div>
+            );
+          })}
+        </div>
+      </GlassCard>
+    )}
+
+    {/* ── Publication × Network matrix ─────────────────── */}
+    <GlassCard noPad>
+      <div style={{ padding: "16px 22px 8px" }}>
+        <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Publication × Network</div>
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4 }}>X is live. Facebook / Instagram / LinkedIn unlock as their platform approvals land.</div>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm }}>
+          <thead>
+            <tr style={{ background: Z.bg }}>
+              <th style={{ textAlign: "left", padding: "10px 22px", color: Z.tm, fontWeight: FW.heavy, textTransform: "uppercase", fontSize: FS.xs, letterSpacing: 1 }}>Publication</th>
+              {PROVIDERS_M.map((p) => (
+                <th key={p.id} style={{ textAlign: "center", padding: "10px 14px", color: Z.tm, fontWeight: FW.heavy, textTransform: "uppercase", fontSize: FS.xs, letterSpacing: 1, opacity: p.live ? 1 : 0.55 }}>
+                  {p.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activePubs.map((pub) => {
+              const row = byPubProvider[pub.id] || {};
+              return (
+                <tr key={pub.id} style={{ borderTop: `1px solid ${Z.bd}` }}>
+                  <td style={{ padding: "10px 22px", color: Z.tx, fontWeight: FW.heavy }}>{pub.name}</td>
+                  {PROVIDERS_M.map((p) => {
+                    const acc = row[p.id];
+                    const status = !p.live ? "disconnected" : acc?.status === "connected" ? "connected" : acc?.status === "expired" ? "configured" : "disconnected";
+                    return (
+                      <td key={p.id} style={{ padding: "10px 14px", textAlign: "center", opacity: p.live ? 1 : 0.55 }}>
+                        <div style={{ display: "inline-flex" }}><StatusDot status={status} /></div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {activePubs.length === 0 && (
+              <tr><td colSpan={1 + PROVIDERS_M.length} style={{ padding: 20, textAlign: "center", color: Z.tm }}>No active publications.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </GlassCard>
+  </>;
+};

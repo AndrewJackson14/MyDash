@@ -6,6 +6,7 @@ import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar
 import { supabase } from "../lib/supabase";
 import { updatePubDefaultSections } from "../lib/sections";
 import EZSchedule from "./EZSchedule";
+import SocialAccountsSection from "../components/SocialAccountsSection";
 
 const FREQ_OPTIONS = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "Bi-Monthly", "Quarterly", "Semi-Annual", "Annual"];
 const TYPE_OPTIONS = ["Magazine", "Newspaper", "Special Publication"];
@@ -902,6 +903,10 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <div style={{ flex: 1, padding: 16, background: Z.sa, borderRadius: Ri, textAlign: "center" }}><div style={{ fontWeight: FW.heavy, color: Z.su }}>12+ insertions</div><div style={{ color: Z.tm }}>~25% discount</div></div>
         </div>
       </div>
+
+      {/* Social accounts — per-publication OAuth connections (X live in M1; FB/IG/LinkedIn slots visible but disabled). */}
+      {!sel.dormant && <SocialAccountsSection pubId={sel.id} />}
+
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
         {editMode ? <><Btn v="cancel" onClick={() => { setEditPub(JSON.parse(JSON.stringify(sel))); setEditMode(false); }}>Cancel</Btn><Btn onClick={savePub}>Save Changes</Btn></> : <Btn v="cancel" onClick={() => setEditMode(true)}><Ic.edit size={12} /> Edit Publication</Btn>}
       </div>

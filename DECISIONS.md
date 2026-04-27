@@ -181,7 +181,25 @@ All 4 edge cases stayed steel: Mail, MerchShop, AdProjects detail (which doesn't
 
 ---
 
-<!-- 
+## [2026-04-26] Social Scheduling Milestone 1 — wired end-to-end (X-only)
+
+- **Context:** Spec `_specs/social-scheduling.md` calls for per-publication social posting across X/FB/IG/LinkedIn with one mandatory production stop after Milestone 1 (X-only). Andrew said "wire it in and I'll get the secrets and connections later" — that means ship the code path now and let him hook OAuth secrets at a later session before users touch it.
+- **Decision:** Shipped all M1 surfaces:
+  1. `social-x-auth` Edge Function (deployed, full OAuth lifecycle)
+  2. `SocialAccountsSection` component injected into Publications rate modal — renders all 4 provider cards but only the X card is interactive; FB/IG/LinkedIn are visible-but-disabled to keep the matrix shape clear
+  3. `social-publish` Edge Function (deployed, X immediate-post only; FB/IG/LinkedIn destinations short-circuit to `status='skipped'` with a clear error message rather than failing silently)
+  4. `SocialComposer` page (new route `social-composer`) — Compose tab functional, Queue + History tabs are stubs that explain what each lands in
+  5. Sidebar nav entry under Content; permission key `social-composer` added to MODULES with role defaults for Editor-in-Chief, Content Editor, Managing Editor
+  6. IntegrationsPage gains a Social tab with X usage panel ($100 budget bar, MTD posts/spend/remaining), expired-tokens callout, and Pub × Network status matrix
+- **Alternatives considered:**
+  - Shipping FB/IG/LinkedIn placeholders as completely hidden until those providers go live. Rejected — making the slots visible-but-disabled tells users what's coming and lets the matrix UX be designed once.
+  - Adding scheduling now (composer + cron worker). Rejected — spec explicitly defers this to M2 because immediate-post feedback from one provider is what should drive composer/preview iteration.
+- **Why:** The mandatory M1 stop point is real but Andrew's deferral of secrets means the next session is just `supabase secrets set X_CLIENT_ID … X_CLIENT_SECRET …` plus a real-X smoke test. Code is in place for that to be a 30-min session rather than a fresh build.
+- **Status:** Shipped (code). Production smoke test deferred — secrets not yet set; user opens Publications → publication → Social Accounts → Connect to actually exercise the X OAuth.
+
+---
+
+<!--
 Template for new entries:
 
 ## [YYYY-MM-DD] Brief title

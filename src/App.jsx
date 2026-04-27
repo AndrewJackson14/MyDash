@@ -61,6 +61,7 @@ const Performance = lazyLoad(() => import("./pages/Performance"));
 const ClassifiedAds = lazyLoad(() => import("./pages/ClassifiedAds"));
 const Merch = lazyLoad(() => import("./pages/Merch"));
 const NewsletterPage = lazyLoad(() => import("./pages/NewsletterPage"));
+const SocialComposer = lazyLoad(() => import("./pages/SocialComposer"));
 const AdProjects = lazyLoad(() => import("./pages/AdProjects"));
 const KnowledgeBase = lazyLoad(() => import("./pages/KnowledgeBase"));
 const Messaging = lazyLoad(() => import("./pages/Messaging"));
@@ -496,6 +497,7 @@ export default function App() {
     { id: "tearsheets", label: "Tearsheet Center", icon: Ic.image },
     { id: "collections", label: "Collections", icon: Ic.invoice },
     { id: "newsletters", label: "Newsletters", icon: Ic.send },
+    { id: "social-composer", label: "Social Composer", icon: Ic.send },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
     { id: "_advertising", section: true, label: "Advertising" },
@@ -677,6 +679,7 @@ export default function App() {
         {show("messaging") && <div style={vis("messaging")}><Messaging isActive={pg === "messaging"} team={team} currentUser={currentUser} /></div>}
         {show("mail") && <div style={vis("mail")}><Mail isActive={pg === "mail"} /></div>}
         {show("newsletters") && <div style={vis("newsletters")}><NewsletterPage isActive={pg === "newsletters"} pubs={pubs} currentUser={currentUser} /></div>}
+        {show("social-composer") && <div style={vis("social-composer")}><SocialComposer isActive={pg === "social-composer"} pubs={pubs} currentUser={currentUser} onNavigate={handleNav} /></div>}
         {show("sitesettings") && <div style={vis("sitesettings")}><MySites isActive={pg === "sitesettings"} pubs={pubs} setPubs={setPubs} sales={jSales} clients={jClients} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} onNavigate={handleNav} /></div>}
         {show("bookings-queue") && <div style={vis("bookings-queue")}><BookingsQueue isActive={pg === "bookings-queue"} pubs={pubs} /></div>}
         {show("emailtemplates") && <div style={vis("emailtemplates")}><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></div>}
