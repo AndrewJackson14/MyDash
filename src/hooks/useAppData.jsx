@@ -237,7 +237,7 @@ export function DataProvider({ children, localData }) {
 
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
-        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
+        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,has_social,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
         // rate_type / rate_amount / availability landed via the
         // add_freelancer_rate_columns migration. They are nullable and only
         // populated for freelancers; non-freelancers leave them NULL.
@@ -266,6 +266,7 @@ export function DataProvider({ children, localData }) {
             pageCount: p.page_count, width: Number(p.width), height: Number(p.height),
             frequency: p.frequency, circ: p.circulation,
             hasWebsite: !!p.has_website, websiteUrl: p.website_url || '',
+            hasSocial: !!p.has_social,
             dormant: !!p.dormant,
             defaultRevenueGoal: Number(p.default_revenue_goal || 0),
             defaultSections: Array.isArray(p.default_sections) ? p.default_sections : [],
@@ -2394,6 +2395,7 @@ export function DataProvider({ children, localData }) {
       ad_close_offset_days: pub.adCloseOffsetDays || 2, ed_close_offset_days: pub.edCloseOffsetDays || 3,
       press_dates_of_month: pub.pressDatesOfMonth || [],
       has_website: pub.hasWebsite || false, website_url: pub.websiteUrl || '',
+      has_social: pub.hasSocial || false,
     };
     if (Array.isArray(pub.sharedContentWith) && pub.sharedContentWith.length) {
       dbPub.site_settings = { shared_content_with: pub.sharedContentWith };
@@ -2438,6 +2440,7 @@ export function DataProvider({ children, localData }) {
       if (changes.pressDatesOfMonth !== undefined) db.press_dates_of_month = changes.pressDatesOfMonth;
       if (changes.hasWebsite !== undefined) db.has_website = changes.hasWebsite;
       if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
+      if (changes.hasSocial !== undefined) db.has_social = changes.hasSocial;
       if (changes.dormant !== undefined) db.dormant = changes.dormant;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
       // Shared content siblings — stored in site_settings JSONB and mirrored

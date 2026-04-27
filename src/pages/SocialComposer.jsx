@@ -59,7 +59,10 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
     }
   }, [isActive, setHeader, clearHeader]);
 
-  const activePubs = useMemo(() => (pubs || []).filter((p) => !p.dormant), [pubs]);
+  // Only pubs that opt into social posting via the Has Social toggle in
+  // Publications settings. Filters out dormant pubs and pubs with no
+  // social presence to manage, keeping the picker honest.
+  const activePubs = useMemo(() => (pubs || []).filter((p) => !p.dormant && p.hasSocial), [pubs]);
   const [tab, setTab] = useState("Compose");
   const [pubId, setPubId] = useState(activePubs[0]?.id || "");
   const [body, setBody] = useState("");
@@ -157,7 +160,17 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <TabRow><TB tabs={["Compose", "Queue", "History"]} active={tab} onChange={setTab} /></TabRow>
 
-      {tab === "Compose" && (
+      {tab === "Compose" && activePubs.length === 0 && (
+        <GlassCard>
+          <SectionTitle>No publications with social enabled</SectionTitle>
+          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 8 }}>
+            Open a publication in Publications settings and switch on <strong>Has Social</strong> to make it postable here.
+          </div>
+          {onNavigate && <Btn sm onClick={() => onNavigate("publications")}>Open Publications →</Btn>}
+        </GlassCard>
+      )}
+
+      {tab === "Compose" && activePubs.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* ── Composer column ─────────────────────────── */}
           <GlassCard>

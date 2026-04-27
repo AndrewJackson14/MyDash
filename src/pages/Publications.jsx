@@ -507,7 +507,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
   const [showAddPub, setShowAddPub] = useState(false);
   const [showDormant, setShowDormant] = useState(false);
   const [goToWizard, setGoToWizard] = useState(false);
-  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue, hasWebsite: false, websiteUrl: "" });
+  const [newPub, setNewPub] = useState({ name: "", type: "Newspaper", frequency: "Weekly", pageCount: 24, width: 11.125, height: 20.75, circ: 0, color: ACCENT.blue, hasWebsite: false, websiteUrl: "", hasSocial: false });
 
   // Publications | Goals tab state. Goals is Publisher-only.
   const [tab, setTab] = useState("Publications");
@@ -603,6 +603,12 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
         </label>
         {newPub.hasWebsite && <Inp label="Website URL" value={newPub.websiteUrl} onChange={e => setNewPub(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="e.g. pasoroblespress.com" />}
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx }}>
+          <div onClick={() => setNewPub(p => ({ ...p, hasSocial: !p.hasSocial }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: newPub.hasSocial ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: INV.light, position: "absolute", top: TOGGLE.pad, left: newPub.hasSocial ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+          </div>
+          <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Social</span>
+        </label>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
           <Btn v="secondary" onClick={() => { setGoToWizard(true); handleAddPub(); }}>Save & Open MyWizard</Btn>
           <Btn onClick={handleAddPub} disabled={!newPub.name}>Save Publication</Btn>
@@ -673,6 +679,12 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Website</span>
         </label>
         {editPub.hasWebsite && <Inp label="Website URL" value={editPub.websiteUrl || ""} onChange={e => setEditPub(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="e.g. pasoroblespress.com" />}
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx, marginTop: 4 }}>
+          <div onClick={() => setEditPub(p => ({ ...p, hasSocial: !p.hasSocial }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: editPub.hasSocial ? Z.go : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
+            <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: editPub.hasSocial ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+          </div>
+          <span style={{ fontWeight: FW.semi, fontFamily: COND }}>Has Social</span>
+        </label>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: FS.base, color: Z.tx, marginTop: 4 }}>
           <div onClick={() => setEditPub(p => ({ ...p, dormant: !p.dormant }))} style={{ width: 40, height: 22, borderRadius: 11, position: "relative", background: editPub.dormant ? Z.da : Z.bd, transition: "background 0.2s", cursor: "pointer" }}>
             <div style={{ width: TOGGLE.circle, height: TOGGLE.circle, borderRadius: TOGGLE.circleRadius, background: INV.light, position: "absolute", top: TOGGLE.pad, left: editPub.dormant ? TOGGLE.w - TOGGLE.circle - TOGGLE.pad : TOGGLE.pad, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
@@ -904,8 +916,9 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
         </div>
       </div>
 
-      {/* Social accounts — per-publication OAuth connections (X live in M1; FB/IG/LinkedIn slots visible but disabled). */}
-      {!sel.dormant && <SocialAccountsSection pubId={sel.id} />}
+      {/* Social accounts — per-publication OAuth connections (X live in M1; FB/IG/LinkedIn slots visible but disabled).
+          Only rendered for pubs that explicitly opt in via Has Social. */}
+      {sel.hasSocial && !sel.dormant && <SocialAccountsSection pubId={sel.id} />}
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
         {editMode ? <><Btn v="cancel" onClick={() => { setEditPub(JSON.parse(JSON.stringify(sel))); setEditMode(false); }}>Cancel</Btn><Btn onClick={savePub}>Save Changes</Btn></> : <Btn v="cancel" onClick={() => setEditMode(true)}><Ic.edit size={12} /> Edit Publication</Btn>}
