@@ -4,6 +4,38 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-27] Proposal Wizard mobile — Checkpoint 2 (mobile shell + chrome)
+
+- **Context:** Spec at `_specs/proposal-wizard-mobile.md`, Checkpoint 2. Build the mobile chrome (TopBar + body + save row + Footer) plus the two bottom sheets (step jump, deal summary) using the orchestration hook from CP1. Step contents stay desktop-shaped — CP3 polishes those.
+- **Decision:** Five new files in `src/components/proposal-wizard/chrome/`: `MobileSheet.jsx` (primitive), `MobileTopBar.jsx`, `MobileFooter.jsx`, `MobileStepJumpSheet.jsx`, `MobileDealSummarySheet.jsx`. `ProposalWizardMobile.jsx` rewritten from CP1 stub to a real shell that wires all chrome around the existing `activeStep`. Solid `Z.bg` everywhere, no glass, no `backdropFilter`. Discard-confirm uses MobileSheet so the same primitive serves three roles (step jump, summary, confirm).
+- **Why:** Spec said this checkpoint surfaces structure, not polish. The grid override carried over from the old `MobileProposalWizard.jsx` (CSS attribute selectors that collapse `1fr 1fr` / `1fr 2fr` step grids to single column) keeps step contents merely *workable* on a phone until CP3 lands. Two paragraphs of CSS is a reasonable price to defer per-step rewrites.
+- **Status:** Built clean on `feature/proposal-wizard-mobile`. Awaiting Andrew's phone-test pass through all 7 steps before CP3.
+
+### MobileSheet drag-down — pointer events, `touch-action: none` on the sheet
+
+- **Spec said:** "Use pointer events, not touch events, for cross-platform drag." Drag-down threshold 80px or velocity > 0.5px/ms.
+- **What I did:** Sheet wrapper has `touchAction: "none"` so iOS doesn't intercept the drag as a scroll. Sheet body has `touchAction: "auto"` so vertical scroll works inside the sheet. Drag handlers (`onPointerDown/Move/Up/Cancel`) live on the sheet, but only fire if the user grabbed a non-input element OR an explicit `[data-sheet-grab]` zone (handle pill + header). That way tapping a button inside the sheet body still works as a tap, not a drag.
+- **Tradeoff:** The fingertip can drag through the body region by accident (anywhere not on an input/button). For CP2 that's acceptable — the spec says drag-down is a nice-to-have and backdrop-tap dismissal is the load-bearing path.
+
+### Esc-to-close ignores typing
+
+- **Spec said:** "Close on Escape (when keyboard not open)."
+- **What I did:** Esc handler checks `document.activeElement.tagName` — if it's INPUT/TEXTAREA/contentEditable, the keypress is ignored so Esc dismisses the keyboard instead of the sheet. Otherwise Esc closes.
+- **Why:** Cheap proxy for "keyboard is open." More accurate detection (visualViewport.height shrinking) wasn't worth the complexity given the heuristic catches the actual UX miss.
+
+### Cancel-confirm uses MobileSheet, not a separate Modal
+
+- **Spec said:** "Open a confirm sheet — Discard draft? ... [Keep editing] [Discard]"
+- **What I did:** Reused MobileSheet with a one-paragraph body + two buttons. Same primitive as step jump / summary, no new code path.
+- **Why:** Three different bottom-sheet implementations would diverge in behavior. One primitive, three usages, consistent dismissal semantics.
+
+### Sent! confirmation as a full-screen takeover
+
+- **Desktop shell renders the Sent! screen** as a smaller modal panel (560px). Mobile would look claustrophobic in a 560px-feeling panel inside a phone.
+- **What I did:** Mobile renders Sent! as a full-screen `position: fixed` takeover with a centered checkmark, the recipient count, and two full-width buttons at the bottom (Close + Client Signed). Same content + same handlers, just a phone-shaped layout.
+
+---
+
 ## [2026-04-27] Proposal Wizard mobile — Checkpoint 1 (orchestration extraction)
 
 - **Context:** Spec at `_specs/proposal-wizard-mobile.md` — field reps need to send proposals from a phone. Architecture rule: don't fork `ProposalWizard.jsx`; share state, fork only the shell. Checkpoint 1 = pure refactor, zero feature change.
