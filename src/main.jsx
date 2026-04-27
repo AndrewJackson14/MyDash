@@ -22,6 +22,7 @@ const isShopPage = window.location.pathname.startsWith("/shop/");
 const isReportPage = window.location.pathname.startsWith("/r/");
 const isTearsheetPage = window.location.pathname.startsWith("/tearsheet/");
 const isAdsPortfolioPage = window.location.pathname.startsWith("/ads/");
+const isDataDeletionPage = window.location.pathname === "/data-deletion";
 const ProofApproval = isApprovalPage ? lazy(() => import("./pages/ProofApproval")) : null;
 const ProposalSign = isSignPage ? lazy(() => import("./pages/ProposalSign")) : null;
 const ClientPortal = isPortalPage ? lazy(() => import("./pages/ClientPortal")) : null;
@@ -31,6 +32,7 @@ const MerchShop = isShopPage ? lazy(() => import("./pages/MerchShop")) : null;
 const CampaignPublic = isReportPage ? lazy(() => import("./pages/CampaignPublic")) : null;
 const TearsheetPortal = isTearsheetPage ? lazy(() => import("./pages/TearsheetPortal")) : null;
 const ClientPortfolioPortal = isAdsPortfolioPage ? lazy(() => import("./pages/ClientPortfolioPortal")) : null;
+const DataDeletion = isDataDeletionPage ? lazy(() => import("./pages/DataDeletion")) : null;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -69,6 +71,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       </div>
     ) : isAdsPortfolioPage ? (
       <Suspense fallback={null}><ClientPortfolioPortal /></Suspense>
+    ) : isDataDeletionPage ? (
+      <Suspense fallback={null}><DataDeletion /></Suspense>
     ) : (
       <AuthProvider>
         <AppRouter />
