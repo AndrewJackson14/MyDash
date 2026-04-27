@@ -173,7 +173,7 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
 
   return <FullScreen>
     <div style={{
-      maxWidth: 480, margin: "0 auto", minHeight: "100vh",
+      maxWidth: 480, margin: "0 auto", minHeight: "100dvh",
       paddingBottom: "calc(72px + env(safe-area-inset-bottom))", // tab bar height
       background: SURFACE.alt,
     }}>
@@ -252,7 +252,11 @@ function TabBar({ active, onTab, onCapture }) {
 // ── Helpers ────────────────────────────────────────────────────
 function FullScreen({ children }) {
   return <div style={{
-    minHeight: "100vh",
+    // 100dvh tracks the *visible* viewport, including iOS address-bar
+    // collapse. Plain 100vh returns the larger no-address-bar value
+    // even when the bar is showing — that overstuffed the inner div
+    // and let users scroll past content with no content below.
+    minHeight: "100dvh",
     background: SURFACE.alt,
     color: INK,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
