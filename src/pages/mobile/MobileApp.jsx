@@ -63,6 +63,16 @@ export default function MobileApp() {
     document.body.style.background = SURFACE.alt;
     document.body.style.color = INK;
     document.body.style.margin = "0";
+
+    // Lock the document against iOS rubber-band over-scroll. Each tab
+    // owns its own internal scroll; the body itself shouldn't scroll
+    // past content. `contain` keeps the user from yanking the page up
+    // when there's nothing more to show.
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const prevBodyOverscroll = document.body.style.overscrollBehavior;
+    document.documentElement.style.overscrollBehavior = "none";
+    document.body.style.overscrollBehavior = "none";
+
     let viewportTag = document.querySelector('meta[name="viewport"]');
     const prevViewport = viewportTag?.getAttribute("content") || "";
     if (!viewportTag) {
@@ -70,7 +80,10 @@ export default function MobileApp() {
       viewportTag.setAttribute("name", "viewport");
       document.head.appendChild(viewportTag);
     }
-    viewportTag.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no");
+    // maximum-scale=1 + user-scalable=no together actually disables
+    // pinch zoom on iOS Safari (user-scalable=no alone is ignored
+    // for accessibility unless paired with a maximum-scale).
+    viewportTag.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no");
 
     // Inject PWA manifest + Apple meta so "Add to Home Screen" works.
     // Done client-side rather than baked into index.html so we only
@@ -94,6 +107,8 @@ export default function MobileApp() {
 
     return () => {
       document.documentElement.style.colorScheme = prevTheme;
+      document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
+      document.body.style.overscrollBehavior = prevBodyOverscroll;
       if (viewportTag) viewportTag.setAttribute("content", prevViewport);
       manifestLink.remove();
       appleMeta.remove();
