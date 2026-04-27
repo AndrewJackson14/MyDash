@@ -76,6 +76,79 @@ const DevTypography = lazy(() => import("./pages/dev/Typography"));
 
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading module...</div>;
 
+// ─── Boot status banner ──────────────────────────────────────
+// Renders a thin strip across the top of the main content column when
+// the data layer landed in a degraded / timed-out / failed / offline
+// state. Each state gets its own copy so the user knows what's wrong:
+//
+//   degraded — boot succeeded for some tables, failed for others. The
+//              UI is using whatever loaded; the listed tables are stale
+//              or empty. Reload to retry.
+//   timeout  — none of the boot fetches finished within 5s. The UI is
+//              showing seed/sample data. Writes will likely fail.
+//   failed   — boot threw an unhandled exception. Worst case; reload.
+//   offline  — isOnline() returned false at mount. Local-only mode.
+//
+// Quiet on 'ok' / 'loading' / undefined.
+function BootStatusBanner({ status, failures }) {
+  if (!status || status === "ok" || status === "loading") return null;
+
+  const palette = {
+    degraded: { bg: "var(--warn-soft, rgba(212,169,60,0.18))", fg: "var(--warn, #B8860B)", border: "var(--warn, #B8860B)" },
+    timeout:  { bg: "var(--accent-soft, rgba(232,71,58,0.12))", fg: "var(--accent, #C8301E)", border: "var(--accent, #C8301E)" },
+    failed:   { bg: "var(--accent-soft, rgba(232,71,58,0.12))", fg: "var(--accent, #C8301E)", border: "var(--accent, #C8301E)" },
+    offline:  { bg: "var(--muted-soft, rgba(140,133,120,0.12))", fg: "var(--muted, #6B655A)", border: "var(--muted, #6B655A)" },
+  }[status];
+
+  const message = {
+    degraded: failures && failures.length
+      ? `Some data didn't load: ${failures.join(", ")}. The rest of the app is current.`
+      : "Some data didn't load. Working from what we have.",
+    timeout:  "Couldn't reach the server. Showing sample data — your edits won't save until reconnected.",
+    failed:   "The data layer hit an unexpected error. Showing sample data — reload to retry.",
+    offline:  "Offline mode. Showing sample data; reconnect to load live records.",
+  }[status];
+
+  if (!palette || !message) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        flexShrink: 0,
+        padding: "8px 16px",
+        background: palette.bg,
+        color: palette.fg,
+        borderBottom: `1px solid ${palette.border}40`,
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: COND,
+        display: "flex", alignItems: "center", gap: 10,
+      }}
+    >
+      <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>⚠</span>
+      <span style={{ flex: 1 }}>{message}</span>
+      {(status === "timeout" || status === "failed") && (
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            background: "transparent",
+            border: `1px solid ${palette.border}`,
+            color: palette.fg,
+            borderRadius: 6,
+            padding: "3px 10px",
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: COND,
+            cursor: "pointer",
+          }}
+        >Reload</button>
+      )}
+    </div>
+  );
+}
+
 // Stable empty-array fallback for optional hook outputs. `appData.foo ?? []`
 // in JSX creates a new [] on every render, defeating React.memo on child
 // components. Using this shared reference keeps prop identity stable when
@@ -147,8 +220,16 @@ export default function App() {
   const [_legalNoticeIssues, _setLegalNoticeIssues] = useState([]);
   const [_creativeJobs, _setCreativeJobs] = useState([]);
 
-  // Resolve: Supabase when available, local otherwise
-  const online = appData.loaded && isOnline();
+  // Resolve: Supabase when available, local otherwise. bootStatus gates
+  // the fall-through — if the boot timed out or threw, we drop back to
+  // seed data so the UI isn't empty AND the banner above tells the user
+  // why. 'degraded' (partial load) still goes to appData since some
+  // real data is better than seed.
+  const bootHealthy = !appData.bootStatus
+    || appData.bootStatus === "ok"
+    || appData.bootStatus === "loading"
+    || appData.bootStatus === "degraded";
+  const online = appData.loaded && isOnline() && bootHealthy;
   const pubs = online ? (appData.pubs || []) : _pubs;
   const setPubs = online ? appData.setPubs : _setPubs;
   const issues = online ? (appData.issues || []) : _issues;
@@ -587,40 +668,65 @@ export default function App() {
     )}
     {/* Global ambient pressure tint — tracks with the newsroom heat map.
         Publisher can disable this from Org Appearance settings. */}
-    {orgSettings.global_pressure_enabled !== false && (
-      <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
-    )}
+    {/* Each chrome island gets its own ErrorBoundary so a render error
+        in (say) NotificationPopover doesn't blank the whole shell. The
+        boundaries are silent for decorative/optional pieces (the user
+        sees nothing instead of a crashed app); chrome with a real role
+        gets a small fallback placeholder so the absence is noticed. */}
+    <ErrorBoundary name="ambient-pressure" silent>
+      {orgSettings.global_pressure_enabled !== false && (
+        <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
+      )}
+    </ErrorBoundary>
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
-    <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
+    <ErrorBoundary name="notifications" silent>
+      <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
+    </ErrorBoundary>
     {/* Gmail inbox notifications — polls every 60s via useGmailUnread,
         fires a toast for newly-arrived unread messages. Click jumps to Mail. */}
-    <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
+    <ErrorBoundary name="gmail-notif" silent>
+      <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
+    </ErrorBoundary>
     <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     {/* Press Room fonts are self-hosted via @fontsource imports in
         src/main.jsx. Legacy <link href={FONT_URL}> dropped in the
         Phase 3 typography commit. */}
 
     {/* ── Sidebar ──────────────────────────────────────── */}
-    <Sidebar
-      navSections={navSections}
-      collapsedSections={collapsedSections}
-      toggleSection={toggleSection}
-      pg={pg}
-      handleNav={handleNav}
-      handleThemeToggle={handleThemeToggle}
-      currentUser={currentUser}
-      realUser={realUser}
-      team={team}
-      isAdmin={isAdmin}
-      impersonating={impersonating}
-      setImpersonating={setImpersonating}
-      showSwitcher={showSwitcher}
-      setShowSwitcher={setShowSwitcher}
-    />
+    <ErrorBoundary
+      name="sidebar"
+      fallback={
+        <div style={{ width: 64, flexShrink: 0, background: Z.bgChrome || Z.sa, borderRight: `1px solid ${Z.bd}`, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 24, color: Z.tm, fontSize: 11, fontFamily: COND }}>
+          ⚠
+        </div>
+      }
+    >
+      <Sidebar
+        navSections={navSections}
+        collapsedSections={collapsedSections}
+        toggleSection={toggleSection}
+        pg={pg}
+        handleNav={handleNav}
+        handleThemeToggle={handleThemeToggle}
+        currentUser={currentUser}
+        realUser={realUser}
+        team={team}
+        isAdmin={isAdmin}
+        impersonating={impersonating}
+        setImpersonating={setImpersonating}
+        showSwitcher={showSwitcher}
+        setShowSwitcher={setShowSwitcher}
+      />
+    </ErrorBoundary>
 
     {/* ── Main Content ─────────────────────────────────── */}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+      {/* Boot-status banner — surfaces when the data layer is degraded
+          so users don't accidentally trust seed/partial data. Renders
+          above the header so it's the first thing the eye lands on. */}
+      <BootStatusBanner status={appData.bootStatus} failures={appData.bootFailures} />
 
       {/* ── Single header — Press Room metadata strip carrying
           Back (left), the galley-proof line (center), and the
@@ -629,15 +735,24 @@ export default function App() {
       {(() => {
         const meta = getPageMeta(pg);
         return (
-          <MetadataStrip
-            page={meta.label}
-            department={meta.department}
-            onBack={pg !== "dashboard" ? goBack : null}
-            notifications={notifications}
-            setNotifications={setNotifications}
-            onMarkAllRead={appData.markAllNotificationsRead}
-            onNavigate={handleNav}
-          />
+          <ErrorBoundary
+            name="metadata-strip"
+            fallback={
+              <div style={{ height: 40, padding: "0 16px", display: "flex", alignItems: "center", borderBottom: `1px solid ${Z.bd}`, color: Z.tm, fontSize: 11, fontFamily: COND }}>
+                Header unavailable
+              </div>
+            }
+          >
+            <MetadataStrip
+              page={meta.label}
+              department={meta.department}
+              onBack={pg !== "dashboard" ? goBack : null}
+              notifications={notifications}
+              setNotifications={setNotifications}
+              onMarkAllRead={appData.markAllNotificationsRead}
+              onNavigate={handleNav}
+            />
+          </ErrorBoundary>
         );
       })()}
 
@@ -706,7 +821,9 @@ export default function App() {
     {showProfile && <Suspense fallback={null}><ProfilePanel user={currentUser} team={team} pubs={pubs} onClose={() => setShowProfile(false)} /></Suspense>}
 
     {/* MyHelper — floating bot launcher in bottom-right of every page */}
-    <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
+    <ErrorBoundary name="myhelper" silent>
+      <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
+    </ErrorBoundary>
     </div>
   </PageHeaderProvider>;
 }

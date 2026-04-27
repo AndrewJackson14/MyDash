@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
 
 // Manual chunks split out heavy dependencies that change rarely so the
 // browser can cache them across deploys. The main index chunk was 529 KB
@@ -9,8 +10,22 @@ import react from "@vitejs/plugin-react";
 //
 // pdfjs-dist and pdf-lib are already dynamic-imported from
 // EditionManager so Vite code-splits them automatically into pdf-*.js.
+//
+// Bundle visualizer (audit Q4): runs only when ANALYZE=1 to avoid
+// slowing the deploy build. After running:
+//   ANALYZE=1 npm run build
+// Open dist/stats.html in a browser to see the dependency treemap.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    process.env.ANALYZE && visualizer({
+      filename: "dist/stats.html",
+      template: "treemap",   // treemap | sunburst | network
+      gzipSize: true,
+      brotliSize: true,
+      open: false,
+    }),
+  ].filter(Boolean),
   build: {
     rollupOptions: {
       output: {

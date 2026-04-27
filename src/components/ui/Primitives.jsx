@@ -1022,8 +1022,30 @@ export class ErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
+  componentDidCatch(error, info) {
+    // Always log so we have something to look at when a boundary catches
+    // — the React error overlay only shows in dev. In prod this lands in
+    // the browser console where Bugsnag/Sentry etc. can pick it up later.
+    // eslint-disable-next-line no-console
+    console.error(`[ErrorBoundary${this.props.name ? `:${this.props.name}` : ""}]`, error, info?.componentStack);
+  }
   render() {
     if (!this.state.hasError) return this.props.children;
+
+    // `silent` boundary — used for non-critical chrome (popovers, side
+    // widgets) where a crash shouldn't blank that piece of the UI. The
+    // fallback renders nothing; the rest of the app keeps working.
+    if (this.props.silent) return null;
+
+    // `fallback` override — caller supplies a tiny inline replacement
+    // (e.g., "[Sidebar unavailable]"). Useful for chrome that needs to
+    // leave a placeholder so the user notices.
+    if (this.props.fallback) {
+      return typeof this.props.fallback === "function"
+        ? this.props.fallback({ error: this.state.error, name: this.props.name })
+        : this.props.fallback;
+    }
+
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 60, gap: 16, background: Z.bg, borderRadius: R, minHeight: 200 }}>
         <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.da, fontFamily: COND }}>Something went wrong</div>
