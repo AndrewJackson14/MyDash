@@ -272,7 +272,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const results: Array<{ destination: string; ok: boolean }> = [];
+    const results: Array<{ destination: string; ok: boolean; error?: string }> = [];
 
     for (const target of enabled) {
       const dest = target.destination as string;
@@ -284,13 +284,14 @@ serve(async (req: Request) => {
         const { data: spendRow } = await admin.rpc("x_spend_this_month");
         const spend = Number(spendRow || 0);
         if (spend >= X_MONTHLY_BUDGET_USD) {
+          const msg = "Monthly X budget reached — see Integrations → Social";
           await admin.from("social_post_results").insert({
             post_id: postId,
             destination: "x",
             status: "failed",
-            error_message: "Monthly X budget reached — see Integrations → Social",
+            error_message: msg,
           });
-          results.push({ destination: "x", ok: false });
+          results.push({ destination: "x", ok: false, error: msg });
           continue;
         }
 
@@ -302,13 +303,14 @@ serve(async (req: Request) => {
           .maybeSingle();
 
         if (!account || account.status !== "connected") {
+          const msg = account ? `X account ${account.status}` : "X account not connected";
           await admin.from("social_post_results").insert({
             post_id: postId,
             destination: "x",
             status: "failed",
-            error_message: account ? `X account ${account.status}` : "X account not connected",
+            error_message: msg,
           });
-          results.push({ destination: "x", ok: false });
+          results.push({ destination: "x", ok: false, error: msg });
           continue;
         }
 
@@ -336,13 +338,14 @@ serve(async (req: Request) => {
           });
           results.push({ destination: "x", ok: true });
         } else {
+          const msg = out.error || "Unknown failure";
           await admin.from("social_post_results").insert({
             post_id: postId,
             destination: "x",
             status: "failed",
-            error_message: out.error || "Unknown failure",
+            error_message: msg,
           });
-          results.push({ destination: "x", ok: false });
+          results.push({ destination: "x", ok: false, error: msg });
         }
 
         // Polite delay between destinations (currently no-op since X is the
@@ -355,13 +358,14 @@ serve(async (req: Request) => {
       // ── FB / IG / LinkedIn — M2/M3 ──────────────────────
       // Mark these skipped so users see them in History rather than silent
       // success. Once each provider's adapter lands, swap the branch.
+      const msg = `${dest} support not yet enabled (M2/M3)`;
       await admin.from("social_post_results").insert({
         post_id: postId,
         destination: dest,
         status: "skipped",
-        error_message: `${dest} support not yet enabled (M2/M3)`,
+        error_message: msg,
       });
-      results.push({ destination: dest, ok: false });
+      results.push({ destination: dest, ok: false, error: msg });
     }
 
     // Aggregate — every enabled destination contributed one result row.

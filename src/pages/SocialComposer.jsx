@@ -561,9 +561,14 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
             )}
             {resultModal.error && <div style={{ fontSize: FS.sm, color: Z.da }}>{resultModal.error}</div>}
             {Array.isArray(resultModal.results) && resultModal.results.map((r, i) => (
-              <div key={i} style={{ padding: "8px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}`, display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{r.destination}</span>
-                <span style={{ fontSize: FS.sm, color: r.ok ? Z.su : Z.da }}>{r.ok ? "Sent" : "Failed"}</span>
+              <div key={i} style={{ padding: "8px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{r.destination}</span>
+                  <span style={{ fontSize: FS.sm, color: r.ok ? Z.su : Z.da }}>{r.ok ? "Sent" : "Failed"}</span>
+                </div>
+                {!r.ok && r.error && (
+                  <div style={{ marginTop: 4, fontSize: FS.xs, color: Z.da, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.error}</div>
+                )}
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>

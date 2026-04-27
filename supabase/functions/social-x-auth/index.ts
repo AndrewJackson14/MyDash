@@ -23,7 +23,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/social-x-auth?action=callback`;
 
-const SCOPES = ["tweet.read", "tweet.write", "users.read", "offline.access"].join(" ");
+// media.write is required for the v2 media upload endpoint
+// (api.x.com/2/media/upload). Without it, media uploads return 403
+// even on tiers that otherwise allow them. Tokens minted before this
+// scope was added need to reconnect to pick it up.
+const SCOPES = ["tweet.read", "tweet.write", "users.read", "media.write", "offline.access"].join(" ");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
