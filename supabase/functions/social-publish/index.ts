@@ -62,6 +62,10 @@ type AccountRow = {
   refresh_token: string | null;
   token_expiry: string | null;
   status: string;
+  // Populated for the Facebook row when its Page has a linked IG
+  // Business account. The Instagram destination reads this to find
+  // its IG id without needing a separate social_accounts row.
+  instagram_account_id?: string | null;
 };
 
 // ── X token refresh ────────────────────────────────────────
@@ -228,6 +232,172 @@ async function postToX(account: AccountRow, body: string, mediaUrls: string[]): 
   };
 }
 
+// ── Meta Graph helper — capture errors uniformly ──────────
+async function pickMetaError(res: Response): Promise<string> {
+  const raw = await res.text().catch(() => "");
+  try {
+    const j = JSON.parse(raw);
+    if (j.error?.message) return `${j.error.message}${j.error.code ? ` (code ${j.error.code})` : ""}`;
+    if (j.error_description) return j.error_description;
+    if (j.error) return typeof j.error === "string" ? j.error : JSON.stringify(j.error);
+  } catch { /* fall through */ }
+  return raw.slice(0, 400) || `HTTP ${res.status}`;
+}
+
+const META_GRAPH = "https://graph.facebook.com/v22.0";
+
+// ── Facebook Page post ─────────────────────────────────────
+// account.access_token = Page Access Token, account.external_id = page id.
+// Posts:
+//   • Text-only → POST /{page_id}/feed with message
+//   • Single image → POST /{page_id}/photos with url + message (ships
+//     directly to the timeline, no two-step needed)
+//   • Multi-image → upload each image as unpublished /{page_id}/photos
+//     (published=false), collect ids, then POST /{page_id}/feed with
+//     attached_media[{media_fbid:id},...] and the message
+async function postToFacebook(account: AccountRow, body: string, mediaUrls: string[]): Promise<{
+  ok: boolean;
+  external_id?: string;
+  external_url?: string;
+  error?: string;
+}> {
+  const pageId = account.external_id;
+  const token = account.access_token;
+
+  // Text-only or single-image: one call. The single-image path uses
+  // /photos with a public URL — Meta fetches it server-side, no need
+  // for us to upload bytes ourselves.
+  if (mediaUrls.length === 0) {
+    const res = await fetch(`${META_GRAPH}/${pageId}/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: body, access_token: token }),
+    });
+    if (!res.ok) return { ok: false, error: `Facebook post: ${await pickMetaError(res)}` };
+    const j = await res.json();
+    const id = j.id as string;
+    return {
+      ok: true,
+      external_id: id,
+      external_url: id ? `https://www.facebook.com/${id}` : undefined,
+    };
+  }
+
+  if (mediaUrls.length === 1) {
+    const res = await fetch(`${META_GRAPH}/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: mediaUrls[0], message: body, access_token: token }),
+    });
+    if (!res.ok) return { ok: false, error: `Facebook photo: ${await pickMetaError(res)}` };
+    const j = await res.json();
+    const id = (j.post_id || j.id) as string;
+    return {
+      ok: true,
+      external_id: id,
+      external_url: id ? `https://www.facebook.com/${id}` : undefined,
+    };
+  }
+
+  // Multi-image: upload each as unpublished photo to get an attachment
+  // id, then build a single feed post that references them. FB limits
+  // multi-photo posts to 10 attachments.
+  const attachedIds: string[] = [];
+  for (const url of mediaUrls.slice(0, 10)) {
+    const res = await fetch(`${META_GRAPH}/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, published: false, access_token: token }),
+    });
+    if (!res.ok) return { ok: false, error: `Facebook photo upload: ${await pickMetaError(res)}` };
+    const j = await res.json();
+    if (j.id) attachedIds.push(j.id);
+  }
+  if (attachedIds.length === 0) return { ok: false, error: "Facebook: no images uploaded" };
+
+  const attached_media = attachedIds.map((id) => ({ media_fbid: id }));
+  const res = await fetch(`${META_GRAPH}/${pageId}/feed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: body, attached_media, access_token: token }),
+  });
+  if (!res.ok) return { ok: false, error: `Facebook feed: ${await pickMetaError(res)}` };
+  const j = await res.json();
+  const id = j.id as string;
+  return {
+    ok: true,
+    external_id: id,
+    external_url: id ? `https://www.facebook.com/${id}` : undefined,
+  };
+}
+
+// ── Instagram post ─────────────────────────────────────────
+// Uses the FB row's Page Access Token + the linked IG account id.
+// Two-step container flow:
+//   1. POST /{ig_id}/media with image_url + caption → returns container id
+//   2. Poll /{container_id}?fields=status_code until FINISHED (or 30s)
+//   3. POST /{ig_id}/media_publish with creation_id → returns ig media id
+//
+// Single image only in v1 — carousels are M3 polish.
+async function postToInstagram(
+  fbAccount: AccountRow & { instagram_account_id?: string },
+  body: string,
+  mediaUrls: string[],
+): Promise<{
+  ok: boolean;
+  external_id?: string;
+  external_url?: string;
+  error?: string;
+}> {
+  if (!fbAccount.instagram_account_id) return { ok: false, error: "No linked Instagram Business account" };
+  if (mediaUrls.length === 0) return { ok: false, error: "Instagram requires at least one image" };
+
+  const igId = fbAccount.instagram_account_id;
+  const token = fbAccount.access_token;
+  const imageUrl = mediaUrls[0]; // single-image only for v1
+
+  // Step 1 — create container.
+  const containerRes = await fetch(`${META_GRAPH}/${igId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_url: imageUrl, caption: body, access_token: token }),
+  });
+  if (!containerRes.ok) return { ok: false, error: `Instagram container: ${await pickMetaError(containerRes)}` };
+  const containerJson = await containerRes.json();
+  const containerId = containerJson.id as string;
+  if (!containerId) return { ok: false, error: "Instagram container: no id returned" };
+
+  // Step 2 — poll until FINISHED. IG container processing is usually
+  // instant for static images but can take up to ~10s. Cap at 30s.
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    const statusRes = await fetch(`${META_GRAPH}/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
+    if (statusRes.ok) {
+      const sj = await statusRes.json();
+      if (sj.status_code === "FINISHED") break;
+      if (sj.status_code === "ERROR" || sj.status_code === "EXPIRED") {
+        return { ok: false, error: `Instagram container ${sj.status_code}` };
+      }
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  // Step 3 — publish.
+  const pubRes = await fetch(`${META_GRAPH}/${igId}/media_publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ creation_id: containerId, access_token: token }),
+  });
+  if (!pubRes.ok) return { ok: false, error: `Instagram publish: ${await pickMetaError(pubRes)}` };
+  const pubJson = await pubRes.json();
+  const igMediaId = pubJson.id as string;
+  return {
+    ok: true,
+    external_id: igMediaId,
+    external_url: igMediaId ? `https://www.instagram.com/p/${igMediaId}` : undefined,
+  };
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -372,10 +542,72 @@ serve(async (req: Request) => {
         continue;
       }
 
-      // ── FB / IG / LinkedIn — M2/M3 ──────────────────────
-      // Mark these skipped so users see them in History rather than silent
-      // success. Once each provider's adapter lands, swap the branch.
-      const msg = `${dest} support not yet enabled (M2/M3)`;
+      // ── Facebook / Instagram path ───────────────────────
+      // Both share the same social_accounts row (provider='facebook')
+      // since FB OAuth grants the linked IG via the Page. Load once.
+      if (dest === "facebook" || dest === "instagram") {
+        const { data: fbAccount } = await admin
+          .from("social_accounts")
+          .select("id, pub_id, provider, external_id, access_token, refresh_token, token_expiry, status, instagram_account_id")
+          .eq("pub_id", post.pub_id)
+          .eq("provider", "facebook")
+          .maybeSingle();
+
+        if (!fbAccount || fbAccount.status !== "connected") {
+          const msg = fbAccount ? `Facebook account ${fbAccount.status}` : "Facebook account not connected";
+          await admin.from("social_post_results").insert({
+            post_id: postId,
+            destination: dest,
+            status: "failed",
+            error_message: msg,
+          });
+          results.push({ destination: dest, ok: false, error: msg });
+          continue;
+        }
+
+        const allMedia = (Array.isArray(post.media) ? post.media : [])
+          .map((m: { url?: string; type?: string }) => (m?.type === "image" || !m?.type) && m?.url ? m.url : null)
+          .filter((u: string | null): u is string => !!u);
+
+        const out = dest === "facebook"
+          ? await postToFacebook(fbAccount as AccountRow, post.body_text, allMedia)
+          : await postToInstagram(fbAccount as AccountRow & { instagram_account_id?: string }, post.body_text, allMedia);
+
+        if (out.ok) {
+          await admin.from("social_post_results").insert({
+            post_id: postId,
+            destination: dest,
+            status: "success",
+            external_post_id: out.external_id || null,
+            external_url: out.external_url || null,
+            posted_at: new Date().toISOString(),
+          });
+          // Meta API is free for our scale. Track writes for analytics
+          // but estimated_cost_usd stays at 0 — no spend cap.
+          await admin.rpc("bump_provider_usage", {
+            p_provider: dest,
+            p_pub_id: post.pub_id,
+            p_writes: 1,
+            p_cost_usd: 0,
+          });
+          results.push({ destination: dest, ok: true });
+        } else {
+          const msg = out.error || "Unknown failure";
+          await admin.from("social_post_results").insert({
+            post_id: postId,
+            destination: dest,
+            status: "failed",
+            error_message: msg,
+          });
+          results.push({ destination: dest, ok: false, error: msg });
+        }
+
+        await new Promise((r) => setTimeout(r, 200));
+        continue;
+      }
+
+      // ── LinkedIn — M3 ──────────────────────────────────
+      const msg = `${dest} support not yet enabled (M3)`;
       await admin.from("social_post_results").insert({
         post_id: postId,
         destination: dest,

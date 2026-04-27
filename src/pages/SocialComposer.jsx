@@ -35,8 +35,8 @@ const LIMITS = { x: 280, facebook: 63206, instagram: 2200, linkedin: 3000 };
 
 const DESTS = [
   { id: "x", label: "X", color: "#000000", live: true },
-  { id: "facebook", label: "Facebook", color: "#1877F2", live: false },
-  { id: "instagram", label: "Instagram", color: "#E1306C", live: false },
+  { id: "facebook", label: "Facebook", color: "#1877F2", live: true },
+  { id: "instagram", label: "Instagram", color: "#E1306C", live: true },
   { id: "linkedin", label: "LinkedIn", color: "#0A66C2", live: false },
 ];
 
@@ -45,18 +45,29 @@ async function getAuthHeader() {
   return session?.access_token ? `Bearer ${session.access_token}` : "";
 }
 
-// Per-publication X connection check. Returns Set of pub_ids with a live X
-// account so the destination toggles can disable themselves accurately.
-async function fetchConnectedXPubs(pubIds) {
-  if (!pubIds.length) return new Set();
+// Per-publication connection check. Returns a {x, facebook, instagram}
+// shape per pub_id so the destination toggles can gate themselves
+// accurately. IG availability is derived from the FB row's
+// instagram_linked flag (one OAuth, two destinations per Meta's model).
+async function fetchConnectionMap(pubIds) {
+  const empty = { x: new Set(), facebook: new Set(), instagram: new Set() };
+  if (!pubIds.length) return empty;
   // social_accounts_safe is read-only and elides tokens — exactly what we
   // need for a "is connected" check from the client.
   const { data } = await supabase
     .from("social_accounts_safe")
-    .select("pub_id, status")
-    .eq("provider", "x")
+    .select("pub_id, provider, status, instagram_linked")
     .in("pub_id", pubIds);
-  return new Set((data || []).filter((r) => r.status === "connected").map((r) => r.pub_id));
+  const result = { x: new Set(), facebook: new Set(), instagram: new Set() };
+  for (const row of data || []) {
+    if (row.status !== "connected") continue;
+    if (row.provider === "x") result.x.add(row.pub_id);
+    if (row.provider === "facebook") {
+      result.facebook.add(row.pub_id);
+      if (row.instagram_linked) result.instagram.add(row.pub_id);
+    }
+  }
+  return result;
 }
 
 const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
@@ -77,7 +88,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
   const [pubId, setPubId] = useState(activePubs[0]?.id || "");
   const [body, setBody] = useState("");
   const [enabled, setEnabled] = useState({ x: true, facebook: false, instagram: false, linkedin: false });
-  const [connectedX, setConnectedX] = useState(new Set());
+  const [connections, setConnections] = useState({ x: new Set(), facebook: new Set(), instagram: new Set() });
   const [posting, setPosting] = useState(false);
   const [resultModal, setResultModal] = useState(null);
 
@@ -100,23 +111,24 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
 
   useEffect(() => {
     let cancelled = false;
-    fetchConnectedXPubs(activePubs.map((p) => p.id)).then((set) => {
-      if (!cancelled) setConnectedX(set);
+    fetchConnectionMap(activePubs.map((p) => p.id)).then((c) => {
+      if (!cancelled) setConnections(c);
     });
     return () => { cancelled = true; };
   }, [activePubs]);
 
-  // Default the picker to a publication that already has X connected, so
-  // the user lands in a working state rather than an immediate "connect"
-  // wall on first visit.
+  // Default the picker to any publication that has at least one network
+  // connected, so the user lands in a working state rather than an
+  // immediate "connect" wall on first visit.
   useEffect(() => {
     if (!pubId && activePubs.length) setPubId(activePubs[0].id);
-    if (pubId && connectedX.size && !connectedX.has(pubId)) {
-      const firstConnected = activePubs.find((p) => connectedX.has(p.id));
-      if (firstConnected) setPubId(firstConnected.id);
+    const anyOn = (id) => connections.x.has(id) || connections.facebook.has(id);
+    if (pubId && (connections.x.size || connections.facebook.size) && !anyOn(pubId)) {
+      const first = activePubs.find((p) => anyOn(p.id));
+      if (first) setPubId(first.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectedX]);
+  }, [connections]);
 
   // ── Image upload ───────────────────────────────────────────
   // Streams each selected file straight to upload-image (Bunny CDN)
@@ -191,14 +203,16 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
     loadQueue();
   };
 
-  const xConnected = pubId && connectedX.has(pubId);
-  const xEnabled = enabled.x && xConnected;
+  // Per-destination connection check. IG depends on the FB row carrying
+  // a linked IG Business account.
+  const isConnected = (destId) => !!(pubId && connections[destId]?.has(pubId));
+  // Active = enabled AND connected AND live. Used for the submit gate
+  // and the strictest-limit calculation.
+  const activeDestIds = DESTS.filter((d) => d.live && enabled[d.id] && isConnected(d.id)).map((d) => d.id);
+  const anyEnabled = activeDestIds.length > 0;
 
   // Strictest active limit drives the counter color/threshold.
-  const activeLimits = Object.entries(enabled)
-    .filter(([k, v]) => v && DESTS.find((d) => d.id === k)?.live)
-    .map(([k]) => LIMITS[k] || 0)
-    .filter(Boolean);
+  const activeLimits = activeDestIds.map((k) => LIMITS[k] || 0).filter(Boolean);
   const limit = activeLimits.length ? Math.min(...activeLimits) : LIMITS.x;
   const overLimit = body.length > limit;
 
@@ -208,7 +222,11 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
   const scheduledInPast = scheduledIso ? new Date(scheduledIso).getTime() <= Date.now() + 30000 : false;
   const scheduleValid = when === "now" || (when === "later" && scheduledFor && !scheduledInPast);
 
-  const canPost = !!pubId && !!body.trim() && xEnabled && !overLimit && !posting && !uploading && scheduleValid;
+  // IG-specific gate: Meta's API rejects text-only IG posts. If IG is
+  // active but no images attached, block submit with a clear hint.
+  const igActiveNoImage = activeDestIds.includes("instagram") && images.length === 0;
+
+  const canPost = !!pubId && !!body.trim() && anyEnabled && !overLimit && !igActiveNoImage && !posting && !uploading && scheduleValid;
 
   const handleSubmit = async () => {
     if (!canPost) return;
@@ -322,9 +340,19 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
               <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginBottom: 6 }}>Destinations</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {DESTS.map((d) => {
-                  const isX = d.id === "x";
-                  const connected = isX ? connectedX.has(pubId) : false;
-                  const disabled = !d.live || (isX && !connected);
+                  const connected = isConnected(d.id);
+                  const disabled = !d.live || !connected;
+                  // IG-specific subtext: even if connected, prompt for an
+                  // image since text-only IG posts get rejected by Meta.
+                  const subtext = !d.live
+                    ? "Coming soon"
+                    : !connected
+                      ? d.id === "instagram"
+                        ? "Link an IG Business account to your FB Page"
+                        : "Connect this publication first"
+                      : d.id === "instagram" && images.length === 0
+                        ? "Connected · attach an image to enable"
+                        : "Connected";
                   return (
                     <label
                       key={d.id}
@@ -352,10 +380,10 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{d.label}</div>
                         <div style={{ fontSize: FS.xs, color: Z.tm }}>
-                          {!d.live ? "Coming soon" : connected ? "Connected" : "Connect this publication first"}
+                          {subtext}
                         </div>
                       </div>
-                      {isX && !connected && d.live && onNavigate && (
+                      {!connected && d.live && onNavigate && (
                         <button
                           type="button"
                           onClick={(e) => { e.preventDefault(); onNavigate("publications", { pubId }); }}
@@ -461,6 +489,12 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                 </div>
               )}
             </div>
+
+            {igActiveNoImage && (
+              <div style={{ marginTop: 8, padding: 8, background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.da}`, fontSize: FS.xs, color: Z.da }}>
+                Instagram posts require at least one image. Attach an image or uncheck Instagram.
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
               <Btn onClick={handleSubmit} disabled={!canPost}>
