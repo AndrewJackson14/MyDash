@@ -37,7 +37,7 @@ Grouped per the sidebar (App.jsx:471–510):
 
 **(top)** — My Dash, Calendar, Messages, Mail
 **Revenue** — Sales, Contracts, Billing
-**Content** — Production, Design Studio, Media Library, Flatplan, Layout Console, Printers, Tearsheet Center, Collections, Newsletters, MySites, Knowledge Base
+**Content** — Production, Design Studio, Media Library, Flatplan, Layout Console, Tearsheet Center, Collections, Newsletters, MySites, Knowledge Base
 **Advertising** — Booking Queue, Classifieds, Merch
 **Operations** — Circulation, Service Desk, Legal Notices, Performance
 **Reports** — Reports (Analytics)

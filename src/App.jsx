@@ -39,7 +39,6 @@ const CalendarPage = lazyLoad(() => import("./pages/CalendarPage"));
 const EditorialDashboard = lazyLoad(() => import("./components/EditorialDashboard"));
 const Flatplan = lazyLoad(() => import("./pages/Flatplan"));
 const IssueLayoutConsole = lazyLoad(() => import("./pages/IssueLayoutConsole"));
-const Printers = lazyLoad(() => import("./pages/Printers"));
 const TearsheetCenter = lazyLoad(() => import("./pages/TearsheetCenter"));
 const CollectionsCenter = lazyLoad(() => import("./pages/CollectionsCenter"));
 const TeamModule = lazyLoad(() => import("./pages/TeamModule"));
@@ -493,7 +492,6 @@ export default function App() {
     { id: "medialibrary", label: "Media Library", icon: Ic.image },
     { id: "flatplan", label: "Flatplan", icon: Ic.flat },
     { id: "layout", label: "Layout Console", icon: Ic.book },
-    { id: "printers", label: "Printers", icon: Ic.truck },
     { id: "tearsheets", label: "Tearsheet Center", icon: Ic.image },
     { id: "collections", label: "Collections", icon: Ic.invoice },
     { id: "newsletters", label: "Newsletters", icon: Ic.send },
@@ -670,7 +668,6 @@ export default function App() {
         {show("calendar") && <div style={vis("calendar")}><CalendarPage isActive={pg === "calendar"} clients={jClients} sales={jSales} issues={jIssues} pubs={pubs} team={team} currentUser={currentUser} stories={jStories} bus={bus} onNavigate={handleNav} /></div>}
         {show("flatplan") && <div style={vis("flatplan")}><Flatplan isActive={pg === "flatplan"} jurisdiction={jurisdiction} pubs={pubs} issues={jIssues} setIssues={setIssues} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} stories={jStories} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastIssue={lastFlatplanIssue} lastPub={lastFlatplanPub} onSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} currentUser={currentUser} onNavigate={handleNav} /></div>}
         {show("layout") && <div style={vis("layout")}><IssueLayoutConsole isActive={pg === "layout"} deepLink={deepLink} currentUser={currentUser} pubs={pubs} issues={issues} team={team} sales={sales} stories={stories} clients={clients} setStories={setStories} onNavigate={handleNav} /></div>}
-        {show("printers") && <div style={vis("printers")}><Printers isActive={pg === "printers"} currentUser={currentUser} pubs={pubs} /></div>}
         {show("tearsheets") && <div style={vis("tearsheets")}><TearsheetCenter isActive={pg === "tearsheets"} currentUser={currentUser} sales={jSales} setSales={setSales} clients={jClients} pubs={pubs} issues={jIssues} /></div>}
         {show("collections") && <div style={vis("collections")}><CollectionsCenter isActive={pg === "collections"} currentUser={currentUser} invoices={jInvoices} clients={jClients} payments={payments} team={team} /></div>}
         {show("editorial") && <div style={vis("editorial")}><EditorialDashboard isActive={pg === "editorial"} stories={jStories} setStories={setStories} pubs={pubs} issues={jIssues} setIssues={setIssues} team={team} bus={bus} editorialPermissions={jurisdiction} currentUser={currentUser} publishStory={publishStory} unpublishStory={unpublishStory} editions={appData.editions || []} setEditions={appData.setEditions} deepLink={deepLink} jurisdiction={jurisdiction} sales={jSales} setSales={setSales} updateSale={appData.updateSale} clients={jClients} contracts={appData.contracts || []} globalPageStories={globalPageStories} setGlobalPageStories={setGlobalPageStories} lastFlatplanIssue={lastFlatplanIssue} lastFlatplanPub={lastFlatplanPub} onFlatplanSelectionChange={(p, i) => { setLastFlatplanPub(p); setLastFlatplanIssue(i); }} onNavigate={handleNav} /></div>}

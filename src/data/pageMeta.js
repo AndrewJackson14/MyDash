@@ -28,7 +28,6 @@ export const PAGE_META = {
   medialibrary:     { label: "Media Library",     department: "EDITORIAL" },
   flatplan:         { label: "Flatplan",          department: "EDITORIAL" },
   layout:           { label: "Layout Console",    department: "EDITORIAL" },
-  printers:         { label: "Printers",          department: "EDITORIAL" },
   tearsheets:       { label: "Tearsheet Center",  department: "EDITORIAL" },
   collections:      { label: "Collections",       department: "EDITORIAL" },
   newsletters:      { label: "Newsletters",       department: "EDITORIAL" },

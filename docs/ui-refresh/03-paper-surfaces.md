@@ -59,7 +59,7 @@ DashboardV2, RoleDashboard, dashboard module variants
 SalesCRM, Billing, Circulation, AdProjects, BookingsQueue,
 ClassifiedAds, CollectionsCenter, CreativeJobs, ServiceDesk,
 LegalNotices, ProofApproval (in-app proof queue), TearsheetCenter,
-EditionManager, EmailTemplates, NewsletterTemplates, Printers,
+EditionManager, EmailTemplates, NewsletterTemplates,
 Permissions, Team, Publications, IssueSchedule, EZSchedule,
 DataImport, IntegrationsPage, MySites, MediaLibrary
 

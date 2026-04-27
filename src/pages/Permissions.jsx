@@ -11,7 +11,6 @@ const MODULES = [
   { key: "stories", label: "Stories / Editorial", icon: "✏️" },
   { key: "flatplan", label: "Flatplan / Layout", icon: "📐" },
   { key: "layout", label: "Layout Console", icon: "📰" },
-  { key: "printers", label: "Printers", icon: "🖨" },
   { key: "tearsheets", label: "Tearsheet Center", icon: "📑" },
   { key: "collections", label: "Collections", icon: "💰" },
   { key: "publications", label: "Publications / Schedule", icon: "📰" },
