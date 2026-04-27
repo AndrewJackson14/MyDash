@@ -35,6 +35,7 @@ const ALLOWED_PATH_PREFIXES = [
   "billing/",
   "merch/",
   "site-logos/",
+  "social-media/",            // social composer image attachments
 ];
 
 function corsFor(origin: string | null) {

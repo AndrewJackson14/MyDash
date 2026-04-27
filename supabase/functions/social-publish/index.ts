@@ -103,25 +103,83 @@ async function refreshXToken(account: AccountRow): Promise<string | null> {
   return tokens.access_token as string;
 }
 
-// ── X tweet POST with one-shot 401 retry on refresh ────────
-async function postToX(account: AccountRow, body: string): Promise<{
+// ── X media upload ────────────────────────────────────────
+// X's media upload endpoint lives under api.x.com (the modernized
+// host for what was the v1.1 media API). Endpoint accepts a single
+// multipart file per call and returns { media_id, media_id_string }.
+// We download each composer-attached image from BunnyCDN, then push
+// it through to X with the user's OAuth2 bearer token.
+//
+// Returns the array of media_id_string to attach to the tweet, or
+// an error string on the first failure (we don't ship a partial
+// media set — easier to surface "image 2 of 3 failed" cleanly).
+async function uploadXMedia(token: string, mediaUrls: string[]): Promise<{
+  ok: boolean;
+  media_ids?: string[];
+  error?: string;
+}> {
+  const ids: string[] = [];
+  for (const url of mediaUrls) {
+    try {
+      const imgRes = await fetch(url);
+      if (!imgRes.ok) return { ok: false, error: `Failed to fetch image: ${url}` };
+      const blob = await imgRes.blob();
+      const form = new FormData();
+      form.append("media", blob);
+      // X v2-style media upload: api.x.com/2/media/upload accepts
+      // multipart with field name "media". The OAuth2 access token
+      // grants tweet.write which covers media uploads.
+      const upRes = await fetch("https://api.x.com/2/media/upload", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: form,
+      });
+      if (!upRes.ok) {
+        let detail = `HTTP ${upRes.status}`;
+        try { const j = await upRes.json(); detail = j.error?.message || j.detail || JSON.stringify(j).slice(0, 200); } catch { /* ok */ }
+        return { ok: false, error: `X media upload failed: ${detail}` };
+      }
+      const j = await upRes.json();
+      const id = j?.data?.id || j?.media_id_string || j?.media_id;
+      if (!id) return { ok: false, error: "X media upload returned no id" };
+      ids.push(String(id));
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+  return { ok: true, media_ids: ids };
+}
+
+// ── X tweet POST with optional media + one-shot 401 retry on refresh ──
+async function postToX(account: AccountRow, body: string, mediaUrls: string[]): Promise<{
   ok: boolean;
   external_id?: string;
   external_url?: string;
   error?: string;
 }> {
   const send = async (token: string) => {
-    return await fetch("https://api.twitter.com/2/tweets", {
+    let media_ids: string[] | undefined;
+    if (mediaUrls.length > 0) {
+      const up = await uploadXMedia(token, mediaUrls);
+      if (!up.ok) return { mediaErr: up.error } as const;
+      media_ids = up.media_ids;
+    }
+    const tweetBody: Record<string, unknown> = { text: body };
+    if (media_ids && media_ids.length) tweetBody.media = { media_ids };
+    const res = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text: body }),
+      body: JSON.stringify(tweetBody),
     });
+    return { res } as const;
   };
 
-  let res = await send(account.access_token);
+  let attempt = await send(account.access_token);
+  if ("mediaErr" in attempt) return { ok: false, error: attempt.mediaErr };
+  let res = attempt.res;
 
   if (res.status === 401) {
     const fresh = await refreshXToken(account);
@@ -133,7 +191,9 @@ async function postToX(account: AccountRow, body: string): Promise<{
         .eq("id", account.id);
       return { ok: false, error: "Token expired — reconnect required" };
     }
-    res = await send(fresh);
+    const retry = await send(fresh);
+    if ("mediaErr" in retry) return { ok: false, error: retry.mediaErr };
+    res = retry.res;
   }
 
   if (!res.ok) {
@@ -181,7 +241,7 @@ serve(async (req: Request) => {
     // the operation idempotent (re-clicks of "Post Now" can't double-send).
     const { data: post, error: postErr } = await admin
       .from("social_posts")
-      .select("id, pub_id, body_text, targets, status")
+      .select("id, pub_id, body_text, targets, media, status")
       .eq("id", postId)
       .maybeSingle();
 
@@ -252,7 +312,12 @@ serve(async (req: Request) => {
           continue;
         }
 
-        const out = await postToX(account as AccountRow, post.body_text);
+        const mediaUrls = (Array.isArray(post.media) ? post.media : [])
+          .map((m: { url?: string; type?: string }) => (m?.type === "image" || !m?.type) && m?.url ? m.url : null)
+          .filter((u: string | null): u is string => !!u)
+          .slice(0, 4); // X cap
+
+        const out = await postToX(account as AccountRow, post.body_text, mediaUrls);
 
         if (out.ok) {
           await admin.from("social_post_results").insert({
