@@ -25,11 +25,24 @@
 // scoped CSS rule below collapses any 1fr 1fr / 1fr 2fr grids inside
 // step components to single column on mobile so they at least fit.
 // ============================================================
-import { useState } from "react";
-import { Z, COND, FS, FW } from "../../lib/theme";
+import { useEffect, useRef, useState } from "react";
+import { Z, LIGHT, DARK, COND, FS, FW } from "../../lib/theme";
 import Ic from "../ui/Icons";
 import { selectPTotal } from "./useProposalWizard";
 import { STEP_IDS } from "./proposalWizardConstants";
+
+// Hotfix: the wizard step components use inline JS-Z values, while the
+// page chrome uses CSS vars (--ink/--paper/--canvas). When the two
+// systems disagree, step content renders dark-on-dark or light-on-light.
+// Force-sync Z to the live CSS theme on mount; restore on unmount.
+// Proper fix is CP3 — migrate step inline-styles to CSS vars.
+function syncZToCssTheme() {
+  if (typeof document === "undefined") return null;
+  const cssIsDark = document.documentElement.dataset.theme === "dark";
+  const snapshot = { ...Z };
+  Object.assign(Z, cssIsDark ? DARK : LIGHT);
+  return snapshot;
+}
 import MobileTopBar           from "./chrome/MobileTopBar";
 import MobileFooter           from "./chrome/MobileFooter";
 import MobileSheet            from "./chrome/MobileSheet";
@@ -37,6 +50,18 @@ import MobileStepJumpSheet    from "./chrome/MobileStepJumpSheet";
 import MobileDealSummarySheet from "./chrome/MobileDealSummarySheet";
 
 export default function ProposalWizardMobile({ orch }) {
+  // Force-sync Z to match the CSS theme BEFORE first render so step
+  // components see consistent values. Lazy ref runs once before children.
+  const zSnapshotRef = useRef(undefined);
+  if (zSnapshotRef.current === undefined) {
+    zSnapshotRef.current = syncZToCssTheme();
+  }
+  useEffect(() => {
+    return () => {
+      if (zSnapshotRef.current) Object.assign(Z, zSnapshotRef.current);
+    };
+  }, []);
+
   const {
     state, actions,
     sentScreen, isSending, sendStatusMsg,

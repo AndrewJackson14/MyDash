@@ -14,10 +14,26 @@
 // when they're back at one.
 // ============================================================
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD } from "./mobileTokens";
 import { Ic } from "../../components/ui";
 import { supabase } from "../../lib/supabase";
+import { Z, LIGHT, DARK } from "../../lib/theme";
+
+// Hotfix: the wizard step components (Step1Client, Step3Issues, etc.)
+// use inline JS-Z values for color/background, while the page chrome
+// uses CSS vars (--ink, --paper, --canvas). When the two systems
+// disagree (Z = DARK but [data-theme] = light, or vice versa), step
+// content renders dark-on-dark or light-on-light. Force-syncs Z to
+// match the live CSS theme on mount, restores on unmount. The proper
+// fix is CP3 (migrate step inline-styles to CSS vars).
+function syncZToCssTheme() {
+  if (typeof document === "undefined") return null;
+  const cssIsDark = document.documentElement.dataset.theme === "dark";
+  const snapshot = { ...Z };
+  Object.assign(Z, cssIsDark ? DARK : LIGHT);
+  return snapshot;
+}
 import {
   useProposalWizard,
   hydrateStateFromProposal,
@@ -49,6 +65,20 @@ export default function MobileProposalWizard({
   onClose,
   onSent,
 }) {
+  // Snapshot + force-sync Z BEFORE first render so step components
+  // see a Z that matches the CSS theme. Lazy ref initializer runs once,
+  // synchronously, before any child renders.
+  const zSnapshotRef = useRef(undefined);
+  if (zSnapshotRef.current === undefined) {
+    zSnapshotRef.current = syncZToCssTheme();
+  }
+  useEffect(() => {
+    return () => {
+      // Restore on unmount so other surfaces aren't left with mutated Z.
+      if (zSnapshotRef.current) Object.assign(Z, zSnapshotRef.current);
+    };
+  }, []);
+
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const clients = appData.clients || [];
