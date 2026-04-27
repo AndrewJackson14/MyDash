@@ -250,7 +250,7 @@ export default function MobileProposalWizard({
               cursor: "pointer", color: INK, display: "flex",
             }}
           >
-            <Ic.x size={22} />
+            <Ic.close size={22} />
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
