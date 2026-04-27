@@ -14,7 +14,7 @@
 // Queue flow: lists status='scheduled' posts; cancel reverts to draft.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Z, FS, FW, Ri, R } from "../lib/theme";
+import { Z, FS, FW, R } from "../lib/theme";
 import { Btn, Sel, TA, Modal, GlassCard, SectionTitle, TabRow, TB, TabPipe, Ic } from "../components/ui";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
@@ -331,7 +331,35 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
             />
 
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginBottom: 6 }}>Destinations</div>
+              {/* Header + Select All. Toggle flips between selecting every
+                  live+connected destination and clearing them. Disabled
+                  rows (LinkedIn coming soon, unconnected providers)
+                  don't participate in either direction. */}
+              {(() => {
+                const selectable = DESTS.filter((d) => d.live && isConnected(d.id));
+                const allOn = selectable.length > 0 && selectable.every((d) => enabled[d.id]);
+                const toggleAll = () => {
+                  setEnabled((prev) => {
+                    const next = { ...prev };
+                    for (const d of selectable) next[d.id] = !allOn;
+                    return next;
+                  });
+                };
+                return (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase" }}>Destinations</div>
+                    {selectable.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={toggleAll}
+                        style={{ background: "transparent", border: "none", color: Z.ac, fontSize: FS.xs, fontWeight: FW.heavy, cursor: "pointer", padding: 0 }}
+                      >
+                        {allOn ? "Deselect all" : `Select all (${selectable.length})`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {DESTS.map((d) => {
                   const connected = isConnected(d.id);
@@ -352,7 +380,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                         gap: 10,
                         padding: "8px 10px",
                         background: Z.sa,
-                        borderRadius: Ri,
+                        borderRadius: 13,
                         border: `1px solid ${Z.bd}`,
                         opacity: disabled ? 0.55 : 1,
                         cursor: disabled ? "not-allowed" : "pointer",
@@ -418,7 +446,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
               />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                 {images.map((img, i) => (
-                  <div key={i} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}` }}>
+                  <div key={i} style={{ position: "relative", aspectRatio: "1 / 1", borderRadius: 13, overflow: "hidden", border: `1px solid ${Z.bd}` }}>
                     <img src={img.url} alt={img.alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     <button
                       type="button"
@@ -433,7 +461,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    style={{ aspectRatio: "1 / 1", borderRadius: Ri, border: `1px dashed ${Z.bd}`, background: Z.sa, color: Z.tm, fontSize: FS.xs, cursor: uploading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4 }}
+                    style={{ aspectRatio: "1 / 1", borderRadius: 13, border: `1px dashed ${Z.bd}`, background: Z.sa, color: Z.tm, fontSize: FS.xs, cursor: uploading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4 }}
                   >
                     <Ic.plus size={16} />
                     <span>{uploading ? "Uploading…" : "Add image"}</span>
@@ -451,7 +479,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                   { id: "now", label: "Post now" },
                   { id: "later", label: "Schedule" },
                 ].map((opt) => (
-                  <label key={opt.id} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 10px", background: when === opt.id ? Z.ac : Z.sa, color: when === opt.id ? "#fff" : Z.tx, borderRadius: Ri, border: `1px solid ${when === opt.id ? Z.ac : Z.bd}`, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.heavy, transition: "background 0.15s" }}>
+                  <label key={opt.id} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 10px", background: when === opt.id ? Z.ac : Z.sa, color: when === opt.id ? "#fff" : Z.tx, borderRadius: 13, border: `1px solid ${when === opt.id ? Z.ac : Z.bd}`, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.heavy, transition: "background 0.15s" }}>
                     <input
                       type="radio"
                       name="when"
@@ -471,7 +499,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                     value={scheduledFor}
                     onChange={(e) => setScheduledFor(e.target.value)}
                     min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-                    style={{ width: "100%", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "8px 10px", color: Z.tx, fontSize: FS.base, outline: "none" }}
+                    style={{ width: "100%", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 13, padding: "8px 10px", color: Z.tx, fontSize: FS.base, outline: "none" }}
                   />
                   {scheduledFor && scheduledInPast && (
                     <div style={{ marginTop: 4, fontSize: FS.xs, color: Z.da }}>Pick a time at least a minute in the future.</div>
@@ -490,13 +518,13 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
           {/* ── Preview column ──────────────────────────── */}
           <GlassCard>
             <SectionTitle>Preview</SectionTitle>
-            <div style={{ padding: 14, background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+            <div style={{ padding: 14, background: Z.bg, borderRadius: 13, border: `1px solid ${Z.bd}` }}>
               <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginBottom: 6 }}>X · {selPub?.name || "—"}</div>
               <div style={{ fontSize: FS.base, color: Z.tx, whiteSpace: "pre-wrap", minHeight: 60 }}>
                 {body || <span style={{ color: Z.tm }}>Your post will appear here.</span>}
               </div>
               {images.length > 0 && (
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: images.length === 1 ? "1fr" : "1fr 1fr", gap: 4, borderRadius: Ri, overflow: "hidden" }}>
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: images.length === 1 ? "1fr" : "1fr 1fr", gap: 4, borderRadius: 13, overflow: "hidden" }}>
                   {images.map((img, i) => (
                     <img key={i} src={img.url} alt={img.alt || ""} style={{ width: "100%", aspectRatio: images.length === 1 ? "16 / 9" : "1 / 1", objectFit: "cover", borderRadius: 6 }} />
                   ))}
@@ -504,7 +532,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
               )}
             </div>
             {when === "later" && scheduledFor && !scheduledInPast && (
-              <div style={{ marginTop: 10, padding: 10, background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}`, fontSize: FS.xs, color: Z.tm }}>
+              <div style={{ marginTop: 10, padding: 10, background: Z.sa, borderRadius: 13, border: `1px solid ${Z.bd}`, fontSize: FS.xs, color: Z.tm }}>
                 Will publish at <strong style={{ color: Z.tx }}>{new Date(scheduledFor).toLocaleString()}</strong>
               </div>
             )}
@@ -532,7 +560,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                 const dests = (Array.isArray(q.targets) ? q.targets : []).filter((t) => t.enabled).map((t) => t.destination);
                 const mediaCount = Array.isArray(q.media) ? q.media.length : 0;
                 return (
-                  <div key={q.id} style={{ padding: 12, background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div key={q.id} style={{ padding: 12, background: Z.sa, borderRadius: 13, border: `1px solid ${Z.bd}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", marginBottom: 4 }}>
                         {pub?.name || q.pub_id} · {dests.join(", ").toUpperCase()}{mediaCount > 0 ? ` · ${mediaCount} image${mediaCount === 1 ? "" : "s"}` : ""}
@@ -579,7 +607,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
             )}
             {resultModal.error && <div style={{ fontSize: FS.sm, color: Z.da }}>{resultModal.error}</div>}
             {Array.isArray(resultModal.results) && resultModal.results.map((r, i) => (
-              <div key={i} style={{ padding: "8px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+              <div key={i} style={{ padding: "8px 10px", background: Z.sa, borderRadius: 13, border: `1px solid ${Z.bd}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx }}>{r.destination}</span>
                   <span style={{ fontSize: FS.sm, color: r.ok ? Z.su : Z.da }}>{r.ok ? "Sent" : "Failed"}</span>
