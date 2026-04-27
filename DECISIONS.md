@@ -4,6 +4,31 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-27] Proposal Wizard mobile — Checkpoint 1 (orchestration extraction)
+
+- **Context:** Spec at `_specs/proposal-wizard-mobile.md` — field reps need to send proposals from a phone. Architecture rule: don't fork `ProposalWizard.jsx`; share state, fork only the shell. Checkpoint 1 = pure refactor, zero feature change.
+- **Decision:** Extracted everything non-presentational from `ProposalWizard.jsx` into a new `useProposalWizardOrchestration` hook (effects, memos, send flow, validation, handlers, rendered `activeStep`). Created `ProposalWizardDesktopShell.jsx` with the original glass Backdrop/Panel/Header/grid/Footer JSX. Created `ProposalWizardMobile.jsx` as a "Coming next checkpoint" placeholder. `ProposalWizard.jsx` is now a 25-line viewport router that calls the hook once and dispatches to the right shell.
+- **Alternatives considered:**
+  - *Two separate hook calls (one per shell)* — rejected because autosave timer + hydration would race. Spec calls this out explicitly.
+  - *Single component with conditional rendering inside* — rejected because the desktop shell's three-region grid + summary panel and the mobile shell's bottom sheets share no DOM structure. Conditional render bloats the tree and JSX.
+  - *Inline desktop shell as a sub-function in `ProposalWizard.jsx`* — rejected for module clarity. Each shell deserves its own file.
+- **Why:** Sets up Checkpoint 2 to be purely additive (build the mobile shell, no risk of breaking desktop). Also forces all future state changes to flow through one hook, so desktop and mobile can't drift.
+- **Status:** Built clean on `feature/proposal-wizard-mobile`. Awaiting Andrew's desktop regression test before Checkpoint 2 begins.
+
+### Viewport hook reuse
+
+- **Spec said:** Build `src/components/proposal-wizard/useViewport.js` (or use existing if present).
+- **What I did:** Used existing `useIsMobile` from `src/hooks/useWindowWidth.jsx`.
+- **Why:** Already in the codebase, same 768px breakpoint (`BREAKPOINTS.md`), already throttled to one update per animation frame. Adding a duplicate would split the source of truth and risk drifting breakpoints later.
+
+### `clients` prop access in desktop shell
+
+- **What I did:** Desktop shell reads `clients` via `orch.stepProps.clients` for `WizardSummaryPanel`, rather than the orchestration hook exposing `clients` as a top-level field.
+- **Why:** Keeps the orch return surface tight (no duplicated pass-through fields). `stepProps` already bundles all step-render data, so reaching into it is consistent.
+- **Tradeoff:** Slightly indirect read. If a future shell needs `clients` directly, expose it from the hook then.
+
+---
+
 ## [2026-04-26] UI Refresh v2 — Steel Office layer (checkpoint 1: tokens only)
 
 - **Context:** Spec at `docs/ui-refresh/01-direction-decisions-v2.md` adds the missing "modern CRM/infrastructure" register to the Press Room v1 work — steel canvas, hover wash, glass on chrome. Three checkpoints, this commit covers checkpoint 1 (tokens + global.css + theme.js only; no component changes yet).
