@@ -40,8 +40,8 @@ export default function DataDeletion() {
         <h2 style={{ fontSize: 18, fontWeight: 700, marginTop: 24, marginBottom: 8, color: C.tx }}>How to request deletion</h2>
         <p style={{ fontSize: 15, lineHeight: 1.55, color: C.tm, margin: 0 }}>
           To have your data removed from MyDash, contact us at{" "}
-          <a href="mailto:president@statesmen.org" style={{ color: C.ac, textDecoration: "underline" }}>
-            president@statesmen.org
+          <a href="mailto:accounts@13stars.media" style={{ color: C.ac, textDecoration: "underline" }}>
+            accounts@13stars.media
           </a>
           {" "}with the subject line <em>&ldquo;MyDash data deletion&rdquo;</em>. Include the Facebook Page name,
           Instagram handle, or X handle you want removed. We will:
