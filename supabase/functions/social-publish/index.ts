@@ -124,20 +124,37 @@ async function uploadXMedia(token: string, mediaUrls: string[]): Promise<{
       const imgRes = await fetch(url);
       if (!imgRes.ok) return { ok: false, error: `Failed to fetch image: ${url}` };
       const blob = await imgRes.blob();
+      // Filename derivation — X's multipart parser is fussier than most
+      // and rejects fields without a filename. Pull from the URL's
+      // last segment, fall back to a synthetic one.
+      const urlPath = url.split("?")[0];
+      const filename = urlPath.substring(urlPath.lastIndexOf("/") + 1) || `media_${Date.now()}.jpg`;
+      // Use the per-tweet image category up front. media_category is
+      // technically optional but X's v2 endpoint sometimes 400s without
+      // it depending on tier — passing it explicitly is harmless when
+      // not required and fixes the case when it is.
       const form = new FormData();
-      form.append("media", blob);
-      // X v2-style media upload: api.x.com/2/media/upload accepts
-      // multipart with field name "media". The OAuth2 access token
-      // grants tweet.write which covers media uploads.
+      form.append("media", blob, filename);
+      form.append("media_category", "tweet_image");
       const upRes = await fetch("https://api.x.com/2/media/upload", {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
         body: form,
       });
       if (!upRes.ok) {
-        let detail = `HTTP ${upRes.status}`;
-        try { const j = await upRes.json(); detail = j.error?.message || j.detail || JSON.stringify(j).slice(0, 200); } catch { /* ok */ }
-        return { ok: false, error: `X media upload failed: ${detail}` };
+        const status = upRes.status;
+        // Capture the full body — X returns errors in inconsistent
+        // shapes (errors[], detail, title, plain text) so we want to
+        // see whatever comes back rather than guess one field.
+        const raw = await upRes.text().catch(() => "");
+        let detail = raw.slice(0, 400) || `HTTP ${status}`;
+        try {
+          const j = JSON.parse(raw);
+          if (Array.isArray(j.errors) && j.errors[0]) detail = j.errors[0].message || j.errors[0].detail || JSON.stringify(j.errors[0]);
+          else if (j.detail) detail = j.detail;
+          else if (j.title) detail = `${j.title}: ${j.detail || ""}`;
+        } catch { /* fall back to raw text */ }
+        return { ok: false, error: `X media upload failed (${status}): ${detail}` };
       }
       const j = await upRes.json();
       const id = j?.data?.id || j?.media_id_string || j?.media_id;
