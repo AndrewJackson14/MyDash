@@ -139,8 +139,10 @@
   --warn:        #B8860B;                    /* Caution */
 
   /* ── Steel Office canvas + hover wash (v2 2026-04-26) ────────
-     Steel becomes the primary canvas tone; paper retreats to
-     long-form/article views (opt-in via [data-surface="paper"]). */
+     Steel is the only canvas tone. The paper register was retired
+     2026-04-27 — see DECISIONS.md. The --paper token below is kept
+     because primitives (toggles, checkboxes, avatars) reference it
+     as a near-white contrast color, not as a surface. */
   --canvas:      #f0f4f9;                    /* steel-50 — page canvas (light) */
   --hover-wash:  rgba(219, 228, 239, 0.45);  /* steel-100 @ 45% — replaces opacity:0.88 */
   --active-wash: rgba(184, 201, 222, 0.55);  /* steel-200 @ 55% — pressed state */
@@ -307,14 +309,6 @@ body {
   color: var(--ink);
   background: var(--canvas);                 /* v2: steel canvas (was --paper) */
   font-feature-settings: "kern" 1, "liga" 1;
-}
-
-/* Long-form opt-in — pages that should keep the paper register
-   (StoryEditor, full-article views, EblastComposer preview, etc.)
-   set [data-surface="paper"] on their root container to scope
-   paper background back over the steel canvas. */
-[data-surface="paper"] {
-  background: var(--paper);
 }
 
 /* Display headings — Cormorant 600 by default. Never below 28px. */

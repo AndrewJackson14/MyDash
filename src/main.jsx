@@ -36,37 +36,37 @@ const DataDeletion = isDataDeletionPage ? lazy(() => import("./pages/DataDeletio
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {/* Public routes flagged data-surface="paper" per
+    {/* Public routes flagged per
         docs/ui-refresh/03-paper-surfaces.md — heritage register
         is correct for client-facing reading/sign/pay/upload pages.
         ClientPortal, MerchShop, ClientPortfolioPortal stay steel
         (dashboard / commerce / gallery shapes). */}
     {isApprovalPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><ProofApproval /></Suspense>
       </div>
     ) : isSignPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><ProposalSign /></Suspense>
       </div>
     ) : isPortalPage ? (
       <Suspense fallback={null}><ClientPortal /></Suspense>
     ) : isPayPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><PayInvoice /></Suspense>
       </div>
     ) : isUploadPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><ClientUpload /></Suspense>
       </div>
     ) : isShopPage ? (
       <Suspense fallback={null}><MerchShop /></Suspense>
     ) : isReportPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><CampaignPublic /></Suspense>
       </div>
     ) : isTearsheetPage ? (
-      <div data-surface="paper" style={{ minHeight: "100vh" }}>
+      <div style={{ minHeight: "100vh" }}>
         <Suspense fallback={null}><TearsheetPortal /></Suspense>
       </div>
     ) : isAdsPortfolioPage ? (

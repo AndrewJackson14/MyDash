@@ -57,7 +57,7 @@ function Section({ title, children }) {
 export default function Typography() {
   return (
     <div style={{
-      background: "var(--paper)",
+      background: "var(--canvas)",
       color: "var(--ink)",
       fontFamily: "var(--font-body)",
       minHeight: "100%",

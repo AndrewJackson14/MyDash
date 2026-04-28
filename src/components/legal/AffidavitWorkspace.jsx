@@ -338,7 +338,7 @@ export default function AffidavitWorkspace({
   // user can re-place an unplaced one). Spec wants every clip in the
   // tray; placed ones get a checkmark.
   return (
-    <div data-surface="paper" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 60px)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 60px)" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: `1px solid ${Z.bd}`, background: Z.sf }}>
         <button onClick={onClose} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", fontSize: 13 }}>← Back</button>

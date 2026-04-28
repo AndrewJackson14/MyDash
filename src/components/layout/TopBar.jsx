@@ -41,7 +41,7 @@ export default function TopBar({
       data-shell="v2"
       style={{
         height: 56,
-        background: "var(--paper)",
+        background: "var(--canvas)",
         borderBottom: `1px solid var(--rule)`,
         display: "flex",
         alignItems: "center",
@@ -152,7 +152,7 @@ export default function TopBar({
                 right: 0, top: 44,
                 width: 340, maxHeight: 420,
                 overflowY: "auto",
-                background: "var(--paper)",
+                background: "var(--card)",
                 border: `1px solid var(--rule)`,
                 borderRadius: 4,
                 boxShadow: "none",

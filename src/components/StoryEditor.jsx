@@ -837,7 +837,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   }
 
   return (
-    <div data-surface="paper" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--paper)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--canvas)" }}>
       {/* Top Bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid " + Z.bd, background: Z.sf, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontFamily: COND, fontWeight: 600 }}>{"\u2190"} Back to Editorial</button>

@@ -204,7 +204,7 @@ const AffidavitTemplate = forwardRef(function AffidavitTemplate({
       </div>
     );
   }
-  return <div ref={ref} data-surface="paper">{pages}</div>;
+  return <div ref={ref}>{pages}</div>;
 });
 
 export default AffidavitTemplate;

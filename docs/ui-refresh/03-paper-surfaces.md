@@ -1,5 +1,14 @@
 # Paper-Surface Audit (v2 checkpoint 3)
 
+> **DEPRECATED 2026-04-27.** Paper surface was retired — every page
+> now inherits the steel canvas. The `[data-surface="paper"]` rule was
+> removed from `global.css`, all opt-in attributes stripped from JSX,
+> and explicit `var(--paper)` surface backgrounds (TopBar, StoryEditor,
+> dev/Typography) flipped to `var(--canvas)`. The `--paper` token still
+> exists because primitives use it as a contrast color for toggles,
+> checkboxes, and avatars. Audit list below is preserved for historical
+> reference only — do not re-apply.
+
 > Per `01-direction-decisions-v2.md` §1: pages that should retain the
 > heritage paper register apply `data-surface="paper"` to their root
 > container. All other pages inherit `--canvas` (steel) from `body`.

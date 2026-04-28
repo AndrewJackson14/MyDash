@@ -4,6 +4,23 @@ This file tracks significant architectural decisions, assumptions, and tradeoffs
 
 ---
 
+## [2026-04-27] Paper surface retired — steel canvas everywhere
+
+- **Context:** Andrew flagged the paper register bleeding through behind admin pages (Newsletters, etc.). The v2 spec had paper as an opt-in for long-form views, but in practice the warm cream tone read as inconsistent next to steel-canvas dashboards. Decision: drop paper from the site entirely.
+- **Decision:**
+  - Stripped every `data-surface="paper"` attribute from JSX (main.jsx public routes, StoryEditor, IssueProofingTab, KnowledgeBase, Performance, AffidavitTemplate, AffidavitWorkspace, NewsletterPage, EblastComposer).
+  - Removed the `[data-surface="paper"] { background: var(--paper); }` block from global.css. The selector is now a no-op even if a stray attribute lingers.
+  - Flipped explicit surface-level `var(--paper)` backgrounds to `var(--canvas)`: TopBar header, StoryEditor wrapper, dev/Typography. TopBar's notifications popover switched to `var(--card)` (proper card-tone, not canvas) since it's a floating surface.
+  - Kept the `--paper` CSS token because primitives (Toggle, Check, Avi, Btn outline-variant) use it as a near-white contrast color, not as a surface. Removing the token would break toggle thumbs and checkbox marks.
+  - Marked `docs/ui-refresh/03-paper-surfaces.md` as DEPRECATED 2026-04-27 with a header note. Kept the audit list for historical reference.
+- **Alternatives considered:**
+  - *Keep paper for client-facing public routes (proof approval, sign, pay, upload, tearsheet)* — rejected because Andrew said "completely" and consistency is more valuable than per-page register heuristics. If a single client page needs to feel different later, we add a one-off, not a global mode.
+  - *Remove the `--paper` token entirely* — rejected because primitives use it as contrast, not surface. Removing would force a sweep of Primitives.jsx that's out of scope.
+- **Why:** The mixed-register approach (steel for admin, paper for content) read as a bug, not a feature, when the user moved between pages. One canvas tone reads as a unified product.
+- **Status:** Shipped. Visual regression: every page now has the steel canvas as background. TopBar reads cooler because it picked up `var(--canvas)` from `var(--paper)`.
+
+---
+
 ## [2026-04-27] Proposal Wizard mobile — Checkpoint 2 (mobile shell + chrome)
 
 - **Context:** Spec at `_specs/proposal-wizard-mobile.md`, Checkpoint 2. Build the mobile chrome (TopBar + body + save row + Footer) plus the two bottom sheets (step jump, deal summary) using the orchestration hook from CP1. Step contents stay desktop-shaped — CP3 polishes those.
