@@ -9,6 +9,7 @@ import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "
 import { useAppData } from "../../hooks/useAppData";
 import { supabase, EDGE_FN_URL } from "../../lib/supabase";
 import SendTearsheetModal from "../../components/SendTearsheetModal";
+import { TokenAdminMenu } from "../../components/TokenAdminMenu";
 import { fmtTimeRelative } from "../../lib/formatters";
 
 // Shared style for the four header action buttons (Call · Email ·
@@ -189,6 +190,13 @@ function PortfolioLinkButton({ client }) {
           ✉
         </button>
       </span>
+      <TokenAdminMenu
+        table="clients"
+        idValue={client.id}
+        tokenColumn="portfolio_token"
+        expiresAt={client.portfolioTokenExpiresAt}
+        revokedAt={client.portfolioTokenRevokedAt}
+      />
       {sendOpen && (
         <SendPortfolioModal client={client} onClose={() => setSendOpen(false)} />
       )}

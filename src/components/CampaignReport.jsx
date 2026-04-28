@@ -16,6 +16,7 @@ import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../lib/theme";
 import { Btn, GlassCard } from "./ui";
 import { supabase } from "../lib/supabase";
 import { fmtDate, fmtTime } from "../lib/formatters";
+import { TokenAdminMenu } from "./TokenAdminMenu";
 
 // ─── Small helpers ──────────────────────────────────────────
 const pct = (num, denom) => (denom > 0 ? Math.round((num / denom) * 1000) / 10 : 0);
@@ -178,9 +179,19 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
 
         {/* Actions — internal only */}
         {mode === "internal" && (
-          <div className="no-print" style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div className="no-print" style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
             <Btn sm v="ghost" onClick={() => window.print()}>Download PDF</Btn>
             <Btn sm onClick={copyShareLink} title={shareUrl}>{copied ? "✓ Copied!" : "Copy Share Link"}</Btn>
+            {draft?.id && (
+              <TokenAdminMenu
+                table="newsletter_drafts"
+                idValue={draft.id}
+                tokenColumn="share_token"
+                expiresAt={draft.share_token_expires_at}
+                revokedAt={draft.share_token_revoked_at}
+                onChange={(patch) => setData(prev => prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev)}
+              />
+            )}
           </div>
         )}
       </div>

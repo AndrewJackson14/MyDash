@@ -15,6 +15,7 @@ import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
 import { useAppData } from "../hooks/useAppData";
 import { useIsMobile } from "../hooks/useWindowWidth";
+import { TokenAdminMenu } from "../components/TokenAdminMenu";
 
 // Forward-only allowed transitions — also used by the grid drag-drop
 // (P3.30) to validate target columns before persisting a move.
@@ -807,6 +808,16 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
           <Btn sm v="secondary" onClick={() => requestClientAssets(viewProject)} disabled={requestingAssets} title={viewProject.asset_request_sent_at ? `Last sent ${new Date(viewProject.asset_request_sent_at).toLocaleString()}` : "Email the client a link to drop their assets"}>
             <Ic.attach size={11} /> {requestingAssets ? "Sending…" : (viewProject.asset_request_sent_at ? "Resend Asset Link" : "Request Assets from Client")}
           </Btn>
+          {viewProject.client_upload_token && (
+            <TokenAdminMenu
+              table="ad_projects"
+              idValue={viewProject.id}
+              tokenColumn="client_upload_token"
+              expiresAt={viewProject.client_upload_token_expires_at}
+              revokedAt={viewProject.client_upload_token_revoked_at}
+              onChange={(patch) => setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, ...patch } : p))}
+            />
+          )}
           {/* P2.23 — quick-notify Cami/Hayley/Anthony. Pings via
               team_notes with context_type='ad_project' so the
               recipient's NotificationPopover can deep-link back. */}
