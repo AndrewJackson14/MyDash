@@ -475,11 +475,17 @@ export function DataProvider({ children, localData }) {
   const [clientDetailsLoaded, setClientDetailsLoaded] = useState(false);
   const loadClientDetails = useCallback(async () => {
     if (clientDetailsLoaded || !isOnline()) return;
-    const [allContacts, allComms, allSalesSummary] = await Promise.all([
+    // allSettled — one bad table doesn't block the rest. Failed slots
+    // resolve to []; the page using this loader degrades but keeps working.
+    const _csettled = await Promise.allSettled([
       fetchAllRows('client_contacts', null, true, 'id,client_id,name,email,phone,role,is_primary,notes'),
       fetchAllRows('communications', 'created_at', false, 'id,client_id,type,author_name,date,note'),
       fetchAllRows('client_sales_summary', null, true, 'client_id,publication_id,year,order_count,total_revenue,avg_order,ad_sizes,first_order_date,last_order_date'),
     ]);
+    const _csok = (i, name) => { if (_csettled[i].status === 'fulfilled') return _csettled[i].value; console.error(`[loadClientDetails] ${name} rejected`, _csettled[i].reason); return []; };
+    const allContacts     = _csok(0, 'client_contacts');
+    const allComms        = _csok(1, 'communications');
+    const allSalesSummary = _csok(2, 'client_sales_summary');
     const contactsByClient = {};
     allContacts.forEach(ct => {
       if (!contactsByClient[ct.client_id]) contactsByClient[ct.client_id] = [];
@@ -522,10 +528,16 @@ export function DataProvider({ children, localData }) {
   const proposalSelect = 'id,client_id,name,term,term_months,total,pay_plan,monthly,status,date,renewal_date,closed_at,sent_to,assigned_to,art_source,contract_id,brief_headline,brief_style,brief_colors,brief_instructions,signed_at,converted_at,sent_at';
   const loadProposals = useCallback(async () => {
     if (proposalsLoaded || !isOnline()) return;
-    const [proposalsRes, propLinesRes] = await Promise.all([
+    // allSettled — proposals can render without lines; lines without
+    // proposals are useless but won't crash. Failed slots collapse to
+    // {data:null}; the .data guards below already handle that path.
+    const _psettled = await Promise.allSettled([
       supabase.from('proposals').select(proposalSelect).order('date', { ascending: false }).limit(2000),
       supabase.from('proposal_lines').select('*').limit(10000),
     ]);
+    const _psok = (i, name) => { if (_psettled[i].status === 'fulfilled') return _psettled[i].value; console.error(`[loadProposals] ${name} rejected`, _psettled[i].reason); return { data: null, error: _psettled[i].reason }; };
+    const proposalsRes = _psok(0, 'proposals');
+    const propLinesRes = _psok(1, 'proposal_lines');
     if (proposalsRes.data && propLinesRes.data) {
       setProposals(proposalsRes.data.map(p => ({
         id: p.id, clientId: p.client_id, name: p.name, term: p.term, termMonths: p.term_months,
@@ -1071,7 +1083,13 @@ export function DataProvider({ children, localData }) {
   const [circulationLoaded, setCirculationLoaded] = useState(false);
   const loadCirculation = useCallback(async (force) => {
     if ((circulationLoaded && !force) || !isOnline()) return;
-    const [subRes, subscriptionsRes, mailListRes, dropRes, dropPubRes, driverRes, routeRes, stopRes] = await Promise.all([
+    // allSettled — circulation has 8 tables; one bad table shouldn't
+    // empty the entire module. Subscribers/subscriptions return arrays
+    // (fetchAllRows); the rest return {data,error} (supabase.from()).
+    // Failed array slots default to []; failed object slots to
+    // {data:null} so the existing .data?.map / .data.length checks keep
+    // working unchanged.
+    const _circ = await Promise.allSettled([
       fetchAllRows('subscribers', 'last_name'),
       fetchAllRows('subscriptions', 'created_at', false),
       supabase.from('mailing_lists').select('*').order('generated_at', { ascending: false }).limit(100),
@@ -1081,6 +1099,16 @@ export function DataProvider({ children, localData }) {
       supabase.from('driver_routes').select('*').order('name').limit(500),
       supabase.from('route_stops').select('*').order('sort_order').limit(5000),
     ]);
+    const _circArr = (i, n) => { if (_circ[i].status === 'fulfilled') return _circ[i].value; console.error(`[loadCirculation] ${n} rejected`, _circ[i].reason); return []; };
+    const _circObj = (i, n) => { if (_circ[i].status === 'fulfilled') return _circ[i].value; console.error(`[loadCirculation] ${n} rejected`, _circ[i].reason); return { data: null, error: _circ[i].reason }; };
+    const subRes           = _circArr(0, 'subscribers');
+    const subscriptionsRes = _circArr(1, 'subscriptions');
+    const mailListRes      = _circObj(2, 'mailing_lists');
+    const dropRes          = _circObj(3, 'drop_locations');
+    const dropPubRes       = _circObj(4, 'drop_location_pubs');
+    const driverRes        = _circObj(5, 'drivers');
+    const routeRes         = _circObj(6, 'driver_routes');
+    const stopRes          = _circObj(7, 'route_stops');
     if (subRes.length > 0) setSubscribers(subRes.map(s => ({
       id: s.id, type: s.type, status: s.status, firstName: s.first_name, lastName: s.last_name, email: s.email, phone: s.phone,
       companyName: s.company_name || '', addressLine1: s.address_line1, addressLine2: s.address_line2, city: s.city, state: s.state, zip: s.zip,
@@ -1172,10 +1200,13 @@ export function DataProvider({ children, localData }) {
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
   const loadTickets = useCallback(async () => {
     if (ticketsLoaded || !isOnline()) return;
-    const [ticketRes, ticketCommentRes] = await Promise.all([
+    const _tk = await Promise.allSettled([
       supabase.from('service_tickets').select('*').order('created_at', { ascending: false }).limit(2000),
       supabase.from('ticket_comments').select('*').order('created_at').limit(5000),
     ]);
+    const _tkok = (i, n) => { if (_tk[i].status === 'fulfilled') return _tk[i].value; console.error(`[loadTickets] ${n} rejected`, _tk[i].reason); return { data: null, error: _tk[i].reason }; };
+    const ticketRes        = _tkok(0, 'service_tickets');
+    const ticketCommentRes = _tkok(1, 'ticket_comments');
     if (ticketRes.data) setTickets(ticketRes.data.map(t => ({
       id: t.id, channel: t.channel, category: t.category, status: t.status, priority: t.priority,
       contactName: t.contact_name, contactEmail: t.contact_email, contactPhone: t.contact_phone,
@@ -1197,10 +1228,13 @@ export function DataProvider({ children, localData }) {
   const [legalsLoaded, setLegalsLoaded] = useState(false);
   const loadLegals = useCallback(async () => {
     if (legalsLoaded || !isOnline()) return;
-    const [legalRes, legalIssueRes] = await Promise.all([
+    const _lg = await Promise.allSettled([
       supabase.from('legal_notices').select('*').order('created_at', { ascending: false }).limit(2000),
       supabase.from('legal_notice_issues').select('*').limit(5000),
     ]);
+    const _lgok = (i, n) => { if (_lg[i].status === 'fulfilled') return _lg[i].value; console.error(`[loadLegals] ${n} rejected`, _lg[i].reason); return { data: null, error: _lg[i].reason }; };
+    const legalRes      = _lgok(0, 'legal_notices');
+    const legalIssueRes = _lgok(1, 'legal_notice_issues');
     if (legalRes.data) setLegalNotices(legalRes.data.map(n => ({
       id: n.id, clientId: n.client_id, contactName: n.contact_name, contactEmail: n.contact_email,
       contactPhone: n.contact_phone, organization: n.organization,
@@ -1419,13 +1453,19 @@ export function DataProvider({ children, localData }) {
     // (TODO: add archive loader when needed). Was 24mo / 5000 rows — boot
     // payload was the dominant cost for accounts with heavy ledger volume.
     const ledgerCutoff = new Date(Date.now() - 365 * 86400000).toISOString();
-    const [ledgerRes, payoutsRes, goalsRes, assignRes, ratesRes] = await Promise.all([
+    const _cm = await Promise.allSettled([
       supabase.from('commission_ledger').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1500),
       supabase.from('commission_payouts').select('*').gte('created_at', ledgerCutoff).order('created_at', { ascending: false }).limit(1000),
       supabase.from('commission_issue_goals').select('*').limit(2000),
       supabase.from('salesperson_pub_assignments').select('*').limit(1000),
       supabase.from('commission_rates').select('*').limit(1000),
     ]);
+    const _cmok = (i, n) => { if (_cm[i].status === 'fulfilled') return _cm[i].value; console.error(`[loadCommissions] ${n} rejected`, _cm[i].reason); return { data: null, error: _cm[i].reason }; };
+    const ledgerRes  = _cmok(0, 'commission_ledger');
+    const payoutsRes = _cmok(1, 'commission_payouts');
+    const goalsRes   = _cmok(2, 'commission_issue_goals');
+    const assignRes  = _cmok(3, 'salesperson_pub_assignments');
+    const ratesRes   = _cmok(4, 'commission_rates');
     if (ledgerRes.data) setCommissionLedger(ledgerRes.data.map(l => ({
       id: l.id, saleId: l.sale_id, salespersonId: l.salesperson_id, publicationId: l.publication_id,
       issueId: l.issue_id, clientId: l.client_id, saleAmount: Number(l.sale_amount),
@@ -2281,10 +2321,13 @@ export function DataProvider({ children, localData }) {
   const [outreachLoaded, setOutreachLoaded] = useState(false);
   const loadOutreach = useCallback(async () => {
     if (outreachLoaded || !isOnline()) return;
-    const [campRes, entryRes] = await Promise.all([
+    const _ot = await Promise.allSettled([
       supabase.from('outreach_campaigns').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('outreach_entries').select('*').order('created_at', { ascending: false }).limit(5000),
     ]);
+    const _otok = (i, n) => { if (_ot[i].status === 'fulfilled') return _ot[i].value; console.error(`[loadOutreach] ${n} rejected`, _ot[i].reason); return { data: null, error: _ot[i].reason }; };
+    const campRes  = _otok(0, 'outreach_campaigns');
+    const entryRes = _otok(1, 'outreach_entries');
     if (campRes.data) setOutreachCampaigns(campRes.data.map(c => ({
       id: c.id, name: c.name, description: c.description, status: c.status,
       filters: c.filters || {}, createdBy: c.created_by, assignedTo: c.assigned_to,
