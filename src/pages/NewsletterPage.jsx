@@ -411,12 +411,12 @@ const NewsletterPage = ({ pubs, currentUser, isActive }) => {
   // The report has its own header + Back button; we return early so the
   // rest of the page (tabs, today/eblast/templates/history) isn't rendered.
   if (campaignId) {
-    return <div data-surface="paper" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <CampaignReport mode="internal" draftId={campaignId} onBack={() => setCampaignId(null)} />
     </div>;
   }
 
-  return <div data-surface="paper" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     {/* Action row — title moved to TopBar via usePageHeader. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
       <Btn sm onClick={openPreview} disabled={!draft}><Ic.globe size={13} /> Preview</Btn>
