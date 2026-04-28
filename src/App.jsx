@@ -9,21 +9,28 @@ import { useJurisdiction } from "./hooks/useJurisdiction";
 import { supabase, isOnline, EDGE_FN_URL } from "./lib/supabase";
 import { Z, DARK, LIGHT, COND, BODY, FONT_URL, R, INV, ZI, PRESS, PRESS_LIGHT, PRESS_DARK } from "./lib/theme";
 import { Ic, ThemeToggle, BackBtn, ErrorBoundary } from "./components/ui";
-import {
-  INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
-  buildAllIssues, generateSampleSales, generateSampleProposals,
-  INIT_NOTIFICATIONS,
-} from "./data/seed";
+// Seed data is only used when isOnline() returns false (offline mode
+// or boot timeout/failure fallback). Importing it statically would put
+// ~12 KB of mock fixtures in every cold load. The lazy load below
+// runs only when `online` flips false; online users never download it.
 import { useCrossModuleWiring } from "./hooks/useCrossModuleWiring";
 
-// Eagerly loaded (always needed on boot)
-import { NotificationPopover } from "./components/NotificationPopover";
-import { GmailNotifPopover } from "./components/GmailNotifPopover";
+// Eagerly loaded (always needed on boot) — keep this list short.
+// Sidebar + MetadataStrip frame every page; useGmailUnread runs at App
+// scope for the unread badge count. Everything else moved to lazy()
+// below to keep the critical-path bundle as thin as the chrome allows.
 import { useGmailUnread } from "./hooks/useGmailUnread";
-import AmbientPressureLayer from "./components/AmbientPressureLayer";
-import MyHelperLauncher from "./components/MyHelperLauncher";
 import Sidebar from "./components/layout/Sidebar";
 import MetadataStrip from "./components/layout/MetadataStrip";
+
+// Deferred chrome. These four render at App-root but aren't required
+// for first paint — the user can interact with the page before any of
+// them mounts. Wrapping each in Suspense fallback={null} means a
+// loading state is invisible (they just appear when ready).
+const NotificationPopover = lazy(() => import("./components/NotificationPopover").then(m => ({ default: m.NotificationPopover })));
+const GmailNotifPopover   = lazy(() => import("./components/GmailNotifPopover").then(m => ({ default: m.GmailNotifPopover })));
+const AmbientPressureLayer = lazy(() => import("./components/AmbientPressureLayer"));
+const MyHelperLauncher     = lazy(() => import("./components/MyHelperLauncher"));
 import { getPageMeta } from "./data/pageMeta";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
@@ -198,14 +205,18 @@ export default function App() {
   const currentUser = impersonating || realUser;
 
   // ─── Data State ─────────────────────────────────────────
-  const [_pubs, _setPubs] = useState(INIT_PUBS);
-  const [_issues, _setIssues] = useState(() => buildAllIssues(INIT_PUBS));
+  // Initial values are empty arrays — seed fixtures get lazy-loaded by
+  // the effect below if/when `online` resolves false. For online users
+  // (the common case) these stay empty, the appData branch wins via the
+  // `online ? appData.* : _*` resolvers, and seed.js never downloads.
+  const [_pubs, _setPubs] = useState([]);
+  const [_issues, _setIssues] = useState([]);
   const [_stories, _setStories] = useState([]);
-  const [_clients, _setClients] = useState(INIT_CLIENTS);
-  const [_sales, _setSales] = useState(() => generateSampleSales(INIT_PUBS, buildAllIssues(INIT_PUBS), INIT_CLIENTS));
-  const [_proposals, _setProposals] = useState(() => generateSampleProposals(INIT_PUBS, buildAllIssues(INIT_PUBS), INIT_CLIENTS));
-  const [_team, _setTeam] = useState(INIT_TEAM);
-  const [_notifications, _setNotifications] = useState(INIT_NOTIFICATIONS);
+  const [_clients, _setClients] = useState([]);
+  const [_sales, _setSales] = useState([]);
+  const [_proposals, _setProposals] = useState([]);
+  const [_team, _setTeam] = useState([]);
+  const [_notifications, _setNotifications] = useState([]);
   const [_invoices, _setInvoices] = useState([]);
   const [_payments, _setPayments] = useState([]);
   const [_subscribers, _setSubscribers] = useState([]);
@@ -230,6 +241,41 @@ export default function App() {
     || appData.bootStatus === "loading"
     || appData.bootStatus === "degraded";
   const online = appData.loaded && isOnline() && bootHealthy;
+
+  // Lazy-import the seed fixtures the first time `online` resolves false.
+  // Online users never trip this. Offline users / users whose boot timed
+  // out / failed see the BootStatusBanner immediately, then this effect
+  // fires and populates the underscore states with mock data so the UI
+  // has something to render. seedLoadedRef gates against re-imports if
+  // online flips back and forth.
+  const seedLoadedRef = useRef(false);
+  useEffect(() => {
+    if (online) return;
+    if (seedLoadedRef.current) return;
+    seedLoadedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const seed = await import("./data/seed");
+        if (cancelled) return;
+        _setPubs(seed.INIT_PUBS);
+        _setClients(seed.INIT_CLIENTS);
+        _setTeam(seed.INIT_TEAM);
+        _setNotifications(seed.INIT_NOTIFICATIONS);
+        const allIssues = seed.buildAllIssues(seed.INIT_PUBS);
+        _setIssues(allIssues);
+        _setSales(seed.generateSampleSales(seed.INIT_PUBS, allIssues, seed.INIT_CLIENTS));
+        _setProposals(seed.generateSampleProposals(seed.INIT_PUBS, allIssues, seed.INIT_CLIENTS));
+      } catch (err) {
+        // Seed import failure is unlikely (it's a static module) but if
+        // it happens, just log — the empty arrays the UI already has are
+        // a defensible fallback.
+        console.error("[App] Failed to load offline seed:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [online]);
+
   const pubs = online ? (appData.pubs || []) : _pubs;
   const setPubs = online ? appData.setPubs : _setPubs;
   const issues = online ? (appData.issues || []) : _issues;
@@ -674,19 +720,25 @@ export default function App() {
         sees nothing instead of a crashed app); chrome with a real role
         gets a small fallback placeholder so the absence is noticed. */}
     <ErrorBoundary name="ambient-pressure" silent>
-      {orgSettings.global_pressure_enabled !== false && (
-        <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
-      )}
+      <Suspense fallback={null}>
+        {orgSettings.global_pressure_enabled !== false && (
+          <AmbientPressureLayer pressure={globalPressure} serenityColor={orgSettings.serenity_color || "blue"} />
+        )}
+      </Suspense>
     </ErrorBoundary>
     {/* macOS-style notification popover — fixed top-right, subscribes to
         team_notes INSERTs for the current user and stacks incoming messages. */}
     <ErrorBoundary name="notifications" silent>
-      <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
+      <Suspense fallback={null}>
+        <NotificationPopover currentUser={currentUser} team={team} onOpenMemberProfile={openTeamMemberProfile} />
+      </Suspense>
     </ErrorBoundary>
     {/* Gmail inbox notifications — polls every 60s via useGmailUnread,
         fires a toast for newly-arrived unread messages. Click jumps to Mail. */}
     <ErrorBoundary name="gmail-notif" silent>
-      <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
+      <Suspense fallback={null}>
+        <GmailNotifPopover onNewUnread={onNewGmail} onOpenMail={() => setPg("mail")} />
+      </Suspense>
     </ErrorBoundary>
     <div style={{ display: "flex", height: "100vh", color: Z.tx, fontFamily: BODY, position: "relative", zIndex: 1 }}>
     {/* Press Room fonts are self-hosted via @fontsource imports in
@@ -822,7 +874,9 @@ export default function App() {
 
     {/* MyHelper — floating bot launcher in bottom-right of every page */}
     <ErrorBoundary name="myhelper" silent>
-      <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
+      <Suspense fallback={null}>
+        <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
+      </Suspense>
     </ErrorBoundary>
     </div>
   </PageHeaderProvider>;
