@@ -28,8 +28,10 @@ export default function ClientUpload() {
     (async () => {
       const { data, error: err } = await supabase
         .from("ad_projects")
-        .select("id, client_id, client_contact_name, client_contact_email, publication_id, ad_size, client_assets_path, client_upload_token")
+        .select("id, client_id, client_contact_name, client_contact_email, publication_id, ad_size, client_assets_path, client_upload_token, client_upload_token_expires_at, client_upload_token_revoked_at")
         .eq("client_upload_token", token)
+        .is("client_upload_token_revoked_at", null)
+        .or("client_upload_token_expires_at.is.null,client_upload_token_expires_at.gt." + new Date().toISOString())
         .maybeSingle();
       if (err || !data) {
         setError("This upload link is invalid or has expired.");
