@@ -3,14 +3,34 @@
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>13 Stars Media — MyDash</title>
 <link rel="icon" type="image/png" href="/favicon.png" />
 <link rel="apple-touch-icon" href="/favicon.png" />
-<meta name="theme-color" content="#08090D" />
+<meta name="theme-color" content="#f0f4f9" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#142433" media="(prefers-color-scheme: dark)" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <noscript><link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet" /></noscript>
+<script>
+  // Theme bootstrap — runs before CSS parses so data-theme is set
+  // when global.css evaluates :root vs [data-theme="dark"]. Without
+  // this, dark-mode users see a brief light-canvas flash because
+  // :root's --canvas is the light value by default.
+  (function () {
+    try {
+      var t = localStorage.getItem('mydash-theme');
+      if (!t) {
+        t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = t;
+    } catch (e) { /* ok */ }
+  })();
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Source Sans 3', 'DM Sans', 'Segoe UI', system-ui, sans-serif; background: #08090D; color: #E4E8F0; }
+  /* Default to light canvas. The bootstrap script above sets
+     data-theme on <html> BEFORE this style applies, so the dark
+     override below kicks in when relevant — no flash. */
+  body { font-family: 'Source Sans 3', 'DM Sans', 'Segoe UI', system-ui, sans-serif; background: #f0f4f9; color: #0d0f14; }
+  [data-theme="dark"] body { background: #142433; color: #E4E8F0; }
   select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
 </style>
 <script>
