@@ -21,39 +21,42 @@
 // producing valid 8-char hex.
 // ============================================================
 export const DARK = {
-  bg:  "#14120E",                          // PRESS_DARK.paper
-  sf:  "#1F1C16",                          // PRESS_DARK.card
-  sa:  "#1F1C16",                          // collapsed onto card under Press Room
-  bd:  "#32302B",                          // rule pre-merged on paper
-  tx:  "#EDE8DC",                          // PRESS_DARK.ink
-  tx2: "#EDE8DC",
-  tm:  "#8C8578",                          // PRESS_DARK.muted
-  td:  "#8C8578",
-  go:  "#7BA77B",                          // PRESS_DARK.ok
-  da:  "#E8473A",                          // PRESS_DARK.accent (Press red)
+  // Steel Office dark — v2 2026-04-27. Page bg now maps to canvas
+  // (steel-900), surface to steel-800. Text/borders shift cool to
+  // match. Press red, ok, warn keep their saturated values.
+  bg:  "#142433",                          // canvas (steel-900); was warm paper #14120E
+  sf:  "#1F3448",                          // card (steel-800); was warm #1F1C16
+  sa:  "#1F3448",                          // collapsed onto card
+  bd:  "#2C465E",                          // steel-700 border; was warm #32302B
+  tx:  "#E6ECF3",                          // cool light; was warm cream #EDE8DC
+  tx2: "#E6ECF3",
+  tm:  "#8B9BAE",                          // cool secondary; was warm #8C8578
+  td:  "#8B9BAE",
+  go:  "#7BA77B",
+  da:  "#E8473A",
   ds:  "rgba(232,71,58,0.12)",
-  wa:  "#D4A93C",                          // PRESS_DARK.warn
+  wa:  "#D4A93C",
   ws:  "rgba(212,169,60,0.12)",
-  ac:  "#EDE8DC",
-  as:  "rgba(237,232,220,0.08)",
-  su:  "#EDE8DC",
-  ss:  "rgba(237,232,220,0.06)",
-  pu:  "#8C8578",
-  ps:  "rgba(140,133,120,0.08)",
+  ac:  "#E6ECF3",
+  as:  "rgba(230,236,243,0.08)",
+  su:  "#E6ECF3",
+  ss:  "rgba(230,236,243,0.06)",
+  pu:  "#8B9BAE",
+  ps:  "rgba(139,155,174,0.08)",
   or:  "#D4A93C",
   bgCanvas:     "#142433",                // steel-900 — Steel Office canvas (dark, v2)
   bgChrome:     "#142433",                // chrome backgrounds resolve to glass at component layer
   bgHover:      "rgba(31,52,72,0.55)",    // hover-wash steel-800 @ 55% (dark, v2)
   bgActive:     "rgba(20,36,51,0.65)",    // active-wash steel-900 @ 65% (dark, v2)
-  fgPrimary:    "#EDE8DC",
-  fgSecondary:  "#EDE8DC",
-  fgMuted:      "#8C8578",
+  fgPrimary:    "#E6ECF3",
+  fgSecondary:  "#E6ECF3",
+  fgMuted:      "#8B9BAE",
   fgAccent:     "#E8473A",
-  borderSubtle: "#32302B",
-  borderStrong: "#3D3B36",
-  glassBg:      "#1F1C16",                  // collapsed to card; no glass under Press
-  glassBorder:  "#32302B",
-  glassShadow:  "none",                     // Press Room rejects shadows
+  borderSubtle: "#2C465E",                // steel-700
+  borderStrong: "#385879",                // steel-600
+  glassBg:      "#1F3448",                // steel-800 elevated
+  glassBorder:  "rgba(230,236,243,0.12)",
+  glassShadow:  "none",
 };
 
 export const LIGHT = {
@@ -174,11 +177,11 @@ export const PRESS_LIGHT = {
 };
 
 export const PRESS_DARK = {
-  ink:         "#EDE8DC",
-  paper:       "#14120E",
-  card:        "#1F1C16",
-  rule:        "rgba(237, 232, 220, 0.14)",
-  muted:       "#8C8578",
+  ink:         "#E6ECF3",                  // cool light (was warm cream #EDE8DC)
+  paper:       "#0F1D2C",                  // steel-navy near-black (was warm #14120E)
+  card:        "#1F3448",                  // steel-800 elevated card (was warm #1F1C16)
+  rule:        "rgba(230, 236, 243, 0.10)",
+  muted:       "#8B9BAE",                  // cool secondary text (was warm #8C8578)
   accent:      "#E8473A",
   accentSoft:  "rgba(232, 71, 58, 0.12)",
   action:      "#486B95",                  // STEEL.500 navy lifted for dark

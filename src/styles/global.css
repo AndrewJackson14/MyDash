@@ -232,12 +232,16 @@
 }
 
 [data-theme="dark"] {
-  /* Press Room — dark mode override */
-  --ink:         #EDE8DC;
-  --paper:       #14120E;                    /* Near-black with warm cast */
-  --card:        #1F1C16;
-  --rule:        rgba(237, 232, 220, 0.14);
-  --muted:       #8C8578;
+  /* Steel Office — dark mode (v2 2026-04-27).
+     The previous Press Room warm dark tokens (paper #14120E, card
+     #1F1C16, ink #EDE8DC, muted #8C8578) clashed with the cool steel
+     canvas. Replaced with cool steel ladder values so cards sit on
+     the canvas rather than fighting it. */
+  --ink:         #E6ECF3;                    /* cool light text */
+  --paper:       #0F1D2C;                    /* steel-navy — near-black contrast for primitives */
+  --card:        #1F3448;                    /* steel-800 — elevated card surface */
+  --rule:        rgba(230, 236, 243, 0.10);
+  --muted:       #8B9BAE;                    /* cool secondary text */
   --accent:      #E8473A;                    /* Press red, lifted for dark */
   --accent-soft: rgba(232, 71, 58, 0.12);
   --action:      #486B95;                    /* STEEL.500 — lifted navy for dark */
@@ -254,7 +258,7 @@
      Replaces drop shadow as the lift cue. */
   --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  /* Elevation — input inset uses the dark ink-on-paper relationship */
+  /* Elevation — input inset uses the dark ink relationship */
   --elev-input: inset 0 1px 2px rgba(0, 0, 0, 0.20);
 }
 
