@@ -27,6 +27,17 @@ export default defineConfig({
     }),
   ].filter(Boolean),
   build: {
+    // Filter the modulepreload <link> graph so genuinely-lazy chunks
+    // don't get pulled into the cold-load critical path. The treemap
+    // (audit Q4) showed tiptap (~117 KB gzip) was being preloaded
+    // even though the only consumer is the lazy StoryEditor — most
+    // users never need it on first paint. Keep the chunk split, just
+    // don't advertise it for preload until something actually imports.
+    modulePreload: {
+      resolveDependencies: (filename, deps) => {
+        return deps.filter(dep => !/\/tiptap-/.test(dep));
+      },
+    },
     rollupOptions: {
       output: {
         // Path-matching function is more reliable than the dict form,

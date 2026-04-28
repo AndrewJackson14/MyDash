@@ -1,23 +1,18 @@
-import {
-  INIT_PUBS, INIT_CLIENTS, INIT_TEAM,
-  buildAllIssues, generateSampleSales, generateSampleProposals,
-  INIT_NOTIFICATIONS,
-} from './seed';
-
+// Empty offline-mode stubs. AppRouter passes the result to DataProvider
+// as the initial state for `useAppData`. For online users the real
+// Supabase data overwrites these immediately. For offline users App.jsx
+// lazy-imports the actual seed fixtures (`./seed`) when `online` resolves
+// false and populates its own _* state via setters — so this module no
+// longer pulls seed.js into the cold-load critical path.
 export function buildLocalData() {
-  const pubs = INIT_PUBS;
-  const issues = buildAllIssues(pubs);
-  const clients = INIT_CLIENTS;
-  const sales = generateSampleSales(pubs, issues, clients);
-  const proposals = generateSampleProposals(pubs, issues, clients);
   return {
-    pubs,
-    issues,
+    pubs: [],
+    issues: [],
     stories: [],
-    clients,
-    sales,
-    proposals,
-    team: INIT_TEAM,
-    notifications: INIT_NOTIFICATIONS,
+    clients: [],
+    sales: [],
+    proposals: [],
+    team: [],
+    notifications: [],
   };
 }
