@@ -36,7 +36,10 @@ import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
 // Lazy-loaded pages — auto-reload on chunk mismatch (stale deploy)
 const lazyLoad = (fn) => lazy(() => fn().catch(() => { window.location.reload(); return fn(); }));
-const DashboardV2 = lazyLoad(() => import("./pages/DashboardV2"));
+// DashboardV2 retired in favor of PublisherDashboard (build spec 2026-04-29).
+// The page module remains in src/pages/DashboardV2.jsx for reference until
+// confirmed orphaned across the codebase, then can be deleted.
+const PublisherDashboard = lazyLoad(() => import("./modules/PublisherDashboard"));
 const RoleDashboard = lazyLoad(() => import("./components/RoleDashboard"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
@@ -818,7 +821,7 @@ export default function App() {
           {online && clients.length > 0 && (issueDetailId
             ? <Suspense fallback={<LazyFallback />}><IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} /></Suspense>
             : (currentUser?.role === "Publisher"
-              ? <Suspense fallback={<LazyFallback />}><DashboardV2 isActive={pg === "dashboard"} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} proposals={jProposals} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} dropLocations={dropLocations} dropLocationPubs={dropLocationPubs} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adProjects={appData.adProjects || EMPTY_ARR} loadAdProjects={appData.loadAdProjects} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} retainInquiriesRealtime={appData.retainInquiriesRealtime} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} userName={currentUser?.name} currentUser={currentUser} salespersonPubAssignments={appData.salespersonPubAssignments} jurisdiction={jurisdiction} commissionGoals={appData.commissionGoals || EMPTY_ARR} onOpenMemberProfile={openTeamMemberProfile} onPressureChange={setGlobalPressure} /></Suspense>
+              ? <Suspense fallback={<LazyFallback />}><PublisherDashboard team={team} currentUser={currentUser} onNavigate={handleNav} /></Suspense>
               : <Suspense fallback={<LazyFallback />}><RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} loadClientDetails={appData.loadClientDetails} updateInquiry={appData.updateInquiry} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></Suspense>
             )
           )}
