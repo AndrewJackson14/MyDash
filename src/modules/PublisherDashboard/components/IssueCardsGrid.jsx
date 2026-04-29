@@ -1,7 +1,7 @@
 // IssueCardsGrid.jsx — 2-col responsive grid of IssueCards. Sort by
 // days-to-deadline ascending, then variance ascending (worst first).
 
-import { Z, COND, FS, FW, R } from "../../../lib/theme";
+import { Z, COND, FS, FW } from "../../../lib/theme";
 import IssueCard from "./IssueCard";
 import { computePacing } from "../lib/pacingCurve";
 
@@ -37,11 +37,11 @@ export default function IssueCardsGrid({ issues = [], filterPressDay = null, onI
   });
 
   if (enriched.length === 0) {
+    // No own card chrome — parent <SectionCard /> provides it.
     return (
       <div style={{
-        padding: "40px 20px", textAlign: "center",
+        padding: "32px 12px", textAlign: "center",
         color: Z.tm, fontSize: FS.sm, fontFamily: COND,
-        background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: R,
       }}>
         {filterPressDay
           ? "No issues press on this day."

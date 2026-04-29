@@ -1,65 +1,63 @@
 // ActivityStream.jsx — sticky right-column event feed.
 // Today by default; toggle to extend to last 24h.
+//
+// Layout: SectionCard (shared column chrome) wrapped in a sticky aside.
+// The aside holds position:sticky; the SectionCard handles the look.
 
-import { useState } from "react";
-import { Z, COND, FS, FW, R, Ri } from "../../../lib/theme";
+import { Z, COND, FS, FW, Ri } from "../../../lib/theme";
+import SectionCard from "./SectionCard";
 import ActivityEventCard from "./ActivityEventCard";
 
 export default function ActivityStream({
   events = [],
   scope,                 // 'today' | 'yesterday'
   onScopeChange,
-  resolveActor,          // (user_id) => actorName
+  resolveActor,          // (actor_id) => actorName
   resolveClient,         // (client_id, fallback) => clientName
   resolvePublication,    // (publication_id) => publicationName
   loading = false,
   onLoadMore,
   hasMore = false,
 }) {
+  const scopeToggle = (
+    <button
+      onClick={() => onScopeChange?.(scope === "today" ? "yesterday" : "today")}
+      style={{
+        background: "transparent",
+        border: `1px solid ${Z.bd}`,
+        color: Z.tm,
+        fontSize: 10,
+        fontWeight: FW.bold,
+        fontFamily: COND,
+        padding: "3px 8px",
+        borderRadius: Ri,
+        cursor: "pointer",
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+      }}
+    >
+      {scope === "today" ? "Show yesterday" : "Today only"}
+    </button>
+  );
+
   return (
     <aside
-      data-glass="true"
       style={{
         position: "sticky",
         top: 0,
         alignSelf: "start",
-        background: Z.sa,
-        border: `1px solid ${Z.bd}`,
-        borderRadius: R,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
         maxHeight: "calc(100vh - 80px)",
+        display: "flex",
         minHeight: 0,
-        overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
-        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>
-          Activity
-        </div>
-        <button
-          onClick={() => onScopeChange?.(scope === "today" ? "yesterday" : "today")}
-          style={{
-            background: "transparent",
-            border: `1px solid ${Z.bd}`,
-            color: Z.tm,
-            fontSize: 10,
-            fontWeight: FW.bold,
-            fontFamily: COND,
-            padding: "3px 8px",
-            borderRadius: Ri,
-            cursor: "pointer",
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-          }}
-        >
-          {scope === "today" ? "Show yesterday" : "Today only"}
-        </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", margin: "0 -4px" }}>
+      <SectionCard
+        title="Activity"
+        controls={scopeToggle}
+        data-glass="true"
+        style={{ flex: 1, overflow: "hidden" }}
+        bodyStyle={{ overflowY: "auto", margin: "0 -4px" }}
+      >
         {loading && events.length === 0 && (
           <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
             Loading…
@@ -71,10 +69,6 @@ export default function ActivityStream({
           </div>
         )}
         {events.map(row => {
-          // Prefer the denormalized actor_name written by log_activity RPC;
-          // fall back to a team_members lookup via actor_id; final fall-
-          // back is the row's own client_name (gives "Someone" only on
-          // truly orphaned rows).
           const actorName =
             row.actor_name
             || resolveActor?.(row.actor_id)
@@ -108,7 +102,7 @@ export default function ActivityStream({
             </button>
           </div>
         )}
-      </div>
+      </SectionCard>
     </aside>
   );
 }

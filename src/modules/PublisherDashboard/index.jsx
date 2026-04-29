@@ -12,12 +12,13 @@
 //   └────────────────────────────────────────────┘
 
 import { useState } from "react";
-import { Z, COND, DISPLAY, FS, FW, R } from "../../lib/theme";
+import { Z, DISPLAY, FW } from "../../lib/theme";
 import AlertBanner       from "./components/AlertBanner";
 import PressTimelineStrip from "./components/PressTimelineStrip";
 import IssueCardsGrid    from "./components/IssueCardsGrid";
 import ActivityStream    from "./components/ActivityStream";
 import MonthAtAGlance    from "./components/MonthAtAGlance";
+import SectionCard       from "./components/SectionCard";
 import usePublisherDashboard from "./usePublisherDashboard";
 
 export default function PublisherDashboard({ team, currentUser, onNavigate, hideGreeting }) {
@@ -72,25 +73,21 @@ export default function PublisherDashboard({ team, currentUser, onNavigate, hide
       />
 
       {/* Issue cards (left, 1.6fr) | Activity stream (right, 1fr).
-          Collapses to single column under 900px. */}
+          Both columns wrap content in <SectionCard /> so their top
+          baselines align — see SectionCard.jsx for the rule. */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1.6fr) minmax(280px, 1fr)",
+        alignItems: "start",
         gap: 14,
-      }}
-      // Inline media-query workaround: we'd want a CSS class for breakpoint.
-      // For now the grid auto-fits issue cards inside the left column, which
-      // is the primary responsiveness need. Stack-on-narrow is added once
-      // we move to a CSS module / utility class.
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <SectionHeader>Issues — Next 7 Days</SectionHeader>
+      }}>
+        <SectionCard title="Issues — Next 7 Days">
           <IssueCardsGrid
             issues={dash.issues}
             filterPressDay={filterPressDay}
             onIssueClick={handleIssueClick}
           />
-        </div>
+        </SectionCard>
 
         <ActivityStream
           events={dash.events}
@@ -117,17 +114,6 @@ export default function PublisherDashboard({ team, currentUser, onNavigate, hide
         subscribersNetChange={dash.glance?.subscribers_net_change}
         onOpenFinancials={() => onNavigate?.("billing")}
       />
-    </div>
-  );
-}
-
-function SectionHeader({ children }) {
-  return (
-    <div style={{
-      fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
-      textTransform: "uppercase", letterSpacing: 1, fontFamily: COND,
-    }}>
-      {children}
     </div>
   );
 }

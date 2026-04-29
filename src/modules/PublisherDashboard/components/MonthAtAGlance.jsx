@@ -3,6 +3,7 @@
 import { Z, COND, DISPLAY, FS, FW, R } from "../../../lib/theme";
 import { fmtCurrencyWhole } from "../../../lib/formatters";
 import { MONTH_AT_A_GLANCE_BANDS } from "../constants";
+import SectionCard from "./SectionCard";
 
 const fmtKish = (n) => {
   const v = Number(n) || 0;
@@ -50,37 +51,26 @@ export default function MonthAtAGlance({
   const subTone = subDelta >= 0 ? Z.go : Z.da;
   const subSign = subDelta > 0 ? "+" : "";
 
-  return (
-    <div style={{
-      background: Z.sa,
-      border: `1px solid ${Z.bd}`,
-      borderRadius: R,
-      padding: 16,
-      display: "flex", flexDirection: "column", gap: 12,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>
-          Month at a Glance
-        </div>
-        {onOpenFinancials && (
-          <button
-            onClick={onOpenFinancials}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: Z.ac,
-              fontSize: FS.xs,
-              fontWeight: FW.bold,
-              fontFamily: COND,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            Open Financials →
-          </button>
-        )}
-      </div>
+  const openFinancials = onOpenFinancials && (
+    <button
+      onClick={onOpenFinancials}
+      style={{
+        background: "transparent",
+        border: "none",
+        color: Z.ac,
+        fontSize: FS.xs,
+        fontWeight: FW.bold,
+        fontFamily: COND,
+        cursor: "pointer",
+        padding: 0,
+      }}
+    >
+      Open Financials →
+    </button>
+  );
 
+  return (
+    <SectionCard title="Month at a Glance" controls={openFinancials}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         {tile(
           "Revenue",
@@ -107,6 +97,6 @@ export default function MonthAtAGlance({
           subTone,
         )}
       </div>
-    </div>
+    </SectionCard>
   );
 }
