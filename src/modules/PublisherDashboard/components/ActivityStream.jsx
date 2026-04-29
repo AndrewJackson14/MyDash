@@ -71,8 +71,17 @@ export default function ActivityStream({
           </div>
         )}
         {events.map(row => {
+          // Prefer the denormalized actor_name written by log_activity RPC;
+          // fall back to a team_members lookup via actor_id; final fall-
+          // back is the row's own client_name (gives "Someone" only on
+          // truly orphaned rows).
+          const actorName =
+            row.actor_name
+            || resolveActor?.(row.actor_id)
+            || row.client_name
+            || "Someone";
           const ctx = {
-            actorName: resolveActor?.(row.user_id) || row.client_name || "Someone",
+            actorName,
             clientName: resolveClient?.(row.client_id, row.client_name) || row.client_name,
             publicationName: resolvePublication?.(row.publication_id) || null,
           };

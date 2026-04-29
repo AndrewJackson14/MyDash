@@ -22,9 +22,9 @@ export default function usePublisherDashboard({ team }) {
     return m;
   }, [team]);
 
-  const resolveActor = useCallback((userId) => {
-    if (!userId) return null;
-    return teamById.get(userId) || null;
+  const resolveActor = useCallback((actorId) => {
+    if (!actorId) return null;
+    return teamById.get(actorId) || null;
   }, [teamById]);
 
   const resolveClient = useCallback((_clientId, fallback) => fallback || null, []);

@@ -12,6 +12,12 @@
 -- ────────────────────────────────────────────────────────────────────
 -- 1. activity_log — additive columns (nullable, back-compat)
 -- ────────────────────────────────────────────────────────────────────
+-- Note: production schema diverged from migration 001 via hand-applied
+-- SQL editor changes (untracked). Actual columns:
+--   id, type, client_id, client_name, sale_id, detail, actor_id,
+--   actor_name, created_at
+-- Migration 001 said `text` and `user_id`; production has `detail` and
+-- `actor_id`. Below uses the actual production column names.
 ALTER TABLE activity_log
   ADD COLUMN IF NOT EXISTS entity_table   text,
   ADD COLUMN IF NOT EXISTS entity_id      uuid,
@@ -19,19 +25,19 @@ ALTER TABLE activity_log
   ADD COLUMN IF NOT EXISTS metadata       jsonb,
   ADD COLUMN IF NOT EXISTS publication_id text REFERENCES publications(id);
 
--- Backfill summary from existing text column so reads work uniformly.
+-- Backfill summary from existing detail column so reads work uniformly.
 UPDATE activity_log
-SET summary = text
-WHERE summary IS NULL AND text IS NOT NULL;
+SET summary = detail
+WHERE summary IS NULL AND detail IS NOT NULL;
 
 -- Indexes for the publisher activity stream queries.
 CREATE INDEX IF NOT EXISTS idx_activity_log_pub_date
   ON activity_log(publication_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_actor_date
-  ON activity_log(user_id, created_at DESC);
+  ON activity_log(actor_id, created_at DESC);
 
 COMMENT ON COLUMN activity_log.summary IS
-  'Human-readable summary string. Replaces the legacy `text` column going forward; both populated during migration window.';
+  'Human-readable summary string. Mirrors the legacy `detail` column going forward; both populated during migration window.';
 COMMENT ON COLUMN activity_log.entity_table IS
   'Source table of the entity this row describes (proposals, contracts, ad_projects, stories, layout_pages, invoices, notes).';
 COMMENT ON COLUMN activity_log.entity_id IS
@@ -118,7 +124,7 @@ CREATE OR REPLACE VIEW publisher_alerts AS
 SELECT
   'deadline_critical'                              AS alert_type,
   'critical'                                       AS severity,
-  i.id                                             AS source_id,
+  i.id::text                                       AS source_id,
   'issues'                                         AS source_table,
   i.pub_id                                         AS publication_id,
   format('%s — press tomorrow at %s%% sold',
@@ -149,7 +155,7 @@ UNION ALL
 SELECT
   'awaiting_signoff'                               AS alert_type,
   'warning'                                        AS severity,
-  i.id                                             AS source_id,
+  i.id::text                                       AS source_id,
   'issues'                                         AS source_table,
   i.pub_id                                         AS publication_id,
   format('%s %s needs your sign-off (press %s)',
@@ -173,7 +179,7 @@ UNION ALL
 SELECT
   'escalation'                                     AS alert_type,
   'warning'                                        AS severity,
-  tn.id                                            AS source_id,
+  tn.id::text                                      AS source_id,
   'team_notes'                                     AS source_table,
   NULL                                             AS publication_id,
   COALESCE(left(tn.message, 80), 'Escalation')    AS summary,
@@ -290,22 +296,28 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_actor uuid;
-  v_id    uuid;
+  v_actor_id   uuid;
+  v_actor_name text;
+  v_id         uuid;
 BEGIN
-  SELECT id INTO v_actor
+  SELECT id, name INTO v_actor_id, v_actor_name
     FROM team_members
    WHERE auth_id = auth.uid()
    LIMIT 1;
 
+  -- Production columns: detail (legacy text), type, summary, actor_id,
+  -- actor_name, client_id, client_name, entity_table, entity_id,
+  -- publication_id, metadata. Both `detail` and `summary` written so legacy
+  -- readers (SalesCRM activity strip) and new readers (publisher stream)
+  -- both see the row.
   INSERT INTO activity_log (
-    text, type, summary,
-    user_id, client_id, client_name,
+    detail, type, summary,
+    actor_id, actor_name, client_id, client_name,
     entity_table, entity_id, publication_id, metadata
   )
   VALUES (
     p_summary, p_event_type, p_summary,
-    v_actor, p_client_id, p_client_name,
+    v_actor_id, v_actor_name, p_client_id, p_client_name,
     p_entity_table, p_entity_id, p_publication_id, p_metadata
   )
   RETURNING id INTO v_id;
