@@ -1,0 +1,271 @@
+{
+  "version": "1.0",
+  "last_scan": "2026-04-29",
+  "source_of_truth": {
+    "modules": "src/pages/TeamModule.jsx#MODULES",
+    "role_defaults": "src/pages/TeamModule.jsx#ROLE_DEFAULTS",
+    "team_roles_canonical": "src/pages/TeamModule.jsx#TEAM_ROLES",
+    "departments": "src/pages/TeamModule.jsx#DEPARTMENTS",
+    "nav": "src/App.jsx#NAV",
+    "page_meta": "src/data/pageMeta.js#PAGE_META",
+    "role_dashboards": "src/components/RoleDashboard.jsx",
+    "auth_model": "src/hooks/useAuth.jsx",
+    "permission_check": "src/App.jsx hasModule(navId)",
+    "domain_map": "BUSINESS_DOMAINS.md"
+  },
+  "auth_model": {
+    "store": "Supabase auth.users <-> public.team_members (via team_members.auth_id)",
+    "permission_field": "team_members.module_permissions (text[]) — nav id whitelist per user",
+    "role_field": "team_members.role (text)",
+    "admin_override": "permissions array contains 'admin' — bypasses module_permissions check",
+    "always_visible_modules": ["messaging", "mail"],
+    "jurisdiction_field": "team_members.assigned_pubs (uuid[]) — 'all' or list of pub ids; scopes most data fetches via useJurisdiction"
+  },
+  "roles": [
+    {
+      "id": "publisher",
+      "display_name": "Publisher",
+      "team_role_label": "Publisher",
+      "department": "Leadership",
+      "members": ["Hayley Mattson"],
+      "modules": "all",
+      "primary_dashboard": "DashboardV2 (org-wide, special-cased in App.jsx)",
+      "owns_decisions": [
+        "issue-publisher-signoff",
+        "send-to-press-authorization",
+        "rate-card-and-pricing-changes",
+        "credit-hold-clear",
+        "make-good-credit-memos",
+        "team-roster-and-permissions",
+        "publication-roster-and-org-settings",
+        "renewal-and-rate-tier-overrides",
+        "background-and-org-branding"
+      ],
+      "key_rpcs_owned": [
+        "publisher_signoff (UPDATE issues SET publisher_signoff_at, publisher_signoff_by)",
+        "send-to-press (Edge Function)"
+      ]
+    },
+    {
+      "id": "editor-in-chief",
+      "display_name": "Editor-in-Chief",
+      "team_role_label": "Editor-in-Chief",
+      "department": "Leadership",
+      "members": ["Nic Mattson"],
+      "modules": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation", "social-composer"],
+      "primary_dashboard": "RoleDashboard 'Content Editor' branch (folds Editor-in-Chief in)",
+      "owns_decisions": [
+        "story-approve-for-web",
+        "story-approve-for-print",
+        "kill-story",
+        "category-and-section-taxonomy",
+        "editorial-permissions-per-pub-per-user",
+        "newsletter-final-approval",
+        "social-post-approval-when-needed",
+        "system-admin-when-publisher-delegates"
+      ],
+      "key_rpcs_owned": [
+        "publishStory (sets sent_to_web=true, status='Ready', stamps published_at)",
+        "unpublishStory"
+      ]
+    },
+    {
+      "id": "content-editor",
+      "display_name": "Content Editor",
+      "team_role_label": "Content Editor",
+      "department": "Editorial",
+      "members": ["Camille"],
+      "modules": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
+      "primary_dashboard": "RoleDashboard 'Content Editor' branch",
+      "owns_decisions": [
+        "story-edit-pass",
+        "copy-edit-and-style",
+        "category-assignment",
+        "featured-image-selection",
+        "seo-headline-and-meta",
+        "newsletter-composition",
+        "social-post-drafting",
+        "ready-for-layout-handoff"
+      ],
+      "key_rpcs_owned": []
+    },
+    {
+      "id": "layout-designer",
+      "display_name": "Layout Designer",
+      "team_role_label": "Layout Designer",
+      "department": "Design / Production",
+      "members": ["Anthony"],
+      "modules": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
+      "primary_dashboard": "RoleDashboard 'Layout Designer' branch (also handles Production Manager)",
+      "owns_decisions": [
+        "page-layout-and-fit",
+        "story-to-page-placement",
+        "ad-to-grid-cell-placement",
+        "layout-reference-uploads",
+        "flag-back-to-content-editor",
+        "press-readiness-checklist",
+        "send-to-press-trigger (after publisher_signoff)"
+      ],
+      "key_rpcs_owned": [
+        "flatplan_page_status (mark page completed)",
+        "flatplan_page_layouts (upload reference)",
+        "send-to-press (Edge Function trigger)"
+      ]
+    },
+    {
+      "id": "ad-designer",
+      "display_name": "Ad Designer",
+      "team_role_label": "Ad Designer",
+      "department": "Design / Production",
+      "members": ["Jen"],
+      "modules": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
+      "primary_dashboard": "RoleDashboard 'Ad Designer' branch (also activated for Graphic Designer with title='Ad Designer')",
+      "owns_decisions": [
+        "proof-design-pass",
+        "designer-signoff",
+        "revision-billing-threshold",
+        "asset-request-to-client",
+        "camera-ready-acceptance",
+        "ad-to-flatplan-handoff"
+      ],
+      "key_rpcs_owned": [
+        "ad_proofs INSERT (upload new proof version)",
+        "ad_projects.designer_signoff_at (designer signoff)",
+        "send-proof Edge Function"
+      ]
+    },
+    {
+      "id": "sales-rep",
+      "display_name": "Sales Representative",
+      "team_role_label": "Salesperson",
+      "department": "Sales",
+      "members": ["Dana McGraw", "Christie Coyes"],
+      "modules": ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects"],
+      "primary_dashboard": "RoleDashboard 'Salesperson' branch (also handles Sales Manager)",
+      "owns_decisions": [
+        "lead-qualify-or-dismiss",
+        "client-create-and-contact-update",
+        "proposal-build-and-send",
+        "contract-sign-trigger",
+        "salesperson-signoff-on-proof",
+        "renewal-outreach",
+        "outreach-campaign-entry-update",
+        "communications-log-entry"
+      ],
+      "key_rpcs_owned": [
+        "convert_proposal_to_contract (via convertProposal in useAppData)",
+        "ad_projects salesperson_signoff_at",
+        "outreach_entries / outreach_campaigns",
+        "communications log"
+      ]
+    },
+    {
+      "id": "office-admin",
+      "display_name": "Office Administrator",
+      "team_role_label": "Office Administrator",
+      "department": "Administration",
+      "members": ["Cami"],
+      "modules": ["dashboard", "calendar", "billing", "circulation", "servicedesk", "legalnotices"],
+      "primary_dashboard": "RoleDashboard fallback (no dedicated branch yet)",
+      "owns_decisions": [
+        "invoice-mint-and-send",
+        "payment-record-and-reconcile",
+        "bills-AP-entry",
+        "subscriber-CRUD",
+        "subscription-payment-record",
+        "service-desk-triage",
+        "legal-notice-billing-link",
+        "QuickBooks-sync-supervision"
+      ],
+      "key_rpcs_owned": [
+        "insertInvoice / updateInvoice",
+        "insertPayment",
+        "insertBill / updateBill / deleteBill",
+        "insertLegalNotice + auto-billing-link",
+        "QBO sync (via qb-api Edge Function)"
+      ]
+    }
+  ],
+  "modules": [
+    { "id": "dashboard",       "path": "/",                   "page_label": "My Dash",           "department": "DASH",        "primary_role": "all",              "roles": "all" },
+    { "id": "calendar",        "path": "/calendar",           "page_label": "Calendar",          "department": "DASH",        "primary_role": "all",              "roles": "all" },
+    { "id": "messaging",       "path": "/messaging",          "page_label": "Messages",          "department": "DASH",        "primary_role": "all",              "roles": "all (always visible)" },
+    { "id": "mail",            "path": "/mail",               "page_label": "Mail",              "department": "DASH",        "primary_role": "all",              "roles": "all (always visible)" },
+    { "id": "sales",           "path": "/sales",              "page_label": "Sales",             "department": "REVENUE",     "primary_role": "sales-rep",        "roles": ["publisher", "sales-rep", "sales-manager"] },
+    { "id": "contracts",       "path": "/contracts",          "page_label": "Contracts",         "department": "REVENUE",     "primary_role": "sales-rep",        "roles": ["publisher", "sales-rep", "sales-manager"] },
+    { "id": "billing",         "path": "/billing",            "page_label": "Billing",           "department": "REVENUE",     "primary_role": "office-admin",     "roles": ["publisher", "office-admin", "sales-rep", "sales-manager"] },
+    { "id": "editorial",       "path": "/editorial",          "page_label": "Production",        "department": "EDITORIAL",   "primary_role": "content-editor",   "roles": ["publisher", "editor-in-chief", "content-editor", "layout-designer", "ad-designer", "writer-reporter", "stringer", "copy-editor"] },
+    { "id": "adprojects",      "path": "/adprojects",         "page_label": "Design Studio",     "department": "EDITORIAL",   "primary_role": "ad-designer",      "roles": ["publisher", "editor-in-chief", "ad-designer", "layout-designer", "sales-rep", "sales-manager"] },
+    { "id": "medialibrary",    "path": "/medialibrary",       "page_label": "Media Library",     "department": "EDITORIAL",   "primary_role": "content-editor",   "roles": ["publisher", "editor-in-chief", "content-editor", "ad-designer", "layout-designer", "copy-editor"] },
+    { "id": "flatplan",        "path": "/flatplan",           "page_label": "Flatplan",          "department": "EDITORIAL",   "primary_role": "layout-designer",  "roles": ["publisher", "editor-in-chief", "layout-designer", "ad-designer", "sales-rep", "sales-manager", "content-editor"] },
+    { "id": "layout",          "path": "/layout",             "page_label": "Layout Console",    "department": "EDITORIAL",   "primary_role": "layout-designer",  "roles": ["publisher", "layout-designer"] },
+    { "id": "tearsheets",      "path": "/tearsheets",         "page_label": "Tearsheet Center",  "department": "EDITORIAL",   "primary_role": "office-admin",     "roles": ["publisher", "office-admin", "sales-rep"] },
+    { "id": "collections",     "path": "/collections",        "page_label": "Collections",       "department": "EDITORIAL",   "primary_role": "office-admin",     "roles": ["publisher", "office-admin"] },
+    { "id": "newsletters",     "path": "/newsletters",        "page_label": "Newsletters",       "department": "EDITORIAL",   "primary_role": "content-editor",   "roles": ["publisher", "editor-in-chief", "content-editor"] },
+    { "id": "social-composer", "path": "/social-composer",    "page_label": "Social Composer",   "department": "EDITORIAL",   "primary_role": "content-editor",   "roles": ["publisher", "editor-in-chief", "content-editor"] },
+    { "id": "sitesettings",    "path": "/sitesettings",       "page_label": "MySites",           "department": "EDITORIAL",   "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief"] },
+    { "id": "knowledgebase",   "path": "/knowledgebase",      "page_label": "Knowledge Base",    "department": "EDITORIAL",   "primary_role": "all",              "roles": "all" },
+    { "id": "bookings-queue",  "path": "/bookings-queue",     "page_label": "Booking Queue",     "department": "ADVERTISING", "primary_role": "office-admin",     "roles": ["publisher", "office-admin", "ad-designer"] },
+    { "id": "classifieds",     "path": "/classifieds",        "page_label": "Classifieds",       "department": "ADVERTISING", "primary_role": "office-admin",     "roles": ["publisher", "office-admin"] },
+    { "id": "merch",           "path": "/merch",              "page_label": "Merch",             "department": "ADVERTISING", "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "circulation",     "path": "/circulation",        "page_label": "Circulation",       "department": "OPERATIONS",  "primary_role": "office-admin",     "roles": ["publisher", "office-admin", "editor-in-chief"] },
+    { "id": "servicedesk",     "path": "/servicedesk",        "page_label": "Service Desk",      "department": "OPERATIONS",  "primary_role": "office-admin",     "roles": ["publisher", "office-admin"] },
+    { "id": "legalnotices",    "path": "/legalnotices",       "page_label": "Legal Notices",     "department": "OPERATIONS",  "primary_role": "office-admin",     "roles": ["publisher", "office-admin"] },
+    { "id": "performance",     "path": "/performance",        "page_label": "Performance Review","department": "EDITORIAL",   "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief"] },
+    { "id": "analytics",       "path": "/analytics",          "page_label": "Reports",           "department": "ANALYTICS",   "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief", "sales-manager"] },
+    { "id": "team",            "path": "/team",               "page_label": "Team",              "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief"] },
+    { "id": "publications",    "path": "/publications",       "page_label": "Publications",      "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "schedule",        "path": "/schedule",           "page_label": "Schedule",          "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief"] },
+    { "id": "emailtemplates",  "path": "/emailtemplates",     "page_label": "Email Templates",   "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "integrations",    "path": "/integrations",       "page_label": "Integrations",      "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "dataimport",      "path": "/dataimport",         "page_label": "Data Import",       "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "permissions",     "path": "/permissions",        "page_label": "Permissions",       "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher"] },
+    { "id": "team-member",     "path": "/team-member",        "page_label": "Team Member",      "department": "ADMIN",       "primary_role": "publisher",        "roles": ["publisher", "editor-in-chief"] },
+    { "id": "issue-detail",    "path": "/schedule?issueId=…", "page_label": "Issue",             "department": "EDITORIAL",   "primary_role": "publisher",        "roles": "all (read-only context view)" }
+  ],
+  "module_perm_keys_managed_in_team_module": [
+    "dashboard","calendar","sales","contracts","billing","editorial","flatplan","adprojects",
+    "newsletters","social-composer","sitesettings","medialibrary","circulation","servicedesk",
+    "legalnotices","team","publications","schedule","analytics","emailtemplates","integrations",
+    "dataimport","permissions"
+  ],
+  "key_workflows": [
+    {
+      "id": "ad-lifecycle",
+      "name": "Ad sale → contract → ad project → proof → flatplan → press → invoice",
+      "owners_in_order": ["sales-rep", "ad-designer", "sales-rep", "ad-designer", "layout-designer", "publisher", "office-admin"],
+      "key_rpcs": ["convert_proposal_to_contract", "ad_projects (created on sale closed)", "send-proof", "send-to-press", "insertInvoice"]
+    },
+    {
+      "id": "editorial-flow",
+      "name": "Pitch → assign → draft → edit → approve-for-web → publish → place-on-page → press",
+      "owners_in_order": ["editor-in-chief", "content-editor", "writer-reporter", "content-editor", "editor-in-chief", "content-editor", "layout-designer", "publisher"],
+      "key_rpcs": ["publishStory (sets sent_to_web=true, published_at)", "unpublishStory", "page_stories", "send-to-press"]
+    },
+    {
+      "id": "issue-press-readiness",
+      "name": "Issue layout complete → publisher signoff → send-to-press → tearsheet generation",
+      "owners_in_order": ["layout-designer", "publisher", "layout-designer", "office-admin"],
+      "key_rpcs": ["UPDATE issues SET publisher_signoff_at, publisher_signoff_by", "send-to-press Edge Function", "generate-tearsheets"]
+    },
+    {
+      "id": "ar-cycle",
+      "name": "Invoice mint → send → payment → reconcile → QBO sync → commission ledger",
+      "owners_in_order": ["sales-rep", "office-admin", "office-admin", "office-admin", "publisher"],
+      "key_rpcs": ["insertInvoice", "send-statement", "stripe-webhook", "qb-api", "commissions recalculate"]
+    },
+    {
+      "id": "subscription-renewal",
+      "name": "Subscriber expiry approaching → renewal email cadence → payment → end_date roll-forward",
+      "owners_in_order": ["office-admin"],
+      "key_rpcs": ["renewal email send (Gmail)", "subscription_payments insert", "stripe-webhook (for auto-renew)"]
+    }
+  ],
+  "infrastructure_notes": {
+    "supabase_migrations_count": 178,
+    "edge_functions_count": 49,
+    "permission_model": "module_permissions array on team_members; admin permission bypasses",
+    "rls_pattern": "Most tables read-restricted to authenticated; recent migrations (167, 168) tightened internal tables to authenticated role",
+    "scoping": "Most data fetches scoped by jurisdiction.myPubs (assigned_pubs on team_members)"
+  }
+}
