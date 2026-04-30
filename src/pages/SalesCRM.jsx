@@ -183,7 +183,38 @@ const SalesCRM = (props) => {
   const recentPublishedIssueIds = new Set((issues || []).filter(i => i.date && i.date >= fiveDaysAgo && i.date <= today).map(i => i.id));
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const addNotif = (t) => { if (setNotifications) setNotifications(n => [...n, { id: "n" + Date.now(), text: t, time: new Date().toLocaleTimeString(), read: false }]); };
-  const logActivity = (t, type, cId, cName) => setActivityLog(a => [{ id: "al" + Date.now(), text: t, time: new Date().toLocaleTimeString(), type, clientId: cId, clientName: cName }, ...a].slice(0, 50));
+  // Local-state activity strip + parallel mirror to the global
+  // activity_log RPC for selected pipeline events. The strip serves
+  // the in-page UX (50-row rolling feed); the RPC feeds Hayley's
+  // publisher stream + Sales Rep target progress. Heuristic mapping
+  // below — soft fail (a missed mapping just means that one transition
+  // doesn't surface in the team-wide feed).
+  const logActivity = (t, type, cId, cName) => {
+    setActivityLog(a => [{ id: "al" + Date.now(), text: t, time: new Date().toLocaleTimeString(), type, clientId: cId, clientName: cName }, ...a].slice(0, 50));
+    // Pipeline transitions are the events worth Hayley's attention.
+    // Effort events (calls / emails) are intentionally NOT mirrored
+    // here — they're already covered (calls via QuickLogButton, emails
+    // via the email_log → activity_log trigger from migration 171).
+    if (type !== "pipeline" && type !== "opp") return;
+    let eventType = null;
+    let eventCategory = "transition";
+    if (t.startsWith("→ Closed"))           { eventType = "deal_closed";       eventCategory = "outcome";    }
+    else if (t.startsWith("Lost:"))         { eventType = "deal_lost";         eventCategory = "outcome";    }
+    else if (t.startsWith("→ "))            { eventType = "deal_advanced";                                     }
+    else if (t.startsWith("New client:"))   { eventType = "client_created";                                    }
+    else if (t.startsWith("New opportunity")) { eventType = "opportunity_created";                              }
+    else if (t.startsWith("Repeat → "))     { eventType = "opportunity_created";                                }
+    if (!eventType) return;
+    supabase.rpc("log_activity", {
+      p_event_type:     eventType,
+      p_summary:        t,
+      p_event_category: eventCategory,
+      p_event_source:   "mydash",
+      p_client_id:      cId || null,
+      p_client_name:    cName || null,
+      p_visibility:     "team",
+    }).then(r => { if (r.error) console.warn("[salescrm logActivity rpc]", r.error.message); });
+  };
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const dateColor = (d) => { if (!d) return Z.td; if (d < today) return Z.da; if (d === today) return Z.wa; if (d <= nextWeek) return Z.su; return Z.td; };
   const stageRevenue = (st) => sales.filter(s => s.status === st).reduce((sm, s) => sm + s.amount, 0);
