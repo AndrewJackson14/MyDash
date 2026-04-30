@@ -33,6 +33,7 @@ export const PAGE_META = {
   newsletters:      { label: "Newsletters",       department: "EDITORIAL" },
   sitesettings:     { label: "MySites",           department: "EDITORIAL" },
   knowledgebase:    { label: "Knowledge Base",    department: "EDITORIAL" },
+  rolekb:           { label: "Role Docs",         department: "EDITORIAL" },
   journal:          { label: "Journal",           department: "EDITORIAL" },
 
   // Advertising

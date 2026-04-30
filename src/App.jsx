@@ -45,6 +45,7 @@ const RoleDashboard = lazyLoad(() => import("./components/RoleDashboard"));
 const RoleActivityStrip = lazy(() => import("./components/activity-log/RoleActivityStrip"));
 const SupportAdminJournal = lazyLoad(() => import("./modules/SupportAdminJournal"));
 const ActivityTargetsAdmin = lazyLoad(() => import("./modules/ActivityTargetsAdmin"));
+const RoleKB = lazyLoad(() => import("./modules/RoleKB"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
 const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
@@ -437,6 +438,10 @@ export default function App() {
       const url = new URL(newPg, "https://x");
       const pageName = url.pathname.replace("/", "");
       const params = Object.fromEntries(url.searchParams);
+      // URL fragment lands as `anchor` in deepLink so consumers like
+      // RoleKB can scroll to the right heading. URL.hash includes the
+      // leading `#`; strip it.
+      if (url.hash) params.anchor = url.hash.replace(/^#/, "");
       setDeepLink(params);
       // Team-member page reads member id from selectedTeamMemberId state, not
       // deepLink. Bridge the two so nav.toTeamMember(id) actually opens the
@@ -605,7 +610,7 @@ export default function App() {
   const hasModule = (navId) => {
     if (isAdmin && !impersonating) return true;
     // Always visible
-    if (["messaging", "mail"].includes(navId)) return true;
+    if (["messaging", "mail", "rolekb"].includes(navId)) return true;
     // Dev surfaces (UI-refresh sample routes) are visible to anyone in DEV.
     if (navId.startsWith("dev-") && import.meta.env.DEV) return true;
     // Support-admin journal — Nic-only by role; private RLS on the
@@ -644,6 +649,7 @@ export default function App() {
     { id: "social-composer", label: "Social Composer", icon: Ic.send },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
+    { id: "rolekb", label: "Role Docs", icon: Ic.book },
     { id: "journal", label: "Journal", icon: Ic.book },
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "bookings-queue", label: "Booking Queue", icon: Ic.bell },
@@ -884,6 +890,7 @@ export default function App() {
         {show("legalnotices") && <div style={vis("legalnotices")}><ErrorBoundary name="page:legalnotices"><LegalNotices isActive={pg === "legalnotices"} legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} onNavigate={handleNav} /></ErrorBoundary></div>}
         {show("adprojects") && <div style={vis("adprojects")}><ErrorBoundary name="page:adprojects"><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></ErrorBoundary></div>}
         {show("knowledgebase") && <div style={vis("knowledgebase")}><ErrorBoundary name="page:knowledgebase"><KnowledgeBase isActive={pg === "knowledgebase"} team={team} currentUser={currentUser} /></ErrorBoundary></div>}
+        {show("rolekb") && <div style={vis("rolekb")}><ErrorBoundary name="page:rolekb"><RoleKB deepLink={deepLink} /></ErrorBoundary></div>}
         {show("journal") && <div style={vis("journal")}><ErrorBoundary name="page:journal"><SupportAdminJournal /></ErrorBoundary></div>}
         {/* P2.27 — CreativeJobs sunset. Module retired in favor of
             AdProjects. Lazy import + sidebar entry removed; data
