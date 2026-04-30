@@ -1644,6 +1644,41 @@ export function DataProvider({ children, localData }) {
     const ns = { ...story, id: 'st-' + Date.now() }; setStories(st => [...st, ns]); return ns;
   }, []);
 
+  // Canonical activity log writer. Routes through log_activity RPC so the
+  // row picks up actor_id/actor_role from auth.uid() and lands with the
+  // spec-wide schema (event_category, event_source, visibility, etc).
+  // Backward-compatible call shape: logActivity(summary, type, clientId, clientName)
+  // works as before; new callers pass the wider opts object.
+  //
+  // MUST stay declared above publishStory / unpublishStory / proposal +
+  // invoice helpers — they reference logActivity in their useCallback deps,
+  // and `const` TDZ would throw ReferenceError on render if logActivity
+  // were declared later in this component body.
+  //
+  // Pre-mig-170 helper wrote {text, type, client_id, client_name} directly
+  // — but the production column is `detail`, not `text`, so those rows
+  // landed with NULL detail. RPC fixes that and stamps the actor properly.
+  const logActivity = useCallback(async (summary, type, clientId, clientName, opts = {}) => {
+    if (!isOnline()) return;
+    const { error } = await supabase.rpc('log_activity', {
+      p_event_type:        type,
+      p_summary:           summary,
+      p_event_category:    opts.eventCategory  || 'transition',
+      p_event_source:      opts.eventSource    || 'mydash',
+      p_entity_table:      opts.entityTable    || null,
+      p_entity_id:         opts.entityId       || null,
+      p_entity_summary:    opts.entitySummary  || null,
+      p_publication_id:    opts.publicationId  || null,
+      p_client_id:         clientId            || null,
+      p_client_name:       clientName          || null,
+      p_related_user_id:   opts.relatedUserId  || null,
+      p_metadata:          opts.metadata       || null,
+      p_visibility:        opts.visibility     || 'team',
+      p_detail:            opts.detail         || null,
+    });
+    if (error) console.warn('[logActivity] failed:', error.message);
+  }, []);
+
   const publishStory = useCallback(async (id, { title, body, excerpt, category, siteId, featuredImageUrl, seoTitle, seoDescription, scheduledAt }) => {
     // Sanitize story body at the publish boundary (audit S-8). Every
     // render path currently goes through DOMPurify too, so this is
@@ -2070,35 +2105,8 @@ export function DataProvider({ children, localData }) {
     if (isOnline()) await supabase.from('notifications').update({ read: true }).eq('read', false);
   }, []);
 
-  // Canonical activity log writer. Routes through log_activity RPC so the
-  // row picks up actor_id/actor_role from auth.uid() and lands with the
-  // spec-wide schema (event_category, event_source, visibility, etc).
-  // Backward-compatible call shape: logActivity(summary, type, clientId, clientName)
-  // works as before; new callers pass the wider opts object.
-  //
-  // Pre-mig-170 helper wrote {text, type, client_id, client_name} directly
-  // — but the production column is `detail`, not `text`, so those rows
-  // landed with NULL detail. RPC fixes that and stamps the actor properly.
-  const logActivity = useCallback(async (summary, type, clientId, clientName, opts = {}) => {
-    if (!isOnline()) return;
-    const { error } = await supabase.rpc('log_activity', {
-      p_event_type:        type,
-      p_summary:           summary,
-      p_event_category:    opts.eventCategory  || 'transition',
-      p_event_source:      opts.eventSource    || 'mydash',
-      p_entity_table:      opts.entityTable    || null,
-      p_entity_id:         opts.entityId       || null,
-      p_entity_summary:    opts.entitySummary  || null,
-      p_publication_id:    opts.publicationId  || null,
-      p_client_id:         clientId            || null,
-      p_client_name:       clientName          || null,
-      p_related_user_id:   opts.relatedUserId  || null,
-      p_metadata:          opts.metadata       || null,
-      p_visibility:        opts.visibility     || 'team',
-      p_detail:            opts.detail         || null,
-    });
-    if (error) console.warn('[logActivity] failed:', error.message);
-  }, []);
+  // logActivity is declared above publishStory — see the comment block
+  // there for why it MUST live above its first use (TDZ).
 
   // ============================================================
   // Write helpers — Phase 2 tables
