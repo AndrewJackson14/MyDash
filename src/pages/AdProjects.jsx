@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV, ACCENT } from "../lib/theme";
 import { Ic, Btn, Inp, TA, Sel, Modal, Badge, PageHeader, GlassCard, TabRow, TB, TabPipe, DataTable, SB, Toggle, Pill, EntityLink } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
+import KBLink from "../components/KBLink";
 import { useNav } from "../hooks/useNav";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
@@ -1265,10 +1266,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   // ── LIST VIEW ──────────────────────────────────────────
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     {/* Action row — title moved to TopBar via usePageHeader. */}
-    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-      <SB value={sr} onChange={setSr} placeholder="Search clients..." />
-      <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
-      <Sel value={fDesigner} onChange={e => setFDesigner(e.target.value)} options={[{ value: "all", label: "All Designers" }, ...((team || []).filter(t => ["Ad Designer", "Layout Designer", "Graphic Designer"].includes(t.role) && t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => ({ value: t.id, label: t.name })))]} />
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+      <KBLink role="ad-designer" anchor="key-workflows" onNavigate={onNavigate}>
+        How does the proof pipeline work?
+      </KBLink>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <SB value={sr} onChange={setSr} placeholder="Search clients..." />
+        <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
+        <Sel value={fDesigner} onChange={e => setFDesigner(e.target.value)} options={[{ value: "all", label: "All Designers" }, ...((team || []).filter(t => ["Ad Designer", "Layout Designer", "Graphic Designer"].includes(t.role) && t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => ({ value: t.id, label: t.name })))]} />
+      </div>
     </div>
 
     {/* View toggle + tabs */}
