@@ -345,12 +345,12 @@ export const FONT_URL = "https://fonts.googleapis.com/css2?family=Source+Sans+3:
 //   2. (follow-up) Sweep ~1,662 hardcoded `fontSize: <number>`
 //      literals to FS.* tokens so they also flow through CSS.
 export const FS = {
-  micro: "var(--fs-micro)",   // 12px — uppercase annotations, tiny labels
-  xs:    "var(--fs-xs)",      // 13px — table headers, timestamps, section labels
-  sm:    "var(--fs-sm)",      // 14px — meta text, badges, subtitle lines
-  base:  "var(--fs-base)",    // 15px — default body text, descriptions
-  md:    "var(--fs-md)",      // 16px — list item titles, table body, primary content
-  lg:    "var(--fs-lg)",      // 18px — section headings inside cards
+  micro: "var(--fs-micro)",   // 13px — uppercase annotations, tiny labels
+  xs:    "var(--fs-xs)",      // 14px — table headers, timestamps, section labels
+  sm:    "var(--fs-sm)",      // 15px — meta text, badges, subtitle lines
+  base:  "var(--fs-base)",    // 16px — default body text, descriptions
+  md:    "var(--fs-md)",      // 17px — list item titles, table body, primary content
+  lg:    "var(--fs-lg)",      // 19px — section headings inside cards
   xl:    "var(--fs-xl)",      // 22px — stat values, sub-page titles
   title: "var(--fs-title)",   // 24px — page titles (PageHeader)
   xxl:   "var(--fs-xxl)",     // 26px — dashboard greeting, page-level display
