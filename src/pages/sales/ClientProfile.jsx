@@ -5,7 +5,7 @@ import { useNav } from "../../hooks/useNav";
 import AssetPanel from "../../components/AssetPanel";
 import EntityThread from "../../components/EntityThread";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
-import { computeClientStatus, CLIENT_STATUS_COLORS, INDUSTRIES, actInfo } from "./constants";
+import { computeClientStatus, CLIENT_STATUS_COLORS, actInfo } from "./constants";
 import { useAppData } from "../../hooks/useAppData";
 import { supabase, EDGE_FN_URL } from "../../lib/supabase";
 import SendTearsheetModal from "../../components/SendTearsheetModal";

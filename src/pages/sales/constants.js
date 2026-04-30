@@ -33,19 +33,6 @@ export const STAGE_AUTO_ACTIONS = {
 
 export const actInfo = (act) => { if (!act) return null; if (typeof act === "string") return { type: "task", label: act, ...ACTION_TYPES.task }; const base = ACTION_TYPES[act.type] || ACTION_TYPES.task; return { ...base, ...act }; };
 
-export const INDUSTRIES = [
-  "Wine & Spirits", "Restaurants & Dining", "Real Estate", "Home Services",
-  "Financial Services", "Healthcare & Wellness", "Legal Services", "Automotive",
-  "Retail / Shopping", "Hospitality / Hotels & Lodging", "Agriculture / Farming / Ranching",
-  "Education", "Nonprofit / Community", "Government / Public Agencies",
-  "Construction / Development", "Technology", "Arts & Entertainment",
-  "Beauty & Personal Care", "Fitness & Recreation", "Food & Beverage",
-  "Accounting & Tax", "Marketing & Advertising", "Architecture & Design",
-  "Engineering", "Consulting", "Photography / Videography", "Printing & Signage",
-  "Staffing & HR", "Property Management", "Veterinary Services",
-  "Funeral Services & Memorial", "Pest Control", "Cleaning & Janitorial",
-];
-
 export const LEAD_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client", "Other"];
 
 export const computeClientStatus = (clientId, sales, issues) => {

@@ -19,13 +19,13 @@ const ClientSignals = lazy(() => import("./sales/ClientSignals"));
 const Commissions = lazy(() => import("./sales/Commissions"));
 const Outreach = lazy(() => import("./sales/Outreach"));
 const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: FS.base }}>Loading…</div>;
-import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS } from "./sales/constants";
+import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS } from "./sales/constants";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded, onNavigate, registerSubBack, isActive } = props;
+  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded, industries = [], onNavigate, registerSubBack, isActive } = props;
 
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
@@ -1410,7 +1410,7 @@ const SalesCRM = (props) => {
             maxHeight={100}
             value={cf.industries || []}
             onChange={next => setCf(x => ({ ...x, industries: next }))}
-            options={INDUSTRIES.map(ind => ({ value: ind, label: ind, icon: Ic.tag }))}
+            options={industries.map(ind => ({ value: ind.name, label: ind.name, icon: Ic.tag }))}
           />
         </div>
 

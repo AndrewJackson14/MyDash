@@ -1470,13 +1470,13 @@ function MarkupIndustriesSection() {
     <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Markup Industries</div>
-          <div style={{ fontSize: FS.xs, color: Z.tm }}>Global. Advertisers in these industries pay an extra X% — overrides the local-zip discount.</div>
+          <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Industries</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>Global taxonomy used for client tags and ad-booking markup. Set Markup % &gt; 0 to charge extra on bookings in that industry — overrides the local-zip discount.</div>
         </div>
         <Btn sm onClick={() => setEditing({ name: "", markup_percent: 15 })}>+ Add</Btn>
       </div>
       {loading ? <div style={{ color: Z.tm, fontSize: FS.sm }}>Loading…</div> :
-        rows.length === 0 ? <div style={{ color: Z.td, fontSize: FS.sm, fontFamily: COND }}>No industries set. Add one to start applying markup.</div> :
+        rows.length === 0 ? <div style={{ color: Z.td, fontSize: FS.sm, fontFamily: COND }}>No industries set. Add one to populate the client-tag taxonomy.</div> :
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr>
             <th style={ssTh}>Industry</th>

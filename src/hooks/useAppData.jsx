@@ -111,6 +111,8 @@ export function DataProvider({ children, localData }) {
   // request from a renderer that needs it (IssueSchedule, RoleDashboard).
   const [publicHolidays, setPublicHolidays] = useState([]);
   const [publicHolidaysLoaded, setPublicHolidaysLoaded] = useState(false);
+  const [industries, setIndustries] = useState([]);
+  const [industriesLoaded, setIndustriesLoaded] = useState(false);
 
   // Ad inquiries (inbound from StellarPress)
   const [adInquiries, setAdInquiries] = useState([]);
@@ -1172,6 +1174,18 @@ export function DataProvider({ children, localData }) {
     if (data) setPublicHolidays(data);
     setPublicHolidaysLoaded(true);
   }, [publicHolidaysLoaded]);
+
+  // Industries loader — canonical taxonomy (33 seeded names, plus
+  // anything Hayley adds in MySites). Powers SalesCRM's client modal
+  // industry chips and the markup pricing path.
+  const loadIndustries = useCallback(async () => {
+    if (industriesLoaded || !isOnline()) return;
+    const { data } = await supabase.from('industries')
+      .select('id, name, slug, markup_percent')
+      .order('name');
+    if (data) setIndustries(data);
+    setIndustriesLoaded(true);
+  }, [industriesLoaded]);
 
   // Ad Inquiries (inbound from StellarPress)
   const [inquiriesLoaded, setInquiriesLoaded] = useState(false);
@@ -3080,6 +3094,8 @@ export function DataProvider({ children, localData }) {
     adInquiries, setAdInquiries, loadInquiries, inquiriesLoaded, updateInquiry,
     // Public holidays (May Sim P0.3)
     publicHolidays, loadHolidays, publicHolidaysLoaded,
+    // Industries (canonical taxonomy — seeded migration 174)
+    industries, loadIndustries, industriesLoaded,
     // Digital ad products catalog
     digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded,
     insertTicket, updateTicket, insertTicketComment,
@@ -3109,6 +3125,7 @@ export function DataProvider({ children, localData }) {
     outreachCampaigns, outreachEntries, myPriorities,
     subscriptions, subscriptionPayments, mailingLists, editions, adInquiries,
     publicHolidays, publicHolidaysLoaded,
+    industries, industriesLoaded,
     mediaAssets, adProjects, adProjectBySaleId,
     // Loaded flags
     loaded, fullSalesLoaded, clientDetailsLoaded, proposalsLoaded, storiesLoaded,
@@ -3120,7 +3137,7 @@ export function DataProvider({ children, localData }) {
     retainInquiriesRealtime,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,
-    loadHolidays,
+    loadHolidays, loadIndustries,
     loadAdProjects, getDesignStateForSale, upsertAdProject,
     linkAdProject, unlinkAdProject, findLinkCandidates,
   ]);
