@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../../lib/theme";
 import { supabase, isOnline } from "../../lib/supabase";
+import { usePageHeader } from "../../contexts/PageHeaderContext";
 
 const PRETTY_LABELS = {
   phone_calls:        "Calls / day",
@@ -34,7 +35,16 @@ const ROLE_LABELS = {
   "office-admin":     "Office Administrator",
 };
 
-export default function ActivityTargetsAdmin() {
+export default function ActivityTargetsAdmin({ isActive }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Activity Targets" }], title: "Activity Targets" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const [targets, setTargets] = useState([]);
   const [drafts, setDrafts] = useState({});  // id → { target_value, active, notes }
   const [savingId, setSavingId] = useState(null);

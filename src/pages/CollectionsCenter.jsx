@@ -12,6 +12,7 @@ import { Z, COND, DISPLAY, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, Sel, SB, glass as glassStyle, PageHeader } from "../components/ui";
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { fmtCurrencyWhole as fmtCurrency, fmtDateShort as fmtDate } from "../lib/formatters";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 const BUCKET_LABELS = [
   { key: "current", label: "Current", min: -Infinity, max: 0, color: "#16A34A" },
@@ -34,6 +35,15 @@ function bucketColor(key) {
 export default function CollectionsCenter({
   isActive, currentUser, invoices, clients, payments, team,
 }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Collections" }], title: "Collections" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const today = new Date().toISOString().slice(0, 10);
   const [search, setSearch] = useState("");
   const [bucketFilter, setBucketFilter] = useState("all");

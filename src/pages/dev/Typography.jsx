@@ -8,6 +8,9 @@
 // Dev surface only — gated to import.meta.env.DEV in App.jsx NAV.
 // ============================================================
 
+import { useEffect } from "react";
+import { usePageHeader } from "../../contexts/PageHeaderContext";
+
 const cell = {
   padding: "12px 16px",
   borderTop: "1px solid var(--rule)",
@@ -54,7 +57,16 @@ function Section({ title, children }) {
   );
 }
 
-export default function Typography() {
+export default function Typography({ isActive }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Typography" }], title: "Typography" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   return (
     <div style={{
       background: "var(--canvas)",

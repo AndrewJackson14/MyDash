@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Z, COND, DISPLAY, R, Ri, FS, FW, ZI } from "../lib/theme";
 import { Ic, Btn, Badge, GlassCard, PageHeader, DataTable } from "../components/ui";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 const MODULES = [
   { key: "dashboard", label: "Dashboard", icon: "📊" },
@@ -37,7 +38,16 @@ const ROLE_DEFAULTS = {
   "Office Administrator": ["dashboard", "billing", "circulation", "service_desk", "legal_notices", "calendar", "tearsheets", "collections"],
 };
 
-const Permissions = ({ team, updateTeamMember }) => {
+const Permissions = ({ isActive, team, updateTeamMember }) => {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Permissions" }], title: "Permissions" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const [saving, setSaving] = useState(null);
   const isDk = Z.bg === "#08090D";
 

@@ -20,6 +20,7 @@ import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate, daysUntil } from "../lib/formatters";
 import { downloadStoryPackage } from "../lib/storyPackage";
 import { loadSectionsForIssue, pageLabel } from "../lib/sections";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 const PRINT_FLOW = ["none", "ready", "on_page", "proofread", "approved"];
 const NEXT_PRINT = {
@@ -50,6 +51,18 @@ export default function IssueLayoutConsole({
   const issue = (issues || []).find(i => i.id === issueId);
   const pub = (pubs || []).find(p => p.id === issue?.pubId);
   const totalPages = issue?.pageCount || 8;
+
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      const sub = pub?.name && issue?.issueDate
+        ? `${pub.name} · ${fmtDate(issue.issueDate)}`
+        : "Issue Layout";
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Issue Layout" }], title: sub });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, pub?.name, issue?.issueDate, setHeader, clearHeader]);
 
   const [pageStatus, setPageStatus] = useState([]);
   const [adProjects, setAdProjects] = useState([]);

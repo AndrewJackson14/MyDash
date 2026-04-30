@@ -16,6 +16,7 @@ import { Z } from "../../lib/theme";
 import KBSidebar from "./KBSidebar";
 import KBViewer from "./KBViewer";
 import { useKBContent } from "./useKBContent";
+import { usePageHeader } from "../../contexts/PageHeaderContext";
 
 // Map team_role label to spec role slug. Same as the log_activity
 // RPC's CASE — keep in sync.
@@ -34,7 +35,16 @@ const TEAM_ROLE_TO_SLUG = {
   "Finance":              "office-admin",
 };
 
-export default function RoleKB({ deepLink }) {
+export default function RoleKB({ isActive, deepLink }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Role Docs" }], title: "Role Docs" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const { teamMember } = useAuth();
   const myRoleSlug = teamMember?.role ? TEAM_ROLE_TO_SLUG[teamMember.role] : null;
 

@@ -10,6 +10,7 @@ import { Z, COND, FS, FW } from "../lib/theme";
 import { Btn, Sel, TA, Modal, PageHeader, GlassCard, SolidTabs } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 const STATUSES = [
   { value: "submitted",  label: "Pending",   color: "#2563eb" },
@@ -42,7 +43,16 @@ const statusBadge = (s) => {
   );
 };
 
-export default function BookingsQueue({ pubs = [] }) {
+export default function BookingsQueue({ isActive, pubs = [] }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Bookings Queue" }], title: "Bookings Queue" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const [statusFilter, setStatusFilter] = useState("submitted");
   const [pubFilter, setPubFilter] = useState("all");
   const [bookings, setBookings] = useState([]);

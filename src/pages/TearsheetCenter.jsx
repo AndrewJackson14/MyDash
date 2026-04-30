@@ -17,6 +17,7 @@ import { Btn, Sel, SB, glass as glassStyle, PageHeader } from "../components/ui"
 import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { fmtDateShort as fmtDate } from "../lib/formatters";
 import SendTearsheetModal from "../components/SendTearsheetModal";
+import { usePageHeader } from "../contexts/PageHeaderContext";
 
 const STATUS_FILTERS = [
   { value: "missing", label: "Missing" },
@@ -25,6 +26,15 @@ const STATUS_FILTERS = [
 ];
 
 export default function TearsheetCenter({ isActive, currentUser, sales, setSales, clients, pubs, issues }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Tearsheets" }], title: "Tearsheets" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const [pubFilter, setPubFilter] = useState("all");
   const [issueFilter, setIssueFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("missing");

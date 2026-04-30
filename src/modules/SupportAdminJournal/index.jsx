@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Z, COND, DISPLAY, FS, FW, R, Ri } from "../../lib/theme";
 import { supabase, isOnline } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
+import { usePageHeader } from "../../contexts/PageHeaderContext";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -19,7 +20,16 @@ const PROMPTS = [
   { key: "next",      label: "What's next",         hint: "tomorrow's priority queue" },
 ];
 
-export default function SupportAdminJournal() {
+export default function SupportAdminJournal({ isActive }) {
+  const { setHeader, clearHeader } = usePageHeader();
+  useEffect(() => {
+    if (isActive) {
+      setHeader({ breadcrumb: [{ label: "Home" }, { label: "Journal" }], title: "Journal" });
+    } else {
+      clearHeader();
+    }
+  }, [isActive, setHeader, clearHeader]);
+
   const { teamMember } = useAuth();
   const userId = teamMember?.id;
 
