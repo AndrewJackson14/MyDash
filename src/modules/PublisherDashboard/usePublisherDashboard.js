@@ -59,8 +59,10 @@ export default function usePublisherDashboard({ team }) {
   }, []);
 
   // ── Activity stream (activity_log direct read).
-  // Filter to event types the publisher cares about (state changes + comments).
-  // Today = since local 12:00am; yesterday extends 24h further.
+  // Filter per spec: visibility=team only; effort-category events excluded
+  // (raw call/email counts roll up to Sales Rep's own dashboard, not
+  // Hayley's stream). Today = since local 12:00am; yesterday extends 24h
+  // further.
   const loadEvents = useCallback(async (selectedScope = scope, append = false, beforeId = null) => {
     if (!isOnline()) return;
     const since = new Date();
@@ -71,6 +73,8 @@ export default function usePublisherDashboard({ team }) {
       .from("activity_log")
       .select("*")
       .gte("created_at", since.toISOString())
+      .eq("visibility", "team")
+      .in("event_category", ["outcome", "transition", "comment", "manual_log"])
       .order("created_at", { ascending: false })
       .limit(ACTIVITY_PAGE_SIZE);
 

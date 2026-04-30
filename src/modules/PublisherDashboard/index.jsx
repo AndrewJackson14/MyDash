@@ -19,6 +19,7 @@ import IssueCardsGrid    from "./components/IssueCardsGrid";
 import ActivityStream    from "./components/ActivityStream";
 import MonthAtAGlance    from "./components/MonthAtAGlance";
 import SectionCard       from "./components/SectionCard";
+import EICStrip          from "./components/EICStrip";
 import usePublisherDashboard from "./usePublisherDashboard";
 
 export default function PublisherDashboard({ team, currentUser, onNavigate, hideGreeting }) {
@@ -101,6 +102,8 @@ export default function PublisherDashboard({ team, currentUser, onNavigate, hide
           onLoadMore={dash.loadMoreEvents}
         />
       </div>
+
+      <EICStrip onNavigate={onNavigate} />
 
       <MonthAtAGlance
         revenue={dash.glance?.revenue}

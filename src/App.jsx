@@ -31,6 +31,7 @@ const NotificationPopover = lazy(() => import("./components/NotificationPopover"
 const GmailNotifPopover   = lazy(() => import("./components/GmailNotifPopover").then(m => ({ default: m.GmailNotifPopover })));
 const AmbientPressureLayer = lazy(() => import("./components/AmbientPressureLayer"));
 const MyHelperLauncher     = lazy(() => import("./components/MyHelperLauncher"));
+const QuickLogButton       = lazy(() => import("./components/QuickLogButton"));
 import { getPageMeta } from "./data/pageMeta";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
@@ -41,6 +42,8 @@ const lazyLoad = (fn) => lazy(() => fn().catch(() => { window.location.reload();
 // confirmed orphaned across the codebase, then can be deleted.
 const PublisherDashboard = lazyLoad(() => import("./modules/PublisherDashboard"));
 const RoleDashboard = lazyLoad(() => import("./components/RoleDashboard"));
+const RoleActivityStrip = lazy(() => import("./components/activity-log/RoleActivityStrip"));
+const SupportAdminJournal = lazyLoad(() => import("./modules/SupportAdminJournal"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
 const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
@@ -604,6 +607,13 @@ export default function App() {
     if (["messaging", "mail"].includes(navId)) return true;
     // Dev surfaces (UI-refresh sample routes) are visible to anyone in DEV.
     if (navId.startsWith("dev-") && import.meta.env.DEV) return true;
+    // Support-admin journal — Nic-only by role; private RLS on the
+    // backing table handles data isolation regardless of who else's
+    // sidebar happens to show this entry.
+    if (navId === "journal") {
+      const r = currentUser?.role;
+      return r === "Editor" || r === "Editor-in-Chief";
+    }
     return userModules.includes(navId);
   };
 
@@ -628,6 +638,7 @@ export default function App() {
     { id: "social-composer", label: "Social Composer", icon: Ic.send },
     { id: "sitesettings", label: "MySites", icon: Ic.globe },
     { id: "knowledgebase", label: "Knowledge Base", icon: Ic.book },
+    { id: "journal", label: "Journal", icon: Ic.book },
     { id: "_advertising", section: true, label: "Advertising" },
     { id: "bookings-queue", label: "Booking Queue", icon: Ic.bell },
     { id: "classifieds", label: "Classifieds", icon: Ic.megaphone },
@@ -822,7 +833,10 @@ export default function App() {
             ? <Suspense fallback={<LazyFallback />}><IssueDetail issueId={issueDetailId} pubs={pubs} issues={jIssues} sales={jSales} stories={jStories} clients={jClients} onBack={() => setIssueDetailId(null)} onNavigate={handleNav} /></Suspense>
             : (currentUser?.role === "Publisher"
               ? <Suspense fallback={<LazyFallback />}><PublisherDashboard team={team} currentUser={currentUser} onNavigate={handleNav} /></Suspense>
-              : <Suspense fallback={<LazyFallback />}><RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} loadClientDetails={appData.loadClientDetails} updateInquiry={appData.updateInquiry} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} /></Suspense>
+              : <Suspense fallback={<LazyFallback />}>
+                  <RoleDashboard role={currentUser?.role} currentUser={currentUser} pubs={pubs} stories={jStories} setStories={setStories} clients={jClients} sales={jSales} issues={jIssues} team={team} invoices={jInvoices} payments={payments} subscribers={subscribers} tickets={tickets} legalNotices={legalNotices} creativeJobs={jJobs} adInquiries={appData.adInquiries || EMPTY_ARR} loadInquiries={appData.loadInquiries} loadClientDetails={appData.loadClientDetails} updateInquiry={appData.updateInquiry} onNavigate={handleNav} setIssueDetailId={setIssueDetailId} />
+                  <RoleActivityStrip currentUser={currentUser} />
+                </Suspense>
             )
           )}
         </div>
@@ -862,6 +876,7 @@ export default function App() {
         {show("legalnotices") && <div style={vis("legalnotices")}><ErrorBoundary name="page:legalnotices"><LegalNotices isActive={pg === "legalnotices"} legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} onNavigate={handleNav} /></ErrorBoundary></div>}
         {show("adprojects") && <div style={vis("adprojects")}><ErrorBoundary name="page:adprojects"><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></ErrorBoundary></div>}
         {show("knowledgebase") && <div style={vis("knowledgebase")}><ErrorBoundary name="page:knowledgebase"><KnowledgeBase isActive={pg === "knowledgebase"} team={team} currentUser={currentUser} /></ErrorBoundary></div>}
+        {show("journal") && <div style={vis("journal")}><ErrorBoundary name="page:journal"><SupportAdminJournal /></ErrorBoundary></div>}
         {/* P2.27 — CreativeJobs sunset. Module retired in favor of
             AdProjects. Lazy import + sidebar entry removed; data
             kept in the table for historical Performance reads. */}
@@ -879,6 +894,13 @@ export default function App() {
     <ErrorBoundary name="myhelper" silent>
       <Suspense fallback={null}>
         <MyHelperLauncher currentUser={currentUser} team={team} pg={pg} deepLink={deepLink} />
+      </Suspense>
+    </ErrorBoundary>
+    {/* QuickLog — floating ⌘L launcher for activity_log entries.
+        Sales reps log calls, office admins log ad-hoc tasks/help. */}
+    <ErrorBoundary name="quicklog" silent>
+      <Suspense fallback={null}>
+        <QuickLogButton currentUser={currentUser} />
       </Suspense>
     </ErrorBoundary>
     </div>

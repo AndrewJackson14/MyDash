@@ -2843,6 +2843,110 @@ const RoleDashboard = memo(({
     </div>;
   }
 
+  // ─── Office Administrator Dashboard (Cami) — Sec 12.6 ────
+  // Spec calls for: weekly target progress (header), activity feed
+  // (body), AR aging + outstanding work (sidebar). The first two are
+  // handled by RoleActivityStrip mounted in App.jsx; this branch owns
+  // the contextual sidebar — AR aging buckets, open invoices, open
+  // tickets, expiring subscribers.
+  const isOfficeAdmin = role === "Office Manager"
+    || role === "Office Administrator"
+    || role === "Finance";
+  if (isOfficeAdmin) {
+    const today = new Date().toISOString().slice(0, 10);
+    const openInvs = (invoices || []).filter(inv =>
+      ["sent", "overdue", "partially_paid"].includes(inv.status)
+      && Number(inv.balanceDue ?? 0) > 0
+    );
+    const buckets = { current: 0, b1_30: 0, b31_60: 0, b61_90: 0, b90: 0 };
+    let arTotal = 0;
+    openInvs.forEach(inv => {
+      const bal = Number(inv.balanceDue ?? 0);
+      if (bal <= 0) return;
+      arTotal += bal;
+      if (!inv.dueDate || inv.dueDate >= today) { buckets.current += bal; return; }
+      const daysPast = Math.floor((new Date(today) - new Date(inv.dueDate)) / 86400000);
+      if (daysPast <= 30) buckets.b1_30 += bal;
+      else if (daysPast <= 60) buckets.b31_60 += bal;
+      else if (daysPast <= 90) buckets.b61_90 += bal;
+      else buckets.b90 += bal;
+    });
+    const openTicketCount = (tickets || []).filter(t => !["closed", "resolved"].includes(t.status)).length;
+    const expiringSubs = (subscribers || []).filter(s => {
+      if (!s.expiry_date && !s.expiryDate) return false;
+      const exp = s.expiryDate || s.expiry_date;
+      const days = Math.floor((new Date(exp) - new Date(today)) / 86400000);
+      return days >= 0 && days <= 30 && (s.status === "active");
+    }).length;
+
+    return <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 28 }}>
+      {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
+          <div style={{ fontSize: 26, fontWeight: FW.black, color: arTotal > 15000 ? Z.da : arTotal > 5000 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(arTotal)}</div>
+          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>A/R Outstanding</div>
+          <div style={{ fontSize: 10, color: Z.tm, marginTop: 2 }}>{openInvs.length} open invoice{openInvs.length === 1 ? "" : "s"}</div>
+        </div>
+        <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
+          <div style={{ fontSize: 26, fontWeight: FW.black, color: openTicketCount > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTicketCount}</div>
+          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Open Tickets</div>
+        </div>
+        <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
+          <div style={{ fontSize: 26, fontWeight: FW.black, color: expiringSubs > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{expiringSubs}</div>
+          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Subs Expiring (30d)</div>
+        </div>
+      </div>
+
+      {arTotal > 0 && <div style={glass}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>A/R Aging</div>
+          <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{fmtCurrency(arTotal)} outstanding</span>
+        </div>
+        <div onClick={() => onNavigate?.("collections")} style={{ display: "flex", height: 26, borderRadius: R, overflow: "hidden", cursor: "pointer" }}>
+          {[
+            { key: "current", val: buckets.current, color: Z.go, label: "Current" },
+            { key: "b1_30",   val: buckets.b1_30,   color: Z.ac, label: "1–30" },
+            { key: "b31_60",  val: buckets.b31_60,  color: Z.wa, label: "31–60" },
+            { key: "b61_90",  val: buckets.b61_90,  color: ACCENT.indigo, label: "61–90" },
+            { key: "b90",     val: buckets.b90,     color: Z.da, label: "90+" },
+          ].filter(b => b.val > 0).map(b => (
+            <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>
+              {(b.val / arTotal) >= 0.10 ? `${Math.round((b.val / arTotal) * 100)}%` : ""}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 10 }}>
+          {[
+            { val: buckets.current, color: Z.go, label: "Current" },
+            { val: buckets.b1_30,   color: Z.ac, label: "1–30d" },
+            { val: buckets.b31_60,  color: Z.wa, label: "31–60d" },
+            { val: buckets.b61_90,  color: ACCENT.indigo, label: "61–90d" },
+            { val: buckets.b90,     color: Z.da, label: "90+d" },
+          ].map((b, i) => (
+            <div key={i} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: b.color, fontFamily: DISPLAY }}>{fmtCurrency(b.val)}</div>
+              <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{b.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      <div style={glass}>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Quick Links</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 6 }}>
+          <Btn sm v="secondary" onClick={() => onNavigate?.("billing")} style={{ justifyContent: "flex-start" }}>Billing</Btn>
+          <Btn sm v="secondary" onClick={() => onNavigate?.("collections")} style={{ justifyContent: "flex-start" }}>Collections</Btn>
+          <Btn sm v="secondary" onClick={() => onNavigate?.("circulation")} style={{ justifyContent: "flex-start" }}>Subscriptions</Btn>
+          <Btn sm v="secondary" onClick={() => onNavigate?.("servicedesk")} style={{ justifyContent: "flex-start" }}>Service Desk</Btn>
+          <Btn sm v="secondary" onClick={() => onNavigate?.("legalnotices")} style={{ justifyContent: "flex-start" }}>Legal Notices</Btn>
+        </div>
+      </div>
+
+      <DirectionCard />
+    </div>;
+  }
+
   // ─── Fallback: smarter generic dashboard for long-tail roles ────
   // Distribution Manager, Marketing Manager, Finance, Writer/Reporter,
   // Stringer, etc. land here. Show the member's basic context
