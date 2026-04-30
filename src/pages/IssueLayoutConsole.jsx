@@ -264,6 +264,20 @@ export default function IssueLayoutConsole({
           const others = prev.filter(p => !(p.issue_id === issueId && p.page_number === pageNum));
           return [...others, { issue_id: issueId, page_number: pageNum, completed_by: currentUser.id, completed_at: now }];
         });
+        // Activity log: page_press_ready (outcome). Calls log_activity
+        // RPC directly — IssueLayoutConsole doesn't use useAppData.
+        await supabase.rpc('log_activity', {
+          p_event_type:     'page_press_ready',
+          p_summary:        `built page ${pageNum} — ${pub?.name || ''} ${issue?.label || ''}`.trim(),
+          p_event_category: 'outcome',
+          p_event_source:   'mydash',
+          p_entity_table:   'flatplan_page_status',
+          p_entity_id:      null,
+          p_entity_summary: `${pub?.name || 'pub'} ${issue?.label || ''} p.${pageNum}`.trim(),
+          p_publication_id: issue?.pubId || null,
+          p_metadata:       { issue_id: issueId, page_number: pageNum },
+          p_visibility:     'team',
+        });
       }
     } catch (err) {
       console.error("Page complete toggle failed:", err);

@@ -127,7 +127,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   // useAppData is now the source of truth for ad_projects. Local aliases
   // keep the rest of this file readable — `projects` and `setProjects`
   // still work as before but mutate shared state.
-  const { adProjects, setAdProjects, loadAdProjects, adProjectBySaleId, linkAdProject, unlinkAdProject, findLinkCandidates } = useAppData();
+  const { adProjects, setAdProjects, loadAdProjects, adProjectBySaleId, linkAdProject, unlinkAdProject, findLinkCandidates, logActivity } = useAppData();
   const projects = adProjects;
   const setProjects = setAdProjects;
   const [tab, setTab] = useState("Active");
@@ -544,6 +544,24 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             updated_at: new Date().toISOString(),
           }).eq("id", projectId);
           setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: "proof_sent", revision_count: version, revision_billable_count: billableCount, revision_charges: revCharges } : p));
+          // Activity log: proof_sent_for_approval (v1) or revision_sent (v2+).
+          await logActivity?.(
+            version === 1
+              ? `sent proof for ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim()
+              : `sent revised proof v${version} for ${proj?.client_name || 'client'}`,
+            version === 1 ? 'proof_sent_for_approval' : 'revision_sent',
+            proj?.client_id || null,
+            proj?.client_name || null,
+            {
+              eventCategory: 'outcome',
+              eventSource:   'mydash',
+              entityTable:   'ad_projects',
+              entityId:      projectId,
+              entitySummary: `${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
+              publicationId: proj?.publication_id || null,
+              metadata: { version, billable_count: billableCount, revision_charges: revCharges },
+            }
+          );
           // Revision charge warning in thread
           if (version === 4 && proj?.thread_id) {
             await supabase.from("messages").insert({ thread_id: proj.thread_id, sender_name: "System", body: "⚠ This is the last free revision. Additional revisions will be charged at $25 each.", is_system: true });
@@ -609,6 +627,25 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       : { salesperson_signoff: true, salesperson_signoff_at: now, status: "signed_off" };
     await supabase.from("ad_projects").update(updates).eq("id", projectId);
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...updates } : p));
+    // Activity log: proof_approved (designer) or ad_press_ready (salesperson).
+    const proj = projects.find(p => p.id === projectId);
+    await logActivity?.(
+      role === "designer"
+        ? `approved proof — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim()
+        : `signed off — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
+      role === "designer" ? 'proof_approved' : 'ad_press_ready',
+      proj?.client_id || null,
+      proj?.client_name || null,
+      {
+        eventCategory: 'outcome',
+        eventSource:   'mydash',
+        entityTable:   'ad_projects',
+        entityId:      projectId,
+        entitySummary: `${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
+        publicationId: proj?.publication_id || null,
+        metadata: { signoff_role: role },
+      }
+    );
   };
 
   // P3.29 — bulk sign-off. Power-action used on the Issue × Status
@@ -630,6 +667,28 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     if (!error) {
       setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...updates } : p));
       setSelectedSignoff(new Set());
+      // Activity log: ad_press_ready (outcome) per project. Sequential
+      // calls — bulk_signoff is a power-action, ~10-50 cards typical;
+      // not worth a batch RPC.
+      for (const id of ids) {
+        const proj = projects.find(p => p.id === id);
+        if (!proj) continue;
+        await logActivity?.(
+          `signed off — ${proj.client_name || 'client'} ${proj.ad_size || ''}`.trim(),
+          'ad_press_ready',
+          proj.client_id || null,
+          proj.client_name || null,
+          {
+            eventCategory: 'outcome',
+            eventSource:   'mydash',
+            entityTable:   'ad_projects',
+            entityId:      id,
+            entitySummary: `${proj.client_name || 'client'} ${proj.ad_size || ''}`.trim(),
+            publicationId: proj.publication_id || null,
+            metadata: { signoff_role: 'bulk' },
+          }
+        );
+      }
     } else {
       console.error("Bulk sign-off error:", error);
     }

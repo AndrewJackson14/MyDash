@@ -775,6 +775,22 @@ const RoleDashboard = memo(({
         publisher_signoff_at: new Date().toISOString(),
         publisher_signoff_by: currentUser.id,
       }).eq("id", issueId);
+      // Activity log: issue_signed_off (outcome). Hayley's own action;
+      // surfaces in the publisher stream as a celebration.
+      const iss = (_issues || []).find(i => i.id === issueId);
+      const pubName = iss ? pn(iss.pubId) : "issue";
+      await supabase.rpc('log_activity', {
+        p_event_type:     'issue_signed_off',
+        p_summary:        `signed off ${pubName} ${iss?.label || ''}`.trim(),
+        p_event_category: 'outcome',
+        p_event_source:   'mydash',
+        p_entity_table:   'issues',
+        p_entity_id:      null,
+        p_entity_summary: `${pubName} ${iss?.label || ''}`.trim(),
+        p_publication_id: iss?.pubId || null,
+        p_metadata:       { issue_id: issueId, press_date: iss?.date || null },
+        p_visibility:     'team',
+      });
     } catch (err) {
       console.error("Publisher signoff failed:", err);
     }

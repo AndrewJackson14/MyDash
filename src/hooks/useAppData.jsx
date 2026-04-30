@@ -1675,18 +1675,59 @@ export function DataProvider({ children, localData }) {
     setStories(st => st.map(s => s.id === id ? { ...s, ...changes, sentToWeb: !isScheduled, sent_to_web: !isScheduled } : s));
     if (isOnline()) {
       await supabase.from('stories').update(changes).eq('id', id);
+      // Activity log: story_published (outcome, web flip) — only on the
+      // first publish, not on republishes (alreadyPublished detected
+      // earlier). Scheduled flips don't fire here; the cron-driven
+      // sent_to_web flip will need its own log_activity call when wired.
+      if (!alreadyPublished && !isScheduled) {
+        await logActivity(
+          `published: '${title}'`,
+          'story_published',
+          null,
+          null,
+          {
+            eventCategory: 'outcome',
+            eventSource:   'mydash',
+            entityTable:   'stories',
+            entityId:      id,
+            entitySummary: title,
+            publicationId: existing?.pubId || existing?.publication_id || null,
+            metadata: {
+              site_id:  siteId,
+              category: category,
+              slug,
+            },
+          }
+        );
+      }
     }
     return { slug, status: 'Ready', sent_to_web: !isScheduled };
-  }, [stories]);
+  }, [stories, logActivity]);
 
   const unpublishStory = useCallback(async (id) => {
     // Flip sent_to_web off but leave status at Ready — editorial is still
     // done, just not currently on the web.
+    const existing = stories.find(s => s.id === id);
     setStories(st => st.map(s => s.id === id ? { ...s, status: 'Ready', sentToWeb: false, sent_to_web: false } : s));
     if (isOnline()) {
       await supabase.from('stories').update({ status: 'Ready', sent_to_web: false }).eq('id', id);
+      // Activity log: story_unpublished (transition, lower-priority)
+      await logActivity(
+        `unpublished: '${existing?.title || 'story'}'`,
+        'story_unpublished',
+        null,
+        null,
+        {
+          eventCategory: 'transition',
+          eventSource:   'mydash',
+          entityTable:   'stories',
+          entityId:      id,
+          entitySummary: existing?.title || null,
+          publicationId: existing?.pubId || existing?.publication_id || null,
+        }
+      );
     }
-  }, []);
+  }, [stories, logActivity]);
 
   const deleteStory = useCallback(async (id) => {
     setStories(st => st.filter(s => s.id !== id));
@@ -1730,6 +1771,13 @@ export function DataProvider({ children, localData }) {
   }, []);
 
   const updateProposal = useCallback(async (id, changes) => {
+    // Detect "proposal becomes sent" transition: sent_at moves from
+    // null → set. Read previous state before mutating.
+    const prev = proposals.find(p => p.id === id);
+    const wasSent = !!(prev?.sentAt || prev?.sent_at);
+    const willBeSent = changes.sentAt !== undefined && !!changes.sentAt;
+    const newlySent = !wasSent && willBeSent;
+
     setProposals(pr => pr.map(p => p.id === id ? { ...p, ...changes } : p));
     if (isOnline()) {
       const db = {};
@@ -1751,8 +1799,30 @@ export function DataProvider({ children, localData }) {
       if (changes.deliveryReportCadence !== undefined) db.delivery_report_cadence = changes.deliveryReportCadence;
       if (changes.deliveryReportContactId !== undefined) db.delivery_report_contact_id = changes.deliveryReportContactId;
       if (Object.keys(db).length) await supabase.from('proposals').update(db).eq('id', id);
+      // Activity log: proposal_sent (outcome) on the null → set transition.
+      if (newlySent && prev) {
+        const client = clients.find(c => c.id === prev.clientId);
+        await logActivity(
+          `sent proposal to ${client?.name || prev.clientName || 'client'}`,
+          'proposal_sent',
+          prev.clientId || null,
+          client?.name || null,
+          {
+            eventCategory: 'outcome',
+            eventSource:   'mydash',
+            entityTable:   'proposals',
+            entityId:      id,
+            entitySummary: prev.name || null,
+            metadata: {
+              amount:      prev.total || null,
+              issue_count: prev.lines?.length || null,
+              term_months: prev.termMonths || null,
+            },
+          }
+        );
+      }
     }
-  }, []);
+  }, [proposals, clients, logActivity]);
 
   const insertProposal = useCallback(async (proposal) => {
     if (isOnline()) {
@@ -1780,12 +1850,44 @@ export function DataProvider({ children, localData }) {
           flight_months: l.flightMonths || null,
         })));
         if (lineErr) console.error("insertProposal lines error:", lineErr);
-        const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]); return np;
+        const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]);
+        await maybeLogProposalSent(proposal, data.id);
+        return np;
       }
-      if (data) { const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]); return np; }
+      if (data) {
+        const np = { ...proposal, id: data.id }; setProposals(pr => [...pr, np]);
+        await maybeLogProposalSent(proposal, data.id);
+        return np;
+      }
     }
     const np = { ...proposal, id: 'prop' + Date.now() }; setProposals(pr => [...pr, np]); return np;
-  }, []);
+    // Helper: log proposal_sent if the proposal was inserted already-sent.
+    // Most insertions are Drafts; the sent_at flip happens via updateProposal
+    // and is logged there. This branch covers the rare "create + send in
+    // one shot" path used by the wizard.
+    async function maybeLogProposalSent(p, newId) {
+      if (!p.sentAt) return;
+      const client = clients.find(c => c.id === p.clientId);
+      await logActivity(
+        `sent proposal to ${client?.name || p.clientName || 'client'}`,
+        'proposal_sent',
+        p.clientId || null,
+        client?.name || null,
+        {
+          eventCategory: 'outcome',
+          eventSource:   'mydash',
+          entityTable:   'proposals',
+          entityId:      newId,
+          entitySummary: p.name || null,
+          metadata: {
+            amount:      p.total || null,
+            issue_count: p.lines?.length || null,
+            term_months: p.termMonths || null,
+          },
+        }
+      );
+    }
+  }, [clients, logActivity]);
 
   // Convert a Sent proposal → Signed & Converted contract + sales orders via database function
   const convertProposal = useCallback(async (proposalId) => {
@@ -1915,8 +2017,33 @@ export function DataProvider({ children, localData }) {
       }
     }
 
+    // Activity log: contract_signed (outcome) — surfaces in publisher stream
+    const proposal = proposals.find(p => p.id === proposalId);
+    const client = proposal ? clients.find(c => c.id === proposal.clientId) : null;
+    await logActivity(
+      `signed contract with ${client?.name || proposal?.clientName || 'client'}`,
+      'contract_signed',
+      proposal?.clientId || null,
+      client?.name || null,
+      {
+        eventCategory: 'outcome',
+        eventSource:   'mydash',
+        entityTable:   'contracts',
+        entityId:      data.contract_id || null,
+        entitySummary: proposal?.name || null,
+        metadata: {
+          proposal_id:        proposalId,
+          contract_id:        data.contract_id,
+          sales_created:      data.sales_created,
+          ad_projects_created: data.ad_projects_created,
+          total_value:        proposal?.total || null,
+          term_months:        proposal?.termMonths || null,
+        },
+      }
+    );
+
     return data;
-  }, [proposals]);
+  }, [proposals, clients, logActivity]);
 
   const addComm = useCallback(async (clientId, comm) => {
     setClients(cl => cl.map(c => c.id === clientId ? { ...c, comms: [...(c.comms || []), comm] } : c));
@@ -2012,10 +2139,40 @@ export function DataProvider({ children, localData }) {
           };
         }));
       }
+      // Activity log: invoice_issued (outcome) — only on transition into
+      // a sent-equivalent status. Drafts don't surface to Hayley.
+      if (data && data.status && data.status !== 'draft') {
+        const client = clients.find(c => c.id === inv.clientId);
+        const dominantPubId = (inv.lines || []).reduce((acc, l) => {
+          const id = l.publicationId;
+          if (id) acc.set(id, (acc.get(id) || 0) + (Number(l.total) || 0));
+          return acc;
+        }, new Map());
+        const topPub = [...dominantPubId.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+        await logActivity(
+          `issued invoice ${inv.invoiceNumber || ''} to ${client?.name || 'client'}`.trim(),
+          'invoice_issued',
+          inv.clientId || null,
+          client?.name || null,
+          {
+            eventCategory: 'outcome',
+            eventSource:   'mydash',
+            entityTable:   'invoices',
+            entityId:      data.id,
+            entitySummary: inv.invoiceNumber || null,
+            publicationId: topPub,
+            metadata: {
+              total:      Number(inv.total) || null,
+              line_count: inv.lines?.length || 0,
+              status:     data.status,
+            },
+          }
+        );
+      }
       return { ...inv, id: data.id };
     }
     return { ...inv, id: inv.id || 'inv-' + Date.now() };
-  }, []);
+  }, [clients, logActivity]);
 
   const updateInvoice = useCallback(async (id, changes) => {
     setInvoices(prev => prev.map(i => i.id === id ? { ...i, ...changes } : i));
@@ -2036,10 +2193,37 @@ export function DataProvider({ children, localData }) {
         invoice_id: pay.invoiceId, amount: pay.amount, method: pay.method,
         last_four: pay.lastFour || null, notes: pay.notes || '',
       }).select().single();
-      if (data) { setPayments(prev => [...prev, { ...pay, id: data.id }]); return { ...pay, id: data.id }; }
+      if (data) {
+        setPayments(prev => [...prev, { ...pay, id: data.id }]);
+        // Activity log: payment_received (outcome). Look up the invoice
+        // for client + publication context.
+        const inv = invoices.find(i => i.id === pay.invoiceId);
+        const client = inv ? clients.find(c => c.id === inv.clientId) : null;
+        const topPubId = inv?.lines?.[0]?.publicationId || null;
+        await logActivity(
+          `recorded ${pay.method || 'payment'} from ${client?.name || 'client'}`,
+          'payment_received',
+          inv?.clientId || null,
+          client?.name || null,
+          {
+            eventCategory: 'outcome',
+            eventSource:   'mydash',
+            entityTable:   'payments',
+            entityId:      data.id,
+            entitySummary: inv?.invoiceNumber || null,
+            publicationId: topPubId,
+            metadata: {
+              invoice_id: pay.invoiceId,
+              amount:     Number(pay.amount) || null,
+              method:     pay.method || null,
+            },
+          }
+        );
+        return { ...pay, id: data.id };
+      }
     }
     const np = { ...pay, id: pay.id || 'pay-' + Date.now() }; setPayments(prev => [...prev, np]); return np;
-  }, []);
+  }, [invoices, clients, logActivity]);
 
   // ─── Subscribers ────────────────────────────────────────
   const insertSubscriber = useCallback(async (sub) => {
