@@ -60,6 +60,14 @@ export default function MobileApp() {
   useEffect(() => {
     const prevTheme = document.documentElement.style.colorScheme;
     document.documentElement.style.colorScheme = "light";
+    // Mobile is light-mode only by spec. Force `data-theme="light"`
+    // for the lifetime of the mobile shell so any nested component
+    // that uses CSS-var or JS-Z theme values renders against the
+    // light palette — even when the user's desktop preference is
+    // dark. Restored on unmount so the desktop session keeps its
+    // chosen theme.
+    const prevDataTheme = document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = "light";
     document.body.style.background = SURFACE.alt;
     document.body.style.color = INK;
     document.body.style.margin = "0";
@@ -107,6 +115,11 @@ export default function MobileApp() {
 
     return () => {
       document.documentElement.style.colorScheme = prevTheme;
+      if (prevDataTheme === undefined) {
+        delete document.documentElement.dataset.theme;
+      } else {
+        document.documentElement.dataset.theme = prevDataTheme;
+      }
       document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
       document.body.style.overscrollBehavior = prevBodyOverscroll;
       if (viewportTag) viewportTag.setAttribute("content", prevViewport);

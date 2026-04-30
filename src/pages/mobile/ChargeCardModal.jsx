@@ -22,6 +22,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements, AddressElement } from "@stripe/react-stripe-js";
 import { supabase, EDGE_FN_URL, SUPABASE_ANON_KEY } from "../../lib/supabase";
 import { Ic } from "../../components/ui";
+import { useAppData } from "../../hooks/useAppData";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, fmtMoneyFull } from "./mobileTokens";
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
@@ -36,6 +37,54 @@ export default function ChargeCardModal({ client, sale, onClose, onSuccess }) {
   const [creating, setCreating] = useState(false);
   const [intent, setIntent] = useState(null); // { client_secret, intent_id }
   const [error, setError] = useState(null);
+  // Auto-fill source — links the payment to an invoice or contract so
+  // it's applied correctly downstream. "" = manual (default behavior).
+  const [applyTo, setApplyTo] = useState("");
+
+  // Pull client's open invoices and active contracts so the rep can
+  // pick one to apply the payment to. Saves typing + ensures the
+  // payment is correctly linked.
+  const appData = useAppData();
+  const openInvoices = useMemo(() => {
+    return (appData.invoices || [])
+      .filter(i => (i.clientId === client.id || i.client_id === client.id)
+        && Number(i.balanceDue ?? i.balance_due ?? 0) > 0
+        && ['sent', 'overdue', 'partially_paid', 'draft'].includes(i.status))
+      .sort((a, b) => (a.dueDate || a.due_date || '').localeCompare(b.dueDate || b.due_date || ''));
+  }, [appData.invoices, client.id]);
+  const activeContracts = useMemo(() => {
+    return (appData.contracts || [])
+      .filter(c => (c.clientId === client.id || c.client_id === client.id)
+        && (c.status === 'active' || !c.status));
+  }, [appData.contracts, client.id]);
+
+  // Apply-to picker change handler. Auto-fills amount + description.
+  const handleApplyTo = (value) => {
+    setApplyTo(value);
+    if (!value) return; // manual — leave fields alone
+    if (value.startsWith('inv:')) {
+      const inv = openInvoices.find(i => i.id === value.slice(4));
+      if (inv) {
+        const balance = Number(inv.balanceDue ?? inv.balance_due ?? 0);
+        if (balance > 0) setAmount(String(balance));
+        setDescription(`Invoice ${inv.invoiceNumber || inv.invoice_number || inv.id.slice(0, 8)} — ${client.name}`);
+      }
+    } else if (value.startsWith('con:')) {
+      const con = activeContracts.find(c => c.id === value.slice(4));
+      if (con) {
+        const totalValue = Number(con.totalValue ?? con.total_value ?? 0);
+        const totalPaid = Number(con.totalPaid ?? con.total_paid ?? 0);
+        const remaining = Math.max(0, totalValue - totalPaid);
+        if (remaining > 0) setAmount(String(remaining));
+        setDescription(`${con.name || 'Contract'} — ${client.name}`);
+      }
+    }
+  };
+
+  // Parse applyTo for downstream send. invoiceId/contractId surface in
+  // the EF metadata so the webhook can apply the payment correctly.
+  const applyToInvoiceId = applyTo.startsWith('inv:') ? applyTo.slice(4) : null;
+  const applyToContractId = applyTo.startsWith('con:') ? applyTo.slice(4) : null;
 
   const amountCents = Math.round((parseFloat(amount || "0") || 0) * 100);
   const canCreateIntent = amountCents >= 50 && description.trim().length > 0 && !creating;
@@ -55,6 +104,16 @@ export default function ChargeCardModal({ client, sale, onClose, onSuccess }) {
     setCreating(true);
     setError(null);
     try {
+      // Pre-flight: client.id should be a UUID. If it's missing or
+      // looks like a transient (offline-mode local id), bail with a
+      // clearer message than the EF's "client not found".
+      if (!client?.id) {
+        throw new Error("Client record is missing — close and reopen this client.");
+      }
+      const isLikelyUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(client.id);
+      if (!isLikelyUuid) {
+        throw new Error(`Client ID looks invalid (${String(client.id).slice(0, 12)}…). Refresh the app and try again.`);
+      }
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       const res = await fetch(`${EDGE_FN_URL}/stripe-card`, {
@@ -71,6 +130,8 @@ export default function ChargeCardModal({ client, sale, onClose, onSuccess }) {
           description: description.trim(),
           save_card: saveCard,
           sale_id: sale?.id || undefined,
+          invoice_id: applyToInvoiceId || undefined,
+          contract_id: applyToContractId || undefined,
         }),
       });
       const json = await res.json();
@@ -93,6 +154,48 @@ export default function ChargeCardModal({ client, sale, onClose, onSuccess }) {
 
       {step === "setup" && <div style={{ padding: "8px 18px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
         <ClientPill client={client} />
+
+        {/* Apply-to picker — links the payment to an invoice or
+            contract so it lands in the right place. Optional — picking
+            "Manual entry" keeps the legacy free-form description path. */}
+        {(openInvoices.length > 0 || activeContracts.length > 0) && (
+          <Field label="Apply to (optional)">
+            <select
+              value={applyTo}
+              onChange={e => handleApplyTo(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">Manual entry (no link)</option>
+              {openInvoices.length > 0 && (
+                <optgroup label="Open invoices">
+                  {openInvoices.map(inv => {
+                    const num = inv.invoiceNumber || inv.invoice_number || inv.id.slice(0, 8);
+                    const balance = Number(inv.balanceDue ?? inv.balance_due ?? 0);
+                    return (
+                      <option key={inv.id} value={`inv:${inv.id}`}>
+                        Inv {num} — {fmtMoneyFull(balance)} due
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              )}
+              {activeContracts.length > 0 && (
+                <optgroup label="Active contracts">
+                  {activeContracts.map(c => {
+                    const totalValue = Number(c.totalValue ?? c.total_value ?? 0);
+                    const totalPaid = Number(c.totalPaid ?? c.total_paid ?? 0);
+                    const remaining = Math.max(0, totalValue - totalPaid);
+                    return (
+                      <option key={c.id} value={`con:${c.id}`}>
+                        {c.name || 'Contract'}{remaining > 0 ? ` — ${fmtMoneyFull(remaining)} remaining` : ''}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              )}
+            </select>
+          </Field>
+        )}
 
         <Field label="Amount (USD)">
           <input

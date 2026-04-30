@@ -183,12 +183,13 @@ serve(async (req: Request) => {
     // Body: { client_id, amount_cents, description, save_card?, sale_id?, opportunity_id? }
     // Returns: { client_secret, customer_id, intent_id }
     if (action === "create_charge_intent") {
-      const { client_id, amount_cents, description, save_card, sale_id, opportunity_id } = body;
+      const { client_id, amount_cents, description, save_card, sale_id, opportunity_id, invoice_id, contract_id } = body;
       if (!client_id) throw new Error("client_id required");
       if (!amount_cents || amount_cents < 50) throw new Error("amount_cents must be at least 50 (Stripe minimum)");
 
-      const { data: client } = await admin.from("clients").select("name, billing_email, contacts, stripe_customer_id").eq("id", client_id).single();
-      if (!client) throw new Error("client not found");
+      const { data: client, error: clientErr } = await admin.from("clients").select("name, billing_email, contacts, stripe_customer_id").eq("id", client_id).maybeSingle();
+      if (clientErr) throw new Error(`client lookup failed: ${clientErr.message}`);
+      if (!client) throw new Error(`client not found (id: ${String(client_id).slice(0, 8)}…)`);
 
       // Reuse or create Stripe customer.
       let customerId = client.stripe_customer_id;
@@ -219,6 +220,8 @@ serve(async (req: Request) => {
           source: "mobile_charge",
           ...(sale_id ? { sale_id } : {}),
           ...(opportunity_id ? { opportunity_id } : {}),
+          ...(invoice_id ? { invoice_id } : {}),
+          ...(contract_id ? { contract_id } : {}),
           save_card: save_card ? "true" : "false",
         },
       });

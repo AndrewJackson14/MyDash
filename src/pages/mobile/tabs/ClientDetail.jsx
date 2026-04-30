@@ -129,9 +129,19 @@ export default function ClientDetail({ clientId, appData, currentUser, jurisdict
   };
 
   const editPencil = <button onClick={() => setEditOpen(true)} style={{
-    width: 40, height: 40, background: "transparent", border: "none",
-    cursor: "pointer", color: ACCENT, fontSize: 18, padding: 0,
-  }} aria-label="Edit basics">✎</button>;
+    // Bumped from 40×40 / 18px glyph to 48×48 / 26px glyph. The
+    // header tap target is the only edit affordance from the client
+    // page, and at 18px the pencil read as a footnote rather than
+    // an action. 48×48 also clears Apple HIG's 44pt minimum with
+    // headroom for fat-finger taps.
+    width: 48, height: 48, minWidth: 48, minHeight: 48,
+    background: SURFACE.alt, border: `1px solid ${TOKENS.rule}`,
+    borderRadius: 12,
+    cursor: "pointer", color: ACCENT,
+    fontSize: 26, fontWeight: 600,
+    padding: 0,
+    display: "flex", alignItems: "center", justifyContent: "center",
+  }} aria-label="Edit client basics" title="Edit client">✎</button>;
 
   return <>
     <MobileHeader
