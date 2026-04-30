@@ -173,6 +173,26 @@
   --type-caption:    12px;                   /* Captions, helper text */
   --type-meta:       11px;                   /* Metadata strip, timestamps, IDs */
 
+  /* JS-facing scale (FS tokens in src/lib/theme.js).
+     The `FS.*` constants in theme.js render as `var(--fs-*)` strings,
+     so React inline `style={{ fontSize: FS.sm }}` resolves through CSS.
+     This is the master scale for in-app text sizing — the team can
+     tune the entire UI by editing the values here.
+     Numeric ladder, named by the use-case scale (micro / xs / sm /
+     base / md / lg / xl / title / xxl) rather than semantic role.
+     The semantic `--type-*` scale above drives base CSS rules
+     (body, h1-h5) and the dev/Typography preview; the two scales
+     overlap in numeric values where they overlap. */
+  --fs-micro: 10px;                          /* uppercase annotations, tiny labels */
+  --fs-xs:    11px;                          /* table headers, timestamps, section labels */
+  --fs-sm:    12px;                          /* meta text, badges, subtitle lines */
+  --fs-base:  13px;                          /* default body text, descriptions */
+  --fs-md:    14px;                          /* list item titles, table body, primary content */
+  --fs-lg:    16px;                          /* section headings inside cards */
+  --fs-xl:    20px;                          /* stat values, sub-page titles */
+  --fs-title: 22px;                          /* page titles (PageHeader) */
+  --fs-xxl:   26px;                          /* dashboard greeting, page-level display */
+
   /* Type weights — discipline per 01-direction-decisions.md §Weight Discipline */
   --weight-display:      600;                /* Cormorant default */
   --weight-display-emph: 700;                /* Cormorant emphasis */

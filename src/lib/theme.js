@@ -326,17 +326,34 @@ export const BODY = "'Source Sans 3','DM Sans','Segoe UI',system-ui,sans-serif";
 
 export const FONT_URL = "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap";
 
-// Typography scale — font sizes
+// Typography scale — font sizes.
+//
+// Each value is a CSS custom-property reference, not a number. React
+// inline `style={{ fontSize: FS.sm }}` resolves to `font-size:
+// var(--fs-sm)` in the rendered HTML, so the master values live in
+// global.css under :root { --fs-* }. Tune the whole UI by editing
+// global.css — no JS changes needed.
+//
+// Why strings instead of numbers: 2,500+ inline `fontSize: FS.*`
+// callsites bypass CSS when FS is a number (browser zoom, theme
+// overrides, accessibility tooling can't reach them). Pointing at
+// CSS variables threads them all back through the cascade.
+//
+// Two-step migration history:
+//   1. (this commit) FS values become var() strings; existing
+//      callsites work unchanged.
+//   2. (follow-up) Sweep ~1,662 hardcoded `fontSize: <number>`
+//      literals to FS.* tokens so they also flow through CSS.
 export const FS = {
-  micro: 10,    // uppercase annotations, tiny labels
-  xs: 11,       // table headers, timestamps, section labels
-  sm: 12,       // meta text, badges, subtitle lines
-  base: 13,     // default body text, descriptions
-  md: 14,       // list item titles, table body, primary content
-  lg: 16,       // section headings inside cards
-  xl: 20,       // stat values, sub-page titles
-  title: 22,    // page titles (PageHeader)
-  xxl: 26,      // dashboard greeting, page-level display
+  micro: "var(--fs-micro)",   // 10px — uppercase annotations, tiny labels
+  xs:    "var(--fs-xs)",      // 11px — table headers, timestamps, section labels
+  sm:    "var(--fs-sm)",      // 12px — meta text, badges, subtitle lines
+  base:  "var(--fs-base)",    // 13px — default body text, descriptions
+  md:    "var(--fs-md)",      // 14px — list item titles, table body, primary content
+  lg:    "var(--fs-lg)",      // 16px — section headings inside cards
+  xl:    "var(--fs-xl)",      // 20px — stat values, sub-page titles
+  title: "var(--fs-title)",   // 22px — page titles (PageHeader)
+  xxl:   "var(--fs-xxl)",     // 26px — dashboard greeting, page-level display
 };
 
 // Typography scale — font weights
