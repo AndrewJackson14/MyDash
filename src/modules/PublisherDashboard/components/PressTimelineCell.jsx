@@ -63,7 +63,7 @@ export default function PressTimelineCell({
       <div style={{ fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, color: state === "empty" ? Z.tm : Z.tx }}>
         {date || ""}
       </div>
-      <div style={{ fontSize: 10, fontWeight: FW.semi, fontFamily: COND, minHeight: 12 }}>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.semi, fontFamily: COND, minHeight: 12 }}>
         {publications.length ? publications.join(", ") : ""}
       </div>
     </div>

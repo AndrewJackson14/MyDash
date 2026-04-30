@@ -111,7 +111,7 @@ const ProfilePanel = ({ user, team, pubs, onClose }) => {
 
         {/* Avatar + Name */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 48, height: 48, borderRadius: R, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: Z.tm }}>
+          <div style={{ width: 48, height: 48, borderRadius: R, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xl, fontWeight: FW.black, color: Z.tm }}>
             {(me.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
           </div>
           <div>

@@ -93,13 +93,13 @@ export default function KnowledgeBase({ isActive, team }) {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
               <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{a.title || "Untitled"}</span>
-              <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtTimeRelative(a.updated_at)}</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtTimeRelative(a.updated_at)}</span>
             </div>
             {a.excerpt && (
               <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, lineHeight: 1.4 }}>{a.excerpt}</div>
             )}
             {author && (
-              <div style={{ fontSize: 11, color: Z.td, fontFamily: COND }}>by {author}</div>
+              <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>by {author}</div>
             )}
           </button>
         );

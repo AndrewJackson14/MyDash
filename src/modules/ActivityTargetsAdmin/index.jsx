@@ -138,12 +138,12 @@ export default function ActivityTargetsAdmin() {
                       <div style={{ fontSize: FS.sm, color: Z.tx, fontWeight: FW.semi, fontFamily: COND }}>
                         {PRETTY_LABELS[t.metric_name] || t.metric_name}
                       </div>
-                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+                      <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
                         {t.target_type.replace(/_/g, " ")}
                       </div>
                     </div>
                     {isCurve ? (
-                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+                      <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
                         curve config (migration only)
                       </div>
                     ) : (

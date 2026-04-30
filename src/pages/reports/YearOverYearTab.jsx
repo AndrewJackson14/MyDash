@@ -267,7 +267,7 @@ const YearOverYearTab = ({ pubs, onNavigate }) => {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>View</div>
+          <div style={{ fontSize: FS.xs, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>View</div>
           <SolidTabs
             options={[
               { value: "month", label: "Month" },
@@ -348,7 +348,7 @@ const YearOverYearTab = ({ pubs, onNavigate }) => {
               <td style={{ fontWeight: inWindow ? FW.heavy : FW.semi, color: inWindow ? Z.tx : Z.tx }}>{row.month}</td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontFamily: DISPLAY, color: Z.tx }}>
                 {row.cur === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(row.cur)}
-                {row.curDeals > 0 && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{row.curDeals} deal{row.curDeals === 1 ? "" : "s"}</div>}
+                {row.curDeals > 0 && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{row.curDeals} deal{row.curDeals === 1 ? "" : "s"}</div>}
               </td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontFamily: DISPLAY, color: Z.td }}>
                 {row.cmp === 0 ? <span style={{ color: Z.tm }}>—</span> : fmtCurrency(row.cmp)}

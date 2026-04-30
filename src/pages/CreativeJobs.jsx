@@ -180,7 +180,7 @@ const CreativeJobs = ({ creativeJobs, setCreativeJobs, clients, team, bus, juris
             <JobBadge status={viewJob.status} />
             <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{JOB_TYPES.find(t => t.value === viewJob.jobType)?.label}</span>
           </div>
-          <h2 style={{ margin: "4px 0", fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewJob.title}</h2>
+          <h2 style={{ margin: "4px 0", fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewJob.title}</h2>
           <div style={{ fontSize: FS.md, fontWeight: FW.semi, color: Z.ac }}>{cn(viewJob.clientId)}</div>
           <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>
             Assigned to {tn(viewJob.assignedTo)}

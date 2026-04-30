@@ -64,7 +64,7 @@ const SnapCard = ({ icon: Icon, title, value, sub, color, onClick }) => (
       {Icon && <Icon size={14} color={color || Z.ac} />}
       <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</span>
     </div>
-    <div style={{ fontSize: 22, fontWeight: FW.black, color: color || Z.tx, fontFamily: DISPLAY }}>{value}</div>
+    <div style={{ fontSize: FS.title, fontWeight: FW.black, color: color || Z.tx, fontFamily: DISPLAY }}>{value}</div>
     {sub && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
   </div>
 );
@@ -414,7 +414,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
             {isT && <div aria-hidden style={{ position: "absolute", inset: 0, background: Z.ac + "10", pointerEvents: "none" }} />}
             <div style={{ fontSize: FS.sm, fontWeight: isT ? FW.black : FW.semi, color: isCur ? (isT ? Z.ac : Z.tx) : Z.td, marginBottom: 4, position: "relative" }}>{d.getDate()}</div>
             <div style={{ flex: 1, overflow: "hidden" }}>
-              {de.slice(0, 4).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e); }} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, marginBottom: 2, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><Dot color={e.color || Z.ac} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span></div>)}
+              {de.slice(0, 4).map(e => <div key={e.id} onClick={ev => { ev.stopPropagation(); setDetailEvent(e); }} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 4px", borderRadius: 2, fontSize: FS.micro, fontWeight: FW.semi, color: Z.tx, fontFamily: COND, marginBottom: 2, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><Dot color={e.color || Z.ac} /><span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span></div>)}
               {de.length > 4 && <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND, padding: "0 4px" }}>+{de.length - 4} more</div>}
             </div>
           </div>;
@@ -438,7 +438,7 @@ const CalendarPage = ({ clients, sales, issues, pubs, team, currentUser, stories
             const ds = toISO(d);
             const he = allEvents.filter(e => e.date === ds && e.time && parseInt(e.time) === h);
             return <div key={ds + h} style={{ borderLeft: `1px solid ${Z.bd}15`, borderBottom: `1px solid ${Z.bd}15`, padding: 2, height: 60 }}>
-              {he.map(e => <div key={e.id} onClick={() => setDetailEvent(e)} style={{ padding: "2px 4px", borderRadius: 2, fontSize: 10, fontWeight: FW.semi, background: (e.color || Z.ac) + "20", borderLeft: `2px solid ${e.color || Z.ac}`, color: Z.tx, fontFamily: COND, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{e.title}</div>)}
+              {he.map(e => <div key={e.id} onClick={() => setDetailEvent(e)} style={{ padding: "2px 4px", borderRadius: 2, fontSize: FS.micro, fontWeight: FW.semi, background: (e.color || Z.ac) + "20", borderLeft: `2px solid ${e.color || Z.ac}`, color: Z.tx, fontFamily: COND, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{e.title}</div>)}
             </div>;
           })}
         </div>)}

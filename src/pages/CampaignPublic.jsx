@@ -20,7 +20,7 @@ export default function CampaignPublic() {
         {/* Small branded header — no login bar, no navigation, reads
             like a standalone report page the advertiser can bookmark. */}
         <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${Z.bd}` }}>
-          <div style={{ fontSize: 20, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>13 Stars Media</div>
+          <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>13 Stars Media</div>
           <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
             Campaign performance report
           </div>

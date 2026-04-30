@@ -108,14 +108,14 @@ function TearsheetCell({ sale, client, setSales }) {
             target="_blank"
             rel="noopener noreferrer"
             title={`Open tearsheet · ${isImage ? "image" : "PDF"}${sale.tearsheetFilename ? ` · ${sale.tearsheetFilename}` : ""}`}
-            style={{ fontSize: 10, color: Z.go, fontFamily: COND, fontWeight: FW.bold, padding: "1px 6px", background: Z.go + "12", borderRadius: 999, textDecoration: "none" }}
+            style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND, fontWeight: FW.bold, padding: "1px 6px", background: Z.go + "12", borderRadius: 999, textDecoration: "none" }}
           >
             ✓ Tearsheet
           </a>
           <button
             onClick={() => setSendOpen(true)}
             title="Email tearsheet link to client"
-            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.ac, fontSize: 11, fontFamily: COND }}
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.ac, fontSize: FS.xs, fontFamily: COND }}
           >
             ✉
           </button>
@@ -123,7 +123,7 @@ function TearsheetCell({ sale, client, setSales }) {
             onClick={triggerPick}
             disabled={uploading}
             title="Replace tearsheet"
-            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.tm, fontSize: 11, fontFamily: COND }}
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", color: Z.tm, fontSize: FS.xs, fontFamily: COND }}
           >
             {uploading ? "…" : "↺"}
           </button>
@@ -133,7 +133,7 @@ function TearsheetCell({ sale, client, setSales }) {
           onClick={triggerPick}
           disabled={uploading}
           title="Upload tearsheet (PDF or image)"
-          style={{ background: "transparent", border: `1px dashed ${Z.bd}`, borderRadius: 999, padding: "1px 8px", cursor: "pointer", color: Z.tm, fontSize: 10, fontFamily: COND }}
+          style={{ background: "transparent", border: `1px dashed ${Z.bd}`, borderRadius: 999, padding: "1px 8px", cursor: "pointer", color: Z.tm, fontSize: FS.micro, fontFamily: COND }}
         >
           {uploading ? "Uploading…" : "⤴ Tearsheet"}
         </button>
@@ -178,14 +178,14 @@ function PortfolioLinkButton({ client }) {
         <button
           onClick={copy}
           title={`Copy ${url}`}
-          style={{ background: "transparent", border: "none", padding: "0 10px", cursor: "pointer", color: copied ? Z.go : Z.tx, fontSize: 11, fontFamily: COND, fontWeight: FW.semi, letterSpacing: 0.5, textTransform: "uppercase" }}
+          style={{ background: "transparent", border: "none", padding: "0 10px", cursor: "pointer", color: copied ? Z.go : Z.tx, fontSize: FS.xs, fontFamily: COND, fontWeight: FW.semi, letterSpacing: 0.5, textTransform: "uppercase" }}
         >
           {copied ? "✓ Copied" : "🔗 Tearsheet portfolio"}
         </button>
         <button
           onClick={() => setSendOpen(true)}
           title="Send portfolio link to client"
-          style={{ background: "transparent", border: "none", borderLeft: `1px solid ${Z.bd}`, padding: "0 10px", cursor: "pointer", color: Z.ac, fontSize: 12, fontFamily: COND }}
+          style={{ background: "transparent", border: "none", borderLeft: `1px solid ${Z.bd}`, padding: "0 10px", cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontFamily: COND }}
         >
           ✉
         </button>
@@ -255,7 +255,7 @@ function SendPortfolioModal({ client, onClose }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
             <input
               type="email"
               value={recipient}
@@ -269,7 +269,7 @@ function SendPortfolioModal({ client, onClose }) {
                   <button
                     key={i}
                     onClick={() => setRecipient(c.email)}
-                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}
                   >
                     {(c.name || c.email).slice(0, 26)}
                   </button>
@@ -278,7 +278,7 @@ function SendPortfolioModal({ client, onClose }) {
             )}
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
             <input
               type="text"
               value={cc}
@@ -288,7 +288,7 @@ function SendPortfolioModal({ client, onClose }) {
             />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
@@ -547,7 +547,7 @@ const ClientProfile = ({
 
     {/* ── HEADER ── */}
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...(vc.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{(vc.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
+      <div style={{ width: 56, height: 56, borderRadius: Ri, background: `hsl(${Math.abs([...(vc.name || "")].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 45%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.title, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{(vc.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2)}</div>
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0, fontSize: FS.xxl, fontWeight: FW.black, color: Z.tx, fontFamily: serif }}>{primaryContact.name || vc.name}</h2>
@@ -657,7 +657,7 @@ const ClientProfile = ({
         style={actionBtnStyle(primaryContact.phone, Z.ac)}
         title={primaryContact.phone || "No phone on file"}
       >
-        <span style={{ fontSize: 20, lineHeight: 1 }}>📞</span>
+        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📞</span>
         <span>Call</span>
       </a>
       <button
@@ -667,7 +667,7 @@ const ClientProfile = ({
         style={actionBtnStyle(primaryContact.email && onOpenEmail, Z.ac)}
         title={primaryContact.email || "No email on file"}
       >
-        <span style={{ fontSize: 20, lineHeight: 1 }}>✉️</span>
+        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>✉️</span>
         <span>Email</span>
       </button>
       <button
@@ -677,7 +677,7 @@ const ClientProfile = ({
         style={actionBtnStyle(!!onOpenProposal, Z.go)}
         title="Build a proposal pre-filled for this client"
       >
-        <span style={{ fontSize: 20, lineHeight: 1 }}>📄</span>
+        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📄</span>
         <span>Proposal</span>
       </button>
       <button
@@ -687,7 +687,7 @@ const ClientProfile = ({
         style={actionBtnStyle(!!onOpenMeeting, Z.pu)}
         title="Schedule a meeting with this client"
       >
-        <span style={{ fontSize: 20, lineHeight: 1 }}>📅</span>
+        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📅</span>
         <span>Meeting</span>
       </button>
     </div>
@@ -771,7 +771,7 @@ const ClientProfile = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Client Satisfaction</div>
             {avgScore && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 22, fontWeight: FW.black, color: avgScore >= 4 ? Z.su : avgScore >= 3 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{avgScore}</span>
+              <span style={{ fontSize: FS.title, fontWeight: FW.black, color: avgScore >= 4 ? Z.su : avgScore >= 3 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{avgScore}</span>
               <span style={{ fontSize: FS.xs, color: Z.td }}>/5 avg ({surveys.length} survey{surveys.length !== 1 ? "s" : ""})</span>
             </div>}
           </div>
@@ -1164,7 +1164,7 @@ const ClientProfile = ({
           <button onClick={() => toggleYear(yr.year)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", textAlign: "left" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 10, color: Z.tm, width: 10, display: "inline-block" }}>{open ? "▼" : "▶"}</span>
+              <span style={{ fontSize: FS.micro, color: Z.tm, width: 10, display: "inline-block" }}>{open ? "▼" : "▶"}</span>
               <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{yr.year}</span>
               <span style={{ fontSize: FS.xs, color: Z.td, marginLeft: 8 }}>
                 {yr.contracts.length > 0 && `${yr.contracts.length} contract${yr.contracts.length !== 1 ? "s" : ""} · `}
@@ -1185,7 +1185,7 @@ const ClientProfile = ({
                   style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: Z.tx }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                      <span style={{ fontSize: 10, color: Z.tm, width: 10 }}>{ctOpen ? "▼" : "▶"}</span>
+                      <span style={{ fontSize: FS.micro, color: Z.tm, width: 10 }}>{ctOpen ? "▼" : "▶"}</span>
                       <Ic.handshake size={11} color={Z.tm} />
                       <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{ct.name}</span>
                       <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: stColor, background: stColor + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>{ct.status}</span>
@@ -1329,15 +1329,15 @@ function CadenceModal({ schedule, contacts, onClose, onSaved }) {
   return <Modal open={true} onClose={onClose} title={`Delivery Cadence — ${schedule._saleLabel || "Campaign"}`} width={460}>
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: Z.td, textTransform: "uppercase", display: "block", marginBottom: 6, fontFamily: COND }}>Frequency</label>
+        <label style={{ fontSize: FS.xs, fontWeight: 700, color: Z.td, textTransform: "uppercase", display: "block", marginBottom: 6, fontFamily: COND }}>Frequency</label>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[["weekly", "Weekly"], ["monthly", "Monthly"], ["end_of_flight", "End of flight only"], ["annual", "Annual"]].map(([v, l]) => (
-            <button key={v} onClick={() => setCadence(v)} style={{ padding: "5px 12px", borderRadius: 4, border: `1px solid ${cadence === v ? Z.go : Z.bd}`, background: cadence === v ? Z.go + "20" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: cadence === v ? 700 : 600, color: cadence === v ? Z.go : Z.tm, fontFamily: COND }}>{l}</button>
+            <button key={v} onClick={() => setCadence(v)} style={{ padding: "5px 12px", borderRadius: 4, border: `1px solid ${cadence === v ? Z.go : Z.bd}`, background: cadence === v ? Z.go + "20" : "transparent", cursor: "pointer", fontSize: FS.base, fontWeight: cadence === v ? 700 : 600, color: cadence === v ? Z.go : Z.tm, fontFamily: COND }}>{l}</button>
           ))}
         </div>
       </div>
       <Sel label="Send To" value={contactId} onChange={e => setContactId(e.target.value)} options={[{ value: "", label: "— Profile only (no email) —" }, ...contacts.map(c => ({ value: c.id || c.email, label: `${c.name} <${c.email}>` }))]} />
-      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: Z.tx }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: FS.base, color: Z.tx }}>
         <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
         Active (uncheck to pause report generation)
       </label>

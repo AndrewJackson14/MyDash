@@ -288,7 +288,7 @@ export default function IssueProofingTab({ issueId, issue, currentUser, team, on
           <div>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>
               Proof {activeProof ? `v${activeProof.version}` : ""}
-              {activeProof && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: FW.heavy, color: PROOF_STATUS_COLOR(activeProof.status), padding: "2px 8px", background: PROOF_STATUS_COLOR(activeProof.status) + "15", borderRadius: 999, textTransform: "uppercase", letterSpacing: 0.4, fontFamily: COND, verticalAlign: "middle" }}>{activeProof.status}</span>}
+              {activeProof && <span style={{ marginLeft: 8, fontSize: FS.micro, fontWeight: FW.heavy, color: PROOF_STATUS_COLOR(activeProof.status), padding: "2px 8px", background: PROOF_STATUS_COLOR(activeProof.status) + "15", borderRadius: 999, textTransform: "uppercase", letterSpacing: 0.4, fontFamily: COND, verticalAlign: "middle" }}>{activeProof.status}</span>}
             </div>
             {activeProof && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
               Uploaded {fmtDate(activeProof.uploaded_at?.slice(0, 10))}{activeProof.byte_size ? ` · ${(activeProof.byte_size / 1048576).toFixed(1)} MB` : ""}{activeProof.notes ? ` — ${activeProof.notes}` : ""}
@@ -390,14 +390,14 @@ export default function IssueProofingTab({ issueId, issue, currentUser, team, on
                     opacity: a.resolved ? 0.6 : 1,
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm, fontFamily: COND }}>
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tm, fontFamily: COND }}>
                         Page {a.page_number} · #{idx + 1}{a.author_name ? ` · ${a.author_name}` : ""}
                       </span>
                       {canResolve && (
                         <button
                           onClick={() => toggleResolve(a)}
                           disabled={resolvingId === a.id}
-                          style={{ background: "transparent", border: "none", color: a.resolved ? Z.go : Z.ac, fontSize: 11, fontFamily: COND, fontWeight: FW.bold, cursor: "pointer" }}
+                          style={{ background: "transparent", border: "none", color: a.resolved ? Z.go : Z.ac, fontSize: FS.xs, fontFamily: COND, fontWeight: FW.bold, cursor: "pointer" }}
                         >
                           {resolvingId === a.id ? "…" : a.resolved ? "↺ Reopen" : "✓ Resolve"}
                         </button>
@@ -427,7 +427,7 @@ export default function IssueProofingTab({ issueId, issue, currentUser, team, on
                       <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>v{p.version}</span>
                       <span style={{ fontSize: 9, fontWeight: FW.heavy, color: PROOF_STATUS_COLOR(p.status), padding: "1px 6px", background: PROOF_STATUS_COLOR(p.status) + "15", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.4, fontFamily: COND }}>{p.status}</span>
                     </div>
-                    <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, marginTop: 1 }}>
+                    <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, marginTop: 1 }}>
                       {fmtDate(p.uploaded_at?.slice(0, 10))}{p.notes ? ` — ${p.notes}` : ""}
                     </div>
                   </div>
@@ -466,7 +466,7 @@ function ProofPage({ pdfDoc, pageNum, pins, pendingPin, onClick, proofStatus }) 
 
   return (
     <div ref={wrapperRef} style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Page {pageNum}</div>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Page {pageNum}</div>
       <div style={{ position: "relative", boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
         <canvas
           ref={canvasRef}
@@ -482,7 +482,7 @@ function ProofPage({ pdfDoc, pageNum, pins, pendingPin, onClick, proofStatus }) 
             width: 24, height: 24, borderRadius: "50%",
             background: a.resolved ? Z.go : Z.wa, color: "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 800,
+            fontSize: FS.xs, fontWeight: 800,
             border: "2px solid #fff",
             boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
             opacity: a.resolved ? 0.6 : 1,
@@ -498,7 +498,7 @@ function ProofPage({ pdfDoc, pageNum, pins, pendingPin, onClick, proofStatus }) 
             width: 24, height: 24, borderRadius: "50%",
             background: Z.ac, color: "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 800,
+            fontSize: FS.xs, fontWeight: 800,
             border: "2px solid #fff",
             boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
             animation: "proof-pulse 1s infinite",

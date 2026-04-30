@@ -13,7 +13,7 @@ import ReferenceAssetUploader from "../parts/ReferenceAssetUploader";
 
 const StepHeader = ({ title, subtitle, accent }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
-    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
+    <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
     {subtitle && (
       <div style={{ fontSize: FS.sm, color: accent ? Z.go : Z.tm, fontFamily: COND, fontWeight: accent ? FW.bold : FW.normal }}>
         {subtitle}
@@ -64,7 +64,7 @@ export default function Step6BriefAndArtSource({
       {/* Art Source */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{
-          fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+          fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
           letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
         }}>Art Source</div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -82,7 +82,7 @@ export default function Step6BriefAndArtSource({
           />
         </div>
         {errors.artSource && (
-          <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{errors.artSource}</div>
+          <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{errors.artSource}</div>
         )}
       </div>
 

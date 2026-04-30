@@ -641,7 +641,7 @@ function SortableStopRow({ id, index, stop, loc, onQtyChange, onNotesChange, onR
     gap: 8, alignItems: "center", padding: "4px 6px",
     background: Z.ac + "12", borderRadius: Ri,
   }}>
-    <span {...attributes} {...listeners} style={{ cursor: "grab", color: Z.tm, fontSize: 14, textAlign: "center" }}>⋮⋮</span>
+    <span {...attributes} {...listeners} style={{ cursor: "grab", color: Z.tm, fontSize: FS.md, textAlign: "center" }}>⋮⋮</span>
     <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac, textAlign: "center" }}>{index + 1}</span>
     <div>
       <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{loc.name}</div>
@@ -653,7 +653,7 @@ function SortableStopRow({ id, index, stop, loc, onQtyChange, onNotesChange, onR
     <input type="text" value={stop.access_notes || ""} placeholder="Access notes"
       onChange={e => onNotesChange(e.target.value)}
       style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, color: Z.tx, fontSize: FS.sm, padding: "3px 6px", outline: "none" }} />
-    <button onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 13 }}>×</button>
+    <button onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.base }}>×</button>
   </div>;
 }
 

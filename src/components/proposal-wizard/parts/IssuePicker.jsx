@@ -27,7 +27,7 @@ export default function IssuePicker({
       {/* Range chips */}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{
-          fontSize: 10, fontWeight: FW.heavy, color: Z.td,
+          fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td,
           letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
           marginRight: 6,
         }}>Quick pick</span>
@@ -97,7 +97,7 @@ export default function IssuePicker({
           {selectedIds.size === 0 ? "No issues selected" : `${selectedIds.size} issue${selectedIds.size === 1 ? "" : "s"} selected`}
         </span>
         {error && (
-          <span style={{ fontSize: 11, color: Z.da, fontFamily: COND, fontWeight: FW.bold }}>{error}</span>
+          <span style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND, fontWeight: FW.bold }}>{error}</span>
         )}
       </div>
     </div>

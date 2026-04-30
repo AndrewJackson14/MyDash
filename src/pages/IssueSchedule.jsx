@@ -51,7 +51,7 @@ const StatusChip = ({ status }) => {
   return (
     <span style={{
       display: "inline-block", padding: "3px 10px", borderRadius: Ri,
-      background: color + "1a", color, fontSize: 10, fontWeight: FW.heavy,
+      background: color + "1a", color, fontSize: FS.micro, fontWeight: FW.heavy,
       textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, whiteSpace: "nowrap",
     }}>{status}</span>
   );
@@ -136,11 +136,11 @@ const ThisWeekCard = ({ iss, pub, sales, stories, holidaySet, labelMap, onOpenIs
       cursor: onClick ? "pointer" : "default", padding: "8px 0",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>{label}</span>
+        <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>{label}</span>
         <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.tx, fontFamily: COND }}>{value}</span>
       </div>
       <ProgressBar pct={pct} color={barColor} />
-      {sub && <div style={{ fontSize: 10, color: Z.tm, marginTop: 3, fontFamily: COND }}>{sub}</div>}
+      {sub && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 3, fontFamily: COND }}>{sub}</div>}
     </div>
   );
 
@@ -153,7 +153,7 @@ const ThisWeekCard = ({ iss, pub, sales, stories, holidaySet, labelMap, onOpenIs
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>
             {pub?.id
               ? <EntityLink onClick={nav.toPublication(pub.id)}>{pub.name}</EntityLink>
               : (pub?.name || "")}
@@ -227,7 +227,7 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
               : (pub?.name || "")}
           </span>
         </div>
-        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 1 }}>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 1 }}>
           {iss?.id && pub?.id
             ? <EntityLink onClick={nav.toIssueDesign(pub.id, iss.id)} muted>{iss.label}</EntityLink>
             : iss.label}
@@ -243,7 +243,7 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
       <div onClick={(e) => { e.stopPropagation(); onOpenIssue(iss.id); }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
           <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Ads</span>
-          <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{m.closedAdCount}/{m.totalSlots}</span>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{m.closedAdCount}/{m.totalSlots}</span>
         </div>
         <ProgressBar pct={m.adPct} height={4} />
       </div>
@@ -252,7 +252,7 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
       <div onClick={(e) => { e.stopPropagation(); onNavigate("sales"); }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
           <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Revenue</span>
-          <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
             {m.revGoal > 0 ? `${fmtCurrency(m.revenue)} / ${fmtCurrency(m.revGoal)}` : fmtCurrency(m.revenue)}
           </span>
         </div>
@@ -263,7 +263,7 @@ const CompactRow = ({ iss, pub, sales, stories, onOpenIssue, onNavigate }) => {
       <div onClick={(e) => { e.stopPropagation(); onNavigate("editorial"); }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
           <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Stories</span>
-          <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>
             {m.storiesPlanned > 0 ? `${m.storiesReady}/${m.storiesPlanned}` : "—"}
           </span>
         </div>
@@ -380,7 +380,7 @@ const IssueSchedule = ({ pubs, issues, sales, stories, publicHolidays, loadHolid
             return (
               <button key={i.id} onClick={() => openIssue(i.id)} style={{
                 background: "transparent", border: `1px solid ${Z.da}40`, borderRadius: Ri,
-                padding: "3px 10px", fontSize: 11, fontWeight: FW.bold, color: Z.da,
+                padding: "3px 10px", fontSize: FS.xs, fontWeight: FW.bold, color: Z.da,
                 cursor: "pointer", fontFamily: COND,
               }}>{p?.name} — {i.label}</button>
             );

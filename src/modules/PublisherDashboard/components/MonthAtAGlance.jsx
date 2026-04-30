@@ -43,7 +43,7 @@ export default function MonthAtAGlance({
       <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>
         {label}
       </div>
-      {sub && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 

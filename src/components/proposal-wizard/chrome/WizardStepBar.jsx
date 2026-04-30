@@ -34,7 +34,7 @@ export default function WizardStepBar({ state, currentStep, completedSteps, onGo
               {isFirstOfPhase && (
                 <span style={{
                   position: "absolute", left: 0, top: 0,
-                  fontSize: 10, fontWeight: FW.heavy, letterSpacing: 0.5,
+                  fontSize: FS.micro, fontWeight: FW.heavy, letterSpacing: 0.5,
                   textTransform: "uppercase", color: Z.tm, fontFamily: COND,
                 }}>{PHASE_LABELS[s.phase]}</span>
               )}
@@ -99,7 +99,7 @@ export default function WizardStepBar({ state, currentStep, completedSteps, onGo
                   background: completed ? Z.go : current ? Z.ac : "transparent",
                   border: completed || current ? "none" : `1px solid ${Z.bd}`,
                   color: completed || current ? INV.light : Z.tm,
-                  fontSize: 11, fontWeight: FW.heavy,
+                  fontSize: FS.xs, fontWeight: FW.heavy,
                   flexShrink: 0,
                 }}>
                   {completed ? <Ic.check size={11} color={INV.light} /> : (idx + 1)}

@@ -58,7 +58,7 @@ export default function IssueCard({
           {publicationAbbrev || "—"} <span style={{ color: Z.tm, fontWeight: FW.semi }}>— {pressDate || "—"}</span>
         </div>
         <span style={{
-          fontSize: 10, fontWeight: FW.heavy, fontFamily: COND,
+          fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND,
           padding: "2px 8px", borderRadius: 999,
           background: dPillBg, color: dPillText,
           textTransform: "uppercase", letterSpacing: 0.5,

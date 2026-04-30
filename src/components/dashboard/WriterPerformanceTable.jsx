@@ -157,7 +157,7 @@ export default function WriterPerformanceTable({
             <div style={{ textAlign: "right" }}>
               {r.needsSupport && (
                 <span title="2+ late stories — consider a check-in" style={{
-                  fontSize: 10, fontWeight: FW.heavy,
+                  fontSize: FS.micro, fontWeight: FW.heavy,
                   padding: "1px 6px", borderRadius: 10,
                   background: Z.da + "22", color: Z.da,
                   fontFamily: COND,

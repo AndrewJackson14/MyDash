@@ -149,7 +149,7 @@ const PaymentPlanCard = memo(({ plan: p, today, onRetry, onSuspend }) => {
         {p.failedCharges > 0 && <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.da, background: Z.da + "12", padding: "2px 8px", borderRadius: Ri }}>Charge failed</span>}
         {p.overdueInvs.length > 0 && <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.da }}>{fmtCurrency(p.totalOverdue)} overdue</span>}
         <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: p.totalOutstanding > 0 ? Z.tx : Z.su }}>{fmtCurrency(p.totalOutstanding)}</div>
-        <span style={{ fontSize: 10, color: Z.td, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>{"\u25BC"}</span>
+        <span style={{ fontSize: FS.micro, color: Z.td, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>{"\u25BC"}</span>
       </div>
     </div>
     {expanded && <div style={{ borderTop: `1px solid ${Z.bd}`, padding: "12px 18px" }}>
@@ -1077,7 +1077,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewInv.invoiceNumber}</h2>
+          <h2 style={{ margin: "0 0 4px", fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{viewInv.invoiceNumber}</h2>
           <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm }}>{cn(viewInv.clientId)}</div>
           <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 2 }}>Issued {fmtDate(viewInv.issueDate)} · Due {fmtDate(viewInv.dueDate)}</div>
           {viewInv.billingSchedule === "monthly_plan" && <div style={{ fontSize: FS.sm, color: Z.pu, marginTop: 2 }}>Monthly Plan: {fmtCurrency(viewInv.monthlyAmount)}/mo × {viewInv.planMonths} months</div>}
@@ -1943,13 +1943,13 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
                   return <div key={sp.id} style={{ background: Z.bg, borderRadius: R, padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>{sp.name}</div>
-                      <div style={{ fontSize: 20, fontWeight: FW.black, color: Z.su }}>{fmtCurrency(closedRev)}</div>
+                      <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.su }}>{fmtCurrency(closedRev)}</div>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.tx }}>{dealCount}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Deals Closed</div></div>
-                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.tx }}>{fmtCurrency(avgDeal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Avg Deal</div></div>
-                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: winRate >= 50 ? Z.go : Z.wa }}>{winRate}%</div><div style={{ fontSize: FS.xs, color: Z.td }}>Win Rate</div></div>
-                      <div><div style={{ fontSize: 16, fontWeight: FW.black, color: Z.wa }}>{fmtCurrency(pipelineVal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Pipeline</div></div>
+                      <div><div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx }}>{dealCount}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Deals Closed</div></div>
+                      <div><div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx }}>{fmtCurrency(avgDeal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Avg Deal</div></div>
+                      <div><div style={{ fontSize: FS.lg, fontWeight: FW.black, color: winRate >= 50 ? Z.go : Z.wa }}>{winRate}%</div><div style={{ fontSize: FS.xs, color: Z.td }}>Win Rate</div></div>
+                      <div><div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.wa }}>{fmtCurrency(pipelineVal)}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Pipeline</div></div>
                     </div>
                   </div>;
                 })}
@@ -2292,7 +2292,7 @@ const Billing = ({ clients, sales, pubs, issues, proposals, invoices, setInvoice
         {/* Total */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: Z.sa, borderRadius: R }}>
           <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{selectedLines.length} items</span>
-          <span style={{ fontSize: 22, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(invTotal)}</span>
+          <span style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.su, fontFamily: DISPLAY }}>{fmtCurrency(invTotal)}</span>
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

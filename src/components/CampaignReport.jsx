@@ -79,8 +79,8 @@ function EngagementChart({ timeseries }) {
 function StatCard({ label, value, sub, color }) {
   return (
     <div style={{ padding: "14px 16px", borderRadius: R, border: `1px solid ${Z.bd}`, background: Z.sf, display: "flex", flexDirection: "column", gap: 4 }}>
-      <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: FW.black, color: color || Z.tx, fontFamily: DISPLAY, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>{label}</div>
+      <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: color || Z.tx, fontFamily: DISPLAY, lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{sub}</div>}
     </div>
   );
@@ -164,7 +164,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           {onBack && <button onClick={onBack} className="no-print" style={{ background: "none", border: "none", color: Z.ac, fontSize: FS.sm, fontFamily: COND, fontWeight: FW.bold, cursor: "pointer", padding: 0, marginBottom: 6 }}>← Back to History</button>}
-          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>
             {draft.draft_type === "eblast" ? "eBlast Campaign" : "Newsletter"} · {draft.publication_name}
           </div>
           <h1 style={{ margin: "2px 0 4px", fontSize: 24, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.2 }}>{draft.subject}</h1>
@@ -172,7 +172,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
           <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 4 }}>
             {draft.sent_at ? `Sent ${fmtDate(draft.sent_at.slice(0, 10))} at ${fmtTime(draft.sent_at)}` : "Not yet sent"}
             {draft.status && draft.status !== "sent" && (
-              <span style={{ marginLeft: 8, padding: "1px 8px", borderRadius: Ri, background: Z.wa + "22", color: Z.wa, fontWeight: FW.bold, textTransform: "uppercase", fontSize: 10 }}>{draft.status}</span>
+              <span style={{ marginLeft: 8, padding: "1px 8px", borderRadius: Ri, background: Z.wa + "22", color: Z.wa, fontWeight: FW.bold, textTransform: "uppercase", fontSize: FS.micro }}>{draft.status}</span>
             )}
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
       {/* Engagement chart */}
       <GlassCard>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Engagement — first 48 hours</div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Engagement — first 48 hours</div>
           <div style={{ display: "flex", gap: 12 }}>
             <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}><span style={{ display: "inline-block", width: 10, height: 3, background: STAT_COLORS.opens, marginRight: 4, verticalAlign: "middle" }}></span>Opens</span>
             <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}><span style={{ display: "inline-block", width: 10, height: 3, background: STAT_COLORS.clicks, marginRight: 4, verticalAlign: "middle" }}></span>Clicks</span>
@@ -222,7 +222,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
 
       {/* Total interactions summary */}
       <GlassCard>
-        <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: COND }}>Interaction Totals</div>
+        <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontFamily: COND }}>Interaction Totals</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
           <div>
             <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>Total opens (all hits)</div>
@@ -246,7 +246,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
       {mode === "internal" && recipientRows.length > 0 && (
         <GlassCard className="no-print">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Per-recipient activity</div>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Per-recipient activity</div>
             <div style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND }}>Top 50 by last activity · internal only</div>
           </div>
           <div style={{ overflowX: "auto" }}>
@@ -254,7 +254,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
               <thead>
                 <tr>
                   {["Recipient", "Status", "Sent", "Opened", "Clicked", "Activity"].map(h => (
-                    <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, borderBottom: `1px solid ${Z.bd}`, fontFamily: COND }}>{h}</th>
+                    <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, borderBottom: `1px solid ${Z.bd}`, fontFamily: COND }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -270,7 +270,7 @@ export default function CampaignReport({ mode = "internal", draftId = null, shar
                     <tr key={r.id} style={{ borderBottom: `1px solid ${Z.bd}30` }}>
                       <td style={{ padding: "5px 10px", color: Z.tx, fontFamily: COND }}>{r.recipient_email}</td>
                       <td style={{ padding: "5px 10px" }}>
-                        <span style={{ fontSize: 10, fontWeight: FW.bold, color: r.status === "sent" || r.status === "delivered" ? Z.su : r.status === "bounced" || r.status === "complained" ? Z.da : Z.tm, textTransform: "uppercase", fontFamily: COND }}>{r.status}</span>
+                        <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: r.status === "sent" || r.status === "delivered" ? Z.su : r.status === "bounced" || r.status === "complained" ? Z.da : Z.tm, textTransform: "uppercase", fontFamily: COND }}>{r.status}</span>
                       </td>
                       <td style={{ padding: "5px 10px", color: Z.tm, fontSize: FS.xs, fontFamily: COND }}>{r.sent_at ? fmtTime(r.sent_at) : "—"}</td>
                       <td style={{ padding: "5px 10px", color: r.first_opened_at ? STAT_COLORS.opens : Z.td, fontWeight: r.first_opened_at ? FW.bold : FW.normal, fontFamily: COND }}>{r.open_count || 0}</td>

@@ -159,7 +159,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: 560 }}>
       {/* Header */}
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(member.name)}</div>
+        <div style={{ width: 52, height: 52, borderRadius: R, background: Z.bd, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xl, fontWeight: FW.black, color: INV.light, flexShrink: 0 }}>{ini(member.name)}</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>{member.name}</div>
           <div style={{ fontSize: FS.sm, color: Z.ac, fontWeight: FW.semi }}>{member.role}</div>

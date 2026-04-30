@@ -78,10 +78,10 @@ export default function MobileTopBar({
             fontFamily: COND,
           }}
         >
-          <span style={{ fontSize: 11, color: Z.tm, fontWeight: FW.bold, letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: FS.xs, color: Z.tm, fontWeight: FW.bold, letterSpacing: 0.3, whiteSpace: "nowrap" }}>
             Step {stepIndex} of {stepCount}
           </span>
-          <span style={{ fontSize: 11, color: Z.td }}>·</span>
+          <span style={{ fontSize: FS.xs, color: Z.td }}>·</span>
           <span style={{
             fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx,
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -89,7 +89,7 @@ export default function MobileTopBar({
           }}>
             {stepLabel}
           </span>
-          <span style={{ fontSize: 10, color: Z.tm, marginLeft: 1 }}>▾</span>
+          <span style={{ fontSize: FS.micro, color: Z.tm, marginLeft: 1 }}>▾</span>
         </button>
 
         {/* Right — Total (tap → summary sheet) */}
@@ -108,7 +108,7 @@ export default function MobileTopBar({
           }}
         >
           <span>{fmtMoney(total)}</span>
-          <span style={{ fontSize: 10, color: Z.tm }}>▴</span>
+          <span style={{ fontSize: FS.micro, color: Z.tm }}>▴</span>
         </button>
       </div>
     </div>

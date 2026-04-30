@@ -151,7 +151,7 @@ export default function FuzzyPicker({
             tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); onChange?.(""); }}
             title="Clear"
-            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: Z.tm, fontSize: 14, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
+            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: Z.tm, fontSize: FS.md, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
           >×</button>
         ) : (
           <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: Z.tm, fontSize: FS.micro }}>▼</div>
@@ -168,12 +168,12 @@ export default function FuzzyPicker({
             {allowClear && selected && (
               <div
                 onMouseDown={(e) => { e.preventDefault(); select(""); }}
-                style={{ padding: "6px 12px", fontSize: 11, color: Z.tm, cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, fontFamily: COND }}
+                style={{ padding: "6px 12px", fontSize: FS.xs, color: Z.tm, cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, fontFamily: COND }}
                 onMouseEnter={() => setHoverIdx(-1)}
               >× {emptyLabel} (clear)</div>
             )}
             {visible.length === 0 && (
-              <div style={{ padding: 12, color: Z.td, fontSize: 12, textAlign: "center" }}>No matches</div>
+              <div style={{ padding: 12, color: Z.td, fontSize: FS.sm, textAlign: "center" }}>No matches</div>
             )}
             {visible.map((o, i) => {
               const active = i === hoverIdx;
@@ -189,13 +189,13 @@ export default function FuzzyPicker({
                     fontFamily: COND,
                   }}
                 >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: Z.tx, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.label}</span>
-                  {o.sub && <span style={{ fontSize: 11, color: Z.tm, flexShrink: 0 }}>{o.sub}</span>}
+                  <span style={{ fontSize: FS.base, fontWeight: 600, color: Z.tx, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{o.label}</span>
+                  {o.sub && <span style={{ fontSize: FS.xs, color: Z.tm, flexShrink: 0 }}>{o.sub}</span>}
                 </div>
               );
             })}
             {filtered.length > visible.length && (
-              <div style={{ padding: "6px 12px", fontSize: 10, color: Z.td, fontFamily: COND, textAlign: "center" }}>
+              <div style={{ padding: "6px 12px", fontSize: FS.micro, color: Z.td, fontFamily: COND, textAlign: "center" }}>
                 Showing {visible.length} of {filtered.length} — keep typing to narrow
               </div>
             )}

@@ -113,7 +113,7 @@ export function TokenAdminMenu({
           height: 26,
           cursor: "pointer",
           color: statusColor,
-          fontSize: 11,
+          fontSize: FS.xs,
           fontFamily: COND,
           fontWeight: FW.semi,
           letterSpacing: 0.5,

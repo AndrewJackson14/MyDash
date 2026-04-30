@@ -68,7 +68,7 @@ const getInputStyle = () => ({ width: "100%", padding: INPUT.padSm, borderRadius
 const getColorStyle = () => ({ ...getInputStyle(), width: 60, height: 32, padding: 2, cursor: "pointer" });
 
 const Toggle = ({ checked, onChange, label }) => (
-  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, fontFamily: COND, color: Z.tx }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: FS.sm, fontFamily: COND, color: Z.tx }}>
     <div onClick={() => onChange(!checked)} style={{ width: 36, height: 20, borderRadius: 10, background: checked ? (Z.su || "#22c55e") : Z.bd, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
       <div style={{ width: 16, height: 16, borderRadius: 8, background: INV.light, position: "absolute", top: 2, left: checked ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
     </div>
@@ -97,9 +97,9 @@ const OrderableList = ({ items, onChange, placeholder, showSlug }) => {
               <button onClick={() => move(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", cursor: i === 0 ? "default" : "pointer", color: i === 0 ? Z.bd : Z.tm, fontSize: 8, lineHeight: 1, padding: 0 }}>{"\u25b2"}</button>
               <button onClick={() => move(i, 1)} disabled={i === items.length - 1} style={{ background: "none", border: "none", cursor: i === items.length - 1 ? "default" : "pointer", color: i === items.length - 1 ? Z.bd : Z.tm, fontSize: 8, lineHeight: 1, padding: 0 }}>{"\u25bc"}</button>
             </div>
-            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND }}>{item}</span>
-            {showSlug && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{toSlug(item)}</span>}
-            <button onClick={() => remove(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 14, lineHeight: 1, padding: "0 2px" }}>{"\u00d7"}</button>
+            <span style={{ flex: 1, fontSize: FS.sm, fontWeight: 600, color: Z.tx, fontFamily: COND }}>{item}</span>
+            {showSlug && <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{toSlug(item)}</span>}
+            <button onClick={() => remove(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, lineHeight: 1, padding: "0 2px" }}>{"\u00d7"}</button>
           </div>
         ))}
       </div>
@@ -142,7 +142,7 @@ const ImageField = ({ value, onChange, uploadPath, publicationId, category, labe
         {value && <img src={value} alt="" style={{ width: 48, height: 48, objectFit: "contain", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa }} />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
           <input value={value || ""} onChange={e => onChange(e.target.value)} placeholder="https://..." style={getInputStyle()} />
-          <button onClick={handleUpload} disabled={uploading} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+          <button onClick={handleUpload} disabled={uploading} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
             {uploading ? "Uploading..." : "Upload"}
           </button>
         </div>
@@ -213,7 +213,7 @@ const SiteAnalytics = ({ siteId }) => {
         <div style={{ display: "flex", gap: 4 }}>
           {["24h", "7d", "30d", "90d"].map(r => (
             <button key={r} onClick={() => setRange(r)} style={{
-              padding: "2px 8px", borderRadius: 3, fontSize: 10, fontWeight: range === r ? 700 : 500,
+              padding: "2px 8px", borderRadius: 3, fontSize: FS.micro, fontWeight: range === r ? 700 : 500,
               border: "1px solid " + (range === r ? Z.ac : Z.bd), background: range === r ? Z.ac + "18" : "transparent",
               color: range === r ? Z.ac : Z.tm, cursor: "pointer", fontFamily: COND,
             }}>{r}</button>
@@ -231,7 +231,7 @@ const SiteAnalytics = ({ siteId }) => {
         ].map(s => (
           <div key={s.label} style={{ textAlign: "center" }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: Z.tx, fontFamily: COND }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+            <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
               {s.label}
               {s.change !== undefined && <span style={{ marginLeft: 4, color: changeColor(s.change), fontWeight: 700 }}>{changeLabel(s.change)}</span>}
             </div>
@@ -250,28 +250,28 @@ const SiteAnalytics = ({ siteId }) => {
       {/* Top pages + referrers side by side */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Pages</div>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Pages</div>
           {stats.topPages.length > 0 ? stats.topPages.map(p => (
             <div key={p.path} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
-              <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</span>
+              <span style={{ fontSize: FS.micro, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</span>
               <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
                 <div style={{ height: "100%", borderRadius: 2, width: `${(p.count / maxPage) * 100}%`, background: Z.su || "#22c55e" }} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{p.count}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{p.count}</span>
             </div>
-          )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
+          )) : <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>No data</div>}
         </div>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Referrers</div>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Top Referrers</div>
           {stats.topRefs.length > 0 ? stats.topRefs.map(r => (
             <div key={r.host} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
-              <span style={{ fontSize: 10, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.host}</span>
+              <span style={{ fontSize: FS.micro, fontFamily: COND, color: Z.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.host}</span>
               <div style={{ width: 60, height: 5, background: Z.bg, borderRadius: 2, flexShrink: 0 }}>
                 <div style={{ height: "100%", borderRadius: 2, width: `${(r.count / maxRef) * 100}%`, background: Z.su || "#22c55e" }} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{r.count}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, width: 30, textAlign: "right", flexShrink: 0 }}>{r.count}</span>
             </div>
-          )) : <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>No data</div>}
+          )) : <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>No data</div>}
         </div>
       </div>
     </div>
@@ -359,11 +359,11 @@ function OrgAppearancePanel() {
     <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Org Appearance</div>
-          <div style={{ fontSize: 11, color: Z.tm }}>Publisher-wide background and ambient pressure settings.</div>
+          <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Org Appearance</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>Publisher-wide background and ambient pressure settings.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {savedAt && Date.now() - savedAt < 2500 && <span style={{ fontSize: 11, color: Z.go, fontWeight: FW.bold }}>✓ Saved</span>}
+          {savedAt && Date.now() - savedAt < 2500 && <span style={{ fontSize: FS.xs, color: Z.go, fontWeight: FW.bold }}>✓ Saved</span>}
           <Btn sm onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
         </div>
       </div>
@@ -373,8 +373,8 @@ function OrgAppearancePanel() {
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx }}>Global Pressure</div>
-              <div style={{ fontSize: 11, color: Z.tm, marginTop: 2 }}>Ambient background tint that reacts to newsroom heat.</div>
+              <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx }}>Global Pressure</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>Ambient background tint that reacts to newsroom heat.</div>
             </div>
             <Toggle checked={s.global_pressure_enabled} onChange={(v) => setS(p => ({ ...p, global_pressure_enabled: v }))} label="" />
           </div>
@@ -382,7 +382,7 @@ function OrgAppearancePanel() {
 
         {/* Serenity color */}
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Serenity Color</div>
+          <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Serenity Color</div>
           <div style={{ display: "flex", gap: 6 }}>
             {[{ k: "blue", label: "Blue", color: "var(--action)" }, { k: "green", label: "Green", color: "#22C55E" }].map(opt => (
               <button key={opt.k} onClick={() => setS(p => ({ ...p, serenity_color: opt.k }))} style={{
@@ -390,7 +390,7 @@ function OrgAppearancePanel() {
                 border: `2px solid ${s.serenity_color === opt.k ? opt.color : Z.bd}`,
                 background: s.serenity_color === opt.k ? opt.color + "15" : "transparent",
                 color: s.serenity_color === opt.k ? opt.color : Z.tm,
-                cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: COND,
+                cursor: "pointer", fontSize: FS.sm, fontWeight: 700, fontFamily: COND,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}>
                 <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 5, background: opt.color }} />
@@ -402,7 +402,7 @@ function OrgAppearancePanel() {
 
         {/* Background image URL + upload */}
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd, gridColumn: "1 / -1" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Background Image</div>
+          <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, marginBottom: 8 }}>Background Image</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, alignItems: "center" }}>
             <input
               type="text"
@@ -418,18 +418,18 @@ function OrgAppearancePanel() {
           {s.background_image_url && (
             <div style={{ marginTop: 10, borderRadius: 4, overflow: "hidden", border: "1px solid " + Z.bd, position: "relative", aspectRatio: "16/6", background: Z.bg }}>
               <div style={{ position: "absolute", inset: 0, backgroundImage: `url('${s.background_image_url}')`, backgroundSize: "cover", backgroundPosition: "center", opacity: s.background_image_opacity }} />
-              <div style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10, padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>Preview @ {Math.round(s.background_image_opacity * 100)}%</div>
+              <div style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: FS.micro, padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>Preview @ {Math.round(s.background_image_opacity * 100)}%</div>
             </div>
           )}
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, color: Z.tm, width: 60 }}>Opacity</span>
+            <span style={{ fontSize: FS.xs, color: Z.tm, width: 60 }}>Opacity</span>
             <input
               type="range" min="0" max="1" step="0.01"
               value={s.background_image_opacity}
               onChange={e => setS(p => ({ ...p, background_image_opacity: Number(e.target.value) }))}
               style={{ flex: 1, accentColor: Z.ac }}
             />
-            <span style={{ fontSize: 11, color: Z.tx, fontWeight: 700, width: 40, textAlign: "right" }}>{Math.round(s.background_image_opacity * 100)}%</span>
+            <span style={{ fontSize: FS.xs, color: Z.tx, fontWeight: 700, width: 40, textAlign: "right" }}>{Math.round(s.background_image_opacity * 100)}%</span>
           </div>
         </div>
 
@@ -437,8 +437,8 @@ function OrgAppearancePanel() {
         <div style={{ padding: 12, background: Z.bg, borderRadius: 6, border: "1px solid " + Z.bd, gridColumn: "1 / -1" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: Z.tx }}>Story Status Colors</div>
-              <div style={{ fontSize: 11, color: Z.tm, marginTop: 2 }}>Colors used for status indicators in the Issue Planner and Story Editor.</div>
+              <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx }}>Story Status Colors</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 2 }}>Colors used for status indicators in the Issue Planner and Story Editor.</div>
             </div>
             <Toggle checked={s.status_colors_enabled !== false} onChange={(v) => setS(p => ({ ...p, status_colors_enabled: v }))} label="" />
           </div>
@@ -462,7 +462,7 @@ function OrgAppearancePanel() {
                     style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
                   />
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: colors.fg, fontFamily: COND }}>{status}</span>
+                <span style={{ fontSize: FS.sm, fontWeight: 700, color: colors.fg, fontFamily: COND }}>{status}</span>
               </div>
             ))}
           </div>
@@ -532,12 +532,12 @@ function SiteDashboardTab({ site, pubs, clients, sales, digitalAdProducts }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, display: "inline-block" }} />
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{zone.name || "(zone)"}</span>
-            {product && <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{product.name}</span>}
+            {product && <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{product.name}</span>}
           </div>
-          <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{status === "expired" ? "Expired" : status === "paused" ? "Paused" : daysLeft !== null ? `${daysLeft} days left` : ""}</span>
+          <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{status === "expired" ? "Expired" : status === "paused" ? "Paused" : daysLeft !== null ? `${daysLeft} days left` : ""}</span>
         </div>
         <div style={{ fontSize: FS.sm, color: Z.tx }}>{clientName}</div>
-        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{p.start_date || "—"} → {p.end_date || "—"}</div>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{p.start_date || "—"} → {p.end_date || "—"}</div>
         <div style={{ fontSize: FS.sm, color: Z.tx, textAlign: "right" }}>{(Number(p.impressions) || 0).toLocaleString()} imp</div>
         <Btn sm v="ghost" onClick={() => togglePause(p.id, p.is_active)}>{p.is_active ? "Pause" : "Resume"}</Btn>
       </div>;
@@ -678,7 +678,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
   // cascaded discounts without a separate input each.
   const headerCols = "1.4fr 0.9fr 1.1fr 0.7fr 1.5fr 0.55fr 24px";
   const headerCells = (
-    <div style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "6px 8px", background: Z.sa, fontSize: 10, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
+    <div style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "6px 8px", background: Z.sa, fontSize: FS.micro, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
       <div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>Discount Tiers (auto)</div><div>Sort</div><div></div>
     </div>
   );
@@ -692,7 +692,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     return (
       <div key={r.id || `_n${idx}_${kind}`} style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center", borderLeft: priced ? `2px solid ${Z.su}` : (r.zone_id ? `2px solid ${Z.wa}` : "2px solid transparent") }}>
         <Inp value={r.name || ""} onChange={e => updateRow(draft.indexOf(r), { name: e.target.value })} />
-        <div style={{ fontSize: 11, color: houseAds > 0 ? Z.wa : Z.td, fontFamily: COND, textAlign: "center" }}>
+        <div style={{ fontSize: FS.xs, color: houseAds > 0 ? Z.wa : Z.td, fontFamily: COND, textAlign: "center" }}>
           {r.zone_id ? `${houseAds} placed` : "—"}
         </div>
         <Sel value={r.product_type || "web_ad"} onChange={e => updateRow(draft.indexOf(r), { product_type: e.target.value })} options={[
@@ -703,7 +703,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
           { value: "programmatic", label: "Programmatic" },
         ]} disabled={!!r.zone_id} />
         <Inp type="number" value={r.rate_monthly ?? 0} onChange={e => updateRow(draft.indexOf(r), { rate_monthly: e.target.value })} />
-        <div style={{ fontSize: 11, color: priced ? Z.tx : Z.td, fontFamily: COND, lineHeight: 1.3 }}>
+        <div style={{ fontSize: FS.xs, color: priced ? Z.tx : Z.td, fontFamily: COND, lineHeight: 1.3 }}>
           {priced
             ? <span><strong>6mo:</strong> ${mo6.toLocaleString()}/mo · <strong>12mo:</strong> ${mo12.toLocaleString()}/mo</span>
             : <span style={{ fontStyle: "italic" }}>Set monthly rate</span>}
@@ -718,7 +718,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ fontSize: 13, color: Z.tm, fontFamily: COND }}>
+      <div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND }}>
         Auto-built from this site's ad zones. Set the monthly rate per zone — 6-month and 12-month tiers cascade automatically (15% off / 30% off). Priced products surface in the Sales proposal builder.
       </div>
       <Btn sm onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Catalog"}</Btn>
@@ -726,7 +726,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
 
     {/* By Zone — one row per active ad_zone on this site */}
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
+      <div style={{ fontSize: FS.xs, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
         Web Ad Zones <span style={{ color: Z.tm, fontWeight: 600 }}>· {zones.length}</span>
       </div>
       {zones.length === 0
@@ -742,7 +742,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     {/* Other digital products — eBlast, newsletter sponsor, social, etc. */}
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
+        <div style={{ fontSize: FS.xs, fontWeight: 800, color: Z.tx, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>
           Other Digital Products <span style={{ color: Z.tm, fontWeight: 600 }}>· {otherRows.length}</span>
         </div>
         <Btn sm v="secondary" onClick={addOtherRow}><Ic.plus size={11} /> Add Product</Btn>
@@ -1016,7 +1016,7 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Sel value={selectedId || ""} onChange={e => selectSite(e.target.value)} options={[{ value: "__mydash", label: "MyDash Settings" }, ...sites.map(s => ({ value: s.id, label: s.name }))]} />
           {site?.domain && (
-            <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
+            <a href={"https://" + site.domain} target="_blank" rel="noopener noreferrer" style={{ fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none", padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd }}>
               Preview {site.domain} {"\u2197"}
             </a>
           )}
@@ -1053,15 +1053,15 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Ic.alert size={16} color={siteErrors.length > 0 && !showResolved ? "#DC2626" : Z.tm} />
-              <span style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Site Errors</span>
-              {!showResolved && siteErrors.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#DC2626", background: "#DC262615", padding: "2px 8px", borderRadius: 10 }}>{siteErrors.length} unresolved</span>}
+              <span style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Site Errors</span>
+              {!showResolved && siteErrors.length > 0 && <span style={{ fontSize: FS.xs, fontWeight: 700, color: "#DC2626", background: "#DC262615", padding: "2px 8px", borderRadius: 10 }}>{siteErrors.length} unresolved</span>}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <Toggle checked={showResolved} onChange={setShowResolved} label={showResolved ? "Showing resolved" : "Showing open"} />
             </div>
           </div>
-          {errorsLoading ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: 12 }}>Loading...</div>
-          : siteErrors.length === 0 ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: 12, fontFamily: COND }}>{showResolved ? "No resolved errors" : "No errors — all clear"}</div>
+          {errorsLoading ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>
+          : siteErrors.length === 0 ? <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>{showResolved ? "No resolved errors" : "No errors — all clear"}</div>
           : <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflowY: "auto" }}>
               {siteErrors.map(e => {
                 const typeColors = { runtime: "#DC2626", "404": "#D97706", api: "#7C3AED", render: "#2563EB", network: "#6B7280" };
@@ -1070,25 +1070,25 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: 4, borderLeft: "3px solid " + tc }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: tc, textTransform: "uppercase", fontFamily: COND }}>{e.error_type}</span>
-                        {e.status_code && <span style={{ fontSize: 10, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{e.status_code}</span>}
-                        <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>{new Date(e.created_at || e.first_detected_at).toLocaleString()}</span>
+                        <span style={{ fontSize: FS.micro, fontWeight: 700, color: tc, textTransform: "uppercase", fontFamily: COND }}>{e.error_type}</span>
+                        {e.status_code && <span style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{e.status_code}</span>}
+                        <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginLeft: "auto" }}>{new Date(e.created_at || e.first_detected_at).toLocaleString()}</span>
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.message || "No message"}</div>
-                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.url}</div>
+                      <div style={{ fontSize: FS.sm, fontWeight: 600, color: Z.tx, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.message || "No message"}</div>
+                      <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.url}</div>
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      {!e.resolved && is404(e) && <Btn sm v="ghost" onClick={() => { setRedirectFormId(redirectFormId === e.id ? null : e.id); setRedirectNewPath(''); }} style={{ fontSize: 10, padding: "2px 6px", color: Z.ac }}>{"\u2192"} Redirect</Btn>}
+                      {!e.resolved && is404(e) && <Btn sm v="ghost" onClick={() => { setRedirectFormId(redirectFormId === e.id ? null : e.id); setRedirectNewPath(''); }} style={{ fontSize: FS.micro, padding: "2px 6px", color: Z.ac }}>{"\u2192"} Redirect</Btn>}
                       {!e.resolved && <Btn sm v="ghost" onClick={() => resolveError(e.id)} style={{ flexShrink: 0 }}>Resolve</Btn>}
                     </div>
                   </div>
                   {redirectFormId === e.id && (
                     <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 12px 6px 18px", background: Z.bg, borderRadius: 4 }}>
-                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0 }}>{extractPath(e.url)}</span>
-                      <span style={{ fontSize: 10, color: Z.td }}>{"\u2192"}</span>
-                      <input value={redirectNewPath} onChange={ev => setRedirectNewPath(ev.target.value)} onKeyDown={ev => { if (ev.key === "Enter") submitRedirect(e); }} placeholder="/new-path" autoFocus style={{ flex: 1, padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, outline: "none" }} />
-                      <Btn sm onClick={() => submitRedirect(e)} style={{ fontSize: 10, padding: "2px 8px" }}>Save</Btn>
-                      <button onClick={() => setRedirectFormId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 12 }}>{"\u2715"}</button>
+                      <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, flexShrink: 0 }}>{extractPath(e.url)}</span>
+                      <span style={{ fontSize: FS.micro, color: Z.td }}>{"\u2192"}</span>
+                      <input value={redirectNewPath} onChange={ev => setRedirectNewPath(ev.target.value)} onKeyDown={ev => { if (ev.key === "Enter") submitRedirect(e); }} placeholder="/new-path" autoFocus style={{ flex: 1, padding: "4px 8px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND, outline: "none" }} />
+                      <Btn sm onClick={() => submitRedirect(e)} style={{ fontSize: FS.micro, padding: "2px 8px" }}>Save</Btn>
+                      <button onClick={() => setRedirectFormId(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.sm }}>{"\u2715"}</button>
                     </div>
                   )}
                 </div>;
@@ -1155,13 +1155,13 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
             <Section title="Analytics">
               <Toggle checked={draft.native_analytics_enabled && !draft.ga_measurement_id} onChange={v => update("native_analytics_enabled", v)} label={draft.ga_measurement_id ? "Native Analytics (disabled — using Google Analytics)" : "Native Analytics Enabled"} />
               {!draft.ga_measurement_id && draft.native_analytics_enabled && (
-                <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Tracking page views, sessions, referrers, and top pages natively.</div>
+                <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Tracking page views, sessions, referrers, and top pages natively.</div>
               )}
               <Field label="Google Analytics Measurement ID">
                 <input value={draft.ga_measurement_id} onChange={e => update("ga_measurement_id", e.target.value)} placeholder="G-XXXXXXXXXX" style={getInputStyle()} />
               </Field>
               {draft.ga_measurement_id && (
-                <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Native analytics is automatically disabled when Google Analytics is configured.</div>
+                <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: -4 }}>Native analytics is automatically disabled when Google Analytics is configured.</div>
               )}
             </Section>
 
@@ -1198,10 +1198,10 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                 return (
                   <div key={loc.slug} style={{ marginBottom: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>
+                      <div style={{ fontSize: FS.sm, fontWeight: 700, color: Z.tx, fontFamily: COND }}>
                         {loc.name} <span style={{ fontWeight: 400, color: Z.tm }}>({loc.width}×{loc.height})</span>
                       </div>
-                      <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{ads.length}/{cap}</span>
+                      <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{ads.length}/{cap}</span>
                     </div>
                     {ads.map((ad, i) => {
                       const uploadKey = loc.slug + ":" + i;
@@ -1232,35 +1232,35 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                           )}
                           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                             <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Creative</div>
+                              <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Creative</div>
                               <div style={{ display: "flex", gap: 4 }}>
-                                <button onClick={handleAdUpload} disabled={adUploading === uploadKey} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tx, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                                <button onClick={handleAdUpload} disabled={adUploading === uploadKey} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tx, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                                   {adUploading === uploadKey ? "Uploading..." : "Upload"}
                                 </button>
-                                <button onClick={() => openMediaPicker(loc.slug, i)} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+                                <button onClick={() => openMediaPicker(loc.slug, i)} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.bg, color: Z.tm, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                                   Media Library
                                 </button>
-                                {ad.creative_url && <button onClick={() => updateAd(i, "creative_url", "")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600 }}>Clear</button>}
+                                {ad.creative_url && <button onClick={() => updateAd(i, "creative_url", "")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.xs, fontFamily: COND, fontWeight: 600 }}>Clear</button>}
                               </div>
                             </div>
                             <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Click URL</div>
+                              <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Click URL</div>
                               <input value={ad.click_url || ""} onChange={e => updateAd(i, "click_url", e.target.value)} placeholder="https://..." style={getInputStyle()} />
                             </div>
                             <div>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Alt Text</div>
+                              <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 1 }}>Alt Text</div>
                               <input value={ad.alt_text || ""} onChange={e => updateAd(i, "alt_text", e.target.value)} placeholder="Ad description..." style={getInputStyle()} />
                             </div>
                           </div>
                         </div>
                         <div style={{ textAlign: "right", marginTop: 4 }}>
-                          <button onClick={() => removeAd(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 700 }}>Remove</button>
+                          <button onClick={() => removeAd(i)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.xs, fontFamily: COND, fontWeight: 700 }}>Remove</button>
                         </div>
                       </div>
                       );
                     })}
                     {ads.length < cap && (
-                      <button onClick={addAd} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>+ Add House Ad</button>
+                      <button onClick={addAd} style={{ padding: "4px 10px", borderRadius: 3, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>+ Add House Ad</button>
                     )}
                   </div>
                 );
@@ -1327,11 +1327,11 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                     <div key={i} style={{ padding: 10, border: "1px solid " + Z.bd, borderRadius: 4, background: Z.sa }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Name</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Name</div>
                           <input value={tier.name || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], name: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="Print — Annual" />
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Type</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Type</div>
                           <select value={tier.type || "digital"} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], type: e.target.value, requires_address: e.target.value !== "digital" }; update("sub_tiers", t); }} style={getInputStyle()}>
                             <option value="digital">Digital</option>
                             <option value="print">Print</option>
@@ -1341,11 +1341,11 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Price (cents)</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Price (cents)</div>
                           <input type="number" value={tier.price ?? 0} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], price: Number(e.target.value) }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="9900" />
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Interval</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Interval</div>
                           <select value={tier.interval || "year"} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], interval: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()}>
                             <option value="month">Monthly</option>
                             <option value="year">Annual</option>
@@ -1353,17 +1353,17 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                           </select>
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Stripe Price ID</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Stripe Price ID</div>
                           <input value={tier.stripe_price_id || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], stripe_price_id: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="price_xxx" />
                         </div>
                       </div>
                       <div style={{ marginBottom: 6 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Description</div>
+                        <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Description</div>
                         <input value={tier.description || ""} onChange={e => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], description: e.target.value }; update("sub_tiers", t); }} style={getInputStyle()} placeholder="Weekly print edition delivered to your door" />
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Toggle checked={tier.requires_address ?? false} onChange={v => { const t = [...draft.sub_tiers]; t[i] = { ...t[i], requires_address: v }; update("sub_tiers", t); }} label="Requires Address" />
-                        <button onClick={() => { const t = draft.sub_tiers.filter((_, idx) => idx !== i); update("sub_tiers", t); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 12, fontFamily: COND, fontWeight: 700 }}>Remove</button>
+                        <button onClick={() => { const t = draft.sub_tiers.filter((_, idx) => idx !== i); update("sub_tiers", t); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.sm, fontFamily: COND, fontWeight: 700 }}>Remove</button>
                       </div>
                     </div>
                   ))}
@@ -1375,23 +1375,23 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
             {/* Live preview card */}
             {site && (
               <div style={{ marginTop: 16, padding: 16, borderRadius: 6, border: "1px solid " + Z.bd, background: Z.sa }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 10 }}>Preview</div>
+                <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 10 }}>Preview</div>
                 <div style={{ background: draft.primary_color, borderRadius: 4, padding: "12px 16px", marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {draft.logo_url && <img src={draft.logo_url} alt="" style={{ height: 28, objectFit: "contain" }} />}
-                    <span style={{ color: INV.light, fontSize: 14, fontWeight: 700, fontFamily: COND }}>{site.name}</span>
+                    <span style={{ color: INV.light, fontSize: FS.md, fontWeight: 700, fontFamily: COND }}>{site.name}</span>
                   </div>
                   {draft.nav_categories.length > 0 && (
                     <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                       {draft.nav_categories.slice(0, 6).map(c => (
-                        <span key={c} style={{ color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: 600, fontFamily: COND }}>{c}</span>
+                        <span key={c} style={{ color: "rgba(255,255,255,0.8)", fontSize: FS.micro, fontWeight: 600, fontFamily: COND }}>{c}</span>
                       ))}
-                      {draft.nav_categories.length > 6 && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, fontFamily: COND }}>+{draft.nav_categories.length - 6}</span>}
+                      {draft.nav_categories.length > 6 && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: FS.micro, fontFamily: COND }}>+{draft.nav_categories.length - 6}</span>}
                     </div>
                   )}
                 </div>
-                {draft.tagline && <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{draft.tagline}</div>}
-                <div style={{ display: "flex", gap: 8, marginTop: 8, fontSize: 10, color: Z.tm, fontFamily: COND }}>
+                {draft.tagline && <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{draft.tagline}</div>}
+                <div style={{ display: "flex", gap: 8, marginTop: 8, fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
                   <span>{site.domain}</span>
                   {draft.contact_email && <span>| {draft.contact_email}</span>}
                 </div>
@@ -1470,8 +1470,8 @@ function MarkupIndustriesSection() {
     <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Markup Industries</div>
-          <div style={{ fontSize: 11, color: Z.tm }}>Global. Advertisers in these industries pay an extra X% — overrides the local-zip discount.</div>
+          <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Markup Industries</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>Global. Advertisers in these industries pay an extra X% — overrides the local-zip discount.</div>
         </div>
         <Btn sm onClick={() => setEditing({ name: "", markup_percent: 15 })}>+ Add</Btn>
       </div>
@@ -1544,8 +1544,8 @@ function FreeEmailDomainsSection() {
   return (
     <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16 }}>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Free Email Domains</div>
-        <div style={{ fontSize: 11, color: Z.tm }}>Global. Self-serve email tier resolution skips domain-matching for these (gmail, yahoo, etc).</div>
+        <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Free Email Domains</div>
+        <div style={{ fontSize: FS.xs, color: Z.tm }}>Global. Self-serve email tier resolution skips domain-matching for these (gmail, yahoo, etc).</div>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input
@@ -1606,8 +1606,8 @@ export function LocalZipsSection({ pubId }) {
     <div style={{ background: Z.sf, borderRadius: R, border: "1px solid " + Z.bd, padding: 16, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Local Zip Codes</div>
-          <div style={{ fontSize: 11, color: Z.tm }}>Self-serve advertisers billing at these zips get 10% off (markup industries override).</div>
+          <div style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Local Zip Codes</div>
+          <div style={{ fontSize: FS.xs, color: Z.tm }}>Self-serve advertisers billing at these zips get 10% off (markup industries override).</div>
         </div>
         <Btn sm onClick={() => setBulk(true)}>+ Bulk Add</Btn>
       </div>
@@ -1633,5 +1633,5 @@ export function LocalZipsSection({ pubId }) {
   );
 }
 
-const ssTh = { padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, borderBottom: `1px solid ${Z.bd}`, fontFamily: COND };
+const ssTh = { padding: "8px 10px", textAlign: "left", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, borderBottom: `1px solid ${Z.bd}`, fontFamily: COND };
 const ssTd = { padding: "8px 10px", color: Z.tx, fontSize: FS.sm, fontFamily: COND, borderBottom: `1px solid ${Z.bd}30` };

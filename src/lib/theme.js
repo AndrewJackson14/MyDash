@@ -450,7 +450,7 @@ export const TBL = {
 export const INPUT = {
   pad: "9px 14px",         // standard input padding
   padSm: "6px 8px",        // compact input padding (Site Settings, inline)
-  fontSize: 13,            // matches FS.base
+  fontSize: FS.base,            // matches FS.base
   radius: Ri,              // internal-level rounding
 };
 
@@ -458,7 +458,7 @@ export const INPUT = {
 export const BTN = {
   pad: "9px 22px",         // default button padding
   padSm: "7px 16px",       // small button padding
-  fontSize: 13,
+  fontSize: FS.base,
   fontWeight: 700,
   radius: Ri,
 };
@@ -474,7 +474,7 @@ export const MODAL = {
 
 // Label tokens — uppercase section/field labels used everywhere
 export const LABEL = {
-  fontSize: 10,
+  fontSize: FS.micro,
   fontWeight: 700,
   letterSpacing: "0.05em",
   textTransform: "uppercase",

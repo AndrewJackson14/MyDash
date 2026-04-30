@@ -108,13 +108,13 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND };
+  const inputStyle = { width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND };
 
   return (
     <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid " + Z.bd, background: Z.sf, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: COND, color: Z.tx }}>Details</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 16 }}>{"\u00d7"}</button>
+        <span style={{ fontSize: FS.base, fontWeight: 700, fontFamily: COND, color: Z.tx }}>Details</span>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.lg }}>{"\u00d7"}</button>
       </div>
 
       {isImage(item.ObjectName) && (
@@ -122,11 +122,11 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       )}
 
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Filename</div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, wordBreak: "break-all" }}>{item.ObjectName}</div>
+        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Filename</div>
+        <div style={{ fontSize: FS.sm, fontWeight: 600, color: Z.tx, fontFamily: COND, wordBreak: "break-all" }}>{item.ObjectName}</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11, fontFamily: COND }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: FS.xs, fontFamily: COND }}>
         <div><span style={{ color: Z.tm }}>Size: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtSize(item.Length)}</span></div>
         <div><span style={{ color: Z.tm }}>Date: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(item.DateCreated)}</span></div>
         {item.ContentType && <div style={{ gridColumn: "1 / -1" }}><span style={{ color: Z.tm }}>Type: </span><span style={{ color: Z.tx, fontWeight: 600 }}>{item.ContentType}</span></div>}
@@ -135,7 +135,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       {meta?.id && (
         <>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3, display: "flex", justifyContent: "space-between" }}>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3, display: "flex", justifyContent: "space-between" }}>
               <span>Caption</span>
               {savingMeta && <span style={{ color: Z.tm, textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>Saving…</span>}
             </div>
@@ -149,7 +149,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
             />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Alt text</div>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>Alt text</div>
             <input
               value={altText}
               onChange={e => setAltText(e.target.value)}
@@ -162,10 +162,10 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
       )}
 
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>CDN URL</div>
+        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 3 }}>CDN URL</div>
         <div style={{ display: "flex", gap: 4 }}>
-          <input value={url} readOnly style={{ ...inputStyle, flex: 1, fontSize: 10, color: Z.tm }} />
-          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? "#22c55e" : Z.tx, fontSize: 10, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <input value={url} readOnly style={{ ...inputStyle, flex: 1, fontSize: FS.micro, color: Z.tm }} />
+          <button onClick={copyUrl} style={{ padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: copied ? "#22c55e" : Z.tx, fontSize: FS.micro, fontFamily: COND, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             {copied ? "\u2713 Copied" : "Copy"}
           </button>
         </div>
@@ -173,7 +173,7 @@ const DetailPanel = ({ item, currentPath, onClose, onDelete, onSelect, selectMod
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
         {selectMode && <Btn sm onClick={() => onSelect({ url, fileName: item.ObjectName, alt: altText || meta?.altText || "", caption: caption || meta?.caption || "", id: meta?.id })} style={{ background: Z.ac + "12", color: Z.ac, border: "1px solid " + Z.ac + "40" }}>Select This Image</Btn>}
-        <button onClick={async () => { if (await dialog.confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={async () => { if (await dialog.confirm("Delete " + item.ObjectName + " permanently?")) onDelete(item); }} style={{ padding: "6px 10px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: "transparent", color: Z.da, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
           Delete
         </button>
       </div>
@@ -354,8 +354,8 @@ const UnusedImagesPanel = ({ onClose }) => {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Find Unused Images</h2>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 13, fontFamily: COND, fontWeight: 600 }}>← Back to Library</button>
+        <h2 style={{ margin: 0, fontSize: FS.xl, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Find Unused Images</h2>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.base, fontFamily: COND, fontWeight: 600 }}>← Back to Library</button>
       </div>
 
       <div style={{ fontSize: FS.base, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
@@ -370,10 +370,10 @@ const UnusedImagesPanel = ({ onClose }) => {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{progress.message}</div>
-            <button onClick={cancelScan} style={{ padding: "4px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Cancel</button>
+            <button onClick={cancelScan} style={{ padding: "4px 12px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: FS.xs, fontFamily: COND, cursor: "pointer" }}>Cancel</button>
           </div>
           {/* Live counters during scan */}
-          <div style={{ display: "flex", gap: 16, fontSize: 11, fontFamily: COND, color: Z.tm }}>
+          <div style={{ display: "flex", gap: 16, fontSize: FS.xs, fontFamily: COND, color: Z.tm }}>
             {refsCount > 0 && <span>Referenced URLs: <b style={{ color: Z.tx }}>{refsCount.toLocaleString()}</b></span>}
             <span>Files scanned: <b style={{ color: Z.tx }}>{progress.totalFiles.toLocaleString()}</b></span>
             <span>Referenced: <b style={{ color: Z.go }}>{progress.referencedCount.toLocaleString()}</b></span>
@@ -393,8 +393,8 @@ const UnusedImagesPanel = ({ onClose }) => {
             { label: "Reclaimable Space", value: fmtSize(stats.orphanBytes), color: stats.orphaned > 0 ? Z.wa : Z.tm },
           ].map(s => (
             <div key={s.label} style={{ padding: "12px 16px", borderRadius: R, border: "1px solid " + Z.bd, background: Z.sf, minWidth: 140 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: s.color || Z.tx, fontFamily: DISPLAY }}>{s.value}</div>
+              <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontSize: FS.title, fontWeight: 900, color: s.color || Z.tx, fontFamily: DISPLAY }}>{s.value}</div>
             </div>
           ))}
         </div>
@@ -422,8 +422,8 @@ const UnusedImagesPanel = ({ onClose }) => {
                 Delete {selectedOrphans.size} Unused Image{selectedOrphans.size !== 1 ? "s" : ""}
               </Btn>
             )}
-            {deleteProgress && <span style={{ fontSize: 11, color: Z.wa, fontFamily: COND }}>{deleteProgress}</span>}
-            <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{selectedOrphans.size} of {orphans.length} selected</span>
+            {deleteProgress && <span style={{ fontSize: FS.xs, color: Z.wa, fontFamily: COND }}>{deleteProgress}</span>}
+            <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{selectedOrphans.size} of {orphans.length} selected</span>
             <div style={{ flex: 1 }} />
             <Pill label="Re-scan" icon={Ic.search} onClick={startScan} />
           </div>
@@ -443,19 +443,19 @@ const UnusedImagesPanel = ({ onClose }) => {
                     border: "2px solid " + (isSel ? Z.da : "rgba(255,255,255,0.6)"), background: isSel ? Z.da : "rgba(0,0,0,0.3)",
                     display: "flex", alignItems: "center", justifyContent: "center", zIndex: ZI.raised,
                   }}>
-                    {isSel && <span style={{ color: INV.light, fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    {isSel && <span style={{ color: INV.light, fontSize: FS.micro, fontWeight: 700 }}>✓</span>}
                   </div>
                   {isImage(item.ObjectName) ? (
                     <div style={{ width: "100%", height: 100, background: Z.sa }}>
                       <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                   ) : (
-                    <div style={{ width: "100%", height: 100, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
+                    <div style={{ width: "100%", height: 100, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: FS.micro, fontFamily: COND }}>
                       {item.ObjectName.split(".").pop()?.toUpperCase() || "FILE"}
                     </div>
                   )}
                   <div style={{ padding: "6px 8px" }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
+                    <div style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
                     <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{fmtSize(item.Length)} · {item.fullPath?.split("/").slice(0, -1).join("/") || ""}</div>
                   </div>
                 </div>
@@ -464,7 +464,7 @@ const UnusedImagesPanel = ({ onClose }) => {
           </div>
           {orphans.length > orphanPage && (
             <div style={{ padding: "12px 0", textAlign: "center" }}>
-              <button onClick={() => setOrphanPage(p => p + 120)} style={{ padding: "8px 24px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => setOrphanPage(p => p + 120)} style={{ padding: "8px 24px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: FS.sm, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                 Show More ({(orphans.length - orphanPage).toLocaleString()} remaining)
               </button>
             </div>
@@ -746,20 +746,20 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
       {/* Header */}
       {!embedded && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
+          <h2 style={{ margin: 0, fontSize: FS.xl, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Media Library</h2>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " · " + loadProgress : ""}</span>
+            <span style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{allFiles.length.toLocaleString()} files{loadingMore ? " (scanning...)" : ""}{loadProgress ? " · " + loadProgress : ""}</span>
             <Pill label="Find Unused Images" icon={Ic.trash} onClick={() => setShowUnused(true)} />
           </div>
         </div>
       )}
 
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: COND }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, fontFamily: COND }}>
         {pathParts.map((part, i) => (
           <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             {i > 0 && <span style={{ color: Z.tm }}>/</span>}
-            <button onClick={() => navigate(pathParts.slice(0, i + 1).join("/"))} style={{ background: "none", border: "none", color: i === pathParts.length - 1 ? Z.tx : Z.ac, fontWeight: i === pathParts.length - 1 ? 700 : 500, cursor: "pointer", fontFamily: COND, fontSize: 11 }}>{part}</button>
+            <button onClick={() => navigate(pathParts.slice(0, i + 1).join("/"))} style={{ background: "none", border: "none", color: i === pathParts.length - 1 ? Z.tx : Z.ac, fontWeight: i === pathParts.length - 1 ? 700 : 500, cursor: "pointer", fontFamily: COND, fontSize: FS.xs }}>{part}</button>
           </span>
         ))}
       </div>
@@ -769,7 +769,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
         border: `2px dashed ${dragOver ? Z.ac : Z.bd}`, borderRadius: R, padding: dragOver ? "20px" : "12px 16px",
         background: dragOver ? Z.ac + "08" : Z.sa, textAlign: "center", cursor: "pointer", transition: "all 0.2s",
       }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: dragOver ? Z.ac : Z.tm, fontFamily: COND }}>
+        <div style={{ fontSize: FS.sm, fontWeight: 600, color: dragOver ? Z.ac : Z.tm, fontFamily: COND }}>
           {dragOver ? "Drop files here" : "Drag & drop files or click to upload"}
         </div>
       </div>
@@ -778,7 +778,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
       {uploading.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {uploading.map(u => (
-            <div key={u.id} style={{ padding: "4px 10px", borderRadius: Ri, background: u.error ? "#fef2f2" : u.done ? "#f0fdf4" : Z.sa, border: "1px solid " + (u.error ? Z.da + "30" : u.done ? "#22c55e30" : Z.bd), fontSize: 10, fontFamily: COND, color: u.error ? Z.da : u.done ? "#22c55e" : Z.tm }}>
+            <div key={u.id} style={{ padding: "4px 10px", borderRadius: Ri, background: u.error ? "#fef2f2" : u.done ? "#f0fdf4" : Z.sa, border: "1px solid " + (u.error ? Z.da + "30" : u.done ? "#22c55e30" : Z.bd), fontSize: FS.micro, fontFamily: COND, color: u.error ? Z.da : u.done ? "#22c55e" : Z.tm }}>
               {u.name} {u.error ? "\u2014 " + u.error : u.done ? "\u2713 Done" : "uploading..."}
             </div>
           ))}
@@ -787,7 +787,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
 
       {/* Filter chips — By Publication / By Category / Untagged */}
       {dbFiles && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Pub:</span>
+        <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Pub:</span>
         <FilterPillStrip
           gap={6}
           value={pubChip}
@@ -798,7 +798,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
             ...(allPubs || pubs || []).map(p => ({ value: p.id, label: p.name })),
           ]}
         />
-        <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginLeft: 12 }}>Category:</span>
+        <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginLeft: 12 }}>Category:</span>
         <FilterPillStrip
           gap={6}
           value={catChip}
@@ -809,11 +809,11 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
 
       {/* Toolbar — flat view, no folder hierarchy */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {loadProgress && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
+        {loadProgress && <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, fontStyle: "italic" }}>{loadProgress}</span>}
         <Sel value={sortBy} onChange={e => setSortBy(e.target.value)} options={[{ value: "date", label: "Newest" }, { value: "name", label: "Name A-Z" }, { value: "size", label: "Largest" }]} />
         <div style={{ display: "flex", gap: 0, border: "1px solid " + Z.bd, borderRadius: Ri }}>
-          <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u25a6"}</button>
-          <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12 }}>{"\u2630"}</button>
+          <button onClick={() => setViewMode("grid")} style={{ padding: "4px 8px", background: viewMode === "grid" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "grid" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.sm }}>{"\u25a6"}</button>
+          <button onClick={() => setViewMode("list")} style={{ padding: "4px 8px", background: viewMode === "list" ? Z.ac + "12" : "transparent", border: "none", color: viewMode === "list" ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.sm }}>{"\u2630"}</button>
         </div>
         {viewMode === "grid" && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -828,7 +828,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
       {/* Bulk bar */}
       {selectedItems.size > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 12px", background: Z.ac + "08", borderRadius: Ri, border: "1px solid " + Z.ac + "20" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
+          <span style={{ fontSize: FS.sm, fontWeight: 600, color: Z.ac, fontFamily: COND }}>{selectedItems.size} selected</span>
           {multi && onSelectMulti && (
             <Btn
               sm
@@ -846,8 +846,8 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
               Insert {selectedItems.size} as Gallery
             </Btn>
           )}
-          <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.da}30`, background: "transparent", color: Z.da, fontSize: 11, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
-          <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Clear</button>
+          <button onClick={bulkDelete} style={{ padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.da}30`, background: "transparent", color: Z.da, fontSize: FS.xs, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>Delete Selected</button>
+          <button onClick={() => setSelectedItems(new Set())} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: "transparent", color: Z.tm, fontSize: FS.xs, fontFamily: COND, cursor: "pointer" }}>Clear</button>
         </div>
       )}
 
@@ -855,8 +855,8 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
       <div style={{ display: "flex", flex: 1, minHeight: 400, gap: 0 }}>
         {/* File grid/list */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>Loading...</div>}
-          {!loading && !loadingMore && allFiles.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: 13 }}>No files in this folder</div>}
+          {loading && files.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.base }}>Loading...</div>}
+          {!loading && !loadingMore && allFiles.length === 0 && <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.base }}>No files in this folder</div>}
 
           {!loading && viewMode === "grid" && (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${scaledMin}px, 1fr))`, gap: 8 }}>
@@ -874,19 +874,19 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
                       border: "2px solid " + (isSel ? Z.ac : "rgba(255,255,255,0.6)"), background: isSel ? Z.ac : "rgba(0,0,0,0.3)",
                       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: ZI.raised,
                     }}>
-                      {isSel && <span style={{ color: INV.light, fontSize: 10, fontWeight: 700 }}>{"\u2713"}</span>}
+                      {isSel && <span style={{ color: INV.light, fontSize: FS.micro, fontWeight: 700 }}>{"\u2713"}</span>}
                     </div>
                     {isImage(item.ObjectName) ? (
                       <div style={{ width: "100%", height: thumbH, background: Z.sa }}>
                         <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
                     ) : (
-                      <div style={{ width: "100%", height: thumbH, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: 10, fontFamily: COND }}>
+                      <div style={{ width: "100%", height: thumbH, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", color: Z.tm, fontSize: FS.micro, fontFamily: COND }}>
                         {item.ObjectName.split(".").pop()?.toUpperCase() || "FILE"}
                       </div>
                     )}
                     <div style={{ padding: "6px 8px" }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
+                      <div style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</div>
                       <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{fmtSize(item.Length)} {"\u00b7"} {fmtDate(item.DateCreated)}</div>
                     </div>
                   </div>
@@ -897,7 +897,7 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
 
           {!loading && viewMode === "list" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, borderBottom: "1px solid " + Z.bd }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, borderBottom: "1px solid " + Z.bd }}>
                 <span style={{ width: 20 }}></span>
                 <span style={{ width: 36 }}>Thumb</span>
                 <span style={{ flex: 1 }}>Filename</span>
@@ -924,9 +924,9 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
                     ) : (
                       <div style={{ width: 36, height: 36, borderRadius: Ri, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: Z.tm, flexShrink: 0 }}>{item.ObjectName.split(".").pop()?.toUpperCase()}</div>
                     )}
-                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</span>
-                    <span style={{ width: 70, fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "right" }}>{fmtSize(item.Length)}</span>
-                    <span style={{ width: 90, fontSize: 10, color: Z.tm, fontFamily: COND }}>{fmtDate(item.DateCreated)}</span>
+                    <span style={{ flex: 1, fontSize: FS.sm, fontWeight: 600, color: Z.tx, fontFamily: COND, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.ObjectName}</span>
+                    <span style={{ width: 70, fontSize: FS.micro, color: Z.tm, fontFamily: COND, textAlign: "right" }}>{fmtSize(item.Length)}</span>
+                    <span style={{ width: 90, fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{fmtDate(item.DateCreated)}</span>
                   </div>
                 );
               })}
@@ -936,13 +936,13 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
           {/* Load More / status */}
           {hasMore && (
             <div style={{ padding: "16px 0", textAlign: "center" }}>
-              <button onClick={() => setVisibleCount(prev => prev + 60)} style={{ padding: "8px 24px", borderRadius: R, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => setVisibleCount(prev => prev + 60)} style={{ padding: "8px 24px", borderRadius: R, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: FS.sm, fontFamily: COND, fontWeight: 600, cursor: "pointer" }}>
                 Show More ({allFiles.length - visibleCount} remaining)
               </button>
             </div>
           )}
           {loadingMore && (
-            <div style={{ padding: "12px 0", textAlign: "center", fontSize: 11, color: Z.tm, fontFamily: COND }}>
+            <div style={{ padding: "12px 0", textAlign: "center", fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
               {loadProgress || "Scanning folders..."}
             </div>
           )}
@@ -988,17 +988,17 @@ export default function MediaLibrary({ pubs, allPubs, embedded, onSelect, onSele
             }}>
               <button onClick={() => setLightbox(null)} style={{
                 position: "absolute", top: 0, right: 0, background: "rgba(255,255,255,0.15)",
-                border: "none", color: INV.light, fontSize: 22, cursor: "pointer", width: 36, height: 36,
+                border: "none", color: INV.light, fontSize: FS.title, cursor: "pointer", width: 36, height: 36,
                 borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center",
               }}>{"\u00d7"}</button>
               {isImage(lightbox.ObjectName) ? (
                 <img src={lbUrl} alt="" style={{ maxWidth: "100%", maxHeight: "calc(88vh - 60px)", objectFit: "contain", borderRadius: R }} />
               ) : (
-                <div style={{ color: INV.light, fontSize: 14, fontFamily: COND }}>{lightbox.ObjectName}</div>
+                <div style={{ color: INV.light, fontSize: FS.md, fontFamily: COND }}>{lightbox.ObjectName}</div>
               )}
               <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ color: INV.light, fontSize: 13, fontWeight: 600, fontFamily: COND }}>{lightbox.ObjectName}</span>
-                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: COND }}>{fmtSize(lightbox.Length)}</span>
+                <span style={{ color: INV.light, fontSize: FS.base, fontWeight: 600, fontFamily: COND }}>{lightbox.ObjectName}</span>
+                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: FS.xs, fontFamily: COND }}>{fmtSize(lightbox.Length)}</span>
               </div>
             </div>
           </div>

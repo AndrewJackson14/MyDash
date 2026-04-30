@@ -17,7 +17,7 @@ import {
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
-    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
+    <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
     {subtitle && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{subtitle}</div>}
   </div>
 );
@@ -128,7 +128,7 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
         display: "flex", flexDirection: "column", gap: 12,
       }}>
         <div style={{
-          fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+          fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
           letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
         }}>Payment Timing</div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -152,7 +152,7 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
           />
         </div>
         {errors.payTiming && (
-          <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{errors.payTiming}</div>
+          <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{errors.payTiming}</div>
         )}
 
         {state.payTiming === "monthly" && (
@@ -179,7 +179,7 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
           display: "flex", flexDirection: "column", gap: 10,
         }}>
           <div style={{
-            fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+            fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
             letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
           }}>Delivery Reports</div>
 
@@ -203,7 +203,7 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
             })}
           </div>
           {errors.deliveryCadence && (
-            <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{errors.deliveryCadence}</div>
+            <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{errors.deliveryCadence}</div>
           )}
 
           {/* Recipient picker — pulls from client.contacts +
@@ -244,7 +244,7 @@ export default function Step5PaymentTerms({ state, actions, ctx, clients, valida
                   />
                 )}
                 {emailSuggestions.length === 0 && (
-                  <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                  <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
                     No saved emails for this client. Pick "Custom email…" to enter one, or leave blank to post reports to the client profile only.
                   </div>
                 )}

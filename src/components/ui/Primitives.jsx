@@ -26,7 +26,7 @@ const pressBody = {
 
 const pressLabel = {
   fontFamily:    TYPE.family.body,
-  fontSize:      11,
+  fontSize: FS.xs,
   fontWeight:    TYPE.weight.bodyBold,
   color:         "var(--muted)",
   letterSpacing: TYPE.ls.headers,
@@ -1169,7 +1169,7 @@ export const NavSection = ({ label, collapsed, isCollapsed, onToggle, badgeTotal
           style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             height: 24, padding: "0 20px", margin: "14px 0 4px",
-            fontSize: 10, fontWeight: 600, letterSpacing: "0.08em",
+            fontSize: FS.micro, fontWeight: 600, letterSpacing: "0.08em",
             textTransform: "uppercase",
             color: Z.fgMuted,
             cursor: onToggle ? "pointer" : "default",
@@ -1218,11 +1218,11 @@ export const Breadcrumb = ({ items }) => {
         const last = i === items.length - 1;
         return (
           <span key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {i > 0 && <span style={{ color: Z.borderStrong, fontSize: 12 }}>›</span>}
+            {i > 0 && <span style={{ color: Z.borderStrong, fontSize: FS.sm }}>›</span>}
             <span
               onClick={c.onClick}
               style={{
-                fontSize: 13, fontWeight: 500,
+                fontSize: FS.base, fontWeight: 500,
                 color: last ? Z.fgPrimary : Z.fgMuted,
                 cursor: c.onClick ? "pointer" : "default",
                 fontFamily: FONT.sans,

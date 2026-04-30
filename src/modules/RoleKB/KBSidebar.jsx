@@ -55,7 +55,7 @@ export default function KBSidebar({
                 <div style={{ fontWeight: FW.bold, marginBottom: 2 }}>
                   {hit.doc.metadata?.display_name || hit.doc.metadata?.title || hit.doc.slug}
                 </div>
-                <div style={{ fontSize: 10, color: Z.tm, lineHeight: 1.3, fontStyle: "italic" }}>
+                <div style={{ fontSize: FS.micro, color: Z.tm, lineHeight: 1.3, fontStyle: "italic" }}>
                   {hit.snippet}
                 </div>
               </button>
@@ -117,7 +117,7 @@ function navButton(active) {
     background: active ? Z.ac + "18" : "transparent",
     border: "none", borderRadius: 4,
     color: active ? Z.ac : Z.tx,
-    fontSize: 13, fontWeight: active ? 700 : 500,
+    fontSize: FS.base, fontWeight: active ? 700 : 500,
     fontFamily: "inherit", cursor: "pointer",
     lineHeight: 1.3,
   };

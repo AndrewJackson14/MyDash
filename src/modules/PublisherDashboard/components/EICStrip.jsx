@@ -106,11 +106,11 @@ export default function EICStrip({ onNavigate }) {
         cursor: onClick ? "pointer" : "default",
       }}
     >
-      <div style={{ fontSize: 26, fontWeight: FW.black, color, fontFamily: DISPLAY, lineHeight: 1.1 }}>{big}</div>
+      <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color, fontFamily: DISPLAY, lineHeight: 1.1 }}>{big}</div>
       <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>
         {label}
       </div>
-      {sub && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 

@@ -330,7 +330,7 @@ function SaveStatusRow({ status, lastSavedAt }) {
       padding: "0 16px",
       background: Z.bg,
       borderTop: `1px solid ${Z.bd}`,
-      fontSize: 11, color, fontFamily: COND, fontWeight: FW.bold,
+      fontSize: FS.xs, color, fontFamily: COND, fontWeight: FW.bold,
     }}>{label}</div>
   );
 }
@@ -363,7 +363,7 @@ function SentScreen({ orch, sentScreen }) {
           background: Z.go + "18",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}><Ic.check size={28} color={Z.go} /></div>
-        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>
+        <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>
           Sent!
         </div>
         <div style={{ fontSize: FS.base, color: Z.tx, fontFamily: COND, maxWidth: 320, lineHeight: 1.5 }}>

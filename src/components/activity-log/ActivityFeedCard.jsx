@@ -60,7 +60,7 @@ export default function ActivityFeedCard({
             }}>
               {r.summary || r.detail || r.type}
             </div>
-            <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+            <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
               {fmtTime(r.created_at)}
               {r.client_name && <> · {r.client_name}</>}
             </div>

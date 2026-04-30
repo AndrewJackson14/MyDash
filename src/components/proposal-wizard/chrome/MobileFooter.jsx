@@ -62,7 +62,7 @@ export default function MobileFooter({
             >
               <Ic.send size={14} color="#FFFFFF" />
               <span>{isSending ? "Sending…" : "Send Now"}</span>
-              <span aria-hidden style={{ fontSize: 16, lineHeight: 1, marginLeft: 2 }}>›</span>
+              <span aria-hidden style={{ fontSize: FS.lg, lineHeight: 1, marginLeft: 2 }}>›</span>
             </button>
           </>
         ) : (
@@ -80,7 +80,7 @@ export default function MobileFooter({
               style={btnPrimary(!canGoNext)}
             >
               <span>{nextLabel || "Next"}</span>
-              <span aria-hidden style={{ fontSize: 16, lineHeight: 1, marginLeft: 2 }}>›</span>
+              <span aria-hidden style={{ fontSize: FS.lg, lineHeight: 1, marginLeft: 2 }}>›</span>
             </button>
           </>
         )}

@@ -337,7 +337,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
           <GlassCard>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1 }}>Subscriber</div>
-              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm, background: (isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm) + "1a", padding: "2px 8px", borderRadius: R, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>{sub.status || "—"}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm, background: (isLapsed ? Z.da : sub.status === "active" ? Z.go : Z.tm) + "1a", padding: "2px 8px", borderRadius: R, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>{sub.status || "—"}</span>
             </div>
             <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginBottom: 4 }}>{fullName}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginTop: 6 }}>
@@ -348,7 +348,7 @@ const ServiceDesk = ({ tickets, setTickets, ticketComments, setTicketComments, c
                 <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Subscriber Since</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: Z.tx }}>{fmtDate(sub.startDate)}{startedDays != null ? <span style={{ color: Z.tm, fontWeight: FW.normal }}> · {startedDays >= 365 ? `${Math.floor(startedDays / 365)}y` : `${Math.floor(startedDays / 30)}mo`}</span> : null}</div></div>
               )}
               {sub.renewalDate && (
-                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Renewal</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: renewSoon ? Z.wa : Z.tx }}>{fmtDate(sub.renewalDate)}{renewSoon ? <span style={{ fontSize: 10, color: Z.wa, marginLeft: 4 }}>(due soon)</span> : ""}</div></div>
+                <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Renewal</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: renewSoon ? Z.wa : Z.tx }}>{fmtDate(sub.renewalDate)}{renewSoon ? <span style={{ fontSize: FS.micro, color: Z.wa, marginLeft: 4 }}>(due soon)</span> : ""}</div></div>
               )}
               {sub.expiryDate && (
                 <div><div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>{isLapsed ? "Expired" : "Expires"}</div><div style={{ fontSize: FS.base, fontWeight: FW.semi, color: isLapsed ? Z.da : Z.tx }}>{fmtDate(sub.expiryDate)}{lapsedDays != null && lapsedDays > 0 ? <span style={{ color: Z.da, fontWeight: FW.bold }}> · {lapsedDays}d ago</span> : ""}</div></div>

@@ -88,7 +88,7 @@ export default function MobileStepJumpSheet({
                 }}>{s.label}</div>
                 {summary && (
                   <div style={{
-                    fontSize: 11, color: Z.tm, marginTop: 2,
+                    fontSize: FS.xs, color: Z.tm, marginTop: 2,
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>{summary}</div>
                 )}
@@ -97,7 +97,7 @@ export default function MobileStepJumpSheet({
               {/* Active marker */}
               {current && (
                 <span style={{
-                  fontSize: 10, fontWeight: FW.heavy, color: Z.ac,
+                  fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac,
                   letterSpacing: 0.5, textTransform: "uppercase",
                   background: Z.ac + "18",
                   padding: "2px 8px",

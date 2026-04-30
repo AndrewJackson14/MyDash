@@ -191,7 +191,7 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile, data, on
               <button
                 onClick={() => setSelectedTask(null)}
                 title="Remove task tag"
-                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 14, padding: "0 2px", marginLeft: 2 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.md, padding: "0 2px", marginLeft: 2 }}
               >&times;</button>
             </div>
           )}
@@ -322,7 +322,7 @@ const HotCategory = ({ category, onItemClick }) => {
       display: "flex", alignItems: "center", gap: 8,
       marginBottom: 6,
     }}>
-      <span style={{ fontSize: 13 }}>{category.icon}</span>
+      <span style={{ fontSize: FS.base }}>{category.icon}</span>
       <span style={{
         fontSize: FS.micro, fontWeight: FW.heavy,
         color: category.color, textTransform: "uppercase",

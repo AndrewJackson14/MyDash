@@ -159,7 +159,7 @@ export default function DigitalFlightRow({
 
       {/* Per-line errors */}
       {hasErr && (
-        <div style={{ fontSize: 11, color: Z.da, fontFamily: COND, fontWeight: FW.bold }}>
+        <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND, fontWeight: FW.bold }}>
           {[errors[`digitalProduct:${line.id}`],
             errors[`flightStart:${line.id}`],
             errors[`flightEnd:${line.id}`],

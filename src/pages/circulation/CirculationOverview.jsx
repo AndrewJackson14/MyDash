@@ -74,7 +74,7 @@ export default function CirculationOverview({
           <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx, marginBottom: 10 }}>Renewals Due — Next 30 Days</div>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(renewalsByPub.length, 5)}, 1fr)`, gap: 10 }}>
             {renewalsByPub.map(r => <div key={r.pub.id} style={{ textAlign: "center", padding: 10, background: Z.bg, borderRadius: R }}>
-              <div style={{ fontSize: 22, fontWeight: FW.black, color: r.count > 0 ? Z.wa : Z.su, fontFamily: DISPLAY }}>{r.count}</div>
+              <div style={{ fontSize: FS.title, fontWeight: FW.black, color: r.count > 0 ? Z.wa : Z.su, fontFamily: DISPLAY }}>{r.count}</div>
               <div style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx }}>{pn(r.pub.id)}</div>
             </div>)}
           </div>

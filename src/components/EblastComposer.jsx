@@ -107,7 +107,7 @@ function EblastToolbar({ editor, onImageClick, imageUploading }) {
       background: active ? Z.ac + "20" : "transparent",
       color: active ? Z.ac : Z.tm,
       cursor: disabled ? "default" : "pointer",
-      fontSize: 12, fontWeight: active ? 700 : 500, minHeight: 26,
+      fontSize: FS.sm, fontWeight: active ? 700 : 500, minHeight: 26,
       fontFamily: COND, opacity: disabled ? 0.5 : 1,
     }}>{label}</button>
   );
@@ -155,23 +155,23 @@ function EblastToolbar({ editor, onImageClick, imageUploading }) {
       </div>
       {imageActive && (
         <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 10px", borderBottom: `1px solid ${Z.bd}`, background: Z.bg, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 10, color: Z.td, fontFamily: COND, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Image size:</span>
+          <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Image size:</span>
           {["25%", "50%", "75%", "100%"].map(w => (
             <button key={w} type="button" onClick={() => setImgWidth(w)} style={{
               padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd,
               background: currentImgWidth === w ? Z.ac : Z.sf,
               color: currentImgWidth === w ? "#fff" : Z.tm,
-              fontSize: 11, fontWeight: currentImgWidth === w ? 700 : 500,
+              fontSize: FS.xs, fontWeight: currentImgWidth === w ? 700 : 500,
               fontFamily: COND, cursor: "pointer",
             }}>{w}</button>
           ))}
-          <button type="button" onClick={() => setImgWidth(null)} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tm, fontSize: 11, fontFamily: COND, cursor: "pointer" }}>Auto</button>
+          <button type="button" onClick={() => setImgWidth(null)} style={{ padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tm, fontSize: FS.xs, fontFamily: COND, cursor: "pointer" }}>Auto</button>
           <div style={{ width: 1, height: 20, background: Z.bd, margin: "0 6px" }} />
           <button type="button" onClick={setImgHref} style={{
             padding: "3px 10px", borderRadius: Ri, border: "1px solid " + Z.bd,
             background: currentImgHref ? Z.ac + "20" : Z.sf,
             color: currentImgHref ? Z.ac : Z.tm,
-            fontSize: 11, fontWeight: currentImgHref ? 700 : 500,
+            fontSize: FS.xs, fontWeight: currentImgHref ? 700 : 500,
             fontFamily: COND, cursor: "pointer", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }} title={currentImgHref || "Add a click-through URL"}>
             {currentImgHref ? `🔗 ${currentImgHref.replace(/^https?:\/\//, "")}` : "🔗 Link to URL…"}
@@ -605,7 +605,7 @@ export default function EblastComposer({ pubs, currentUser }) {
               {selectedClient && (
                 <div style={{ padding: "6px 10px", background: Z.ac + "15", borderRadius: Ri, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: FS.xs, fontFamily: COND, color: Z.ac }}>
                   <span>Linked to client</span>
-                  <button onClick={() => updateField("client_id", null)} style={{ background: "none", border: "none", color: Z.da, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Detach</button>
+                  <button onClick={() => updateField("client_id", null)} style={{ background: "none", border: "none", color: Z.da, cursor: "pointer", fontSize: FS.xs, fontWeight: 700 }}>Detach</button>
                 </div>
               )}
 

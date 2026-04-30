@@ -148,7 +148,7 @@ export default function ReferenceAssetUploader({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{
-        fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+        fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
         letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
       }}>Reference Materials</div>
       <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>
@@ -169,7 +169,7 @@ export default function ReferenceAssetUploader({
           cursor: "pointer", fontFamily: COND,
         }}
       >
-        <span style={{ fontSize: 22, color: Z.tm }}>⬆</span>
+        <span style={{ fontSize: FS.title, color: Z.tm }}>⬆</span>
         <div style={{ fontSize: FS.base, color: Z.tx, fontWeight: FW.bold }}>
           Drag files here or <span style={{ color: "var(--action)", textDecoration: "underline" }}>browse</span>
         </div>
@@ -215,7 +215,7 @@ export default function ReferenceAssetUploader({
                 width: 48, height: 48, borderRadius: Ri,
                 background: Z.sa, overflow: "hidden",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: Z.tm, fontSize: 11,
+                color: Z.tm, fontSize: FS.xs,
               }}>
                 {a.thumbnailUrl
                   ? <img src={a.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -250,14 +250,14 @@ export default function ReferenceAssetUploader({
                   }}
                 />
                 {a.uploadStatus === "error" && (
-                  <span style={{ fontSize: 10, color: Z.da, fontFamily: COND }}>{a.uploadError}</span>
+                  <span style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND }}>{a.uploadError}</span>
                 )}
               </div>
 
               {/* Status / retry */}
               <div style={{ minWidth: 60, textAlign: "right" }}>
                 {a.uploadStatus === "uploading" && (
-                  <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Uploading…</span>
+                  <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Uploading…</span>
                 )}
                 {a.uploadStatus === "done" && (
                   <Ic.check size={14} color={Z.go} />

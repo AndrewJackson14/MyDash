@@ -13,7 +13,7 @@ const StoryEditor = lazy(() => import("./StoryEditor"));
 const EditionManager = lazy(() => import("../pages/EditionManager"));
 const Flatplan = lazy(() => import("../pages/Flatplan"));
 import EntityThread from "./EntityThread";
-const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: 13 }}>Loading…</div>;
+const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: FS.base }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
 // Single-source status model: Draft → Edit → Ready → (published via
@@ -110,13 +110,13 @@ const StoryCard = memo(({ story, pubs, team, onClick, isDragging }) => {
         {pri !== "normal" && (
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_COLORS[pri], flexShrink: 0, marginTop: 4 }} title={PRIORITY_LABELS[pri]} />
         )}
-        <span style={{ fontSize: 13, fontWeight: 700, color: Z.tx, lineHeight: 1.3, fontFamily: COND, flex: 1 }}>
+        <span style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, lineHeight: 1.3, fontFamily: COND, flex: 1 }}>
           {story.title || "Untitled"}
         </span>
       </div>
 
       {/* Meta row */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: Z.tm, fontFamily: COND }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
         <span style={{ background: pColor(story.publication_id || story.publication, pubs) + "20", color: pColor(story.publication_id || story.publication, pubs), padding: "1px 6px", borderRadius: Ri, fontWeight: 700, fontSize: FS.micro }}>
           {pn(story.publication_id || story.publication, pubs).split(" ").map(w => w[0]).join("")}
         </span>
@@ -197,7 +197,7 @@ const KanbanCol = memo(function KanbanCol({ col, stories, pubs, team, onDrop, on
           <StoryCard key={s.id} story={s} pubs={pubs} team={team} onClick={onClick} />
         ))}
         {stories.length === 0 && (
-          <div style={{ padding: 16, textAlign: "center", fontSize: 11, color: Z.td, fontStyle: "italic" }}>
+          <div style={{ padding: 16, textAlign: "center", fontSize: FS.xs, color: Z.td, fontStyle: "italic" }}>
             Drop stories here
           </div>
         )}
@@ -1031,11 +1031,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
         if (topStories.length === 0) return null;
         return (
           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}`, overflowX: "auto" }}>
-            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.su, fontFamily: COND, whiteSpace: "nowrap", flexShrink: 0 }}>Top This Week</span>
+            <span style={{ fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.su, fontFamily: COND, whiteSpace: "nowrap", flexShrink: 0 }}>Top This Week</span>
             {topStories.map((s, i) => (
               <div key={s.id} onClick={() => openDetail(s)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: i === 0 ? (Z.su + "12") : Z.bg, borderRadius: Ri, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, border: `1px solid ${i === 0 ? Z.su + "30" : "transparent"}` }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? Z.su : Z.ac, fontFamily: COND }}>{(s.view_count || s.viewCount || 0).toLocaleString()}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: Z.tx, fontFamily: COND, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</span>
+                <span style={{ fontSize: FS.xs, fontWeight: 800, color: i === 0 ? Z.su : Z.ac, fontFamily: COND }}>{(s.view_count || s.viewCount || 0).toLocaleString()}</span>
+                <span style={{ fontSize: FS.xs, fontWeight: 600, color: Z.tx, fontFamily: COND, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</span>
               </div>
             ))}
           </div>
@@ -1105,7 +1105,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
           {/* Issue sidebar — collapsible for distraction-free story view */}
           {!sidebarCollapsed && <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND }}>Upcoming Issues</span>
+              <span style={{ fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND }}>Upcoming Issues</span>
               <button
                 onClick={() => setSidebarCollapsed(true)}
                 title="Collapse — distraction-free story view"
@@ -1120,7 +1120,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.tm; }}
               >‹</button>
             </div>
-            {futureIssues.length === 0 && <div style={{ fontSize: 12, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
+            {futureIssues.length === 0 && <div style={{ fontSize: FS.sm, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
             {futureIssues.map(iss => {
               // Count matches the issueStories filter — primary placement
               // plus any sibling links (also_in_issue_ids contains iss.id).
@@ -1132,8 +1132,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                   padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
                   background: isSelected ? Z.ac + "18" : "transparent",
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pn(iss.publicationId || iss.pubId, pubs)}</div>
-                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pn(iss.publicationId || iss.pubId, pubs)}</div>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
                     {iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : iss.label || "Issue"} · {stCount} stories
                   </div>
                 </div>
@@ -1144,7 +1144,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
           {/* Issue detail / story data table */}
           <div>
             {!selIssue ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontSize: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontSize: FS.base }}>
                 Select an issue to view assigned stories
               </div>
             ) : (
@@ -1155,12 +1155,12 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                   </h3>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {siblingCtx && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: showSiblings ? "var(--action)" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: showSiblings ? "var(--action)" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
                         <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "var(--action)" }} />
                         + {siblingCtx.map(sc => sc.pub.name).join(", ")}
                       </label>
                     )}
-                    <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
+                    <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
                   </div>
                 </div>
                 {/* Quick-stat strip (spec §4.1). Five at-a-glance counters
@@ -1173,7 +1173,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                   const withJumps = issueStories.filter(s => s.jump_to_page != null).length;
                   const stat = (val, label, color) => (
                     <div style={{ flex: 1, padding: "6px 10px", background: Z.sa, borderRadius: Ri, textAlign: "center" }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: color || Z.tx, fontFamily: DISPLAY }}>{val}</div>
+                      <div style={{ fontSize: FS.lg, fontWeight: 800, color: color || Z.tx, fontFamily: DISPLAY }}>{val}</div>
                       <div style={{ fontSize: 9, fontWeight: 700, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{label}</div>
                     </div>
                   );
@@ -1206,7 +1206,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     const count = issueStories.filter(s => s.print_status === stage.key).length;
                     return (
                       <div key={stage.key} style={{ flex: 1, textAlign: "center", padding: "6px 4px", background: count > 0 ? Z.ac + "12" : Z.sa, borderRadius: Ri }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: count > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{count}</div>
+                        <div style={{ fontSize: FS.lg, fontWeight: 800, color: count > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{count}</div>
                         <div style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{stage.label}</div>
                       </div>
                     );
@@ -1220,13 +1220,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                   const priVal = (s) => { const n = parseInt(s.priority); return isNaN(n) ? 999 : n; };
                   const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); }).sort((a, b) => priVal(a) - priVal(b));
                   return <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 13px", marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 5 }}>Page Map</div>
+                    <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 5 }}>Page Map</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                       {mfPages.map(pg => {
                         const pgStories = getStories(pg);
                         const hasContent = pgStories.length > 0;
                         return <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: Z.td }}>{fmtPage(pg)}</div>
+                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.td }}>{fmtPage(pg)}</div>
                           {pgStories.slice(0, 3).map((s, idx) => <div key={s.id} title={`P${priVal(s)} — ${s.title}`} style={{ fontSize: 8, fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center", opacity: idx === 0 ? 1 : 0.75 }}>{(s.title || "").slice(0, 12)}</div>)}
                         </div>;
                       })}
@@ -1298,7 +1298,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                         ].map(col => {
                           const noSort = col.key === "_delete" || col.key === "_drag";
                           return (
-                          <th key={col.key} onClick={!noSort ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: 11, cursor: !noSort ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: noSort ? 18 : undefined }}>
+                          <th key={col.key} onClick={!noSort ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: FS.xs, cursor: !noSort ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: noSort ? 18 : undefined }}>
                             {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
                           </th>
                           );
@@ -1346,7 +1346,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                                       try { await updateSectionDb(hereSection.id, { kind: val }); } catch (err) { console.error("Section kind change failed:", err); }
                                     }}
                                     title={(() => { const pId = (issues || []).find(i => i.id === selIssue)?.pubId; return pubs.find(p => p.id === pId)?.type === "Newspaper" ? "Main = resets newspaper page numbering. Sub = label only." : "Magazine: kind doesn't affect numbering"; })()}
-                                    style={{ fontSize: 10, fontWeight: 700, fontFamily: COND, background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", color: Z.tm, cursor: "pointer" }}
+                                    style={{ fontSize: FS.micro, fontWeight: 700, fontFamily: COND, background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", color: Z.tm, cursor: "pointer" }}
                                   >
                                     <option value="main">Main</option>
                                     <option value="sub">Sub</option>
@@ -1359,7 +1359,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                                         setIssueSections(prev => prev.filter(s => s.id !== hereSection.id));
                                       } catch (err) { console.error("Section delete failed:", err); }
                                     }}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: "0 4px" }}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.md, padding: "0 4px" }}
                                   >×</button>
                                 </div>
                               </td>
@@ -1378,16 +1378,16 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             onDrop={(e) => { e.preventDefault(); if (draggingId) reorderStories(g.key, null); }}
                           >
                             <td colSpan={11} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: 11, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: FS.xs, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 <span style={{ width: 12, color: Z.tm }}>{groupCollapsed ? "▸" : "▾"}</span>
                                 <span>{g.key === "unassigned" ? g.label : `Page ${fmtPage(g.page)}`}</span>
                                 <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>{g.stories.length} {g.stories.length === 1 ? "story" : "stories"}{wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}{g.jumpsIn.length ? ` · ${g.jumpsIn.length} jumping in` : ""}</span>
-                                {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: 10, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
+                                {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
                               </div>
                             </td>
                           </tr>
                           {!groupCollapsed && g.stories.map(s => {
-                        const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: 12, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
+                        const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: FS.sm, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
                         const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
                         const hasSavedTitle = s.title && s.title !== "";
                         const isSibling = s._fromSibling;
@@ -1426,7 +1426,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                               e.dataTransfer.setData("text/plain", s.id);
                             }}
                             onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                            style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", fontSize: 14, userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1 }}
+                            style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", fontSize: FS.md, userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1 }}
                             title={(isSibling || isMirror) ? "" : "Drag to reorder"}
                           >☰</td>
                           <td style={{ padding: "5px 8px", maxWidth: 280 }}>
@@ -1505,7 +1505,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                             />
                           </td>
                           <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
-                            <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: 14, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
+                            <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.md, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
                           </td>
                         </tr>;
                       })}
@@ -1514,7 +1514,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                           open the origin story in the editor. */}
                       {!groupCollapsed && g.jumpsIn.map(s => (
                         <tr key={`jump-${s.id}`} style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
-                          <td colSpan={11} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: 12 }}>
+                          <td colSpan={11} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: FS.sm }}>
                             <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
                             <span onClick={() => openDetail(s)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{s.title || "Untitled"}</span>
                             <span style={{ color: Z.td }}>(cont. from p.{s.jump_from_page ?? s.page})</span>
@@ -1574,7 +1574,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       {/* WEB PUBLISHING QUEUE */}
       {tab === "web" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, padding: "4px 0" }}>
+          <div style={{ fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND, padding: "4px 0" }}>
             Ready to Publish / Needs Republish ({webQueue.length})
           </div>
           {webQueue.length === 0 && (
@@ -1588,7 +1588,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, borderLeft: `3px solid ${isRepub ? Z.wa : ACCENT.blue}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{s.title}</span>
+                    <span style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{s.title}</span>
                     {isRepub && (
                       <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "1px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>
                         Updated since last publish
@@ -1596,7 +1596,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                     )}
                     <Badge status={s.status} small />
                   </div>
-                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
                     {pn(s.publication_id || s.publication, pubs)} · {s.author || "No author"} · {s.category || "Uncategorized"}
                     {s.last_significant_edit_at && ` · Edited ${ago(s.last_significant_edit_at)}`}
                   </div>

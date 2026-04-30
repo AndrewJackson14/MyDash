@@ -114,7 +114,7 @@ function NoticeBodyEditor({ valueHtml, onChange }) {
       padding: "4px 8px", borderRadius: Ri, border: "none",
       background: active ? Z.ac + "20" : "transparent",
       color: active ? Z.ac : Z.tm, cursor: "pointer",
-      fontSize: 13, fontWeight: active ? 700 : 500, minWidth: 26, height: 26,
+      fontSize: FS.base, fontWeight: active ? 700 : 500, minWidth: 26, height: 26,
     }}>{children}</button>
   );
   return (
@@ -141,7 +141,7 @@ function NoticeBodyEditor({ valueHtml, onChange }) {
           caret lands where the user clicked (empty region included). */}
       <div
         onClick={() => editor.chain().focus().run()}
-        style={{ padding: "10px 12px", minHeight: 180, maxHeight: 360, overflowY: "auto", fontSize: 13, color: Z.tx, lineHeight: 1.55, cursor: "text" }}
+        style={{ padding: "10px 12px", minHeight: 180, maxHeight: 360, overflowY: "auto", fontSize: FS.base, color: Z.tx, lineHeight: 1.55, cursor: "text" }}
       >
         <EditorContent editor={editor} />
       </div>
@@ -170,7 +170,7 @@ function ClientSearch({ clients, value, onChange }) {
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Client</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
           <span style={{ flex: 1, fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{selected.name}</span>
-          <button type="button" onClick={() => { onChange(""); setQuery(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12 }}>Change</button>
+          <button type="button" onClick={() => { onChange(""); setQuery(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.sm }}>Change</button>
         </div>
       </div>
     );
@@ -189,18 +189,18 @@ function ClientSearch({ clients, value, onChange }) {
       {open && query.trim() && (
         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", zIndex: 50, maxHeight: 280, overflowY: "auto" }}>
           {matches.length === 0 && (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: Z.tm, fontStyle: "italic" }}>
+            <div style={{ padding: "12px 14px", fontSize: FS.sm, color: Z.tm, fontStyle: "italic" }}>
               No matches — the client will be created from the notice form.
             </div>
           )}
           {matches.map(c => (
             <div key={c.id} onMouseDown={(e) => { e.preventDefault(); onChange(c.id); setQuery(""); setOpen(false); }}
-              style={{ padding: "8px 12px", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, fontSize: 13 }}
+              style={{ padding: "8px 12px", cursor: "pointer", borderBottom: `1px solid ${Z.bd}`, fontSize: FS.base }}
               onMouseEnter={e => e.currentTarget.style.background = Z.sa}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               <div style={{ fontWeight: FW.bold, color: Z.tx }}>{c.name}</div>
-              {c.city && <div style={{ fontSize: 10, color: Z.tm }}>{c.city}{c.state ? ", " + c.state : ""}</div>}
+              {c.city && <div style={{ fontSize: FS.micro, color: Z.tm }}>{c.city}{c.state ? ", " + c.state : ""}</div>}
             </div>
           ))}
         </div>
@@ -345,7 +345,7 @@ function SendLegalBillingModal({ notice, mode, clients, onClose, onSent }) {
         {mode !== "backfill" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
               <input
                 type="email"
                 value={recipient}
@@ -359,7 +359,7 @@ function SendLegalBillingModal({ notice, mode, clients, onClose, onSent }) {
                     <button
                       key={i}
                       onClick={() => setRecipient(c.email)}
-                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}
                     >
                       {(c.name || c.email).slice(0, 26)}
                     </button>
@@ -368,7 +368,7 @@ function SendLegalBillingModal({ notice, mode, clients, onClose, onSent }) {
               )}
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
               <input
                 type="text"
                 value={cc}
@@ -378,7 +378,7 @@ function SendLegalBillingModal({ notice, mode, clients, onClose, onSent }) {
               />
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
               <textarea
                 value={message}
                 onChange={e => setMessage(e.target.value)}
@@ -530,19 +530,19 @@ function ScheduleView({ notices, pubs }) {
             border: `1px solid ${groupFilter === opt.k ? Z.ac : Z.bd}`,
             background: groupFilter === opt.k ? Z.ac + "15" : "transparent",
             color: groupFilter === opt.k ? Z.ac : Z.tx,
-            cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: COND,
+            cursor: "pointer", fontSize: FS.sm, fontWeight: 700, fontFamily: COND,
           }}>{opt.l}</button>
         ))}
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{rows.length} notice{rows.length === 1 ? "" : "s"}</span>
+        <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{rows.length} notice{rows.length === 1 ? "" : "s"}</span>
         <Btn sm v="secondary" onClick={exportCsv}>Export CSV</Btn>
       </div>
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm }}>
           <thead>
             <tr style={{ background: Z.sa, borderBottom: `1px solid ${Z.bd}` }}>
               {["Legal Type", "FILE #", "Name", "Start Date", "End Date", "Legal#", "✓"].map(h => (
-                <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 800, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{h}</th>
+                <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: FS.micro, fontWeight: 800, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -618,7 +618,7 @@ function ThisIssueView({ notices, pubs, issues }) {
         <Sel value={pubId} onChange={e => setPubId(e.target.value)} options={newspapers.map(p => ({ value: p.id, label: p.name }))} style={{ minWidth: 200 }} />
         <Sel value={issueId} onChange={e => setIssueId(e.target.value)} options={pubIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}` }))} style={{ minWidth: 220 }} disabled={!pubIssues.length} />
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{matched.length} notice{matched.length === 1 ? "" : "s"}</span>
+        <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{matched.length} notice{matched.length === 1 ? "" : "s"}</span>
         <Btn sm v="secondary" onClick={copyAll} disabled={!matched.length}>Copy All</Btn>
       </div>
       {!matched.length ? (
@@ -629,14 +629,14 @@ function ThisIssueView({ notices, pubs, issues }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {matched.map(n => (
             <GlassCard key={n.id} style={{ padding: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ fontSize: FS.xs, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 {deriveLegalType(n)} · {n.notice_number || ""}
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: Z.tx, marginTop: 4 }}>{n.title}</div>
-              <div style={{ fontSize: 12, color: Z.tx, lineHeight: 1.5, marginTop: 8, whiteSpace: "pre-wrap" }}>
+              <div style={{ fontSize: FS.md, fontWeight: 700, color: Z.tx, marginTop: 4 }}>{n.title}</div>
+              <div style={{ fontSize: FS.sm, color: Z.tx, lineHeight: 1.5, marginTop: 8, whiteSpace: "pre-wrap" }}>
                 {htmlToPlainText(n.body_html || n.bodyHtml || "")}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: Z.tm, marginTop: 10, fontFamily: COND }}>
+              <div style={{ fontSize: FS.xs, fontWeight: 700, color: Z.tm, marginTop: 10, fontFamily: COND }}>
                 LEGAL {n.notice_number || ""}
               </div>
             </GlassCard>
@@ -1158,10 +1158,10 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
   // queue plus an emergency exit.
   const queueBar = queue ? (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: Z.ac + "12", border: `1px solid ${Z.ac}40`, borderRadius: Ri }}>
-      <span style={{ fontSize: 11, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <span style={{ fontSize: FS.xs, fontWeight: 800, color: Z.ac, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.06em" }}>
         Affidavit Queue
       </span>
-      <span style={{ fontSize: 12, color: Z.tx, fontFamily: COND }}>
+      <span style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND }}>
         {queue.index + 1} of {queue.ids.length}
         {queueCurrentId && (() => {
           const n = (legalNotices || []).find(x => x.id === queueCurrentId);
@@ -1248,7 +1248,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
               border: `1px solid ${needsActionOnly ? Z.wa : Z.bd}`,
               borderRadius: 999,
               padding: "5px 12px",
-              fontSize: 11,
+              fontSize: FS.xs,
               fontWeight: needsActionOnly ? FW.bold : 500,
               color: needsActionOnly ? Z.wa : Z.tm,
               cursor: "pointer",
@@ -1257,8 +1257,8 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
             }}
           >
             ⚠ Needs Action
-            <span style={{ fontSize: 10, fontWeight: FW.heavy }}>{needsActionCount}</span>
-            {needsActionOnly && <span style={{ fontSize: 12 }}>×</span>}
+            <span style={{ fontSize: FS.micro, fontWeight: FW.heavy }}>{needsActionCount}</span>
+            {needsActionOnly && <span style={{ fontSize: FS.sm }}>×</span>}
           </button>
         )}
       </div>
@@ -1284,10 +1284,10 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
                   )}
                   {/* Sent indicators when already done */}
                   {n.invoiceSentAt && !action && (
-                    <span title={`Invoice sent ${fmtDate(n.invoiceSentAt.slice(0, 10))}`} style={{ fontSize: 10, color: Z.go, fontFamily: COND }}>✉ Invoice sent</span>
+                    <span title={`Invoice sent ${fmtDate(n.invoiceSentAt.slice(0, 10))}`} style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND }}>✉ Invoice sent</span>
                   )}
                   {n.affidavitSentAt && (
-                    <span title={`Affidavit sent ${fmtDate(n.affidavitSentAt.slice(0, 10))}`} style={{ fontSize: 10, color: Z.go, fontFamily: COND }}>📜 Affidavit sent</span>
+                    <span title={`Affidavit sent ${fmtDate(n.affidavitSentAt.slice(0, 10))}`} style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND }}>📜 Affidavit sent</span>
                   )}
                 </div>
                 <div style={{ fontSize: 15, fontWeight: FW.heavy, color: Z.tx }}>
@@ -1316,7 +1316,7 @@ const LegalNotices = ({ legalNotices, setLegalNotices, legalNoticeIssues, setLeg
                       const short = fname.length > 28 ? fname.slice(0, 25) + "…" : fname;
                       return <a key={i} href={safeUrl} target="_blank" rel="noreferrer noopener" onClick={e => e.stopPropagation()} style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
-                        fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND,
+                        fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND,
                         padding: "2px 8px", borderRadius: 3, background: Z.ac + "12",
                         textDecoration: "none",
                       }}>📎 {short}</a>;

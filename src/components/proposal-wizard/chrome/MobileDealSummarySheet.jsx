@@ -133,7 +133,7 @@ function Section({ label, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{
-        fontSize: 10, fontWeight: FW.heavy, color: Z.td,
+        fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td,
         letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
       }}>{label}</div>
       <div style={{ fontSize: FS.base, color: Z.tx, fontFamily: COND }}>

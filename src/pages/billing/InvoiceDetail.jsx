@@ -11,7 +11,7 @@ const InvoiceDetail = ({ invoice, payments, onBack, onSend, onRecordPayment, onV
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
-        <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{invoice.invoiceNumber}</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{invoice.invoiceNumber}</h2>
         <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm }}>{invoice.clientName || "Client"}</div>
         <div style={{ fontSize: FS.sm, color: Z.td, marginTop: 2 }}>Issued {fmtDate(invoice.issueDate)} · Due {fmtDate(invoice.dueDate)}</div>
         {invoice.billingSchedule === "monthly_plan" && <div style={{ fontSize: FS.sm, color: Z.pu, marginTop: 2 }}>Monthly Plan: {fmtCurrency(invoice.monthlyAmount)}/mo × {invoice.planMonths} months</div>}

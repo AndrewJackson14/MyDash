@@ -188,7 +188,7 @@ const btnPrimary = {
   border: "none", cursor: "pointer",
   borderRadius: 10, padding: "9px 22px",
   background: "var(--action)", color: "#FFFFFF",
-  fontSize: 13, fontWeight: 700, fontFamily: COND,
+  fontSize: FS.base, fontWeight: 700, fontFamily: COND,
 };
 
 const btnGhost = {
@@ -196,5 +196,5 @@ const btnGhost = {
   border: `1px solid ${Z.bd}`, cursor: "pointer",
   borderRadius: 10, padding: "9px 22px",
   background: "transparent", color: Z.tm,
-  fontSize: 13, fontWeight: 700, fontFamily: COND,
+  fontSize: FS.base, fontWeight: 700, fontFamily: COND,
 };

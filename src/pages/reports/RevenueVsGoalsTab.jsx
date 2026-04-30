@@ -189,7 +189,7 @@ const RevenueVsGoalsTab = ({ pubs, onNavigate }) => {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>View</div>
+          <div style={{ fontSize: FS.xs, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>View</div>
           <SolidTabs
             options={[
               { value: "month", label: "Month" },

@@ -402,7 +402,7 @@ const Analytics = ({
             const pct = Math.min(100, Math.round((totalMonthRev / monthGoal) * 100));
             const barColor = pct >= 100 ? Z.su : pct >= 75 ? Z.ac : pct >= 50 ? Z.wa : Z.da;
             return <div style={{ marginTop: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 }}>
                 <span>Goal: {fmtCurrency(monthGoal)}</span>
                 <span style={{ color: barColor }}>{pct}%</span>
               </div>
@@ -499,7 +499,7 @@ const Analytics = ({
                   {/* Expense label */}
                   {m.exp > 0 && <div style={{ position: "absolute", bottom: 16, fontSize: 9, fontWeight: FW.bold, color: Z.da, fontFamily: COND, whiteSpace: "nowrap" }}>{fmtK(m.exp)}</div>}
                   {/* Month label */}
-                  <div style={{ position: "absolute", bottom: -2, fontSize: 10, color: isCurrent ? Z.tx : Z.td, fontWeight: isCurrent ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
+                  <div style={{ position: "absolute", bottom: -2, fontSize: FS.micro, color: isCurrent ? Z.tx : Z.td, fontWeight: isCurrent ? FW.bold : FW.normal, fontFamily: COND }}>{m.lbl}</div>
                 </div>
               );
             })}
@@ -591,7 +591,7 @@ const Analytics = ({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
-            <div style={{ fontSize: 26, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(legalsStats.total)}</div>
+            <div style={{ fontSize: FS.xxl, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(legalsStats.total)}</div>
             <div style={{ fontSize: FS.xs, color: Z.td }}>{legalsStats.count.toLocaleString()} notices all-time</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: FS.xs }}>
@@ -618,7 +618,7 @@ const Analytics = ({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
-            <div style={{ fontSize: 26, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(classifiedsStats.total)}</div>
+            <div style={{ fontSize: FS.xxl, fontWeight: FW.black, fontFamily: DISPLAY, color: Z.tx, letterSpacing: -0.5 }}>{fmtCurrency(classifiedsStats.total)}</div>
             <div style={{ fontSize: FS.xs, color: Z.td }}>{classifiedsStats.count.toLocaleString()} listings all-time</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: FS.xs }}>
@@ -654,7 +654,7 @@ const Analytics = ({
                 <div style={{ height: 40, width: 8, background: Z.tg || "rgba(255,255,255,0.05)", borderRadius: 4, display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
                   {vals.in > 0 && <div style={{ width: "100%", height: `${hIn}%`, background: Z.su }} title={`In: ${fmtCurrency(vals.in)}`} />}
                 </div>
-                <div style={{ fontSize: 10, fontWeight: isToday ? 900 : 600, color: isToday ? Z.tx : Z.td, fontFamily: COND, padding: "2px 0", borderBottom: isToday ? `2px solid ${Z.ac}` : "2px solid transparent" }}>{vals.day}</div>
+                <div style={{ fontSize: FS.micro, fontWeight: isToday ? 900 : 600, color: isToday ? Z.tx : Z.td, fontFamily: COND, padding: "2px 0", borderBottom: isToday ? `2px solid ${Z.ac}` : "2px solid transparent" }}>{vals.day}</div>
                 <div style={{ height: 40, width: 8, background: Z.tg || "rgba(255,255,255,0.05)", borderRadius: 4, display: "flex", flexDirection: "column", justifyContent: "flex-start", overflow: "hidden" }}>
                    {vals.out > 0 && <div style={{ width: "100%", height: `${hOut}%`, background: Z.da }} title={`Out: ${fmtCurrency(vals.out)}`} />}
                 </div>
@@ -676,13 +676,13 @@ const Analytics = ({
             {overdueInvs.slice(0, 5).map(i => (
               <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: Z.da + "15", borderRadius: 4, borderLeft: `3px solid ${Z.da}` }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>Invoice #{i.invoiceNumber}</div>
-                  <div style={{ fontSize: 11, color: Z.da }}>Due: {i.dueDate}</div>
+                  <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>Invoice #{i.invoiceNumber}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.da }}>Due: {i.dueDate}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(i.balanceDue)}</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(i.balanceDue)}</div>
               </div>
             ))}
-            {overdueInvs.length > 5 && <div style={{ fontSize: 11, color: Z.td, textAlign: "center", padding: 4 }}>+ {overdueInvs.length - 5} more</div>}
+            {overdueInvs.length > 5 && <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "center", padding: 4 }}>+ {overdueInvs.length - 5} more</div>}
             {overdueInvs.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.su, fontSize: FS.sm, fontWeight: FW.bold }}>No overdue invoices!</div>}
           </div>
         </GlassCard>
@@ -696,13 +696,13 @@ const Analytics = ({
             {pendingBills.slice(0, 5).map(b => (
               <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: Z.sf || Z.bg, borderRadius: 4, borderLeft: `3px solid ${Z.wa}` }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}</div>
-                  <div style={{ fontSize: 11, color: Z.td }}>Due: {b.dueDate}</div>
+                  <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.td }}>Due: {b.dueDate}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(b.amount)}</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{fmtCurrency(b.amount)}</div>
               </div>
             ))}
-            {pendingBills.length > 5 && <div style={{ fontSize: 11, color: Z.td, textAlign: "center", padding: 4 }}>+ {pendingBills.length - 5} more</div>}
+            {pendingBills.length > 5 && <div style={{ fontSize: FS.xs, color: Z.td, textAlign: "center", padding: 4 }}>+ {pendingBills.length - 5} more</div>}
             {pendingBills.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.su, fontSize: FS.sm, fontWeight: FW.bold }}>Not tracking any pending bills for the next 30 days!</div>}
           </div>
         </GlassCard>
@@ -970,7 +970,7 @@ const Analytics = ({
               const h = maxMonthly > 0 ? Math.max(4, (val / maxMonthly) * 100) : 4;
               const label = new Date(key + "-01").toLocaleDateString("en-US", { month: "short" });
               return <div key={key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{val || ""}</span>
+                <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{val || ""}</span>
                 <div style={{ width: "100%", height: h + "%", background: Z.ac, borderRadius: 2, minHeight: 4, transition: "height 0.3s" }} />
                 <span style={{ fontSize: 9, color: Z.td, fontFamily: COND }}>{label}</span>
               </div>;

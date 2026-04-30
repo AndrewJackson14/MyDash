@@ -60,7 +60,7 @@ export default function SalesCallForm({ clients, onSubmit, submitting }) {
             <span style={{ fontSize: FS.sm, color: Z.tx, fontWeight: FW.semi, fontFamily: COND }}>{clientName}</span>
             <button
               onClick={() => { setClientId(null); setClientName(""); setClientQuery(""); }}
-              style={{ background: "transparent", border: "none", cursor: "pointer", color: Z.tm, fontSize: 11, fontFamily: COND }}
+              style={{ background: "transparent", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.xs, fontFamily: COND }}
             >Change</button>
           </div>
         ) : (

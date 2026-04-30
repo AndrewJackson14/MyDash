@@ -18,7 +18,7 @@ import { FilterPillStrip } from "../../ui/FilterPillStrip";
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
-    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
+    <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
     {subtitle && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{subtitle}</div>}
   </div>
 );
@@ -89,7 +89,7 @@ export default function Step4SizesAndFlights({
               display: "flex", flexDirection: "column", gap: 10,
             }}>
               <div style={{
-                fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+                fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
                 letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
               }}>Print</div>
               <AdSizeDefault
@@ -118,7 +118,7 @@ export default function Step4SizesAndFlights({
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}>
                 <div style={{
-                  fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+                  fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
                   letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
                 }}>Digital</div>
                 <Btn

@@ -76,11 +76,11 @@ const TSep = () => <div style={{ width: 1, height: 20, background: Z.bd, margin:
 // ── Multi-select Chip Picker ─────────────────────────────────────
 const ChipPicker = ({ label, options, selected, onChange }) => (
   <div>
-    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{label}</div>
+    <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{label}</div>
     <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
       {options.map(o => {
         const on = selected.includes(o.id);
-        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: 10, fontWeight: on ? 700 : 500, border: "none", background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
+        return <button key={o.id} onClick={() => onChange(on ? selected.filter(x => x !== o.id) : [...selected, o.id])} style={{ padding: "3px 8px", borderRadius: Ri, fontSize: FS.micro, fontWeight: on ? 700 : 500, border: "none", background: on ? (o.color || Z.ac) + "18" : "transparent", color: on ? (o.color || Z.ac) : Z.tm, cursor: "pointer", fontFamily: COND }}>{o.name}</button>;
       })}
     </div>
   </div>
@@ -97,15 +97,15 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {checks.map((c, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: Ri, background: c.pass ? (Z.su || "#22c55e") + "10" : Z.da + "10", border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : Z.da + "30") }}>
-              <span style={{ fontSize: 14 }}>{c.pass ? "\u2713" : "\u2717"}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
+              <span style={{ fontSize: FS.md }}>{c.pass ? "\u2713" : "\u2717"}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
             </div>
           ))}
         </div>
         <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Publish Date & Time</div>
-          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }} />
-          <div style={{ fontSize: 11, fontWeight: 600, color: isScheduled ? ACCENT.indigo : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Publish Date & Time</div>
+          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND }} />
+          <div style={{ fontSize: FS.xs, fontWeight: 600, color: isScheduled ? ACCENT.indigo : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
             {isScheduled ? `Scheduled: ${fmtScheduled}` : "Immediately upon publish"}
           </div>
         </div>
@@ -115,7 +115,7 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
             <Ic.send size={11} /> {isScheduled ? "Schedule" : "Publish Now"}
           </Btn>
         </div>
-        {!allPassed && <p style={{ fontSize: 10, color: Z.da, fontFamily: COND, margin: 0, textAlign: "right" }}>Fix required items before publishing</p>}
+        {!allPassed && <p style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, margin: 0, textAlign: "right" }}>Fix required items before publishing</p>}
       </div>
     </Modal>
   );
@@ -141,8 +141,8 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }
   if (!layoutDesigner) {
     return (
       <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Layout Handoff</div>
-        <div style={{ fontSize: 11, color: Z.td, fontStyle: "italic" }}>No Layout Designer assigned</div>
+        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Layout Handoff</div>
+        <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic" }}>No Layout Designer assigned</div>
       </div>
     );
   }
@@ -192,10 +192,10 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }
   return (
     <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Layout Handoff</div>
-        {lastSentAt && <span style={{ fontSize: 10, color: Z.go, fontFamily: COND }}>✓ sent</span>}
+        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Layout Handoff</div>
+        {lastSentAt && <span style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND }}>✓ sent</span>}
       </div>
-      <div style={{ fontSize: 11, color: Z.tm, marginBottom: 6 }}>
+      <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 6 }}>
         Send to <span style={{ color: Z.tx, fontWeight: 600 }}>{layoutDesigner.name}</span>
       </div>
       <TA
@@ -826,8 +826,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: Z.bg, padding: 24 }}>
         <div style={{ maxWidth: 460, textAlign: "center", background: Z.sf, border: "1px solid " + Z.bd, borderRadius: R, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>\ud83d\udd12</div>
-          <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Story is open elsewhere</h2>
-          <p style={{ margin: "0 0 20px", fontSize: 14, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
+          <h2 style={{ margin: "0 0 8px", fontSize: FS.xl, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Story is open elsewhere</h2>
+          <p style={{ margin: "0 0 20px", fontSize: FS.md, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
             <strong style={{ color: Z.tx }}>{lockedBy.userName}</strong> is editing "{meta.title || "this story"}"{since ? ` since ${since}` : ""}. Only one editor can have a story open at a time to avoid conflicting saves.
           </p>
           <Btn onClick={onClose} style={{ width: "100%" }}>Back to Editorial</Btn>
@@ -840,13 +840,13 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--canvas)" }}>
       {/* Top Bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid " + Z.bd, background: Z.sf, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontFamily: COND, fontWeight: 600 }}>{"\u2190"} Back to Editorial</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, display: "flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontFamily: COND, fontWeight: 600 }}>{"\u2190"} Back to Editorial</button>
         <TSep />
         <span style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.title || "Untitled Story"}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {saving && <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Saving\u2026</span>}
-          {!saving && lastSaved && <span style={{ fontSize: 10, color: Z.su || "#22c55e", fontFamily: COND }}>{"\u2713"} Saved {ago(lastSaved)}</span>}
-          {imageUploading && <span style={{ fontSize: 10, color: Z.wa, fontFamily: COND }}>Uploading\u2026</span>}
+          {saving && <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Saving\u2026</span>}
+          {!saving && lastSaved && <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"\u2713"} Saved {ago(lastSaved)}</span>}
+          {imageUploading && <span style={{ fontSize: FS.micro, color: Z.wa, fontFamily: COND }}>Uploading\u2026</span>}
           <Badge status={meta.status || "Draft"} small />
           {meta.is_featured && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>{"\u2605"} Featured</span>}
           {isPublished && !needsRepublish && !republishedFlash && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
@@ -866,16 +866,16 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                   border: "1px solid " + Z.bd,
                   background: discussionOpen ? Z.ac + "18" : Z.sa,
                   color: discussionOpen ? Z.ac : Z.tx,
-                  fontSize: 12, fontFamily: COND, fontWeight: 600, cursor: "pointer",
+                  fontSize: FS.sm, fontFamily: COND, fontWeight: 600, cursor: "pointer",
                 }}
                 title="Open thread"
               >
                 <Ic.chat size={13} />
                 <span>Discussion</span>
                 {discussionCount > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: Z.tm }}>{"\u00b7"} {discussionCount}</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.tm }}>{"\u00b7"} {discussionCount}</span>
                 )}
-                <span style={{ fontSize: 10, color: Z.tm, marginLeft: 2 }}>{discussionOpen ? "\u25be" : "\u25bf"}</span>
+                <span style={{ fontSize: FS.micro, color: Z.tm, marginLeft: 2 }}>{discussionOpen ? "\u25be" : "\u25bf"}</span>
               </button>
               {discussionOpen && (
                 <>
@@ -910,7 +910,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ padding: "20px 32px 0" }}>
             <input value={meta.title || ""} onChange={e => setMeta(m => ({ ...m, title: e.target.value }))} onBlur={e => saveMeta("title", e.target.value)} placeholder="Story title\u2026" style={{ width: "100%", border: "none", outline: "none", background: "transparent", fontSize: 28, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.2, padding: 0, marginBottom: 8 }} />
-            <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
               {selectedPubs.map(pid => <span key={pid} style={{ color: pColor(pid, pubs) }}>{pn(pid, pubs)}</span>)}
               <span>{"\u00b7"}</span><span>{meta.author || "No author"}</span><span>{"\u00b7"}</span><span>{meta.category || "Uncategorized"}</span><span>{"\u00b7"}</span><span style={{ color: meta.word_limit && wordCount > meta.word_limit ? Z.da : undefined, fontWeight: meta.word_limit && wordCount > meta.word_limit ? 700 : undefined }}>{wordCount.toLocaleString()}{meta.word_limit ? ` / ${meta.word_limit.toLocaleString()}` : ""} words</span>
               {meta.word_limit && wordCount > meta.word_limit && <span style={{ color: Z.da, fontWeight: 700 }}>{"\u26a0"} Over by {(wordCount - meta.word_limit).toLocaleString()}</span>}
@@ -951,9 +951,9 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
           {isPublished && (
             <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Publication Dates</span>
+                <span style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Publication Dates</span>
                 {!editingPubDate && (meta.first_published_at || meta.published_at) && (
-                  <button onClick={openPubDateEdit} title="Change the original publish date" style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: 10, fontFamily: COND, fontWeight: 700, padding: 0 }}>Edit</button>
+                  <button onClick={openPubDateEdit} title="Change the original publish date" style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: FS.micro, fontFamily: COND, fontWeight: 700, padding: 0 }}>Edit</button>
                 )}
               </div>
               {editingPubDate ? (
@@ -962,7 +962,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                     type="datetime-local"
                     value={pubDateDraft}
                     onChange={e => setPubDateDraft(e.target.value)}
-                    style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND }}
+                    style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND }}
                   />
                   <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>Controls the story's chronological slot on the public site.</div>
                   <div style={{ display: "flex", gap: 6 }}>
@@ -972,12 +972,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                 </div>
               ) : (
                 <>
-                  {meta.first_published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
-                  {!meta.first_published_at && meta.published_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
+                  {meta.first_published_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
+                  {!meta.first_published_at && meta.published_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
                   {/* Slug is locked once set on first publish — the URL path is permanent so editors can see it but not change it. */}
-                  {meta.slug && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 4, wordBreak: "break-all" }} title="URL slug — set automatically on first publish, cannot be changed">Slug: <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: 2, color: Z.tx }}>{meta.slug}</code></div>}
-                  {meta.last_significant_edit_at && <div style={{ fontSize: 11, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
-                  {meta.edit_count > 0 && <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
+                  {meta.slug && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 4, wordBreak: "break-all" }} title="URL slug — set automatically on first publish, cannot be changed">Slug: <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: 2, color: Z.tx }}>{meta.slug}</code></div>}
+                  {meta.last_significant_edit_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
+                  {meta.edit_count > 0 && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
                 </>
               )}
             </div>
@@ -985,19 +985,19 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* Status — standard pill selector */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Status</div>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Status</div>
             <TB tabs={STORY_STATUSES.map(s => s === "Approved"
               ? { value: "Approved", label: <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.check size={13} color={meta.status === "Approved" ? "#fff" : (Z.su || "#22c55e")} /> Approved</span> }
               : s
             )} active={meta.status || "Draft"} onChange={v => saveMeta("status", v)} />
-            {isPublished && <div style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
+            {isPublished && <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
           </div>
 
           {/* Web Approval + Publish / Featured */}
           <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
             {isPublished && !needsRepublish ? (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>
+                <div style={{ fontSize: FS.xs, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginBottom: 6 }}>
                   {republishedFlash > 0 ? "\u2713 Republished just now" : "\u2713 Live on Web"}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -1007,7 +1007,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               </div>
             ) : needsRepublish ? (
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: Z.wa, fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
+                <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.wa, fontFamily: COND, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>{"\u26a0"} Unpublished Changes</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <Btn sm onClick={republishToWeb} disabled={republishing} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{republishing ? "Republishing\u2026" : "\u21bb Republish"}</Btn>
                   <Btn sm v="secondary" onClick={async () => { if (unpublishStory) { await unpublishStory(story.id); setMeta(m => ({ ...m, status: "Ready", sent_to_web: false })); onUpdate(story.id, { status: "Ready", sent_to_web: false }); } }} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
@@ -1018,28 +1018,28 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             ) : webApproved || isPublished ? (
               <Btn sm onClick={handlePublishClick} style={{ width: "100%" }}><Ic.send size={11} /> Publish to Web</Btn>
             ) : (
-              <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center", padding: 4 }}>Set status to Ready and approve before publishing</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, textAlign: "center", padding: 4 }}>Set status to Ready and approve before publishing</div>
             )}
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
               <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: Z.wa }} />
               <span style={{ fontWeight: 600 }}>{"\u2605"} Featured Article</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(hero)</span>
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
               <input type="checkbox" checked={!!meta.is_premium} onChange={e => saveMeta("is_premium", e.target.checked)} style={{ accentColor: ACCENT.indigo }} />
               <span style={{ fontWeight: 600 }}>{"\ud83d\udd12"} Premium</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(paywall)</span>
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: 11, fontFamily: COND, color: Z.tx }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
               <input type="checkbox" checked={!!meta.is_sponsored} onChange={e => saveMeta("is_sponsored", e.target.checked)} style={{ accentColor: Z.wa }} />
               <span style={{ fontWeight: 600 }}>Sponsored</span>
             </label>
             {meta.is_sponsored && (
-              <input value={meta.sponsor_name || ""} onChange={e => setMeta(m => ({ ...m, sponsor_name: e.target.value }))} onBlur={e => saveMeta("sponsor_name", e.target.value)} placeholder="Sponsor name..." style={{ width: "100%", padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 11, fontFamily: COND, marginTop: 2 }} />
+              <input value={meta.sponsor_name || ""} onChange={e => setMeta(m => ({ ...m, sponsor_name: e.target.value }))} onBlur={e => saveMeta("sponsor_name", e.target.value)} placeholder="Sponsor name..." style={{ width: "100%", padding: "4px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND, marginTop: 2 }} />
             )}
           </div>
 
           {/* Scheduled indicator (set via preflight) */}
           {!isPublished && meta.scheduled_at && (
-            <div style={{ fontSize: 10, color: ACCENT.indigo, fontFamily: COND, padding: "6px 8px", background: ACCENT.indigo + "10", borderRadius: Ri, border: "1px solid " + ACCENT.indigo + "30" }}>
+            <div style={{ fontSize: FS.micro, color: ACCENT.indigo, fontFamily: COND, padding: "6px 8px", background: ACCENT.indigo + "10", borderRadius: Ri, border: "1px solid " + ACCENT.indigo + "30" }}>
               Scheduled: {fmtDate(meta.scheduled_at)}
             </div>
           )}
@@ -1061,7 +1061,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             if (!host.includes(".")) return null; // still looks like a slug, refuse
             const href = `https://${host}/${meta.slug}`;
             return (
-              <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: 11, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
+              <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
                 View on {host} {"\u2197"}
               </a>
             );
@@ -1070,23 +1070,23 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
           {/* View count */}
           {meta.view_count > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: Z.sa, borderRadius: Ri }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Views</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: Z.tx, fontFamily: DISPLAY }}>{(meta.view_count || 0).toLocaleString()}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Views</span>
+              <span style={{ fontSize: FS.md, fontWeight: 700, color: Z.tx, fontFamily: DISPLAY }}>{(meta.view_count || 0).toLocaleString()}</span>
             </div>
           )}
 
           {/* Featured image (preview only — picked by clicking a tile below). */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Featured Image</div>
+              <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Featured Image</div>
               {meta.featured_image_url && (
-                <button onClick={() => { saveMeta("featured_image_url", null); saveMeta("featured_image_id", null); }} style={{ background: "none", border: "none", color: Z.da, fontSize: 10, cursor: "pointer", fontFamily: COND, fontWeight: 700 }}>Clear</button>
+                <button onClick={() => { saveMeta("featured_image_url", null); saveMeta("featured_image_id", null); }} style={{ background: "none", border: "none", color: Z.da, fontSize: FS.micro, cursor: "pointer", fontFamily: COND, fontWeight: 700 }}>Clear</button>
               )}
             </div>
             {meta.featured_image_url ? (
               <img src={meta.featured_image_url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: Ri, border: "1px solid " + Z.bd }} />
             ) : (
-              <div style={{ width: "100%", height: 80, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.tm, fontFamily: COND, textAlign: "center", padding: "0 12px" }}>
+              <div style={{ width: "100%", height: 80, border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.micro, color: Z.tm, fontFamily: COND, textAlign: "center", padding: "0 12px" }}>
                 Click a Story Library tile below to set featured
               </div>
             )}
@@ -1097,12 +1097,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               via "Download Originals" for print layout. */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Story Library · {storyImages.length}</div>
+              <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Story Library · {storyImages.length}</div>
               <div style={{ display: "flex", gap: 4 }}>
                 <button
                   onClick={openLibraryForStory}
                   disabled={imageUploading}
-                  style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
+                  style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.micro, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
                   title="Pick existing image from this publication's media library"
                 >
                   + From Library
@@ -1110,14 +1110,14 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                 <button
                   onClick={pickStoryLibraryUpload}
                   disabled={imageUploading}
-                  style={{ padding: "3px 10px", borderRadius: Ri, border: "none", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
+                  style={{ padding: "3px 10px", borderRadius: Ri, border: "none", background: Z.ac, color: "#fff", fontSize: FS.micro, fontWeight: 700, fontFamily: COND, cursor: imageUploading ? "default" : "pointer", opacity: imageUploading ? 0.6 : 1 }}
                 >
                   {imageUploading ? "Uploading…" : "+ Upload"}
                 </button>
               </div>
             </div>
             {storyImages.length === 0 ? (
-              <div style={{ width: "100%", padding: "16px 12px", border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, fontSize: 11, color: Z.tm, fontFamily: COND, textAlign: "center" }}>
+              <div style={{ width: "100%", padding: "16px 12px", border: "1px dashed " + Z.bd, borderRadius: Ri, background: Z.sa, fontSize: FS.xs, color: Z.tm, fontFamily: COND, textAlign: "center" }}>
                 No images yet. Upload above or pick from the library.
               </div>
             ) : (
@@ -1147,7 +1147,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                           if ((img.caption || "") !== next) saveImageCaption(img.id, next);
                         }}
                         onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-                        style={{ width: "100%", padding: "4px 6px", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.bg, color: Z.tx, fontSize: 11, fontFamily: COND, outline: "none", boxSizing: "border-box" }}
+                        style={{ width: "100%", padding: "4px 6px", border: `1px solid ${Z.bd}`, borderRadius: Ri, background: Z.bg, color: Z.tx, fontSize: FS.xs, fontFamily: COND, outline: "none", boxSizing: "border-box" }}
                       />
                       <div style={{ fontSize: 9, color: Z.td, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={img.file_name}>{img.file_name}</div>
                     </div>
@@ -1159,7 +1159,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               <button
                 onClick={downloadOriginals}
                 disabled={downloadingOriginals}
-                style={{ marginTop: 6, width: "100%", padding: "5px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: 10, fontWeight: 700, fontFamily: COND, cursor: downloadingOriginals ? "default" : "pointer", opacity: downloadingOriginals ? 0.6 : 1 }}
+                style={{ marginTop: 6, width: "100%", padding: "5px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: FS.micro, fontWeight: 700, fontFamily: COND, cursor: downloadingOriginals ? "default" : "pointer", opacity: downloadingOriginals ? 0.6 : 1 }}
               >
                 {downloadingOriginals ? "Downloading…" : `↓ Download Originals (${storyImages.length})`}
               </button>
@@ -1168,8 +1168,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* Publication */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication</div>
-            <select value={selectedPubs[0] || ""} onChange={e => saveMeta("publication", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Publication</div>
+            <select value={selectedPubs[0] || ""} onChange={e => saveMeta("publication", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
               <option value="">Select publication...</option>
               {pubs.filter(p => p.type !== "Special Publication").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
@@ -1177,7 +1177,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* Author */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Author</div>
             {(() => {
               const opts = [];
               const seen = new Set();
@@ -1210,7 +1210,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                     type="button"
                     title="Type a custom byline (freelancer, syndicated, etc.)"
                     onClick={async () => { const name = await dialog.prompt("Enter author name:"); if (name) saveMeta("author", name); }}
-                    style={{ padding: "0 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: 12, cursor: "pointer", fontFamily: COND, flexShrink: 0 }}
+                    style={{ padding: "0 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: FS.sm, cursor: "pointer", fontFamily: COND, flexShrink: 0 }}
                   >+ Custom</button>
                 </div>
               );
@@ -1220,18 +1220,18 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
           {/* Freelance Contributors */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Freelancers</div>
+              <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Freelancers</div>
               <button onClick={async () => {
                 const name = await dialog.prompt("Freelancer name:");
                 if (!name) return;
                 const specialty = await dialog.prompt("Specialty (Writer, Photographer, etc.):");
                 addFreelancer(name, specialty || "Writer");
-              }} style={{ fontSize: 10, fontWeight: 700, color: Z.ac, background: "none", border: "none", cursor: "pointer", fontFamily: COND }}>+ Add</button>
+              }} style={{ fontSize: FS.micro, fontWeight: 700, color: Z.ac, background: "none", border: "none", cursor: "pointer", fontFamily: COND }}>+ Add</button>
             </div>
             {freelancers.length > 0 && (
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {freelancers.map(f => (
-                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: Ri, fontSize: 10, fontFamily: COND, background: Z.sa, color: Z.tx, border: "1px solid " + Z.bd }}>
+                  <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: Ri, fontSize: FS.micro, fontFamily: COND, background: Z.sa, color: Z.tx, border: "1px solid " + Z.bd }}>
                     {f.name} <span style={{ color: Z.tm, fontSize: FS.micro }}>{f.specialty}</span>
                   </span>
                 ))}
@@ -1241,8 +1241,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* Category */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Category</div>
-            <select value={meta.category_id || ""} onChange={e => { const cat = categories.find(c => c.id === e.target.value); saveMeta("category_id", e.target.value); if (cat) { saveMeta("category", cat.name); saveMeta("category_slug", cat.slug); } }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Category</div>
+            <select value={meta.category_id || ""} onChange={e => { const cat = categories.find(c => c.id === e.target.value); saveMeta("category_id", e.target.value); if (cat) { saveMeta("category", cat.name); saveMeta("category_slug", cat.slug); } }} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>
               <option value="">Select category</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -1252,32 +1252,32 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                articles never publish — they're searchable by the team and
                readable by MyHelper. Defaults to Public. */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Audience</div>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Audience</div>
             <div style={{ display: "flex", gap: 4 }}>
               {[["public", "Public"], ["internal", "Internal Knowledge Base"]].map(([v, l]) => {
                 const sel = (meta.audience || "public") === v;
-                return <button key={v} onClick={() => saveMeta("audience", v)} style={{ flex: 1, padding: "6px 12px", borderRadius: Ri, border: `1px solid ${sel ? Z.ac : Z.bd}`, background: sel ? Z.ac + "15" : "transparent", color: sel ? Z.ac : Z.tm, cursor: "pointer", fontSize: 12, fontWeight: sel ? 700 : 600, fontFamily: COND }}>{l}</button>;
+                return <button key={v} onClick={() => saveMeta("audience", v)} style={{ flex: 1, padding: "6px 12px", borderRadius: Ri, border: `1px solid ${sel ? Z.ac : Z.bd}`, background: sel ? Z.ac + "15" : "transparent", color: sel ? Z.ac : Z.tm, cursor: "pointer", fontSize: FS.sm, fontWeight: sel ? 700 : 600, fontFamily: COND }}>{l}</button>;
               })}
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Type</div><select value={meta.story_type || "article"} onChange={e => saveMeta("story_type", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}>{STORY_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
-            <div><div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">Unassigned</option>{(team || []).filter(t => t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
+            <div><div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Type</div><select value={meta.story_type || "article"} onChange={e => saveMeta("story_type", e.target.value)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}>{STORY_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}</select></div>
+            <div><div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Assigned To</div><select value={meta.assigned_to || ""} onChange={e => saveMeta("assigned_to", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}><option value="">Unassigned</option>{(team || []).filter(t => t.isActive !== false && !t.isHidden && !t.is_hidden).map(t => <option key={t.id} value={t.id}>{t.name} {"\u2014"} {t.role}</option>)}</select></div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <Inp label="Due Date" type="date" value={meta.due_date || ""} onChange={v => saveMeta("due_date", v)} />
             <div>
               <Inp label="Word Limit" type="number" value={meta.word_limit || ""} onChange={v => saveMeta("word_limit", v ? Number(v) : null)} placeholder="No limit" />
-              {meta.word_limit && wordCount > meta.word_limit && <div style={{ fontSize: 10, color: Z.da, fontWeight: 700, fontFamily: COND, marginTop: 2 }}>{"\u26a0"} {wordCount - meta.word_limit} over limit</div>}
+              {meta.word_limit && wordCount > meta.word_limit && <div style={{ fontSize: FS.micro, color: Z.da, fontWeight: 700, fontFamily: COND, marginTop: 2 }}>{"\u26a0"} {wordCount - meta.word_limit} over limit</div>}
             </div>
           </div>
 
           {/* Print Issue */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Issue</div>
-            <select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: 12, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Print Issue</div>
+            <select value={meta.print_issue_id || ""} onChange={e => saveMeta("print_issue_id", e.target.value || null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.sm, fontFamily: COND }}><option value="">None</option>{filteredIssues.map(i => <option key={i.id} value={i.id}>{i.label || new Date(i.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })}</option>)}</select>
           </div>
 
           {/* Layout Handoff — Anthony Phase 2 G13 fix. Camille uses
@@ -1296,7 +1296,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* SEO */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>SEO</div>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>SEO</div>
             <div>
               <Inp label="SEO Title" value={meta.seo_title || ""} onChange={v => setMeta(m => ({ ...m, seo_title: v }))} onBlur={() => saveMeta("seo_title", meta.seo_title)} />
               <div style={{ fontSize: FS.micro, color: (meta.seo_title || "").length >= 50 && (meta.seo_title || "").length <= 60 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{(meta.seo_title || "").length}/60</div>
@@ -1310,28 +1310,28 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
             <div style={{ marginTop: 8, padding: 10, background: Z.bg, borderRadius: Ri, border: "1px solid " + Z.bd }}>
               <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Search Preview</div>
               {/* SEO preview colors (Google standard) */}
-              <div style={{ fontSize: 14, color: "#1a0dab", fontFamily: "arial, sans-serif", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.seo_title || meta.title || "Page Title"}</div>
-              <div style={{ fontSize: 11, color: "#006621", fontFamily: "arial, sans-serif", marginTop: 2 }}>{selectedPubs[0] && pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "") + ".com"}/{meta.slug || "article-slug"}</div>
-              <div style={{ fontSize: 11, color: "#545454", fontFamily: "arial, sans-serif", marginTop: 2, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.seo_description || meta.excerpt || "No description set"}</div>
+              <div style={{ fontSize: FS.md, color: "#1a0dab", fontFamily: "arial, sans-serif", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.seo_title || meta.title || "Page Title"}</div>
+              <div style={{ fontSize: FS.xs, color: "#006621", fontFamily: "arial, sans-serif", marginTop: 2 }}>{selectedPubs[0] && pn(selectedPubs[0], pubs).toLowerCase().replace(/\s+/g, "") + ".com"}/{meta.slug || "article-slug"}</div>
+              <div style={{ fontSize: FS.xs, color: "#545454", fontFamily: "arial, sans-serif", marginTop: 2, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{meta.seo_description || meta.excerpt || "No description set"}</div>
             </div>
           </div>
 
           {/* Legal Review */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: meta.needs_legal_review ? Z.wa : Z.tm, fontFamily: COND, cursor: "pointer" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: meta.needs_legal_review ? Z.wa : Z.tm, fontFamily: COND, cursor: "pointer" }}>
                 <input type="checkbox" checked={!!meta.needs_legal_review} onChange={e => { saveMeta("needs_legal_review", e.target.checked); if (!e.target.checked) { saveMeta("legal_reviewed_by", null); saveMeta("legal_reviewed_at", null); } }} style={{ accentColor: Z.wa }} />
                 Needs Legal Review
               </label>
               {meta.needs_legal_review && !meta.legal_reviewed_at && (
-                <Btn sm v="secondary" onClick={() => { const now = new Date().toISOString(); saveMeta("legal_reviewed_by", story.editor_id || null); saveMeta("legal_reviewed_at", now); setMeta(m => ({ ...m, legal_reviewed_by: story.editor_id || null, legal_reviewed_at: now })); }} style={{ fontSize: 10, padding: "2px 8px" }}>Sign Off</Btn>
+                <Btn sm v="secondary" onClick={() => { const now = new Date().toISOString(); saveMeta("legal_reviewed_by", story.editor_id || null); saveMeta("legal_reviewed_at", now); setMeta(m => ({ ...m, legal_reviewed_by: story.editor_id || null, legal_reviewed_at: now })); }} style={{ fontSize: FS.micro, padding: "2px 8px" }}>Sign Off</Btn>
               )}
             </div>
             {meta.needs_legal_review && meta.legal_reviewed_at && (
-              <div style={{ fontSize: 10, color: Z.su, fontFamily: COND, marginTop: 4 }}>Legal reviewed {new Date(meta.legal_reviewed_at).toLocaleDateString()}</div>
+              <div style={{ fontSize: FS.micro, color: Z.su, fontFamily: COND, marginTop: 4 }}>Legal reviewed {new Date(meta.legal_reviewed_at).toLocaleDateString()}</div>
             )}
             {meta.needs_legal_review && !meta.legal_reviewed_at && (
-              <div style={{ fontSize: 10, color: Z.wa, fontFamily: COND, marginTop: 4 }}>Awaiting legal sign-off</div>
+              <div style={{ fontSize: FS.micro, color: Z.wa, fontFamily: COND, marginTop: 4 }}>Awaiting legal sign-off</div>
             )}
           </div>
 
@@ -1350,8 +1350,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
 
           {/* Audit timestamps */}
           <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Timeline</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10, fontFamily: COND, color: Z.tm }}>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Timeline</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: FS.micro, fontFamily: COND, color: Z.tm }}>
               {meta.created_at && <div>Created: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.created_at)}</span></div>}
               {meta.submitted_at && <div>Submitted: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.submitted_at)}</span></div>}
               {meta.edited_at && <div>Edited: <span style={{ color: Z.tx, fontWeight: 600 }}>{fmtDate(meta.edited_at)}</span></div>}
@@ -1368,8 +1368,8 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               (lands in Milestone 1 task 5 of _specs/social-scheduling.md). */}
 
           {activity.length > 0 && <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>
-            {activity.slice(0, 8).map(a => <div key={a.id} style={{ fontSize: 10, color: Z.tm, fontFamily: COND, padding: "4px 0", borderBottom: "1px solid " + Z.bd + "22" }}><span style={{ fontWeight: 600 }}>{a.action.replace(/_/g, " ")}</span>{a.performed_by && <span> by {tn(a.performed_by, team)}</span>}<span style={{ float: "right", color: Z.td || Z.tm }}>{ago(a.created_at)}</span></div>)}
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Activity</div>
+            {activity.slice(0, 8).map(a => <div key={a.id} style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, padding: "4px 0", borderBottom: "1px solid " + Z.bd + "22" }}><span style={{ fontWeight: 600 }}>{a.action.replace(/_/g, " ")}</span>{a.performed_by && <span> by {tn(a.performed_by, team)}</span>}<span style={{ float: "right", color: Z.td || Z.tm }}>{ago(a.created_at)}</span></div>)}
           </div>}
         </div>
       </div>
@@ -1386,20 +1386,20 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
         <div onClick={() => setPreviewOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 760, background: "#fff", color: "#111318", borderRadius: 8, boxShadow: "0 30px 80px rgba(0,0,0,0.4)", overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 24px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: "#6b7280", letterSpacing: "0.1em", textTransform: "uppercase" }}>Web Preview</span>
-              <button onClick={() => setPreviewOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 22, lineHeight: 1 }}>×</button>
+              <span style={{ fontSize: FS.xs, fontWeight: 800, color: "#6b7280", letterSpacing: "0.1em", textTransform: "uppercase" }}>Web Preview</span>
+              <button onClick={() => setPreviewOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: FS.title, lineHeight: 1 }}>×</button>
             </div>
             <article style={{ padding: "32px 48px 48px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 18, lineHeight: 1.7, color: "#111318" }}>
               {meta.featured_image_url && (
                 <img src={meta.featured_image_url} alt="" style={{ width: "100%", maxHeight: 420, objectFit: "cover", borderRadius: 4, marginBottom: 24 }} />
               )}
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              <div style={{ fontSize: FS.sm, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 {(pubs.find(p => p.id === (meta.publication_id || meta.publication))?.name) || "Publication"}
                 {meta.category ? <> · <span style={{ color: "#2563eb" }}>{meta.category}</span></> : null}
               </div>
               <h1 style={{ fontFamily: "Georgia, serif", fontSize: 34, lineHeight: 1.2, fontWeight: 800, margin: "0 0 12px", color: "#111318" }}>{meta.title || "(untitled)"}</h1>
               {meta.excerpt && <p style={{ fontSize: 17, color: "#525e72", fontStyle: "italic", margin: "0 0 20px", lineHeight: 1.55 }}>{meta.excerpt}</p>}
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ fontSize: FS.base, color: "#6b7280", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #e5e7eb" }}>
                 By <strong style={{ color: "#111318" }}>{meta.author || "No author"}</strong>
                 {meta.first_published_at && <> · {new Date(meta.first_published_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</>}
               </div>

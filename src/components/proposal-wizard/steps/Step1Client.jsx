@@ -21,7 +21,7 @@ import FuzzyPicker from "../../FuzzyPicker";
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
     <h2 style={{
-      margin: 0, fontSize: 22, fontWeight: 700,
+      margin: 0, fontSize: FS.title, fontWeight: 700,
       color: Z.tx, fontFamily: COND, letterSpacing: -0.3,
     }}>{title}</h2>
     {subtitle && (
@@ -31,7 +31,7 @@ const StepHeader = ({ title, subtitle }) => (
 );
 
 const ErrInline = ({ msg }) => msg ? (
-  <div style={{ fontSize: 11, color: Z.da, fontFamily: COND, marginTop: 4 }}>{msg}</div>
+  <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND, marginTop: 4 }}>{msg}</div>
 ) : null;
 
 function autoName(clientName) {
@@ -100,7 +100,7 @@ export default function Step1Client({ state, actions, clients, pubs, validation 
                   border: `1px solid ${Z.bd}`,
                   borderRadius: Ri,
                   padding: "3px 10px",
-                  fontSize: 11, fontWeight: FW.bold, color: Z.tm,
+                  fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm,
                   fontFamily: COND, cursor: "pointer",
                 }}
               >Reset to auto</button>
@@ -126,11 +126,11 @@ export default function Step1Client({ state, actions, clients, pubs, validation 
       {state.clientId && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{
-            fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+            fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
             letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
           }}>
             Publications {selectedPubIds.size > 0 && (
-              <span style={{ marginLeft: 6, color: ACCENT.indigo, fontSize: 10 }}>
+              <span style={{ marginLeft: 6, color: ACCENT.indigo, fontSize: FS.micro }}>
                 · {selectedPubIds.size} selected
               </span>
             )}
@@ -196,7 +196,7 @@ export default function Step1Client({ state, actions, clients, pubs, validation 
                         {pub?.name || p.pubId}
                       </div>
                       {pub?.type && (
-                        <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
                           {pub.type}
                         </div>
                       )}
@@ -212,7 +212,7 @@ export default function Step1Client({ state, actions, clients, pubs, validation 
                       onClick={() => actions.togglePubFormat(p.pubId, "digital")}
                     />
                     {formatErr && (
-                      <span style={{ fontSize: 10, color: Z.da, fontFamily: COND, marginLeft: 4 }}>
+                      <span style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, marginLeft: 4 }}>
                         {formatErr}
                       </span>
                     )}
@@ -238,7 +238,7 @@ function FormatToggle({ kind, active, onClick }) {
         border: `1px solid ${active ? Z.ac : Z.bd}`,
         background: active ? Z.ac : "transparent",
         color: active ? INV.light : Z.tm,
-        fontSize: 11,
+        fontSize: FS.xs,
         fontWeight: active ? FW.bold : FW.normal,
         fontFamily: COND,
         cursor: "pointer",

@@ -48,7 +48,7 @@ export default function AdSizeDefault({
         </div>
       </div>
       {error && (
-        <div style={{ fontSize: 11, color: Z.da, fontFamily: COND }}>{error}</div>
+        <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND }}>{error}</div>
       )}
 
       {selectedIssues.length > 0 && (

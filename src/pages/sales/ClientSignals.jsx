@@ -446,9 +446,9 @@ export default function ClientSignals({
           </div>
           <div style={{ fontSize: FS.sm, color: Z.tm, margin: "2px 0" }}>{p.signalDetail || `${fmtK(c.totalSpend)} \u00b7 ${c.status}`}</div>
           <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
-            <Btn sm style={{ padding: "2px 8px", fontSize: 11 }}>Email</Btn>
-            <Btn sm v="ghost" style={{ padding: "2px 8px", fontSize: 11 }}>Call</Btn>
-            <Btn sm v="ghost" style={{ padding: "2px 8px", fontSize: 11 }}>Proposal</Btn>
+            <Btn sm style={{ padding: "2px 8px", fontSize: FS.xs }}>Email</Btn>
+            <Btn sm v="ghost" style={{ padding: "2px 8px", fontSize: FS.xs }}>Call</Btn>
+            <Btn sm v="ghost" style={{ padding: "2px 8px", fontSize: FS.xs }}>Proposal</Btn>
           </div>
         </div>;
       })}
@@ -473,7 +473,7 @@ export default function ClientSignals({
             background: signalFilter === sc.key ? sc.color + "12" : undefined,
           }}>
             <div style={{ fontSize: 18 }}>{sc.icon}</div>
-            <div style={{ fontSize: 20, fontWeight: FW.black, color: sc.color, fontFamily: DISPLAY, lineHeight: 1 }}>{count}</div>
+            <div style={{ fontSize: FS.xl, fontWeight: FW.black, color: sc.color, fontFamily: DISPLAY, lineHeight: 1 }}>{count}</div>
             <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.tm, fontFamily: COND, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>{sc.label}</div>
           </button>;
         })}
@@ -486,7 +486,7 @@ export default function ClientSignals({
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>30-Day Wins</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.green, fontFamily: DISPLAY }}>{recentWins.total}</span>
-            <span style={{ fontSize: 12, fontWeight: FW.heavy, color: ACCENT.green, fontFamily: COND }}>{fmtK(recentWins.revenue)}</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: ACCENT.green, fontFamily: COND }}>{fmtK(recentWins.revenue)}</span>
           </div>
           {Object.keys(recentWins.byCategory).length > 0 && (
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
@@ -503,14 +503,14 @@ export default function ClientSignals({
         <div style={{ ...cardSurface(), borderRadius: Ri, padding: "10px 14px", borderLeft: "3px solid " + Z.ac }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Pipeline Value</div>
           <div style={{ fontSize: 24, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtK(pipelineValue)}</div>
-          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{myPriorityItems.length} active priorities</div>
+          <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{myPriorityItems.length} active priorities</div>
         </div>
 
         {/* Conversion */}
         <div style={{ ...cardSurface(), borderRadius: Ri, padding: "10px 14px", borderLeft: `3px solid ${ACCENT.indigo}` }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Conversion Rate</div>
           <div style={{ fontSize: 24, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{conversionRate}%</div>
-          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>priorities {"\u2192"} closed (30d)</div>
+          <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>priorities {"\u2192"} closed (30d)</div>
         </div>
       </div>
 
@@ -538,7 +538,7 @@ export default function ClientSignals({
             <div onClick={() => hasMore && togglePanel(panel.key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: visible.length > 0 ? 8 : 0, cursor: hasMore ? "pointer" : "default", userSelect: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: panel.color, fontFamily: COND }}>{panel.title}</span>
-                {hasMore && <span style={{ fontSize: 10, color: Z.td, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>{"\u25bc"}</span>}
+                {hasMore && <span style={{ fontSize: FS.micro, color: Z.td, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}>{"\u25bc"}</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {winCount > 0 && <span style={{ fontSize: 9, fontWeight: FW.heavy, padding: "1px 6px", borderRadius: 2, background: ACCENT.green + "18", color: ACCENT.green, fontFamily: COND }}>{winCount} won</span>}

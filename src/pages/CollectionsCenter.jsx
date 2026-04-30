@@ -147,9 +147,9 @@ export default function CollectionsCenter({
                 cursor: "pointer", textAlign: "left",
               }}
             >
-              <div style={{ fontSize: 22, fontWeight: FW.black, color: b.color, fontFamily: DISPLAY }}>{fmtCurrency(data.total)}</div>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{b.label}</div>
-              <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{data.count} invoice{data.count === 1 ? "" : "s"}</div>
+              <div style={{ fontSize: FS.title, fontWeight: FW.black, color: b.color, fontFamily: DISPLAY }}>{fmtCurrency(data.total)}</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{b.label}</div>
+              <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{data.count} invoice{data.count === 1 ? "" : "s"}</div>
             </button>
           );
         })}
@@ -161,18 +161,18 @@ export default function CollectionsCenter({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <SB value={search} onChange={setSearch} placeholder="Search clients…" />
             {bucketFilter !== "all" && (
-              <button onClick={() => setBucketFilter("all")} style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "5px 10px", cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND }}>
+              <button onClick={() => setBucketFilter("all")} style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "5px 10px", cursor: "pointer", fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
                 Clear filter ({BUCKET_LABELS.find(b => b.key === bucketFilter)?.label}) ×
               </button>
             )}
           </div>
           <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Overdue</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Overdue</div>
               <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: overdueTotal > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(overdueTotal)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Open</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Open</div>
               <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{fmtCurrency(grandTotal)}</div>
             </div>
           </div>
@@ -197,7 +197,7 @@ export default function CollectionsCenter({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{g.clientName}</div>
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
                       {g.invoices.length} open invoice{g.invoices.length === 1 ? "" : "s"} · oldest {g.oldestDays > 0 ? `${g.oldestDays}d overdue` : "current"}
                       {lastSent && ` · last statement ${lastSentAgo === 0 ? "today" : lastSentAgo === 1 ? "yesterday" : `${lastSentAgo}d ago`}`}
                     </div>
@@ -209,7 +209,7 @@ export default function CollectionsCenter({
                         const amt = g.buckets[b.key] || 0;
                         if (amt <= 0) return null;
                         return (
-                          <span key={b.key} title={`${b.label}: ${fmtCurrency(amt)}`} style={{ padding: "2px 6px", borderRadius: Ri, fontSize: 10, fontWeight: FW.bold, color: b.color, background: b.color + "15", fontFamily: COND }}>
+                          <span key={b.key} title={`${b.label}: ${fmtCurrency(amt)}`} style={{ padding: "2px 6px", borderRadius: Ri, fontSize: FS.micro, fontWeight: FW.bold, color: b.color, background: b.color + "15", fontFamily: COND }}>
                             {fmtCurrency(amt)}
                           </span>
                         );
@@ -222,7 +222,7 @@ export default function CollectionsCenter({
                 </div>
                 {/* Expandable invoice list */}
                 <details style={{ marginTop: 10 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND, fontWeight: FW.semi }}>
+                  <summary style={{ cursor: "pointer", fontSize: FS.xs, color: Z.tm, fontFamily: COND, fontWeight: FW.semi }}>
                     View {g.invoices.length} invoice{g.invoices.length === 1 ? "" : "s"}
                   </summary>
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 3 }}>
@@ -232,14 +232,14 @@ export default function CollectionsCenter({
                         <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${c}` }}>
                           <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
                             <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>#{inv.invoiceNumber || inv.id?.slice(-6)}</span>
-                            <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>
+                            <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>
                               issued {fmtDate(inv.issueDate)} · due {fmtDate(inv.dueDate)}
                               {inv.overdueDays > 0 && <span style={{ color: c, fontWeight: FW.bold }}> · {inv.overdueDays}d overdue</span>}
                             </span>
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{fmtCurrency(inv.balanceDue)}</span>
-                            <a href={`/pay/${encodeURIComponent(inv.invoiceNumber || "")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: Z.ac, fontFamily: COND, fontWeight: FW.semi, textDecoration: "none" }}>Pay link ↗</a>
+                            <a href={`/pay/${encodeURIComponent(inv.invoiceNumber || "")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: FS.micro, color: Z.ac, fontFamily: COND, fontWeight: FW.semi, textDecoration: "none" }}>Pay link ↗</a>
                           </div>
                         </div>
                       );
@@ -332,7 +332,7 @@ function DelegateModal({ client, team, currentUser, invoices, onClose }) {
             { value: "", label: "— Select rep —" },
             ...reps.map(r => ({ value: r.id, label: `${r.name}${r.id === defaultRepId ? " (primary)" : ""}` })),
           ]} />
-          {!defaultRepId && <div style={{ fontSize: 10, color: Z.wa, marginTop: 4, fontFamily: COND }}>This client has no primary rep on file.</div>}
+          {!defaultRepId && <div style={{ fontSize: FS.micro, color: Z.wa, marginTop: 4, fontFamily: COND }}>This client has no primary rep on file.</div>}
         </div>
 
         <div style={{ marginBottom: 12 }}>
@@ -413,7 +413,7 @@ function SendStatementModal({ client, onClose }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
             <input
               type="email"
               value={recipient}
@@ -427,7 +427,7 @@ function SendStatementModal({ client, onClose }) {
                   <button
                     key={i}
                     onClick={() => setRecipient(c.email)}
-                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}
                   >
                     {(c.name || c.email).slice(0, 26)}
                   </button>
@@ -437,14 +437,14 @@ function SendStatementModal({ client, onClose }) {
             {client?.billingEmail && client.billingEmail !== recipient && (
               <button
                 onClick={() => setRecipient(client.billingEmail)}
-                style={{ marginTop: 4, background: "transparent", border: `1px solid ${Z.ac}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.ac, fontFamily: COND }}
+                style={{ marginTop: 4, background: "transparent", border: `1px solid ${Z.ac}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: FS.micro, color: Z.ac, fontFamily: COND }}
               >
                 Use billing email: {client.billingEmail}
               </button>
             )}
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
             <input
               type="text"
               value={cc}
@@ -454,7 +454,7 @@ function SendStatementModal({ client, onClose }) {
             />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}

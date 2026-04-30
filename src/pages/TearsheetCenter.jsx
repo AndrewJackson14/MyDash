@@ -140,7 +140,7 @@ export default function TearsheetCenter({ isActive, currentUser, sales, setSales
                 onClick={() => setStatusFilter(f.value)}
                 style={{
                   padding: "5px 12px", borderRadius: Ri, border: "none", cursor: "pointer",
-                  fontSize: 11, fontWeight: statusFilter === f.value ? FW.bold : 500,
+                  fontSize: FS.xs, fontWeight: statusFilter === f.value ? FW.bold : 500,
                   background: statusFilter === f.value ? Z.tx + "12" : "transparent",
                   color: statusFilter === f.value ? Z.tx : Z.tm,
                   fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4,
@@ -219,7 +219,7 @@ function StatTile({ label, value, color }) {
   return (
     <div style={{ ...glassStyle(), borderRadius: R, padding: "14px 18px" }}>
       <div style={{ fontSize: 28, fontWeight: FW.black, color, fontFamily: DISPLAY }}>{value}</div>
-      <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, fontFamily: COND }}>{label}</div>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2, fontFamily: COND }}>{label}</div>
     </div>
   );
 }
@@ -289,27 +289,27 @@ function SaleRow({ sale, client, clientName, setSales }) {
         <div title={clientName} style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {clientName}
         </div>
-        <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+        <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
           {sale.size || sale.type || "Ad"}
           {sale.amount ? ` · $${(sale.amount || 0).toLocaleString()}` : ""}
           {sale.tearsheetUploadedAt && ` · uploaded ${fmtDate(sale.tearsheetUploadedAt.slice(0, 10))}`}
         </div>
       </div>
-      {error && <span style={{ fontSize: 10, color: Z.da, fontFamily: COND, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{error}</span>}
+      {error && <span style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{error}</span>}
       {hasTearsheet && (
         <>
           <a
             href={sale.tearsheetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND, fontWeight: FW.semi }}
+            style={{ fontSize: FS.micro, color: Z.ac, textDecoration: "none", fontFamily: COND, fontWeight: FW.semi }}
           >
             {sale.tearsheetKind === "image" ? "🖼" : "📄"} View ↗
           </a>
           <button
             onClick={() => setSendOpen(true)}
             title="Email tearsheet link to client"
-            style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 8px", cursor: "pointer", fontSize: 11, color: Z.ac, fontFamily: COND }}
+            style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 8px", cursor: "pointer", fontSize: FS.xs, color: Z.ac, fontFamily: COND }}
           >
             ✉ Send
           </button>
@@ -320,7 +320,7 @@ function SaleRow({ sale, client, clientName, setSales }) {
         v={hasTearsheet ? "secondary" : "primary"}
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        style={{ flexShrink: 0, fontSize: 11 }}
+        style={{ flexShrink: 0, fontSize: FS.xs }}
       >
         {uploading ? "Uploading…" : hasTearsheet ? "↺ Replace" : "⤴ Upload"}
       </Btn>

@@ -90,7 +90,7 @@ function DesignerWorkloadTile({ team, _issues, onNavigate, glass }) {
           key={k}
           onClick={() => setSort(k)}
           style={{
-            padding: "3px 8px", fontSize: 10, fontWeight: FW.bold, fontFamily: COND,
+            padding: "3px 8px", fontSize: FS.micro, fontWeight: FW.bold, fontFamily: COND,
             background: sort === k ? Z.ac + "18" : "transparent",
             color: sort === k ? Z.ac : Z.td,
             border: `1px solid ${sort === k ? Z.ac + "40" : Z.bd}`, borderRadius: Ri,
@@ -113,13 +113,13 @@ function DesignerWorkloadTile({ team, _issues, onNavigate, glass }) {
         <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{d.name}</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
           <span style={{ fontSize: 24, fontWeight: FW.black, color: loadColor(d.active), fontFamily: DISPLAY, lineHeight: 1 }}>{d.active}</span>
-          <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>active</span>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>active</span>
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: 11, color: Z.tm }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: FS.xs, color: Z.tm }}>
           <span><strong style={{ color: Z.tx }}>{d.onTimeRate ?? "—"}{d.onTimeRate != null && "%"}</strong> on-time</span>
           <span><strong style={{ color: Z.tx }}>{d.firstProofRate ?? "—"}{d.firstProofRate != null && "%"}</strong> 1st-proof</span>
         </div>
-        {d.revisionsMtd > 0 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 4 }}>{d.revisionsMtd} extra revision{d.revisionsMtd === 1 ? "" : "s"} MTD</div>}
+        {d.revisionsMtd > 0 && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 4 }}>{d.revisionsMtd} extra revision{d.revisionsMtd === 1 ? "" : "s"} MTD</div>}
       </div>)}
     </div>}
   </div>;
@@ -824,39 +824,39 @@ const RoleDashboard = memo(({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {hwm > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.ac + "12", borderRadius: 20 }}>
-            <span style={{ fontSize: 16 }}>📝</span>
-            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.ac }}>{hwm} in a day</div><div style={{ fontSize: 10, color: Z.tm }}>7-day best</div></div>
+            <span style={{ fontSize: FS.lg }}>📝</span>
+            <div><div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.ac }}>{hwm} in a day</div><div style={{ fontSize: FS.micro, color: Z.tm }}>7-day best</div></div>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{editedThisMonth}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited This Month</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited This Month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: firstPassRate >= 80 ? Z.go : Z.wa, fontFamily: DISPLAY }}>{firstPassRate}%</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Pass Rate</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Pass Rate</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: editedToday.length > 0 ? Z.go : Z.tm, fontFamily: DISPLAY }}>{editedToday.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited Today</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Edited Today</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: myQueue.length > 5 ? Z.wa : Z.tx, fontFamily: DISPLAY }}>{myQueue.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>In Queue</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>In Queue</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {publishedRecent && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.md }}>📰</span>
             <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>Your edit of "{publishedRecent.title?.slice(0, 40)}"</span> <span style={{ color: Z.tm }}>published</span></span>
           </div>}
           {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.md }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>Queue cleared — nice work!</span>
           </div>}
           {!queueEmpty && myQueue.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.md }}>🎯</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{myQueue.length} to go — you've got this</span>
           </div>}
         </div>
@@ -892,7 +892,7 @@ const RoleDashboard = memo(({
                         <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: isFlagback ? Z.wa : Z.ac, fontFamily: COND }}>
                           {isFlagback ? "Flag back" : sender}
                         </span>
-                        <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                        <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
                           {p.created_at ? fmtDate(p.created_at.slice(0, 10)) : ""}
                         </span>
                       </div>
@@ -1024,48 +1024,48 @@ const RoleDashboard = memo(({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {layoutStats.streakDays >= 3 && <div title={`${layoutStats.streakDays} distinct days shipping in the last 30`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
-            <span style={{ fontSize: 16 }}>🔥</span>
-            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{layoutStats.streakDays} days</div><div style={{ fontSize: 10, color: Z.tm }}>shipping</div></div>
+            <span style={{ fontSize: FS.lg }}>🔥</span>
+            <div><div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.wa }}>{layoutStats.streakDays} days</div><div style={{ fontSize: FS.micro, color: Z.tm }}>shipping</div></div>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{layoutStats.pagesThisMonth}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pages laid out</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pages laid out</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>this month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{layoutStats.issuesThisMonth}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Issues to press</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Issues to press</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>this month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: onTimeColor, fontFamily: DISPLAY }}>{layoutStats.onTimeRate}%</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-time rate</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-time rate</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>last 30 days</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: layoutStats.activeDeadlines > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{layoutStats.activeDeadlines}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active deadlines</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Active deadlines</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>next 7 days</div>
           </div>
         </div>
         {/* Beat strip — conditional badges based on current state */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.md }}>📰</span>
             <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(justShipped.pubId)} {justShipped.label}</span> <span style={{ color: Z.tm }}>went to press</span></span>
           </div>}
           {queueEmpty && !justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.md }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — no pages waiting</span>
           </div>}
           {!queueEmpty && layoutReady.length > 0 && layoutReady.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.md }}>🎯</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{layoutReady.length} to layout — you've got this</span>
           </div>}
           {layoutPipeline.filter(s => s.due_date && s.due_date < today).length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.wa + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>⚠️</span>
+            <span style={{ fontSize: FS.md }}>⚠️</span>
             <span style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.bold }}>{layoutPipeline.filter(s => s.due_date && s.due_date < today).length} stories past ed deadline — Camille's working on it</span>
           </div>}
         </div>
@@ -1082,7 +1082,7 @@ const RoleDashboard = memo(({
               <div style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>Today's Issues</div>
               <div style={{ display: "flex", gap: 4 }}>
                 {[["all", "All"], ["newspapers", "Newspapers"], ["magazines", "Magazines"]].map(([v, l]) => (
-                  <button key={v} onClick={() => setLayoutFilter(v)} style={{ padding: "3px 10px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: 10, fontWeight: layoutFilter === v ? FW.bold : 500, background: layoutFilter === v ? Z.tx + "12" : "transparent", color: layoutFilter === v ? Z.tx : Z.td, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</button>
+                  <button key={v} onClick={() => setLayoutFilter(v)} style={{ padding: "3px 10px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: FS.micro, fontWeight: layoutFilter === v ? FW.bold : 500, background: layoutFilter === v ? Z.tx + "12" : "transparent", color: layoutFilter === v ? Z.tx : Z.td, textTransform: "uppercase", letterSpacing: 0.4 }}>{l}</button>
                 ))}
               </div>
             </div>
@@ -1124,7 +1124,7 @@ const RoleDashboard = memo(({
                     <div style={{ height: 4, background: Z.bd, borderRadius: 2, marginBottom: 6 }}>
                       <div style={{ height: 4, borderRadius: 2, background: pct >= 80 ? Z.go : pct >= 40 ? Z.wa : Z.da, width: `${pct}%`, transition: "width 0.3s" }} />
                     </div>
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginBottom: 10 }}>
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginBottom: 10 }}>
                       {iss.pagesStarted} of {totalPages} pages started{iss.pagesComplete > 0 ? ` · ${iss.pagesComplete} complete` : ""}
                     </div>
 
@@ -1179,20 +1179,20 @@ const RoleDashboard = memo(({
                       <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 4px", borderTop: `1px solid ${Z.bd}15` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
-                          <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{s.author || "—"}{s.word_count ? ` · ${s.word_count}w` : ""}{s.has_images ? " · 📷" : ""}{s.page ? ` · p${s.page}` : ""}</div>
+                          <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>{s.author || "—"}{s.word_count ? ` · ${s.word_count}w` : ""}{s.has_images ? " · 📷" : ""}{s.page ? ` · p${s.page}` : ""}</div>
                         </div>
                         <button
                           onClick={() => handleDownloadPackage(s)}
                           disabled={pkgDownloading === s.id}
                           title="Download InDesign story package (.zip)"
-                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND }}
+                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: FS.xs, color: Z.tm, fontFamily: COND }}
                         >
                           {pkgDownloading === s.id ? "…" : "Pkg"}
                         </button>
                         <button
                           onClick={() => setFlagBackStory(s)}
                           title="Flag back to editor"
-                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: 11, color: Z.tm, fontFamily: COND }}
+                          style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "3px 6px", cursor: "pointer", fontSize: FS.xs, color: Z.tm, fontFamily: COND }}
                         >
                           ↩
                         </button>
@@ -1220,7 +1220,7 @@ const RoleDashboard = memo(({
                 return <div key={p.id} onClick={() => iss && onNavigate?.("flatplan", { pub: iss.pubId, issue: iss.id })} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: iss ? "pointer" : "default" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                     <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.ac, fontFamily: COND }}>{sender}</span>
-                    <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : ""}</span>
+                    <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : ""}</span>
                   </div>
                   <div title={p.message} style={{ fontSize: FS.xs, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.message}</div>
                 </div>;
@@ -1238,7 +1238,7 @@ const RoleDashboard = memo(({
                   {r.cdn_url && <img src={r.cdn_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>Page {r.page_number}{iss ? ` · ${pn(iss.pubId)} ${iss.label}` : ""}</div>
-                    <div style={{ fontSize: 10, color: Z.td }}>{r.uploaded_at ? fmtDate(r.uploaded_at.slice(0, 10)) : ""}</div>
+                    <div style={{ fontSize: FS.micro, color: Z.td }}>{r.uploaded_at ? fmtDate(r.uploaded_at.slice(0, 10)) : ""}</div>
                   </div>
                 </div>;
               })}
@@ -1252,7 +1252,7 @@ const RoleDashboard = memo(({
               {layoutRecentPress.slice(0, 5).map(p => (
                 <div key={p.id} style={{ padding: "6px 8px", background: Z.go + "08", borderRadius: Ri, borderLeft: `2px solid ${Z.go}` }}>
                   <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>📰 {pn(p.pubId)} {p.label}</div>
-                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>sent {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"} · awaiting confirmation</div>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>sent {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"} · awaiting confirmation</div>
                 </div>
               ))}
             </div>
@@ -1407,49 +1407,49 @@ const RoleDashboard = memo(({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           {resolvedThisWeek > 0 && <div title={`${resolvedThisWeek} tickets resolved this week`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
-            <span style={{ fontSize: 16 }}>✅</span>
-            <div><div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{resolvedThisWeek} resolved</div><div style={{ fontSize: 10, color: Z.tm }}>this week</div></div>
+            <span style={{ fontSize: FS.lg }}>✅</span>
+            <div><div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.go }}>{resolvedThisWeek} resolved</div><div style={{ fontSize: FS.micro, color: Z.tm }}>this week</div></div>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: escalatedTix.length > 0 ? Z.da : openTix.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTix.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Open Tickets</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Open Tickets</div>
             {escalatedTix.length > 0 && <div style={{ fontSize: 9, color: Z.da, marginTop: 1 }}>{escalatedTix.length} escalated</div>}
             {escalatedTix.length === 0 && needsFirstResp.length > 0 && <div style={{ fontSize: 9, color: Z.wa, marginTop: 1 }}>{needsFirstResp.length} need first reply</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: tearsheetMissing.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{tearsheetMissing.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Tearsheets to Upload</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Tearsheets to Upload</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>shipped issues</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: overdueInv.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(overdueTotal)}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue A/R</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue A/R</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{overdueInv.length} invoice{overdueInv.length === 1 ? "" : "s"}</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: renewalsDue.length > 5 ? Z.wa : Z.tx, fontFamily: DISPLAY }}>{renewalsDue.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Renewals 30d</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Renewals 30d</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{activeSubs} active · {newSubsMonth} new</div>
           </div>
         </div>
         {/* Beat strip */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {allClear && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.md }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All caught up — every queue is clear</span>
           </div>}
           {!allClear && checklist.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.md }}>🎯</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{checklist.length} item{checklist.length !== 1 ? "s" : ""} on today's list</span>
           </div>}
           {paymentsThisWeek.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>💵</span>
+            <span style={{ fontSize: FS.md }}>💵</span>
             <span style={{ fontSize: FS.sm, color: Z.go, fontWeight: FW.bold }}>{fmtCurrency(paymentsTotalWeek)} collected this week</span>
           </div>}
           {escalatedTix.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.da + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🚨</span>
+            <span style={{ fontSize: FS.md }}>🚨</span>
             <span style={{ fontSize: FS.sm, color: Z.da, fontWeight: FW.bold }}>{escalatedTix.length} escalated ticket{escalatedTix.length === 1 ? "" : "s"} — needs attention</span>
           </div>}
         </div>
@@ -1485,7 +1485,7 @@ const RoleDashboard = memo(({
                 <div key={g.iid} onClick={() => onNavigate?.("tearsheets")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${Z.wa}` }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(g.iss?.pubId)} {g.iss?.label || (g.iss?.date ? fmtDate(g.iss.date) : "Issue")}</div>
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{g.iss?.sentToPressAt ? `pressed ${fmtDate(g.iss.sentToPressAt.slice(0, 10))}` : ""}</div>
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{g.iss?.sentToPressAt ? `pressed ${fmtDate(g.iss.sentToPressAt.slice(0, 10))}` : ""}</div>
                   </div>
                   <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa }}>{g.count} missing</span>
                 </div>
@@ -1514,9 +1514,9 @@ const RoleDashboard = memo(({
                 <div key={s.id} onClick={() => onNavigate?.("circulation")} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer" }}>
                   <div style={{ minWidth: 0 }}>
                     <div title={s.name || s.email} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name || s.email || "—"}</div>
-                    {s.email && s.name && <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>{s.email}</div>}
+                    {s.email && s.name && <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>{s.email}</div>}
                   </div>
-                  <span style={{ fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0, marginLeft: 8 }}>{s.status}</span>
+                  <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, flexShrink: 0, marginLeft: 8 }}>{s.status}</span>
                 </div>
               ))}
             </div>
@@ -1531,7 +1531,7 @@ const RoleDashboard = memo(({
           {overdueInv.length > 0 && <div style={glass}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>Overdue Invoices</span>
-              <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da, fontFamily: COND }}>{fmtCurrency(overdueTotal)}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.da, fontFamily: COND }}>{fmtCurrency(overdueTotal)}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 220, overflowY: "auto" }}>
               {overdueInv.slice(0, 8).map(inv => {
@@ -1543,12 +1543,12 @@ const RoleDashboard = memo(({
                       <div title={cn(inv.clientId)} style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cn(inv.clientId)}</div>
                       <div style={{ fontSize: 9, color: Z.td, fontFamily: COND }}>#{inv.invoiceNumber || inv.id.slice(-6)} · {overdueDays}d overdue</div>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: FW.bold, color: tier, fontFamily: COND, flexShrink: 0 }}>{fmtCurrency(inv.balanceDue)}</span>
+                    <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: tier, fontFamily: COND, flexShrink: 0 }}>{fmtCurrency(inv.balanceDue)}</span>
                   </div>
                 );
               })}
             </div>
-            {overdueInv.length > 8 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 4, fontFamily: COND, textAlign: "center" }}>+{overdueInv.length - 8} more</div>}
+            {overdueInv.length > 8 && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 4, fontFamily: COND, textAlign: "center" }}>+{overdueInv.length - 8} more</div>}
           </div>}
 
           {/* Quick Links */}
@@ -1775,17 +1775,17 @@ const RoleDashboard = memo(({
           {!hideGreeting && <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{greeting}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             {streakDays > 0 && <div title={`${streakDays} consecutive day${streakDays === 1 ? "" : "s"} with at least one approval`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.go + "12", borderRadius: 20 }}>
-              <span style={{ fontSize: 16 }}>⚡</span>
+              <span style={{ fontSize: FS.lg }}>⚡</span>
               <div>
-                <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.go }}>{streakDays} day{streakDays === 1 ? "" : "s"}</div>
-                <div style={{ fontSize: 10, color: Z.tm }}>current streak</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.go }}>{streakDays} day{streakDays === 1 ? "" : "s"}</div>
+                <div style={{ fontSize: FS.micro, color: Z.tm }}>current streak</div>
               </div>
             </div>}
             {highWaterMark > 0 && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", background: Z.wa + "12", borderRadius: 20 }}>
-              <span style={{ fontSize: 16 }}>🔥</span>
+              <span style={{ fontSize: FS.lg }}>🔥</span>
               <div>
-                <div style={{ fontSize: 14, fontWeight: FW.black, color: Z.wa }}>{highWaterMark} in a day</div>
-                <div style={{ fontSize: 10, color: Z.tm }}>7-day best</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.wa }}>{highWaterMark} in a day</div>
+                <div style={{ fontSize: FS.micro, color: Z.tm }}>7-day best</div>
               </div>
             </div>}
           </div>
@@ -1795,37 +1795,37 @@ const RoleDashboard = memo(({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{completedThisMonth.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Designs This Month</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Designs This Month</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: firstProofRate >= 80 ? Z.go : firstProofRate >= 50 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{firstProofRate}%</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Proof Approval</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>First-Proof Approval</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: onTimeRate >= 90 ? Z.go : onTimeRate >= 70 ? Z.wa : Z.da, fontFamily: DISPLAY }}>{onTimeRate}%</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-Time Delivery</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>On-Time Delivery</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: ACCENT.indigo, fontFamily: DISPLAY }}>{totalDesignsCareer}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Total Designs</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Total Designs</div>
           </div>
         </div>
 
         {/* Oxytocin/Endorphin row — your work in print + queue status */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {placedAds.length > 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.md }}>📰</span>
             <div style={{ fontSize: FS.sm, color: Z.tx }}>
               <span style={{ fontWeight: FW.bold }}>Your {cn(placedAds[0].clientId)} ad</span>
               <span style={{ color: Z.tm }}> · Page {placedAds[0].page} of {pn(placedAds[0].publication)} {_issues.find(i => i.id === placedAds[0].issueId)?.label || ""}</span>
             </div>
           </div>}
           {queueEmpty && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.md }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>Queue cleared — nice work!</span>
           </div>}
           {!queueEmpty && activeProjects.length + myJobs.length <= 3 && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.blue + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontSize: FS.md }}>🎯</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.blue, fontWeight: FW.bold }}>{activeProjects.length + myJobs.length} to go today — you've got this</span>
           </div>}
         </div>
@@ -1841,8 +1841,8 @@ const RoleDashboard = memo(({
           { label: "Pick Up", value: adProjects.filter(p => !p.designer_id && !["approved", "signed_off", "placed"].includes(p.status)).length, color: adProjects.filter(p => !p.designer_id).length > 0 ? Z.wa : Z.go },
         ].map(s => (
           <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
-            <span style={{ fontSize: 16, fontWeight: FW.black, color: s.color }}>{s.value}</span>
+            <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
+            <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: s.color }}>{s.value}</span>
           </div>
         ))}
       </div>
@@ -1859,7 +1859,7 @@ const RoleDashboard = memo(({
             </div>
             <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
               {[["all", "All"], ["brief", "Brief"], ["designing", "Designing"], ["proof_sent", "Proof Sent"], ["revision", "Revisions"], ["approved", "Approved"]].map(([k, l]) => (
-                <button key={k} onClick={() => setAdFilter(k)} style={{ padding: "3px 10px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 11, fontWeight: adFilter === k ? FW.bold : 500, background: adFilter === k ? Z.tx + "12" : "transparent", color: adFilter === k ? Z.tx : Z.td }}>{l}</button>
+                <button key={k} onClick={() => setAdFilter(k)} style={{ padding: "3px 10px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: FS.xs, fontWeight: adFilter === k ? FW.bold : 500, background: adFilter === k ? Z.tx + "12" : "transparent", color: adFilter === k ? Z.tx : Z.td }}>{l}</button>
               ))}
             </div>
             {filteredQueue.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>No items match this filter</div>
@@ -2079,20 +2079,20 @@ const RoleDashboard = memo(({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{publishedMtd.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Published MTD</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Published MTD</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: drafts.length > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{drafts.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Drafts</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Drafts</div>
             {pitches.length > 0 && <div style={{ fontSize: 9, color: Z.tm, marginTop: 1 }}>{pitches.length} pitch{pitches.length === 1 ? "" : "es"}</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: inEdit.length > 0 ? Z.wa : Z.tm, fontFamily: DISPLAY }}>{inEdit.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>With Editor</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>With Editor</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: overdue.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdue.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
           </div>
         </div>
       </div>
@@ -2187,7 +2187,7 @@ const RoleDashboard = memo(({
                 return <div key={i} title={`${b.start} — ${b.count}`} style={{ flex: 1, height: `${Math.max(h, 4)}%`, background: isCurrent ? Z.go : ACCENT.indigo + "80", borderRadius: 2, minHeight: 2 }} />;
               })}
             </div>
-            {velocityDelta != null && <div style={{ fontSize: 10, color: velocityDelta >= 0 ? Z.go : Z.wa, marginTop: 6, fontWeight: FW.bold }}>
+            {velocityDelta != null && <div style={{ fontSize: FS.micro, color: velocityDelta >= 0 ? Z.go : Z.wa, marginTop: 6, fontWeight: FW.bold }}>
               {velocityDelta >= 0 ? "▲" : "▼"} {Math.abs(velocityDelta)}% last 4wk vs prior 4wk
             </div>}
           </div>
@@ -2325,19 +2325,19 @@ const RoleDashboard = memo(({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(pipelineValue)}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {active.length}</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {active.length}</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} closed</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} closed</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: todayActions.length > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{todayActions.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Today's Actions</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Today's Actions</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: overdue.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdue.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue</div>
           </div>
         </div>
       </div>
@@ -2585,43 +2585,43 @@ const RoleDashboard = memo(({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(mtdRev)}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} deals</div>
-            {pacingDelta != null && <div style={{ fontSize: 10, color: pacingDelta >= 0 ? Z.go : Z.da, marginTop: 2, fontWeight: FW.bold }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>MTD Revenue · {mtdClosed.length} deals</div>
+            {pacingDelta != null && <div style={{ fontSize: FS.micro, color: pacingDelta >= 0 ? Z.go : Z.da, marginTop: 2, fontWeight: FW.bold }}>
               {pacingDelta >= 0 ? "▲" : "▼"} {Math.abs(pacingDelta)}% vs last month · proj {fmtCurrency(projectedMonth)}
             </div>}
-            {pacingDelta == null && lastMonthFull > 0 && <div style={{ fontSize: 10, color: Z.tm, marginTop: 2 }}>proj {fmtCurrency(projectedMonth)} · last mo {fmtCurrency(lastMonthFull)}</div>}
+            {pacingDelta == null && lastMonthFull > 0 && <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 2 }}>proj {fmtCurrency(projectedMonth)} · last mo {fmtCurrency(lastMonthFull)}</div>}
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: Z.ac, fontFamily: DISPLAY }}>{fmtCurrency(pipelineValue)}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {activeSales.length} open</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Pipeline · {activeSales.length} open</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: awaitingSignoff.length > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{awaitingSignoff.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Awaiting Your Signoff</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Awaiting Your Signoff</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>next 14 days</div>
           </div>
           <div style={{ textAlign: "center", padding: "14px 8px", background: Z.bg, borderRadius: R }}>
             <div style={{ fontSize: 28, fontWeight: FW.black, color: overdueInvoices.length > 0 ? Z.da : Z.go, fontFamily: DISPLAY }}>{overdueInvoices.length}</div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue Invoices</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>Overdue Invoices</div>
             <div style={{ fontSize: 9, color: Z.td, marginTop: 1 }}>{fmtCurrency(overdueBalance)}</div>
           </div>
         </div>
         {/* Beat strip */}
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           {justShipped && <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>📰</span>
+            <span style={{ fontSize: FS.md }}>📰</span>
             <span style={{ fontSize: FS.sm, color: Z.tx }}><span style={{ fontWeight: FW.bold }}>{pn(justShipped.pubId)} {justShipped.label}</span> <span style={{ color: Z.tm }}>shipped</span></span>
           </div>}
           {allClear && !justShipped && <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.go + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>✨</span>
+            <span style={{ fontSize: FS.md }}>✨</span>
             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.go }}>All clear — no signoffs or proofs waiting</span>
           </div>}
           {pubProofsInReview.length > 0 && <div style={{ flex: "1 1 220px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: ACCENT.indigo + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>📑</span>
+            <span style={{ fontSize: FS.md }}>📑</span>
             <span style={{ fontSize: FS.sm, color: ACCENT.indigo, fontWeight: FW.bold }}>{pubProofsInReview.length} proof{pubProofsInReview.length === 1 ? "" : "s"} in review</span>
           </div>}
           {pubLayoutRefGaps.length > 0 && <div style={{ flex: "1 1 220px", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: Z.wa + "10", borderRadius: Ri }}>
-            <span style={{ fontSize: 14 }}>🖼️</span>
+            <span style={{ fontSize: FS.md }}>🖼️</span>
             <span style={{ fontSize: FS.sm, color: Z.wa, fontWeight: FW.bold }}>{pubLayoutRefGaps.length} issue{pubLayoutRefGaps.length === 1 ? "" : "s"} need layout refs</span>
           </div>}
         </div>
@@ -2647,7 +2647,7 @@ const RoleDashboard = memo(({
                     <div key={iss.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: Z.bg, borderRadius: Ri, borderLeft: `3px solid ${urg}` }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{pn(iss.pubId)} {iss.label}</div>
-                        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Press {fmtDate(iss.date)} · {d <= 0 ? "today" : d === 1 ? "tomorrow" : `${d}d`}</div>
+                        <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Press {fmtDate(iss.date)} · {d <= 0 ? "today" : d === 1 ? "tomorrow" : `${d}d`}</div>
                       </div>
                       <Btn sm v="secondary" onClick={() => onNavigate?.(`/layout?id=${iss.id}`)} style={{ flexShrink: 0 }}>Open</Btn>
                       <Btn sm onClick={() => handlePublisherSignoff(iss.id)} disabled={signingOffIssueId === iss.id} style={{ flexShrink: 0 }}>
@@ -2674,9 +2674,9 @@ const RoleDashboard = memo(({
                     <div key={p.id} onClick={() => iss && onNavigate?.(`/layout?id=${iss.id}`)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: iss ? "pointer" : "default" }}>
                       <div>
                         <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{iss ? `${pn(iss.pubId)} ${iss.label}` : "Issue"} · v{p.version}</div>
-                        <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{p.page_count ? `${p.page_count} pages · ` : ""}uploaded {p.uploaded_at ? fmtDate(p.uploaded_at.slice(0, 10)) : "—"}</div>
+                        <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{p.page_count ? `${p.page_count} pages · ` : ""}uploaded {p.uploaded_at ? fmtDate(p.uploaded_at.slice(0, 10)) : "—"}</div>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.ac, padding: "2px 8px", background: Z.ac + "15", borderRadius: 999, fontFamily: COND, textTransform: "uppercase" }}>review</span>
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.ac, padding: "2px 8px", background: Z.ac + "15", borderRadius: 999, fontFamily: COND, textTransform: "uppercase" }}>review</span>
                     </div>
                   );
                 })}
@@ -2696,7 +2696,7 @@ const RoleDashboard = memo(({
                   <div key={g.issue.id} onClick={() => onNavigate?.("flatplan", { pub: g.issue.pubId, issue: g.issue.id })} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: Z.bg, borderRadius: Ri, cursor: "pointer", borderLeft: `2px solid ${Z.wa}` }}>
                     <div>
                       <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{pn(g.issue.pubId)} {g.issue.label}</div>
-                      <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>Pages: {g.missingPages.slice(0, 8).join(", ")}{g.missingPages.length > 8 ? `… +${g.missingPages.length - 8}` : ""}</div>
+                      <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Pages: {g.missingPages.slice(0, 8).join(", ")}{g.missingPages.length > 8 ? `… +${g.missingPages.length - 8}` : ""}</div>
                     </div>
                     <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.wa, fontFamily: COND }}>{g.missingPages.length}</span>
                   </div>
@@ -2722,7 +2722,7 @@ const RoleDashboard = memo(({
                 { key: "b61_90", val: buckets.b61_90, color: ACCENT.indigo, label: "61–90" },
                 { key: "b90", val: buckets.b90, color: Z.da, label: "90+" },
               ].filter(b => b.val > 0).map(b => (
-                <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>
+                <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND }}>
                   {(b.val / arTotal) >= 0.10 ? `${Math.round((b.val / arTotal) * 100)}%` : ""}
                 </div>
               ))}
@@ -2764,7 +2764,7 @@ const RoleDashboard = memo(({
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(sold)}</div>
-                      {pending > 0 && <div style={{ fontSize: 10, color: Z.ac }}>+ {fmtCurrency(pending)} pending</div>}
+                      {pending > 0 && <div style={{ fontSize: FS.micro, color: Z.ac }}>+ {fmtCurrency(pending)} pending</div>}
                     </div>
                   </div>
                 );
@@ -2777,7 +2777,7 @@ const RoleDashboard = memo(({
             {topReps.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: Z.tm }}>No closed deals this month</div>
             : <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {topReps.map((rep, idx) => <div key={rep.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: Z.bg, borderRadius: Ri }}>
-                <div style={{ width: 22, height: 22, borderRadius: "50%", background: idx === 0 ? Z.go + "25" : Z.sa, color: idx === 0 ? Z.go : Z.tm, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black }}>{idx + 1}</div>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: idx === 0 ? Z.go + "25" : Z.sa, color: idx === 0 ? Z.go : Z.tm, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xs, fontWeight: FW.black }}>{idx + 1}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{rep.name}</div>
                 </div>
@@ -2806,7 +2806,7 @@ const RoleDashboard = memo(({
                 {pubRecentPress.slice(0, 5).map(p => (
                   <div key={p.id} style={{ padding: "6px 10px", background: Z.go + "08", borderRadius: Ri, borderLeft: `2px solid ${Z.go}` }}>
                     <div style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>📰 {pn(p.pubId)} {p.label}</div>
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>shipped {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"}</div>
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>shipped {p.sentToPressAt ? fmtDate(p.sentToPressAt.slice(0, 10)) : "—"}</div>
                   </div>
                 ))}
               </div>
@@ -2884,17 +2884,17 @@ const RoleDashboard = memo(({
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
-          <div style={{ fontSize: 26, fontWeight: FW.black, color: arTotal > 15000 ? Z.da : arTotal > 5000 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(arTotal)}</div>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>A/R Outstanding</div>
-          <div style={{ fontSize: 10, color: Z.tm, marginTop: 2 }}>{openInvs.length} open invoice{openInvs.length === 1 ? "" : "s"}</div>
+          <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: arTotal > 15000 ? Z.da : arTotal > 5000 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{fmtCurrency(arTotal)}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>A/R Outstanding</div>
+          <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 2 }}>{openInvs.length} open invoice{openInvs.length === 1 ? "" : "s"}</div>
         </div>
         <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
-          <div style={{ fontSize: 26, fontWeight: FW.black, color: openTicketCount > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTicketCount}</div>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Open Tickets</div>
+          <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: openTicketCount > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{openTicketCount}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Open Tickets</div>
         </div>
         <div style={{ ...glass, textAlign: "center", padding: "18px 14px" }}>
-          <div style={{ fontSize: 26, fontWeight: FW.black, color: expiringSubs > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{expiringSubs}</div>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Subs Expiring (30d)</div>
+          <div style={{ fontSize: FS.xxl, fontWeight: FW.black, color: expiringSubs > 0 ? Z.wa : Z.go, fontFamily: DISPLAY }}>{expiringSubs}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>Subs Expiring (30d)</div>
         </div>
       </div>
 
@@ -2911,7 +2911,7 @@ const RoleDashboard = memo(({
             { key: "b61_90",  val: buckets.b61_90,  color: ACCENT.indigo, label: "61–90" },
             { key: "b90",     val: buckets.b90,     color: Z.da, label: "90+" },
           ].filter(b => b.val > 0).map(b => (
-            <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>
+            <div key={b.key} title={`${b.label}: ${fmtCurrency(b.val)}`} style={{ flex: b.val, background: b.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND }}>
               {(b.val / arTotal) >= 0.10 ? `${Math.round((b.val / arTotal) * 100)}%` : ""}
             </div>
           ))}

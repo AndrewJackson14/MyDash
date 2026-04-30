@@ -321,7 +321,7 @@ const EditionManager = ({ pubs, editions, setEditions }) => {
       <SB value={search} onChange={setSearch} placeholder="Search editions..." />
       <Sel value={pubFilter} onChange={e => setPubFilter(e.target.value)} options={pubOptions} />
       <Btn sm onClick={openNew}><Ic.plus size={13} /> Upload New Edition</Btn>
-      <span style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>{filtered.length} editions</span>
+      <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{filtered.length} editions</span>
     </div>
 
     {filtered.length === 0 && (

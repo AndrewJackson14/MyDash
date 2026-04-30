@@ -398,8 +398,8 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
       >
         {/* Header row: author + pin badge */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          {!isSys && !isMe && <span style={{ fontSize: 11, fontWeight: FW.bold, color: Z.ac }}>{m.sender_name}</span>}
-          {isSys && <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td }}>SYSTEM</span>}
+          {!isSys && !isMe && <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.ac }}>{m.sender_name}</span>}
+          {isSys && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td }}>SYSTEM</span>}
           {m.is_pinned && <span title="Pinned" style={{ fontSize: 9, fontWeight: 800, color: Z.wa, background: Z.wa + "20", padding: "1px 5px", borderRadius: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>📌 Pinned</span>}
         </div>
 
@@ -416,7 +416,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
               autoFocus
               style={{ width: "100%", minHeight: 60, padding: "6px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box" }}
             />
-            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", fontSize: 11 }}>
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", fontSize: FS.xs }}>
               <button onClick={cancelEdit} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", padding: "2px 8px" }}>Cancel</button>
               <button onClick={() => saveEdit(m)} style={{ background: Z.ac, color: "#fff", border: "none", cursor: "pointer", padding: "3px 10px", borderRadius: 10, fontWeight: 700 }}>Save</button>
             </div>
@@ -445,7 +445,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
               <a key={a.id} href={a.cdn_url} target="_blank" rel="noreferrer" style={{
                 display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
                 background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri,
-                textDecoration: "none", color: Z.tx, fontSize: 12, maxWidth: 240,
+                textDecoration: "none", color: Z.tx, fontSize: FS.sm, maxWidth: 240,
               }}>
                 <span style={{
                   width: 28, height: 28, borderRadius: 4,
@@ -455,7 +455,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
                 }}>{a.kind === "pdf" ? "PDF" : "FILE"}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div title={a.filename} style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.filename}</div>
-                  <div style={{ fontSize: 10, color: Z.tm }}>{fmtBytes(a.byte_size)}</div>
+                  <div style={{ fontSize: FS.micro, color: Z.tm }}>{fmtBytes(a.byte_size)}</div>
                 </div>
               </a>
             ))}
@@ -463,7 +463,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
         )}
 
         {/* Footer: timestamp + edited tag */}
-        <div style={{ fontSize: 10, color: Z.td, marginTop: 2, textAlign: isMe ? "right" : "left" }}>
+        <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 2, textAlign: isMe ? "right" : "left" }}>
           {fmtTime(m.created_at)}{m.edited_at && <span style={{ marginLeft: 4, fontStyle: "italic" }}>· edited</span>}
         </div>
 
@@ -472,9 +472,9 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
             edit mode. */}
         {!isSys && !isEditing && !pinnedView && (
           <div style={{ position: "absolute", top: -10, right: 6, display: "flex", gap: 2, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: 12, padding: "1px 4px", opacity: 0, transition: "opacity 0.1s" }} className="msg-actions">
-            <button onClick={() => togglePin(m)} title={m.is_pinned ? "Unpin" : "Pin to top"} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 12, color: m.is_pinned ? Z.wa : Z.tm }}>📌</button>
-            {isMe && <button onClick={() => startEdit(m)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 11, color: Z.tm }}>✎</button>}
-            {isMe && <button onClick={() => deleteMessage(m)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: 11, color: Z.da }}>🗑</button>}
+            <button onClick={() => togglePin(m)} title={m.is_pinned ? "Unpin" : "Pin to top"} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: FS.sm, color: m.is_pinned ? Z.wa : Z.tm }}>📌</button>
+            {isMe && <button onClick={() => startEdit(m)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: FS.xs, color: Z.tm }}>✎</button>}
+            {isMe && <button onClick={() => deleteMessage(m)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", fontSize: FS.xs, color: Z.da }}>🗑</button>}
           </div>
         )}
       </div>
@@ -502,7 +502,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {pinnedMessages.map(m => (
-              <div key={"pin-" + m.id} className="msg-bubble-wrap" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12 }}>
+              <div key={"pin-" + m.id} className="msg-bubble-wrap" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: FS.sm }}>
                 <span style={{ fontWeight: 700, color: Z.ac, flexShrink: 0 }}>{m.sender_name}:</span>
                 <span title={m.body || ""} style={{ flex: 1, color: Z.tx, whiteSpace: "pre-wrap", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
                   {tokenizeMessage(m.body || "").map((seg, i) => seg.type === "mention"
@@ -510,7 +510,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
                     : <span key={i}>{seg.value}</span>
                   )}
                 </span>
-                <button onClick={() => togglePin(m)} title="Unpin" style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 11, padding: 0, flexShrink: 0 }}>×</button>
+                <button onClick={() => togglePin(m)} title="Unpin" style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.xs, padding: 0, flexShrink: 0 }}>×</button>
               </div>
             ))}
           </div>
@@ -533,7 +533,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
           {pending.map(p => (
             <div key={p.id} style={{
               display: "flex", alignItems: "center", gap: 6,
-              padding: "4px 8px", borderRadius: 12, fontSize: 11,
+              padding: "4px 8px", borderRadius: 12, fontSize: FS.xs,
               background: p.status === "error" ? "rgba(220,38,38,0.1)" : Z.sa,
               border: `1px solid ${p.status === "error" ? "#dc2626" : Z.bd}`,
               color: p.status === "error" ? "#dc2626" : Z.tx,
@@ -542,7 +542,7 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
               <span title={p.filename} style={{ maxWidth: 160, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.filename}</span>
               {p.status === "uploading" && <span style={{ color: Z.tm }}>uploading…</span>}
               {p.status === "error" && <span title={p.error}>failed</span>}
-              <button onClick={() => removePending(p.id)} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", padding: 0, fontSize: 14, lineHeight: 1 }}>×</button>
+              <button onClick={() => removePending(p.id)} style={{ background: "none", border: "none", color: Z.tm, cursor: "pointer", padding: 0, fontSize: FS.md, lineHeight: 1 }}>×</button>
             </div>
           ))}
         </div>
@@ -562,8 +562,8 @@ const ChatPanel = memo(({ threadId, currentUser, team, height = 400, placeholder
                   onMouseEnter={() => setMentionIdx(i)}
                   style={{ padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, background: active ? Z.ac + "18" : "transparent" }}
                 >
-                  <span style={{ fontSize: 11, fontWeight: FW.black, color: Z.tx }}>{m.name}</span>
-                  {m.role && <span style={{ fontSize: 10, color: Z.tm }}>{m.role}</span>}
+                  <span style={{ fontSize: FS.xs, fontWeight: FW.black, color: Z.tx }}>{m.name}</span>
+                  {m.role && <span style={{ fontSize: FS.micro, color: Z.tm }}>{m.role}</span>}
                 </div>
               );
             })}

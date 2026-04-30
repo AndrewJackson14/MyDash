@@ -122,7 +122,7 @@ export function Field({ label, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <label style={{
-        fontSize: 10, fontWeight: FW.heavy, color: Z.td,
+        fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td,
         textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND,
       }}>{label}</label>
       {children}

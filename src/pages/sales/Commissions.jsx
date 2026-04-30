@@ -118,7 +118,7 @@ const Commissions = ({
                 <div style={{ fontSize: FS.sm, color: Z.tm }}>{sp.role} · Trigger: <span style={{ fontWeight: FW.bold, color: Z.ac }}>{TRIGGER_LABELS[trigger]}</span></div>
               </div>
               <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                {spData.earned > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: 22, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(spData.earned)}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Earned ({earnedCount})</div></div>}
+                {spData.earned > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY }}>{fmtCurrency(spData.earned)}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Earned ({earnedCount})</div></div>}
                 {spData.pending > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.wa }}>{fmtCurrency(spData.pending)}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Pending</div></div>}
                 {spData.paid > 0 && <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tm }}>{fmtCurrency(spData.paid)}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Paid</div></div>}
                 {earnedCount > 0 && <Btn sm v="success" onClick={() => setPayoutModal(sp.id)}>Pay {fmtCurrency(spData.earned)}</Btn>}

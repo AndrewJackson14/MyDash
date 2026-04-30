@@ -103,8 +103,8 @@ function LinkedEmailsPanel({ projectId }) {
           <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.subject || "(no subject)"}>{it.subject || "(no subject)"}</span>
           <span style={{ fontSize: 9, color: Z.td, fontFamily: COND, flexShrink: 0 }}>{it.linked_at ? new Date(it.linked_at).toLocaleDateString() : ""}</span>
         </div>
-        {it.from_email && <div style={{ fontSize: 11, color: Z.tm, marginTop: 1 }}>{it.from_email}</div>}
-        {it.excerpt && <div style={{ fontSize: 11, color: Z.td, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.excerpt}>{it.excerpt}</div>}
+        {it.from_email && <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 1 }}>{it.from_email}</div>}
+        {it.excerpt && <div style={{ fontSize: FS.xs, color: Z.td, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.excerpt}>{it.excerpt}</div>}
       </a>)}
     </div>
   </div>;
@@ -926,7 +926,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                 title={isClickable ? `Advance to ${STATUSES[s]?.label || s}` : undefined}
                 style={{
                   flex: 1, padding: "6px 0", textAlign: "center",
-                  fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5,
+                  fontSize: FS.micro, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.5,
                   color: isCurrent ? "#fff" : isPast ? Z.go : (isClickable ? Z.tx : Z.td),
                   background: isCurrent ? st.color : isPast ? Z.go + "20" : (isClickable ? (STATUSES[s]?.color || Z.ac) + "12" : Z.sa),
                   borderRadius: Ri,
@@ -1006,15 +1006,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         const daysToAdDl = issue.adDeadline ? Math.ceil((new Date(issue.adDeadline + "T12:00:00") - new Date()) / 86400000) : null;
         return <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
           {daysToAdDl !== null && <div style={{ flex: 1, padding: "8px 14px", background: (daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.go) + "10", borderRadius: Ri, borderLeft: `3px solid ${daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.go}` }}>
-            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Materials Due</div>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Ad Materials Due</div>
             <div style={{ fontSize: FS.md, fontWeight: FW.black, color: daysToAdDl < 0 ? Z.da : daysToAdDl <= 3 ? Z.wa : Z.tx }}>{daysToAdDl < 0 ? `${Math.abs(daysToAdDl)}d overdue` : daysToAdDl === 0 ? "Today" : `${daysToAdDl}d`}</div>
           </div>}
           {daysToPublish !== null && <div style={{ flex: 1, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
-            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publishes</div>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Publishes</div>
             <div style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx }}>{fmtDate(issue.date)} ({daysToPublish}d)</div>
           </div>}
           <div style={{ flex: 1, padding: "8px 14px", background: Z.bg, borderRadius: Ri }}>
-            <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Placement</div>
+            <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Placement</div>
             <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tm }}>Not yet placed</div>
           </div>
         </div>;
@@ -1036,17 +1036,17 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
 
                 {/* Team + specs row */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Salesperson</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Salesperson</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
                     {viewProject.salesperson_id
                       ? <EntityLink onClick={nav.toTeamMember(viewProject.salesperson_id)}>{spName || "—"}</EntityLink>
                       : (spName || "—")}
                   </div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Designer</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Designer</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
                     {viewProject.designer_id
                       ? <EntityLink onClick={nav.toTeamMember(viewProject.designer_id)}>{tn(viewProject.designer_id)}</EntityLink>
                       : tn(viewProject.designer_id)}
                   </div></div>
-                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
+                  <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Revisions</div><div style={{ fontWeight: FW.bold, color: viewProject.revision_count >= 3 ? Z.wa : Z.tx }}>{viewProject.revision_count || 0}{viewProject.revision_count >= 4 ? ` ($${(viewProject.revision_count - 3) * 25})` : ""}</div></div>
                 </div>
                 {(() => {
                   // Branch: digital projects show Product + Flight + Publication;
@@ -1058,9 +1058,9 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     const product = (digitalAdProducts || []).find(p => p.id === viewSale.digitalProductId);
                     const fmt = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
                     return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
-                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Digital Product</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{product?.name || "—"}{product?.width && product?.height ? ` · ${product.width}×${product.height}` : ""}</div></div>
-                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Flight</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{fmt(viewSale.flightStartDate)} – {fmt(viewSale.flightEndDate)}</div></div>
-                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Digital Product</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{product?.name || "—"}{product?.width && product?.height ? ` · ${product.width}×${product.height}` : ""}</div></div>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Flight</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{fmt(viewSale.flightStartDate)} – {fmt(viewSale.flightEndDate)}</div></div>
+                      <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
                         {viewProject.publication_id
                           ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
                           : pn(viewProject.publication_id)}
@@ -1068,13 +1068,13 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     </div>;
                   }
                   return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: FS.sm }}>
-                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
-                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Ad Size</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>{viewProject.ad_size || "—"}</div></div>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Issue</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
                       {viewProject.issue_id
                         ? <EntityLink onClick={nav.toFlatplan(viewProject.publication_id, viewProject.issue_id)}>{(issues || []).find(i => i.id === viewProject.issue_id)?.label || "—"}</EntityLink>
                         : "—"}
                     </div></div>
-                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
+                    <div style={{ padding: "6px 10px", background: Z.bg, borderRadius: Ri }}><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Publication</div><div style={{ fontWeight: FW.bold, color: Z.tx }}>
                       {viewProject.publication_id
                         ? <EntityLink onClick={nav.toPublication(viewProject.publication_id)}>{pn(viewProject.publication_id)}</EntityLink>
                         : pn(viewProject.publication_id)}
@@ -1087,7 +1087,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   ["brief_headline", "Key Message / Headline", false],
                   ["brief_style", "Style Direction", true],
                 ].map(([field, label, tall]) => <div key={field} style={tall ? { flex: 1 } : {}}>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
+                  <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
                   <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={tall ? 4 : 2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }} />
                 </div>)}
 
@@ -1096,13 +1096,13 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     ["brief_colors", "Colors to Use / Avoid"],
                     ["brief_instructions", "Special Instructions"],
                   ].map(([field, label]) => <div key={field}>
-                    <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}<SaveIndicator field={field} /></div>
                     <textarea defaultValue={viewProject[field] || ""} onBlur={e => { if (e.target.value !== (viewProject[field] || "")) saveBriefField(viewProject.id, field, e.target.value); }} placeholder="Click to add..." rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
                   </div>)}
                 </div>
 
                 {viewProject.design_notes && !viewProject.design_notes.startsWith("Auto-created") && <div>
-                  <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes<SaveIndicator field="design_notes" /></div>
+                  <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Additional Notes<SaveIndicator field="design_notes" /></div>
                   <textarea defaultValue={viewProject.design_notes} onBlur={e => { if (e.target.value !== viewProject.design_notes) saveBriefField(viewProject.id, "design_notes", e.target.value); }} rows={2} style={{ width: "100%", fontSize: FS.sm, color: Z.tx, padding: "8px 10px", background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}`, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
                 </div>}
               </div>
@@ -1121,7 +1121,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                           return <span style={{ fontSize: 9, fontWeight: FW.bold, color: Z.wa, background: Z.wa + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>Expires {expiresIn}d</span>;
                         })()}
                       </div>
-                      {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: 10, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 6px", borderRadius: Ri }}>{lbl}</span>; })()}
+                      {(() => { const is = latestProof.internal_status || "uploaded"; const lbl = { uploaded: "Uploaded", ready: "Ready", edit: "Needs Edit", approved: "Approved", sent_to_client: "Sent" }[is] || is; const clr = { uploaded: Z.tm, ready: Z.ac, edit: Z.wa, approved: Z.go, sent_to_client: Z.go }[is] || Z.tm; return <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: clr, background: clr + "15", padding: "2px 6px", borderRadius: Ri }}>{lbl}</span>; })()}
                     </div>
                     <div style={{ fontSize: FS.xs, color: Z.td }}>{fmtDate(latestProof.created_at)} · {viewProofs.length}/5 proofs</div>
                   </div>
@@ -1282,7 +1282,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       <TabRow><TB tabs={["Active", "Completed", "All"]} active={tab} onChange={setTab} /></TabRow>
       <div style={{ display: "flex", gap: 4 }}>
         {[["board", "Board"], ["list", "List"]].map(([v, l]) => (
-          <button key={v} onClick={() => setView(v)} style={{ padding: "4px 12px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: 11, fontWeight: view === v ? FW.bold : 500, background: view === v ? Z.tx + "12" : "transparent", color: view === v ? Z.tx : Z.td }}>{l}</button>
+          <button key={v} onClick={() => setView(v)} style={{ padding: "4px 12px", borderRadius: Ri, border: "none", cursor: "pointer", fontSize: FS.xs, fontWeight: view === v ? FW.bold : 500, background: view === v ? Z.tx + "12" : "transparent", color: view === v ? Z.tx : Z.td }}>{l}</button>
         ))}
       </div>
     </div>
@@ -1305,8 +1305,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["approved", "signed_off", "placed"].includes(p.status); }).length, color: Z.da },
       ]).map(s => (
         <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
-          <span style={{ fontSize: 16, fontWeight: FW.black, color: s.value > 0 && s.label === "At Risk" ? Z.da : s.color }}>{s.value}</span>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
+          <span style={{ fontSize: FS.lg, fontWeight: FW.black, color: s.value > 0 && s.label === "At Risk" ? Z.da : s.color }}>{s.value}</span>
         </div>
       ))}
     </div>
@@ -1317,7 +1317,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       const today = new Date().toISOString().slice(0, 10);
       return <div style={{ marginBottom: 14, padding: "12px 16px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Deadline Heatmap</span>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>Deadline Heatmap</span>
           <span style={{ fontSize: 9, color: Z.td }}>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#DC2626", marginRight: 3 }}></span>≤3d
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#D97706", marginLeft: 8, marginRight: 3 }}></span>4-7d
@@ -1330,15 +1330,15 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             // P3.28 — render "All clear" placeholder instead of hiding pubs with no upcoming issues
             if (pubIssues.length === 0) {
               return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.55 }}>
-                <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
+                <span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tm, width: 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: Z.sa, border: `1px dashed ${Z.bd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: Z.td }}>·</div>
-                  <span style={{ fontSize: 10, color: Z.td, fontStyle: "italic" }}>All clear</span>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: Z.sa, border: `1px dashed ${Z.bd}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.micro, color: Z.td }}>·</div>
+                  <span style={{ fontSize: FS.micro, color: Z.td, fontStyle: "italic" }}>All clear</span>
                 </div>
               </div>;
             }
             return <div key={pub.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: FW.semi, color: Z.tm, width: isMobile ? 110 : 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
+              <span style={{ fontSize: FS.xs, fontWeight: FW.semi, color: Z.tm, width: isMobile ? 110 : 160, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub.name}>{pub.name}</span>
               <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, flex: 1 }}>
                 {pubIssues.map(iss => {
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
@@ -1359,7 +1359,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         </div>
         {heatmapFilter && <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, padding: "4px 10px", background: Z.ac + "10", borderRadius: Ri }}>
           <span style={{ fontSize: FS.xs, color: Z.ac, fontWeight: FW.bold }}>Filtered: {heatmapFilter.label}</span>
-          <button onClick={() => setHeatmapFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: 14, fontWeight: 900 }}>×</button>
+          <button onClick={() => setHeatmapFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.ac, fontSize: FS.md, fontWeight: 900 }}>×</button>
         </div>}
       </div>;
     })()}
@@ -1373,12 +1373,12 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: isMobile ? 920 : "auto" }}>
       {/* Column header row */}
       <div style={{ display: "grid", gridTemplateColumns: `200px repeat(${STATUS_COLS.length}, 1fr)`, gap: 8 }}>
-        <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "8px 10px" }}>Issue</div>
+        <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, padding: "8px 10px" }}>Issue</div>
         {STATUS_COLS.map(col => {
           const st = col === "needs_brief" ? { label: "Needs Brief", color: Z.tm } : STATUSES[col];
           return (
             <div key={col} style={{ padding: "6px 10px", background: st.color + "12", borderRadius: Ri, textAlign: "center" }}>
-              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: st.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{st.label}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: st.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{st.label}</span>
             </div>
           );
         })}
@@ -1398,7 +1398,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             <div style={{ padding: "8px 10px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, borderLeft: `3px solid ${urgColor}` }}>
               <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pub?.name || ""}>{pub?.name || "\u2014"}</div>
               <div style={{ fontSize: FS.xs, color: Z.tm }}>{iss.label || fmtDate(iss.date)}</div>
-              {adDl < 99 && <div style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor, marginTop: 3 }}>
+              {adDl < 99 && <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: urgColor, marginTop: 3 }}>
                 {adDl < 0 ? `${Math.abs(adDl)}d overdue` : adDl === 0 ? "Due today" : `${adDl}d left`}
               </div>}
             </div>
@@ -1435,7 +1435,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   }}
                 >
                   {cards.length === 0 ? (
-                    <div style={{ padding: "4px 0", textAlign: "center", color: Z.bd, fontSize: 11 }}>·</div>
+                    <div style={{ padding: "4px 0", textAlign: "center", color: Z.bd, fontSize: FS.xs }}>·</div>
                   ) : cards.map(({ sale, project }) => {
                     const isNeedsBrief = !project;
                     const isUnassigned = project && !project.designer_id;
@@ -1510,11 +1510,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                             : cn(sale.clientId)}
                         </div>
                         <div style={{ fontSize: FS.xs, color: Z.tm }} title={sale.size || "Ad"}>{sale.size || "Ad"}</div>
-                        {project?.designer_id && <div style={{ fontSize: 10, color: Z.td, marginTop: 2 }}>
+                        {project?.designer_id && <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 2 }}>
                           <EntityLink onClick={nav.toTeamMember(project.designer_id)} muted noUnderline>{tn(project.designer_id)?.split(" ")[0]}</EntityLink>
                         </div>}
-                        {isUnassigned && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da, marginTop: 2 }}>Unassigned</div>}
-                        {isNeedsBrief && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm, marginTop: 2 }}>Start brief →</div>}
+                        {isUnassigned && <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.da, marginTop: 2 }}>Unassigned</div>}
+                        {isNeedsBrief && <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tm, marginTop: 2 }}>Start brief →</div>}
                       </div>
                     );
                   })}
@@ -1557,8 +1557,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         const colSt = STATUSES[col];
         return <div key={col} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: colSt.color + "12", borderRadius: Ri }}>
-            <span style={{ fontSize: 11, fontWeight: FW.heavy, color: colSt.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{colSt.label}</span>
-            <span style={{ fontSize: 12, fontWeight: FW.black, color: colSt.color }}>{colProjects.length}</span>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: colSt.color, textTransform: "uppercase", letterSpacing: 0.5 }}>{colSt.label}</span>
+            <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: colSt.color }}>{colProjects.length}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, overflowY: "auto", maxHeight: 500 }}>
             {colProjects.map(p => {
@@ -1587,23 +1587,23 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     <div style={{ fontSize: FS.xs, color: Z.tm }} title={`${pn(p.publication_id)} · ${iss?.label || ""} · ${p.ad_size || "Ad"}`}>{pn(p.publication_id)} · {iss?.label || ""} · {p.ad_size || "Ad"}</div>
                   </div>
                   {/* P1.9 — unread chat badge: hidden when 0, visible when >0 */}
-                  {p.thread_id && unreadByThread.get(p.thread_id) > 0 && <span title={`${unreadByThread.get(p.thread_id)} unread message${unreadByThread.get(p.thread_id) === 1 ? "" : "s"}`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: 10, fontWeight: FW.heavy, fontFamily: COND }}>💬 {unreadByThread.get(p.thread_id)}</span>}
+                  {p.thread_id && unreadByThread.get(p.thread_id) > 0 && <span title={`${unreadByThread.get(p.thread_id)} unread message${unreadByThread.get(p.thread_id) === 1 ? "" : "s"}`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND }}>💬 {unreadByThread.get(p.thread_id)}</span>}
                   {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                 </div>
                 {/* Overdue / incomplete-after-press flags */}
                 {iss && iss.date < today && !["approved", "signed_off", "placed"].includes(p.status) && <div style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "2px 6px", borderRadius: Ri, marginTop: 4, display: "inline-block" }}>INCOMPLETE — PAST PRESS</div>}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    {adDl < 99 && adDl > 0 && <span style={{ fontSize: 10, fontWeight: FW.bold, color: urgColor }}>{adDl}d</span>}
+                    {adDl < 99 && adDl > 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: urgColor }}>{adDl}d</span>}
                     {adDl <= 0 && !(iss && iss.date < today) && <span style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "1px 5px", borderRadius: Ri }}>OVERDUE</span>}
                     <span style={{ fontSize: 9, fontWeight: FW.bold, color: isCameraReady ? Z.wa : Z.ac, background: (isCameraReady ? Z.wa : Z.ac) + "15", padding: "1px 5px", borderRadius: Ri }}>{isCameraReady ? "CR" : "Design"}</span>
                   </div>
                   {isUnassigned
-                    ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.da }}>Unassigned</span>
-                    : <span style={{ fontSize: 10, color: Z.tm }}>{tn(p.designer_id)?.split(" ")[0]}</span>
+                    ? <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.da }}>Unassigned</span>
+                    : <span style={{ fontSize: FS.micro, color: Z.tm }}>{tn(p.designer_id)?.split(" ")[0]}</span>
                   }
                 </div>
-                {col === "brief" && isCameraReady && <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.wa, marginTop: 4 }}>Awaiting client artwork</div>}
+                {col === "brief" && isCameraReady && <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, marginTop: 4 }}>Awaiting client artwork</div>}
               </div>;
             })}
             {colProjects.length === 0 && <div style={{ padding: 16, textAlign: "center", color: Z.td, fontSize: FS.xs }}>Empty</div>}
@@ -1657,7 +1657,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               </td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{sale.size || "—"}</td>
               <td>{project
-                ? <span style={{ fontSize: 10, fontWeight: FW.bold, color: project.art_source === "camera_ready" ? Z.wa : Z.ac, background: (project.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{project.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span>
+                ? <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: project.art_source === "camera_ready" ? Z.wa : Z.ac, background: (project.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{project.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span>
                 : <span style={{ color: Z.td, fontSize: FS.sm }}>—</span>}</td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>
                 {project?.designer_id
@@ -1687,7 +1687,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                 {p.client_id
                   ? <EntityLink onClick={nav.toClient(p.client_id)}>{cn(p.client_id)}</EntityLink>
                   : cn(p.client_id)}
-                {unread > 0 && <span title={`${unread} unread`} style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: 10, fontWeight: FW.heavy, fontFamily: COND, verticalAlign: "middle" }}>💬 {unread}</span>}
+                {unread > 0 && <span title={`${unread} unread`} style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, background: Z.ac + "22", color: Z.ac, fontSize: FS.micro, fontWeight: FW.heavy, fontFamily: COND, verticalAlign: "middle" }}>💬 {unread}</span>}
               </td>
               <td style={{ color: Z.tm }}>
                 {p.publication_id
@@ -1700,7 +1700,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   : "—"}
               </td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>{p.ad_size || "—"}</td>
-              <td><span style={{ fontSize: 10, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
+              <td><span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: p.art_source === "camera_ready" ? Z.wa : Z.ac, background: (p.art_source === "camera_ready" ? Z.wa : Z.ac) + "15", padding: "2px 6px", borderRadius: Ri }}>{p.art_source === "camera_ready" ? "Camera Ready" : "We Design"}</span></td>
               <td style={{ color: Z.tm, fontSize: FS.sm }}>
                 {p.designer_id
                   ? <EntityLink onClick={nav.toTeamMember(p.designer_id)} muted>{tn(p.designer_id)}</EntityLink>

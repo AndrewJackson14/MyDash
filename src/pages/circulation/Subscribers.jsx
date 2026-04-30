@@ -468,7 +468,7 @@ function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
               disabled={sending}
               style={{
                 padding: "6px 14px", borderRadius: Ri, border: "none", cursor: "pointer",
-                fontSize: 11, fontWeight: mode === k ? FW.bold : 500,
+                fontSize: FS.xs, fontWeight: mode === k ? FW.bold : 500,
                 background: mode === k ? Z.tx + "12" : "transparent",
                 color: mode === k ? Z.tx : Z.tm,
                 fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4,
@@ -476,7 +476,7 @@ function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
               }}
             >
               {l}
-              {n > 0 && <span style={{ fontSize: 10, color: mode === k ? Z.tx : Z.td }}>{n}</span>}
+              {n > 0 && <span style={{ fontSize: FS.micro, color: mode === k ? Z.tx : Z.td }}>{n}</span>}
             </button>
           ))}
         </div>
@@ -489,7 +489,7 @@ function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
               : <>Recently lapsed subscribers eligible for a final win-back email.</>}
           </div>
           {rows.length > 0 && (
-            <button onClick={toggleAll} style={{ background: "transparent", border: "none", color: Z.ac, fontSize: 11, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND, whiteSpace: "nowrap" }}>
+            <button onClick={toggleAll} style={{ background: "transparent", border: "none", color: Z.ac, fontSize: FS.xs, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND, whiteSpace: "nowrap" }}>
               {selected.size === rows.length ? "Deselect all" : "Select all"}
             </button>
           )}
@@ -515,7 +515,7 @@ function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
                           <div style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {sub.firstName} {sub.lastName}
                           </div>
-                          <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {sub.email}
                             {sub.firstNoticeSent && " · ✓ 1st"}
                             {sub.secondNoticeSent && " · ✓ 2nd"}
@@ -525,7 +525,7 @@ function RenewalModal({ open, onClose, subs, pn, setSubscribers, dialog }) {
                         <span style={{ fontSize: 9, fontWeight: FW.heavy, color: touchColor(touch), background: touchColor(touch) + "15", padding: "2px 6px", borderRadius: Ri, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0 }}>
                           Send {touchLabel(touch)}
                         </span>
-                        <span style={{ fontSize: 10, color: Z.wa, fontFamily: COND, flexShrink: 0, minWidth: 60, textAlign: "right" }}>{fmtDate(sub.renewalDate)}</span>
+                        <span style={{ fontSize: FS.micro, color: Z.wa, fontFamily: COND, flexShrink: 0, minWidth: 60, textAlign: "right" }}>{fmtDate(sub.renewalDate)}</span>
                       </label>
                     );
                   })}

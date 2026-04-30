@@ -307,7 +307,7 @@ const ComposeModal = ({ open, onClose, onSent, replyTo, replyAll, forward, signa
           {attachments.map((a, i) => (
             <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: Ri, fontSize: FS.xs, fontFamily: COND, background: Z.sa, color: Z.tx, border: `1px solid ${Z.bd}` }}>
               {a.name} <span style={{ color: Z.tm }}>{fmtSize(a.size)}</span>
-              <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: Z.da, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>&times;</button>
+              <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: Z.da, cursor: "pointer", fontSize: FS.sm, padding: 0, lineHeight: 1 }}>&times;</button>
             </span>
           ))}
         </div>
@@ -645,7 +645,7 @@ const Mail = ({ isActive } = {}) => {
       {searchActive && (
         <span style={{ padding: "5px 12px", borderRadius: Ri, fontSize: FS.sm, fontWeight: FW.bold, background: Z.wa + "22", color: Z.wa, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>
           Search: "{searchActive}"
-          <button onClick={() => { setSearchActive(""); setSearch(""); }} style={{ background: "none", border: "none", color: Z.wa, cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>&times;</button>
+          <button onClick={() => { setSearchActive(""); setSearch(""); }} style={{ background: "none", border: "none", color: Z.wa, cursor: "pointer", fontSize: FS.md, padding: 0, lineHeight: 1 }}>&times;</button>
         </span>
       )}
     </div>
@@ -688,7 +688,7 @@ const Mail = ({ isActive } = {}) => {
             onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = unread ? (Z.bg === "#08090D" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)") : "transparent"; }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button onClick={e => toggleStar(msg, e)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14, color: starred ? "#f59e0b" : Z.bd, lineHeight: 1 }}>
+                <button onClick={e => toggleStar(msg, e)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: FS.md, color: starred ? "#f59e0b" : Z.bd, lineHeight: 1 }}>
                   {starred ? "\u2605" : "\u2606"}
                 </button>
                 <span style={{ fontSize: FS.sm, fontWeight: unread ? FW.heavy : FW.medium, color: Z.tx, fontFamily: COND }}>{from}</span>

@@ -140,7 +140,7 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
   const [invoiceCfg, setInvoiceCfg] = useState({ ...DEFAULT_INVOICE_CONFIG });
 
   // Style helpers for proposal config
-  const secHead = { fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
+  const secHead = { fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 8 };
   const checkLbl = { display: "flex", alignItems: "center", gap: 6, fontSize: FS.sm, color: Z.tm, cursor: "pointer" };
   const chk = { accentColor: Z.ac };
 
@@ -262,7 +262,7 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
     <button onClick={onClick} title={title} style={{
       padding: "4px 8px", borderRadius: 3, border: "none", cursor: "pointer",
       background: active ? Z.ac + "20" : "transparent", color: active ? Z.ac : Z.tm,
-      fontSize: 14, fontWeight: 700, lineHeight: 1,
+      fontSize: FS.md, fontWeight: 700, lineHeight: 1,
     }}>{icon}</button>
   );
 
@@ -312,7 +312,7 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Inp label="Template Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             <div>
-              <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Publications</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Publications</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {(pubs || []).map(p => {
                   const sel = form.publicationIds.includes(p.id);
@@ -430,12 +430,12 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
                 <GlassCard key={touch.key} style={{ padding: "16px 20px", borderLeft: `3px solid ${touch.color}` }}>
                   <div style={secHead}>{touch.label}</div>
                   <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Message</div>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Message</div>
                     <textarea value={renewalCfg[touch.msgKey]} onChange={e => setRenewalCfg(c => ({ ...c, [touch.msgKey]: e.target.value }))}
                       rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Button Text</div>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Button Text</div>
                     <Inp value={renewalCfg[touch.btnKey]} onChange={e => setRenewalCfg(c => ({ ...c, [touch.btnKey]: e.target.value }))} />
                   </div>
                 </GlassCard>
@@ -480,7 +480,7 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
                   { key: "finalReminderMessage", label: "Final Notice (30 days past due)", color: "#C53030" },
                 ].map(r => (
                   <div key={r.key} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: FW.bold, color: r.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{r.label}</div>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: r.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{r.label}</div>
                     <textarea value={invoiceCfg[r.key]} onChange={e => setInvoiceCfg(c => ({ ...c, [r.key]: e.target.value }))}
                       rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tx, fontSize: FS.sm, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                   </div>
@@ -498,12 +498,12 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
 
             {/* Merge fields strip */}
             <div>
-              <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Insert Merge Field</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Insert Merge Field</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {(MERGE_FIELDS[form.category] || []).map(f => (
                   <button key={f.key} onClick={() => insertField(f.key)} style={{
                     padding: "3px 10px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
-                    background: Z.bg, cursor: "pointer", fontSize: 11, fontWeight: FW.semi,
+                    background: Z.bg, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.semi,
                     color: Z.ac, fontFamily: COND, transition: "background 0.1s",
                   }}
                     onMouseEnter={e => e.currentTarget.style.background = Z.ac + "10"}
@@ -612,8 +612,8 @@ const EmailTemplates = ({ pubs, currentUser, isActive }) => {
         </div>
       ) : (
         <div style={{ padding: 20, background: "#fff", borderRadius: R, color: "#1a1a2e" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editor?.getHTML() || "") }} style={{ fontSize: 14, lineHeight: 1.6 }} />
+          <div style={{ fontSize: FS.sm, fontWeight: 700, color: "#666", marginBottom: 4 }}>Subject: {form.subject || "(no subject)"}</div>
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editor?.getHTML() || "") }} style={{ fontSize: FS.md, lineHeight: 1.6 }} />
         </div>
       )}
     </Modal>

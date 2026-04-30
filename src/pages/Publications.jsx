@@ -376,7 +376,7 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
         <Sel label="Year" value={String(selYear)} onChange={e => setSelYear(Number(e.target.value))} options={yearOptions.map(y => ({ value: y, label: y }))} />
         <div style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, textAlign: "right" }}>
           <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>Annual Goal</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{fmtMoney(annualGoal)}</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{fmtMoney(annualGoal)}</div>
         </div>
       </div>
     </GlassCard>
@@ -419,7 +419,7 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
           const disabledRow = m.issues.length === 0;
           return <div key={m.period} style={{ display: "contents" }}>
             <div onClick={disabledRow ? undefined : () => toggleMonth(m.period)} style={{ padding: "10px 16px", borderTop: `1px solid ${Z.bd}20`, cursor: disabledRow ? "default" : "pointer", color: disabledRow ? Z.td : Z.tx, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 10, color: Z.tm, width: 10 }}>{m.issues.length === 0 ? "" : open ? "▼" : "▶"}</span>
+              <span style={{ fontSize: FS.micro, color: Z.tm, width: 10 }}>{m.issues.length === 0 ? "" : open ? "▼" : "▶"}</span>
               <span style={{ fontWeight: FW.semi, fontFamily: COND }}>{MONTH_NAMES[m.monthIdx]}</span>
             </div>
             <div style={{ padding: "10px 8px", borderTop: `1px solid ${Z.bd}20`, textAlign: "right", color: Z.tm, fontSize: FS.sm }}>{m.issues.length}</div>
@@ -435,7 +435,7 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
                 <div style={{ fontSize: FS.sm, color: Z.tx, display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, minWidth: 80 }}>{(iss.date || "").slice(5)}</span>
                   <span style={{ fontWeight: FW.semi }}>{labelFor(iss)}</span>
-                  {frozen && <span title="Sent to press — frozen" style={{ fontSize: 11, color: Z.wa, fontWeight: FW.bold, fontFamily: COND }}>🔒 FROZEN</span>}
+                  {frozen && <span title="Sent to press — frozen" style={{ fontSize: FS.xs, color: Z.wa, fontWeight: FW.bold, fontFamily: COND }}>🔒 FROZEN</span>}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <input
@@ -831,7 +831,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
               {(sel.defaultSections || []).map((ds, idx) => (
                 <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: Z.td, fontFamily: COND, width: 16, textAlign: "center" }}>{idx + 1}</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: 800, color: Z.td, fontFamily: COND, width: 16, textAlign: "center" }}>{idx + 1}</span>
                   <input
                     value={ds.label || ""}
                     onChange={e => {
@@ -853,7 +853,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
                       setSel(s => ({ ...s, defaultSections: next }));
                       updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
                     }}
-                    style={{ fontSize: 10, fontWeight: 700, fontFamily: COND, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tm, cursor: "pointer" }}
+                    style={{ fontSize: FS.micro, fontWeight: 700, fontFamily: COND, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "4px 6px", color: Z.tm, cursor: "pointer" }}
                   >
                     <option value="main">Main</option>
                     <option value="sub">Sub</option>
@@ -867,7 +867,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
                       updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
                     })()}
                     disabled={idx === 0}
-                    style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? Z.bd : Z.tm, fontSize: 12, padding: "0 4px" }}
+                    style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? Z.bd : Z.tm, fontSize: FS.sm, padding: "0 4px" }}
                     title="Move up"
                   >▲</button>
                   <button
@@ -879,7 +879,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
                       updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
                     })()}
                     disabled={idx === (sel.defaultSections || []).length - 1}
-                    style={{ background: "none", border: "none", cursor: idx === (sel.defaultSections || []).length - 1 ? "default" : "pointer", color: idx === (sel.defaultSections || []).length - 1 ? Z.bd : Z.tm, fontSize: 12, padding: "0 4px" }}
+                    style={{ background: "none", border: "none", cursor: idx === (sel.defaultSections || []).length - 1 ? "default" : "pointer", color: idx === (sel.defaultSections || []).length - 1 ? Z.bd : Z.tm, fontSize: FS.sm, padding: "0 4px" }}
                     title="Move down"
                   >▼</button>
                   <button
@@ -889,7 +889,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
                       setSel(s => ({ ...s, defaultSections: next }));
                       updatePubDefaultSections(sel.id, next).catch(err => console.error("Default sections save failed:", err));
                     }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 14, padding: "0 4px" }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, padding: "0 4px" }}
                     title="Remove"
                   >×</button>
                 </div>

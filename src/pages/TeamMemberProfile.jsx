@@ -269,8 +269,8 @@ function SettingsPanel({ member, pubs, team, updateTeamMember, salespersonPubAss
         {(() => {
           const today = new Date().toISOString().slice(0, 10);
           const isOoo = member.oooFrom && member.oooUntil && member.oooFrom <= today && today <= member.oooUntil;
-          if (isOoo) return <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, borderRadius: R, padding: "2px 8px", textTransform: "uppercase" }}>OOO Today</span>;
-          if (member.oooFrom && member.oooFrom > today) return <span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.tm }}>Scheduled</span>;
+          if (isOoo) return <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, borderRadius: R, padding: "2px 8px", textTransform: "uppercase" }}>OOO Today</span>;
+          if (member.oooFrom && member.oooFrom > today) return <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.tm }}>Scheduled</span>;
           return null;
         })()}
       </div>

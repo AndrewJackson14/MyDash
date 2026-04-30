@@ -73,7 +73,7 @@ export const FlatplanPage = ({ pageNum, pageDisplay, pub, adsOnPage, dragId, onD
       <button
         onClick={e => { e.stopPropagation(); onOpenLayoutModal(pageNum); }}
         title={layoutImageUrl ? "Replace layout image" : "Upload layout image"}
-        style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 3, border: "none", cursor: "pointer", background: layoutImageUrl ? "rgba(34,197,94,0.85)" : "rgba(0,0,0,0.45)", color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+        style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 3, border: "none", cursor: "pointer", background: layoutImageUrl ? "rgba(34,197,94,0.85)" : "rgba(0,0,0,0.45)", color: "#fff", fontSize: FS.xs, fontWeight: 700, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
       >{layoutImageUrl ? "✓" : "+"}</button>
     )}
     {/* Empty grid cells — always show light grid lines */}
@@ -280,7 +280,7 @@ const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace,
         {layout?.cdn_url ? (
           <div style={{ background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, overflow: "hidden", padding: 8 }}>
             <img src={layout.cdn_url} alt={`Page ${pageNumber} layout`} style={{ display: "block", width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 3 }} />
-            <div style={{ fontSize: 10, color: Z.td, marginTop: 6, fontFamily: COND }}>Uploaded {layout.uploaded_at ? new Date(layout.uploaded_at).toLocaleString() : ""}</div>
+            <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 6, fontFamily: COND }}>Uploaded {layout.uploaded_at ? new Date(layout.uploaded_at).toLocaleString() : ""}</div>
           </div>
         ) : (
           <div style={{ padding: 28, textAlign: "center", color: Z.td, fontSize: FS.sm, background: Z.bg, border: `1px dashed ${Z.bd}`, borderRadius: Ri }}>
@@ -288,7 +288,7 @@ const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace,
           </div>
         )}
 
-        {error && <div style={{ fontSize: 12, color: Z.da, padding: "6px 10px", background: "rgba(232,72,85,0.1)", borderRadius: Ri }}>{error}</div>}
+        {error && <div style={{ fontSize: FS.sm, color: Z.da, padding: "6px 10px", background: "rgba(232,72,85,0.1)", borderRadius: Ri }}>{error}</div>}
 
         <input
           ref={fileRef}
@@ -304,7 +304,7 @@ const PageLayoutModal = ({ issueId, pageNumber, layout, onClose, onLocalReplace,
           <Btn onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : layout?.cdn_url ? "Replace image" : "Upload image"}</Btn>
         </div>
 
-        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
           Replace-on-upload — there's no version history. Accepted: JPG, PNG, WebP, PDF.
         </div>
       </div>
@@ -964,8 +964,8 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       {canSendToPress && issue && <Btn sm onClick={handleSendToPress} disabled={sendingToPress} style={issue.sentToPressAt ? { background: Z.go + "15", color: Z.go, border: `1px solid ${Z.go}40` } : {}}>{sendingToPress ? "Sending..." : issue.sentToPressAt ? "✓ Sent to Press" : "Send to Press"}</Btn>}
       {issue && prevIssueExists && <Btn sm v="secondary" onClick={copyFromPrevious}>Copy Prev Issue</Btn>}
       <Btn sm v="secondary" onClick={() => setShowSectionPicker(true)}>+ Section</Btn>
-      {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "var(--action)" : Z.bd}`, background: showSharedPicker ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "var(--action)" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
-      <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: 12, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
+      {sharedCtx?.isPrimary && issue && <button onClick={() => setShowSharedPicker(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showSharedPicker ? "var(--action)" : Z.bd}`, background: showSharedPicker ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, color: showSharedPicker ? "var(--action)" : Z.td }}>{showSharedPicker ? "↔ Editing Shared Pages" : `↔ Shared (${(issue.sharedPages || []).length})`}</button>}
+      <button onClick={() => setShowProposalAds(p => !p)} style={{ padding: "7px 16px", borderRadius: Ri, border: `1px solid ${showProposalAds ? Z.wa : Z.bd}`, background: showProposalAds ? "rgba(212,137,14,0.15)" : Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND, color: showProposalAds ? Z.wa : Z.td }}>{showProposalAds ? "▣ Proposals On" : "▢ Proposals Off"}</button>
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
     </div>
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -1125,7 +1125,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
                 <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                 <div style={{ fontSize: FS.sm, color: Z.tm }}>{s.wordCount}w · {s.author}</div>
               </div>
-              {hasPri && <span title={`Priority ${pri}`} style={{ fontSize: 10, fontWeight: FW.black, color: pri === 1 ? Z.da : pri === 2 ? Z.wa : Z.tm, background: pri === 1 ? Z.da + "20" : pri === 2 ? Z.wa + "20" : Z.sa, padding: "2px 6px", borderRadius: 10, flexShrink: 0 }}>P{pri}</span>}
+              {hasPri && <span title={`Priority ${pri}`} style={{ fontSize: FS.micro, fontWeight: FW.black, color: pri === 1 ? Z.da : pri === 2 ? Z.wa : Z.tm, background: pri === 1 ? Z.da + "20" : pri === 2 ? Z.wa + "20" : Z.sa, padding: "2px 6px", borderRadius: 10, flexShrink: 0 }}>P{pri}</span>}
               {isAssigned && <span style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac, flexShrink: 0 }}>p.{assignedPage}</span>}
             </div>;
           })}

@@ -128,7 +128,7 @@ export default function LoginPage({ onSkip }) {
             <p style={{ marginTop: 24, fontSize: FS.sm, color: Z.td, textAlign: 'center' }}>
               Making Communities Better Through Print.™
             </p>
-            <div style={{ marginTop: 10, fontSize: 11, color: Z.td, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 10 }}>
+            <div style={{ marginTop: 10, fontSize: FS.xs, color: Z.td, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 10 }}>
               <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: Z.tm, textDecoration: 'none' }}>Privacy</a>
               <span style={{ opacity: 0.5 }}>·</span>
               <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: Z.tm, textDecoration: 'none' }}>Terms</a>

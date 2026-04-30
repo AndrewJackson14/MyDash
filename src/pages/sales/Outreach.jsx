@@ -302,7 +302,7 @@ const Outreach = ({ sales, clients, pubs, issues, team, campaigns, entries, help
       <Card style={{ borderLeft: `3px solid ${Z.go}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{previewClients.length}</div>
+            <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{previewClients.length}</div>
             <div style={{ fontSize: FS.sm, color: Z.tm }}>clients match these filters</div>
           </div>
           <Btn onClick={handleCreateCampaign} disabled={!buildName.trim() || previewClients.length === 0}>

@@ -451,7 +451,7 @@ const SocialComposer = ({ pubs = [], currentUser, isActive, onNavigate }) => {
                     <button
                       type="button"
                       onClick={() => removeImage(i)}
-                      style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
+                      style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", fontSize: FS.sm, lineHeight: 1, cursor: "pointer" }}
                       aria-label="Remove image"
                     >×</button>
                   </div>

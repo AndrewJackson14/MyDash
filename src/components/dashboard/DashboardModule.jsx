@@ -62,7 +62,7 @@ export default function DashboardModule({
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 14, height: 14, color: Z.tm,
-            fontSize: 10, lineHeight: 1,
+            fontSize: FS.micro, lineHeight: 1,
             transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
             transition: `transform ${DUR.med}ms ${EASE}`,
           }}>▶</span>

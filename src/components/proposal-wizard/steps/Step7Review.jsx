@@ -24,7 +24,7 @@ import {
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
-    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
+    <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
     {subtitle && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{subtitle}</div>}
   </div>
 );
@@ -123,7 +123,7 @@ export default function Step7Review({
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {canSend
                 ? <Ic.check size={16} color={Z.go} />
-                : <span style={{ fontSize: 16, color: Z.da, fontWeight: 900 }}>⚠</span>}
+                : <span style={{ fontSize: FS.lg, color: Z.da, fontWeight: 900 }}>⚠</span>}
               <span style={{
                 fontSize: FS.base, fontWeight: FW.heavy,
                 color: canSend ? Z.go : Z.da, fontFamily: COND,
@@ -201,7 +201,7 @@ export default function Step7Review({
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               <span style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx }}>Total</span>
-              <span style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>
+              <span style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>
                 ${total.toLocaleString()}
               </span>
             </div>
@@ -216,7 +216,7 @@ export default function Step7Review({
             display: "flex", flexDirection: "column", gap: 10, fontFamily: COND,
           }}>
             <div style={{
-              fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+              fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
               letterSpacing: 0.5, textTransform: "uppercase",
             }}>Recipients</div>
             <RecipientPicker
@@ -227,7 +227,7 @@ export default function Step7Review({
             />
 
             <div style={{
-              fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+              fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
               letterSpacing: 0.5, textTransform: "uppercase", marginTop: 4,
             }}>Message</div>
             <textarea
@@ -265,10 +265,10 @@ export default function Step7Review({
           <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minHeight: 0, maxHeight: "calc(100vh - 320px)", overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <span style={{
-                fontSize: 11, fontWeight: FW.heavy, color: Z.td,
+                fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
                 letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
               }}>Preview · what the client sees</span>
-              <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>updates as you type</span>
+              <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>updates as you type</span>
             </div>
             <iframe
               title="Proposal preview"
@@ -294,7 +294,7 @@ function Row({ label, value }) {
       fontFamily: COND, alignItems: "start",
     }}>
       <span style={{
-        fontSize: 10, fontWeight: FW.heavy, color: Z.td,
+        fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td,
         letterSpacing: 0.5, textTransform: "uppercase",
         paddingTop: 2,
       }}>{label}</span>
@@ -375,7 +375,7 @@ function RecipientPicker({ client, recipients, onToggle, onSet }) {
                 onClick={() => onSet(recipients.filter(x => x !== e))}
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  color: Z.go, fontSize: 12, fontWeight: 900, padding: 0,
+                  color: Z.go, fontSize: FS.sm, fontWeight: 900, padding: 0,
                 }}
               >×</button>
             </span>

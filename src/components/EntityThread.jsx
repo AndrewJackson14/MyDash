@@ -135,13 +135,13 @@ export default function EntityThread({
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 8,
           padding: "8px 12px", background: "none", border: "none",
-          cursor: "pointer", color: Z.tx, fontFamily: COND, fontSize: 11,
+          cursor: "pointer", color: Z.tx, fontFamily: COND, fontSize: FS.xs,
           fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
         }}
       >
         <Ic.chat size={14} />
         <span style={{ flex: 1, textAlign: "left" }}>{headerLabel}</span>
-        <span style={{ color: Z.tm, fontSize: 12 }}>{open ? "▾" : "▸"}</span>
+        <span style={{ color: Z.tm, fontSize: FS.sm }}>{open ? "▾" : "▸"}</span>
       </button>
       {open && (
         <div style={{ borderTop: "1px solid " + Z.bd }}>

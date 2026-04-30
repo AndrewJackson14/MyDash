@@ -35,7 +35,7 @@ export default function PublicationFormatToggle({ formats, onToggle, error }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{
-          fontSize: 10, fontWeight: FW.heavy, color: Z.td,
+          fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td,
           letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND,
           minWidth: 60,
         }}>Format</span>
@@ -49,7 +49,7 @@ export default function PublicationFormatToggle({ formats, onToggle, error }) {
         </div>
       </div>
       {error && (
-        <div style={{ fontSize: 11, color: Z.da, fontFamily: COND, paddingLeft: 68 }}>{error}</div>
+        <div style={{ fontSize: FS.xs, color: Z.da, fontFamily: COND, paddingLeft: 68 }}>{error}</div>
       )}
     </div>
   );

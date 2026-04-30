@@ -324,7 +324,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
       {/* ─── Left: conversation list ─── */}
       <div style={{ width: 320, flexShrink: 0, borderRight: `1px solid ${Z.bd}`, display: "flex", flexDirection: "column", background: Z.bg }}>
         <div style={{ padding: "14px 16px", borderBottom: `1px solid ${Z.bd}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 16, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>Messages</span>
+          <span style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>Messages</span>
           {view === "dm" && (
             <button
               onClick={() => setShowPicker(true)}
@@ -353,7 +353,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                   flex: 1, padding: "8px 10px", border: "none", cursor: "pointer",
                   background: active ? Z.bg : "transparent",
                   color: active ? Z.tx : Z.tm,
-                  fontSize: 11, fontWeight: active ? FW.black : FW.bold,
+                  fontSize: FS.xs, fontWeight: active ? FW.black : FW.bold,
                   fontFamily: COND, letterSpacing: "0.06em", textTransform: "uppercase",
                   borderBottom: active ? `2px solid ${Z.ac}` : "2px solid transparent",
                 }}
@@ -369,16 +369,16 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={view === "dm" ? "Search conversations..." : "Search threads..."}
-            style={{ width: "100%", padding: "7px 12px", borderRadius: 20, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "7px 12px", borderRadius: 20, border: `1px solid ${Z.bd}`, background: Z.sf, color: Z.tx, fontSize: FS.sm, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
           />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
           {(view === "entity" || view === "issue") && (
             <>
-              {entityLoading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading threads...</div>}
+              {entityLoading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: FS.sm }}>Loading threads...</div>}
               {!entityLoading && Object.keys(filteredThreadsByType).length === 0 && (
-                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>
+                <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: FS.sm }}>
                   {view === "issue"
                     ? "No issue threads with messages yet. Start one from an issue detail view."
                     : "No entity threads with messages yet. Threads appear here once stories, ad projects, clients, contracts, or legal notices get discussion activity."}
@@ -392,7 +392,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                 const label = ENTITY_TYPE_LABELS[typeKey] || typeKey;
                 return (
                   <div key={typeKey}>
-                    <div style={{ padding: "10px 14px 4px", fontSize: 10, fontWeight: FW.black, letterSpacing: "0.08em", textTransform: "uppercase", color: Z.td, fontFamily: COND, background: Z.sf }}>
+                    <div style={{ padding: "10px 14px 4px", fontSize: FS.micro, fontWeight: FW.black, letterSpacing: "0.08em", textTransform: "uppercase", color: Z.td, fontFamily: COND, background: Z.sf }}>
                       {label} · {list.length}
                     </div>
                     {list.map(th => {
@@ -412,17 +412,17 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                           onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
-                            <div style={{ fontSize: 12, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
+                            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>
                               {th.title || "Untitled thread"}
                             </div>
-                            {preview && <span style={{ fontSize: 10, color: Z.td, flexShrink: 0 }}>{fmtTime(preview.created_at)}</span>}
+                            {preview && <span style={{ fontSize: FS.micro, color: Z.td, flexShrink: 0 }}>{fmtTime(preview.created_at)}</span>}
                           </div>
                           {preview ? (
-                            <div style={{ fontSize: 11, color: Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <div style={{ fontSize: FS.xs, color: Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {preview.is_system ? "· " : `${preview.sender_name || ""}: `}{(preview.body || "").slice(0, 70)}
                             </div>
                           ) : (
-                            <div style={{ fontSize: 11, color: Z.td, fontStyle: "italic" }}>No messages yet</div>
+                            <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic" }}>No messages yet</div>
                           )}
                         </div>
                       );
@@ -433,9 +433,9 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
             </>
           )}
 
-          {view === "dm" && loading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>Loading...</div>}
+          {view === "dm" && loading && <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: FS.sm }}>Loading...</div>}
           {view === "dm" && !loading && filteredConvs.length === 0 && (
-            <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: 12 }}>
+            <div style={{ padding: 20, textAlign: "center", color: Z.td, fontSize: FS.sm }}>
               {search ? "No matches" : "No conversations yet. Tap + to start one."}
             </div>
           )}
@@ -457,22 +457,22 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = Z.sa; }}
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: FW.black, flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.sm, fontWeight: FW.black, flexShrink: 0 }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: c.unread > 0 ? FW.black : FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: FS.base, fontWeight: c.unread > 0 ? FW.black : FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {name}
                     </div>
-                    <span style={{ fontSize: 10, color: Z.td, flexShrink: 0 }}>{fmtTime(c.latest?.created_at)}</span>
+                    <span style={{ fontSize: FS.micro, color: Z.td, flexShrink: 0 }}>{fmtTime(c.latest?.created_at)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <div style={{ fontSize: 11, color: c.unread > 0 ? Z.tx : Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: c.unread > 0 ? FW.semi : 400 }}>
+                    <div style={{ fontSize: FS.xs, color: c.unread > 0 ? Z.tx : Z.td, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: c.unread > 0 ? FW.semi : 400 }}>
                       {fromMe ? "You: " : ""}{(c.latest?.message || "").slice(0, 60)}
                     </div>
                     {c.unread > 0 && (
-                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 9, padding: "0 6px", background: Z.ac, color: "#fff", fontSize: 10, fontWeight: FW.black, flexShrink: 0 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 9, padding: "0 6px", background: Z.ac, color: "#fff", fontSize: FS.micro, fontWeight: FW.black, flexShrink: 0 }}>
                         {c.unread}
                       </span>
                     )}
@@ -489,12 +489,12 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         {(view === "entity" || view === "issue") && activeThread ? (
           <>
             <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black, textTransform: "uppercase" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xs, fontWeight: FW.black, textTransform: "uppercase" }}>
                 {(activeThread.ref_type || "?").slice(0, 2)}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: FW.bold, color: Z.tx }}>{activeThread.title || "Untitled thread"}</div>
-                <div style={{ fontSize: 11, color: Z.td }}>{ENTITY_TYPE_LABELS[activeThread.ref_type] || activeThread.ref_type}</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{activeThread.title || "Untitled thread"}</div>
+                <div style={{ fontSize: FS.xs, color: Z.td }}>{ENTITY_TYPE_LABELS[activeThread.ref_type] || activeThread.ref_type}</div>
               </div>
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", background: Z.bg }}>
@@ -516,19 +516,19 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
           <>
             {/* Header */}
             <div style={{ padding: "12px 20px", borderBottom: `1px solid ${Z.bd}`, display: "flex", alignItems: "center", gap: 12, background: Z.sf }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: FW.black }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.sm, fontWeight: FW.black }}>
                 {activeName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: FW.bold, color: Z.tx }}>{activeName}</div>
-                <div style={{ fontSize: 11, color: Z.td }}>{activeRole || "Direct message"}</div>
+                <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{activeName}</div>
+                <div style={{ fontSize: FS.xs, color: Z.td }}>{activeRole || "Direct message"}</div>
               </div>
             </div>
 
             {/* Messages */}
             <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 6, background: Z.bg }}>
               {activeConv.messages.length === 0 && (
-                <div style={{ padding: 30, textAlign: "center", color: Z.td, fontSize: 13 }}>
+                <div style={{ padding: 30, textAlign: "center", color: Z.td, fontSize: FS.base }}>
                   No messages yet. Start the conversation below.
                 </div>
               )}
@@ -601,10 +601,10 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         ) : (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
             <Ic.chat size={48} color={Z.bd} />
-            <div style={{ fontSize: 16, fontWeight: FW.bold, color: Z.td }}>
+            <div style={{ fontSize: FS.lg, fontWeight: FW.bold, color: Z.td }}>
               {view === "issue" ? "Select an issue thread" : view === "entity" ? "Select an entity thread" : "Select a conversation"}
             </div>
-            <div style={{ fontSize: 13, color: Z.td }}>
+            <div style={{ fontSize: FS.base, color: Z.td }}>
               {view === "issue"
                 ? "Per-issue discussion threads."
                 : view === "entity"
@@ -614,7 +614,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
             {view === "dm" && (
               <button
                 onClick={() => setShowPicker(true)}
-                style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: Z.bg, fontSize: 13, fontWeight: FW.bold }}
+                style={{ marginTop: 8, padding: "8px 20px", borderRadius: 20, border: "none", cursor: "pointer", background: Z.ac, color: Z.bg, fontSize: FS.base, fontWeight: FW.bold }}
               >
                 New Message
               </button>
@@ -632,7 +632,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
         actions={<Btn v="cancel" onClick={() => setShowPicker(false)}>Cancel</Btn>}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 420, overflowY: "auto" }}>
-          {pickerTeam.length === 0 && <div style={{ padding: 16, color: Z.td, fontSize: 13, textAlign: "center" }}>No other team members to message.</div>}
+          {pickerTeam.length === 0 && <div style={{ padding: 16, color: Z.td, fontSize: FS.base, textAlign: "center" }}>No other team members to message.</div>}
           {pickerTeam.map(t => {
             const initials = (t.name || "").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
             return (
@@ -643,12 +643,12 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
                 onMouseEnter={(e) => e.currentTarget.style.background = Z.sa}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               >
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: FW.black }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: Z.ac + "18", color: Z.ac, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.xs, fontWeight: FW.black }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
-                  {t.role && <div style={{ fontSize: 11, color: Z.td }}>{t.role}</div>}
+                  <div style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{t.name}</div>
+                  {t.role && <div style={{ fontSize: FS.xs, color: Z.td }}>{t.role}</div>}
                 </div>
               </div>
             );

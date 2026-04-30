@@ -197,7 +197,7 @@ const IntegrationsPage = ({ pubs, isActive }) => {
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor }} />
                     <span style={{ fontSize: FS.xs, fontWeight: FW.bold, color: statusColor }}>{statusLabel}</span>
                   </div>
-                  <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND }}>{int.detail}</div>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{int.detail}</div>
                   {expiryDate && !expired && <div style={{ fontSize: 9, color: expiring ? Z.wa : Z.td, fontFamily: COND, marginTop: 2 }}>Token: {hoursLeft < 1 ? `${Math.round(hoursLeft * 60)}m left` : `${Math.round(hoursLeft)}h left`}</div>}
                   {expired && <div style={{ fontSize: 9, color: Z.da, fontWeight: FW.bold, fontFamily: COND, marginTop: 2 }}>Token expired — reconnect</div>}
                 </div>

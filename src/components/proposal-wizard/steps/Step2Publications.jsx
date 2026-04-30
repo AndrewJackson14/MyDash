@@ -14,7 +14,7 @@ import PublicationFormatToggle from "../parts/PublicationFormatToggle";
 
 const StepHeader = ({ title, subtitle }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
-    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
+    <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 700, color: Z.tx, fontFamily: COND, letterSpacing: -0.3 }}>{title}</h2>
     {subtitle && <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND }}>{subtitle}</div>}
   </div>
 );
@@ -93,7 +93,7 @@ export default function Step2Publications({ state, actions, pubs, validation }) 
                     {pub?.name || p.pubId}
                   </span>
                   {pub?.type && (
-                    <span style={{ fontSize: 11, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>
                       {pub.type}
                     </span>
                   )}

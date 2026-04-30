@@ -36,7 +36,7 @@ const statusBadge = (s) => {
   const meta = STATUSES.find(x => x.value === s) || STATUSES[0];
   return (
     <span style={{
-      fontSize: 10, fontWeight: FW.heavy, color: meta.color, background: meta.color + "18",
+      fontSize: FS.micro, fontWeight: FW.heavy, color: meta.color, background: meta.color + "18",
       padding: "2px 8px", borderRadius: 3, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND,
     }}>{meta.label}</span>
   );
@@ -127,7 +127,7 @@ export default function BookingsQueue({ pubs = [] }) {
                     <span>{b.publication?.name || b.site_id} · {b.booking_source === "self_serve" ? "Self-serve" : "Rep-mediated"}</span>
                     <span>{fmtMoney(b.total_cents)}</span>
                   </div>
-                  <div style={{ fontSize: 10, color: Z.td, marginTop: 2, fontFamily: COND }}>
+                  <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 2, fontFamily: COND }}>
                     {fmtRelative(b.created_at)} · {b.run_start_date ? `${fmtDate(b.run_start_date)} – ${fmtDate(b.run_end_date)}` : "no dates"}
                   </div>
                 </div>
@@ -308,7 +308,7 @@ function BookingDetail({ booking, onClose, onChange }) {
             </Section>
           )}
 
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}`, fontSize: 10, color: Z.td, fontFamily: COND }}>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}`, fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
             Booking ID: {booking.id} · Source: {booking.booking_source}
           </div>
         </>
@@ -323,7 +323,7 @@ const td = { padding: "6px 8px", color: Z.tx, fontSize: FS.sm, fontFamily: COND,
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>{title}</div>
       {children}
     </div>
   );
@@ -373,7 +373,7 @@ function CreativeReview({ full, working, transition, dialog }) {
   return (
     <Section title="Creative review">
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 10, fontWeight: FW.heavy, color: c, background: c + "18", padding: "2px 8px", borderRadius: 3, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>
+        <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: c, background: c + "18", padding: "2px 8px", borderRadius: 3, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND }}>
           {CREATIVE_LABELS[status] || status}
         </span>
       </div>

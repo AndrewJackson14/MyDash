@@ -512,11 +512,11 @@ export default function IssueLayoutConsole({
             <span style={{ fontSize: FS.sm, fontWeight: isCurrent ? FW.black : FW.bold }}>
               {p.name}
             </span>
-            <span style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+            <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
               {iss.label || ""}
             </span>
             <span style={{
-              fontSize: 10, fontWeight: FW.heavy,
+              fontSize: FS.micro, fontWeight: FW.heavy,
               color: readyCount > 0 ? ACCENT.indigo : Z.td,
               background: readyCount > 0 ? ACCENT.indigo + "20" : "transparent",
               border: readyCount > 0 ? "none" : `1px solid ${Z.bd}`,
@@ -594,10 +594,10 @@ export default function IssueLayoutConsole({
           >
             {label}
             {badge != null && badge > 0 && (
-              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.wa, background: Z.wa + "20", padding: "1px 6px", borderRadius: 999 }}>{badge}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.wa + "20", padding: "1px 6px", borderRadius: 999 }}>{badge}</span>
             )}
             {k === "proofing" && proofCount.total > 0 && proofCount.unresolved === 0 && proofCount.hasReview && (
-              <span style={{ fontSize: 10, color: Z.go }}>✓</span>
+              <span style={{ fontSize: FS.micro, color: Z.go }}>✓</span>
             )}
           </button>
         ))}
@@ -636,14 +636,14 @@ export default function IssueLayoutConsole({
                 const color = PRINT_COLOR(status);
                 return (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: Z.bg, borderRadius: Ri, borderLeft: `2px solid ${color}` }}>
-                    <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, width: 32, flexShrink: 0, textAlign: "right" }}>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, fontFamily: COND, width: 32, flexShrink: 0, textAlign: "right" }}>
                       {s.page ? fmtPage(s.page) : "—"}
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div title={s.title || "Untitled"} style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {s.title || "Untitled"}{(s.is_featured || s.isFeatured) && <span style={{ marginLeft: 4, fontSize: 9, color: Z.wa }}>★</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: Z.td, fontFamily: COND }}>
+                      <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>
                         {s.author || "—"}{s.wordCount || s.word_count ? ` · ${s.wordCount || s.word_count}w` : ""}
                       </div>
                     </div>
@@ -651,7 +651,7 @@ export default function IssueLayoutConsole({
                       <button
                         onClick={() => setDiscussionStory(s)}
                         title={`${discussionCounts[s.id]} discussion message${discussionCounts[s.id] === 1 ? "" : "s"}`}
-                        style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}
+                        style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}
                       >
                         💬 <span style={{ fontWeight: FW.bold }}>{discussionCounts[s.id]}</span>
                       </button>
@@ -660,7 +660,7 @@ export default function IssueLayoutConsole({
                       onClick={() => downloadPkg(s)}
                       disabled={pkgDownloading === s.id}
                       title="Download InDesign story package (.zip)"
-                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND, flexShrink: 0 }}
+                      style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND, flexShrink: 0 }}
                     >
                       {pkgDownloading === s.id ? "…" : "Pkg"}
                     </button>
@@ -671,7 +671,7 @@ export default function IssueLayoutConsole({
                       title="Set print status"
                       style={{
                         flexShrink: 0,
-                        fontSize: 10, fontWeight: FW.heavy,
+                        fontSize: FS.micro, fontWeight: FW.heavy,
                         color, background: color + "15",
                         border: `1px solid ${color}40`, borderRadius: Ri,
                         padding: "3px 6px", fontFamily: COND,
@@ -726,15 +726,15 @@ export default function IssueLayoutConsole({
                       Page {fmtPage(pageNum)}{isComplete && <span style={{ marginLeft: 6, color: Z.go, textDecoration: "none" }}>✓</span>}
                     </button>
                     {pageRef && (
-                      <a href={pageRef.cdn_url} target="_blank" rel="noopener noreferrer" title="Open Hayley's layout reference" style={{ fontSize: 10, color: Z.ac, textDecoration: "none", fontFamily: COND }}>
+                      <a href={pageRef.cdn_url} target="_blank" rel="noopener noreferrer" title="Open Hayley's layout reference" style={{ fontSize: FS.micro, color: Z.ac, textDecoration: "none", fontFamily: COND }}>
                         ref ↗
                       </a>
                     )}
                   </div>
                   {pageStories.length === 0 && pageAds.length === 0 ? (
-                    <div style={{ fontSize: 11, color: Z.td, fontStyle: "italic", marginBottom: 8 }}>(empty)</div>
+                    <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic", marginBottom: 8 }}>(empty)</div>
                   ) : (
-                    <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginBottom: 8, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginBottom: 8, lineHeight: 1.5 }}>
                       {pageStories.map((s, i) => (
                         <div key={s.id} title={s.title} style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: Z.tx }}>
                           ▸ {s.title || "Untitled"}
@@ -744,7 +744,7 @@ export default function IssueLayoutConsole({
                     </div>
                   )}
                   {wordLimit > 0 && (
-                    <div style={{ fontSize: 10, color: overWords ? Z.da : Z.tm, fontFamily: COND, marginBottom: 6 }}>
+                    <div style={{ fontSize: FS.micro, color: overWords ? Z.da : Z.tm, fontFamily: COND, marginBottom: 6 }}>
                       Word fit: {totalWords}/{wordLimit}{overWords ? ` ⚠ ${totalWords - wordLimit} over` : ""}
                     </div>
                   )}
@@ -771,7 +771,7 @@ export default function IssueLayoutConsole({
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {checklist.map(item => (
                 <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                  <span style={{ fontSize: 14, color: item.ok ? Z.go : (item.hard ? Z.da : Z.wa), flexShrink: 0, marginTop: 1 }}>
+                  <span style={{ fontSize: FS.md, color: item.ok ? Z.go : (item.hard ? Z.da : Z.wa), flexShrink: 0, marginTop: 1 }}>
                     {item.ok ? "✓" : item.hard ? "✗" : "!"}
                   </span>
                   <span style={{ fontSize: FS.xs, color: item.ok ? Z.tm : Z.tx, lineHeight: 1.4 }}>
@@ -797,7 +797,7 @@ export default function IssueLayoutConsole({
                 );
               })()}
               {!issue.sentToPressAt && (
-                <div style={{ fontSize: 10, color: Z.td, fontFamily: COND, textAlign: "center", marginTop: 6, lineHeight: 1.4 }}>
+                <div style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND, textAlign: "center", marginTop: 6, lineHeight: 1.4 }}>
                   Anthony uploads the final PDF directly to the printer's FTP. This stamp records the press date for downstream billing.
                 </div>
               )}

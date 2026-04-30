@@ -460,15 +460,15 @@ function Step3Validation({ validation, rows }) {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
       <div style={{ padding: "10px 14px", background: Z.go + "18", borderRadius: Ri }}>
         <div style={{ fontSize: FS.xs, color: Z.go, fontWeight: FW.heavy, textTransform: "uppercase" }}>Valid</div>
-        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>{validation.valid}</div>
+        <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>{validation.valid}</div>
       </div>
       <div style={{ padding: "10px 14px", background: Z.wa + "18", borderRadius: Ri }}>
         <div style={{ fontSize: FS.xs, color: Z.wa, fontWeight: FW.heavy, textTransform: "uppercase" }}>Warnings</div>
-        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>{validation.warned}</div>
+        <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>{validation.warned}</div>
       </div>
       <div style={{ padding: "10px 14px", background: Z.da + "18", borderRadius: Ri }}>
         <div style={{ fontSize: FS.xs, color: Z.da, fontWeight: FW.heavy, textTransform: "uppercase" }}>Errors</div>
-        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>{validation.errored}</div>
+        <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>{validation.errored}</div>
       </div>
     </div>
     {issues.length === 0
@@ -508,7 +508,7 @@ function Step4Match({ decisions, geocoded, totalGeocodeTargets, onToggle, pubs }
         if (d.action === "error") return null;
         return <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 60px 90px", gap: 8, padding: "6px 10px", borderTop: i === 0 ? "none" : `1px solid ${Z.bd}`, alignItems: "center", fontSize: FS.xs }}>
           <button onClick={() => onToggle(i)} style={{
-            fontSize: 10, fontWeight: FW.heavy, color: "#fff",
+            fontSize: FS.micro, fontWeight: FW.heavy, color: "#fff",
             background: d.action === "new" ? Z.ac : d.action === "update" ? Z.wa : Z.tm,
             border: "none", borderRadius: Ri, padding: "3px 6px", cursor: "pointer",
           }}>{d.action.toUpperCase()}</button>
@@ -574,6 +574,6 @@ function Step5Execute({ writing, progress, result, onExecute, decisions, onClose
 function Stat({ label, value, color }) {
   return <div style={{ padding: "10px 14px", background: color + "18", borderRadius: Ri, textAlign: "center" }}>
     <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color, textTransform: "uppercase" }}>{label}</div>
-    <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>{value}</div>
+    <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>{value}</div>
   </div>;
 }

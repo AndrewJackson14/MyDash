@@ -127,7 +127,7 @@ const SignalThreadPanel = ({ signal, onClose, currentUser, onNavigate, setIssueD
           </span>
           <Btn sm v="ghost" onClick={close}>&times;</Btn>
         </div>
-        <h3 style={{ margin: 0, fontSize: 20, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.3 }}>{signal.title}</h3>
+        <h3 style={{ margin: 0, fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.3 }}>{signal.title}</h3>
         {signal.sub && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 6, lineHeight: 1.4 }}>{signal.sub}</div>}
         {canOpenPage && (
           <div style={{ marginTop: 14 }}>
@@ -182,7 +182,7 @@ const SignalThreadPanel = ({ signal, onClose, currentUser, onNavigate, setIssueD
             <button key={e} onClick={() => send(e)} disabled={sending} title={`React with ${e}`}
               style={{
                 background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: 10,
-                padding: "4px 10px", fontSize: 16, cursor: "pointer",
+                padding: "4px 10px", fontSize: FS.lg, cursor: "pointer",
                 transition: "transform 0.15s ease, background 0.15s ease",
               }}
               onMouseEnter={ev => { ev.currentTarget.style.transform = "translateY(-1px) scale(1.1)"; ev.currentTarget.style.background = Z.sa; }}

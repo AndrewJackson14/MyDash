@@ -266,13 +266,13 @@ const MarkPaidModal = ({ open, onClose, bill, onConfirm }) => {
 
         {/* Receipt upload */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, fontFamily: COND }}>Receipt (optional)</div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, fontFamily: COND }}>Receipt (optional)</div>
           {receiptUrl ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: Z.sa, borderRadius: R, border: `1px solid ${Z.bd}` }}>
               <a href={receiptUrl} target="_blank" rel="noopener noreferrer" style={{ color: Z.ac, fontSize: FS.sm, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 📎 {receiptUrl.split("/").pop()}
               </a>
-              <button onClick={() => setReceiptUrl("")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 12, fontWeight: FW.bold, fontFamily: COND }}>Remove</button>
+              <button onClick={() => setReceiptUrl("")} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, fontFamily: COND }}>Remove</button>
             </div>
           ) : (
             <label style={{
@@ -538,23 +538,23 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
       {/* Metrics bar */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         <GlassCard>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>This Month</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.totalMonth)}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>This Month</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.totalMonth)}</div>
         </GlassCard>
         <GlassCard>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Paid MTD</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.paid)}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Paid MTD</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.go, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.paid)}</div>
         </GlassCard>
         <GlassCard>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Pending</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.wa, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.pending)}</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Pending</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.wa, fontFamily: DISPLAY, marginTop: 2 }}>{fmtCurrency(metrics.pending)}</div>
         </GlassCard>
         <GlassCard>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Overdue</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: metrics.overdueCount > 0 ? Z.da : Z.tm, fontFamily: DISPLAY, marginTop: 2 }}>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Overdue</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: metrics.overdueCount > 0 ? Z.da : Z.tm, fontFamily: DISPLAY, marginTop: 2 }}>
             {fmtCurrency(metrics.overdueTotal)}
           </div>
-          {metrics.overdueCount > 0 && <div style={{ fontSize: 10, color: Z.da, fontFamily: COND, marginTop: 2 }}>{metrics.overdueCount} bill{metrics.overdueCount !== 1 ? "s" : ""}</div>}
+          {metrics.overdueCount > 0 && <div style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, marginTop: 2 }}>{metrics.overdueCount} bill{metrics.overdueCount !== 1 ? "s" : ""}</div>}
         </GlassCard>
       </div>
 
@@ -612,7 +612,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
             const variance = varianceMap.get(b.id);
             return (
               <tr key={b.id} style={{ cursor: "pointer" }} onClick={() => openEdit(b)}>
-                <td style={{ fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}{b.description && <div style={{ fontSize: 11, fontWeight: FW.normal, color: Z.tm, fontFamily: COND }}>{b.description}</div>}</td>
+                <td style={{ fontWeight: FW.bold, color: Z.tx }}>{b.vendorName}{b.description && <div style={{ fontSize: FS.xs, fontWeight: FW.normal, color: Z.tm, fontFamily: COND }}>{b.description}</div>}</td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{CATEGORY_LABEL[b.category] || b.category}</td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{b.publicationId ? pubName(b.publicationId) : <span style={{ fontStyle: "italic", color: Z.td }}>Overhead</span>}</td>
                 <td style={{ fontSize: FS.sm, color: Z.tm }}>{fmtDate(b.billDate)}</td>
@@ -630,10 +630,10 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
                     display: "inline-block", padding: "2px 8px", borderRadius: Ri,
                     background: (STATUS_COLORS[b.status] || Z.tm) + "1a",
                     color: STATUS_COLORS[b.status] || Z.tm,
-                    fontSize: 10, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND,
+                    fontSize: FS.micro, fontWeight: FW.heavy, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND,
                   }}>{b.status}</span>
                   {b.status === "paid" && (
-                    <div style={{ fontSize: 10, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
+                    <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
                       {b.paidMethod === "check" && b.checkNumber ? `Check #${b.checkNumber}`
                         : b.paidMethod === "credit_card" && b.ccLastFour ? `Card •${b.ccLastFour}`
                         : b.paidMethod ? PAY_METHODS.find(m => m.value === b.paidMethod)?.label || b.paidMethod
@@ -642,7 +642,7 @@ const BillsTab = ({ bills = [], pubs = [], insertBill, updateBill, deleteBill })
                     </div>
                   )}
                 </td>
-                <td style={{ fontSize: 11, color: Z.tm, fontFamily: COND }}>
+                <td style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
                   {b.quickbooksId ? <span title={"QB ID: " + b.quickbooksId} style={{ color: Z.go, fontWeight: FW.bold }}>✓ Synced</span>
                     : b.quickbooksSyncError ? <span title={b.quickbooksSyncError} style={{ color: Z.da }}>Error</span>
                     : <span style={{ color: Z.td }}>—</span>}

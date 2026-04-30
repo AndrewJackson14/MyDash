@@ -86,7 +86,7 @@ export default function KBViewer({ doc, hash, onLinkClick }) {
             </a>
           </div>
           {doc.metadata?.last_updated && (
-            <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginTop: 6 }}>
+            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginTop: 6 }}>
               Last updated {doc.metadata.last_updated}
               {doc.metadata?.version && ` · v${doc.metadata.version}`}
             </div>

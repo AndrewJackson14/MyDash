@@ -121,7 +121,7 @@ export default function ScheduleModal({ open, onClose, onSchedule, currentSchedu
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <label style={{ display: "block", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Recurrence</label>
+          <label style={{ display: "block", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Recurrence</label>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {[
               { v: "once",    label: "One time" },
@@ -144,7 +144,7 @@ export default function ScheduleModal({ open, onClose, onSchedule, currentSchedu
         {/* One-time picker */}
         {recurType === "once" && (
           <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Send at (your local time)</label>
+            <label style={{ display: "block", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Send at (your local time)</label>
             <input
               type="datetime-local"
               value={whenLocal}
@@ -157,7 +157,7 @@ export default function ScheduleModal({ open, onClose, onSchedule, currentSchedu
         {/* Weekly day picker */}
         {recurType === "weekly" && (
           <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>Days of week</label>
+            <label style={{ display: "block", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>Days of week</label>
             <div style={{ display: "flex", gap: 4 }}>
               {WEEKDAYS.map(d => {
                 const on = weeklyDays.includes(d.iso);
@@ -179,7 +179,7 @@ export default function ScheduleModal({ open, onClose, onSchedule, currentSchedu
         {/* Monthly day picker */}
         {recurType === "monthly" && (
           <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Day of month</label>
+            <label style={{ display: "block", fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 4 }}>Day of month</label>
             <Sel value={String(monthlyDay)} onChange={e => setMonthlyDay(parseInt(e.target.value, 10))}
               options={MONTH_DAYS.map(d => ({ value: String(d), label: `Day ${d}${d === 28 ? " (last safe day every month)" : ""}` }))} />
           </div>
@@ -209,7 +209,7 @@ export default function ScheduleModal({ open, onClose, onSchedule, currentSchedu
         {/* Next sends preview */}
         {previewTimes.length > 0 && (
           <div style={{ padding: "10px 14px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: COND, marginBottom: 6 }}>
               {recurType === "once" ? "Will fire at" : "Next 3 sends"}
             </div>
             {previewTimes.map((t, i) => (

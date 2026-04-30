@@ -42,7 +42,7 @@ const StatusPill = ({ value, colorMap }) => {
   return (
     <span style={{
       display: "inline-block", padding: "2px 8px", borderRadius: Ri,
-      background: c.bg, color: c.fg, fontSize: 10, fontWeight: FW.bold,
+      background: c.bg, color: c.fg, fontSize: FS.micro, fontWeight: FW.bold,
       fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.3,
       whiteSpace: "nowrap",
     }}>{value.replace(/_/g, " ")}</span>
@@ -298,7 +298,7 @@ const SalesByIssueTab = ({ sales = [], pubs = [], issues = [], clients = [], inv
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>Status</div>
+          <div style={{ fontSize: FS.xs, fontWeight: 600, color: Z.td, letterSpacing: 0.5, textTransform: "uppercase", fontFamily: COND }}>Status</div>
           <SolidTabs options={STATUS_OPTIONS} active={status} onChange={setStatus} />
         </div>
       </div>

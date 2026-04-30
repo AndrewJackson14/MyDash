@@ -60,7 +60,7 @@ export default function SendTearsheetModal({ client, sale, onClose }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Recipient *</div>
             <input
               type="email"
               value={recipient}
@@ -74,7 +74,7 @@ export default function SendTearsheetModal({ client, sale, onClose }) {
                   <button
                     key={i}
                     onClick={() => setRecipient(c.email)}
-                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: Z.tm, fontFamily: COND }}
+                    style={{ background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 999, padding: "2px 8px", cursor: "pointer", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}
                   >
                     {(c.name || c.email).slice(0, 26)}
                   </button>
@@ -83,7 +83,7 @@ export default function SendTearsheetModal({ client, sale, onClose }) {
             )}
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>CC (comma-separated)</div>
             <input
               type="text"
               value={cc}
@@ -93,7 +93,7 @@ export default function SendTearsheetModal({ client, sale, onClose }) {
             />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
+            <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.tm, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND, marginBottom: 4 }}>Custom note (optional)</div>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}

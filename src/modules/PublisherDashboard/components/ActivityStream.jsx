@@ -26,7 +26,7 @@ export default function ActivityStream({
         background: "transparent",
         border: `1px solid ${Z.bd}`,
         color: Z.tm,
-        fontSize: 10,
+        fontSize: FS.micro,
         fontWeight: FW.bold,
         fontFamily: COND,
         padding: "3px 8px",

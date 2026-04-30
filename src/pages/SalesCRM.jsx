@@ -18,7 +18,7 @@ const ClientProfile = lazy(() => import("./sales/ClientProfile"));
 const ClientSignals = lazy(() => import("./sales/ClientSignals"));
 const Commissions = lazy(() => import("./sales/Commissions"));
 const Outreach = lazy(() => import("./sales/Outreach"));
-const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: 13 }}>Loading…</div>;
+const SubFallback = () => <div style={{ padding: 40, textAlign: "center", color: "#525E72", fontSize: FS.base }}>Loading…</div>;
 import { PIPELINE, PIPELINE_COLORS, STAGE_AUTO_ACTIONS, ACTION_TYPES, actInfo, INDUSTRIES, LEAD_SOURCES, computeClientStatus, CLIENT_STATUS_COLORS } from "./sales/constants";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 
@@ -767,7 +767,7 @@ const SalesCRM = (props) => {
                 <div onClick={e => { e.stopPropagation(); navTo("Clients", s.clientId); }} style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, cursor: "pointer", marginBottom: 2, fontFamily: COND }} title="Go to profile">{cn(s.clientId)}</div>
                 {s.type !== "TBD" && <div style={{ color: Z.tm, fontSize: FS.sm, marginBottom: 2 }}>{pn(s.publication)} · {s.type}</div>}
                 {s.amount > 0 && <div style={{ fontWeight: FW.black, color: Z.su, fontSize: FS.base }}>${s.amount.toLocaleString()}</div>}
-                {s.contractId && proofReadyMap[s.contractId] && <div onClick={e => { e.stopPropagation(); onNavigate?.("adprojects"); }} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "3px 8px", background: Z.wa + "12", border: `1px solid ${Z.wa}30`, borderRadius: Ri, cursor: "pointer" }}><span style={{ fontSize: 10, fontWeight: FW.bold, color: Z.wa }}>Proof Ready — Sign Off</span></div>}
+                {s.contractId && proofReadyMap[s.contractId] && <div onClick={e => { e.stopPropagation(); onNavigate?.("adprojects"); }} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "3px 8px", background: Z.wa + "12", border: `1px solid ${Z.wa}30`, borderRadius: Ri, cursor: "pointer" }}><span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa }}>Proof Ready — Sign Off</span></div>}
                 {s.nextAction && <div onClick={e => { e.stopPropagation(); handleAct(s.id); }} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, padding: "4px 6px", background: `${actInfo(s.nextAction)?.color || Z.ac}10`, border: `1px solid ${actInfo(s.nextAction)?.color || Z.ac}25`, borderRadius: Ri, cursor: "pointer" }}>
                   <span style={{ fontSize: FS.sm }}>{actIcon(s)}</span>
                   <span style={{ fontSize: FS.sm, color: actInfo(s.nextAction)?.color || Z.ac, fontWeight: FW.bold, flex: 1 }}>{actLabel(s)}</span>
@@ -875,7 +875,7 @@ const SalesCRM = (props) => {
       </div></div></div>);
       })()}</div>}
     {tab === "Proposals" && viewPropId && (() => { const p = proposals.find(x => x.id === viewPropId); if (!p) return null; const grouped = {}; p.lines.forEach(li => { if (!grouped[li.pubName]) grouped[li.pubName] = []; grouped[li.pubName].push(li); });
-      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{p.name}</h2><div style={{ fontSize: FS.base, color: Z.tm }}>{cn(p.clientId)} · {p.term} · {p.date}</div><div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 3 }}>{propPubNames(p)}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div><Badge status={p.status} />{p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}</div></div>{Object.entries(grouped).map(([pub, lines]) => <GlassCard key={pub}><h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub}</h4><div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{lines.map((li, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{li.issueLabel}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{li.adSize}</span><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${li.price.toLocaleString()}</span></div>)}</div></GlassCard>)}<div style={{ background: Z.sa, borderRadius: R, padding: 12, border: `1px solid ${Z.bd}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Items</div><div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{p.lines.length}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Tier</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.term}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Contract</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.termMonths} months</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>{p.payPlan ? "Monthly" : "Payment"}</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.payPlan ? `$${p.monthly?.toLocaleString()}/mo` : `$${p.total.toLocaleString()}`}</div></div></div>
+      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{p.name}</h2><div style={{ fontSize: FS.base, color: Z.tm }}>{cn(p.clientId)} · {p.term} · {p.date}</div><div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 3 }}>{propPubNames(p)}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div><Badge status={p.status} />{p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}</div></div>{Object.entries(grouped).map(([pub, lines]) => <GlassCard key={pub}><h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub}</h4><div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{lines.map((li, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{li.issueLabel}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{li.adSize}</span><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${li.price.toLocaleString()}</span></div>)}</div></GlassCard>)}<div style={{ background: Z.sa, borderRadius: R, padding: 12, border: `1px solid ${Z.bd}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Items</div><div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{p.lines.length}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Tier</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.term}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Contract</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.termMonths} months</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>{p.payPlan ? "Monthly" : "Payment"}</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.payPlan ? `$${p.monthly?.toLocaleString()}/mo` : `$${p.total.toLocaleString()}`}</div></div></div>
       {p.sentTo?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tm }}>Sent to: {p.sentTo.join(", ")}</div>}
       {p.renewalDate && <div style={{ fontSize: FS.sm, color: Z.wa }}>Renewal: {p.renewalDate}</div>}
       {/* Actions */}
@@ -1152,7 +1152,7 @@ const SalesCRM = (props) => {
       const confidenceBadge = (conf, reason) => {
         if (conf === "none") return null;
         const color = conf === "exact" ? (Z.su || "#22c55e") : (Z.wa || "#f59e0b");
-        return <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: color + "18", color, fontFamily: COND, textTransform: "uppercase" }}>{conf} — {reason}</span>;
+        return <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: color + "18", color, fontFamily: COND, textTransform: "uppercase" }}>{conf} — {reason}</span>;
       };
       // SLA aging — only meaningful while still "new". Hot leads die in queue.
       // Audit I-2: 🟢 <30min, 🟡 30min-2hr, 🔴 >2hr.
@@ -1164,7 +1164,7 @@ const SalesCRM = (props) => {
         else if (ageMin < 120) { color = Z.wa || "#f59e0b"; label = `${Math.round(ageMin)}m`; }
         else if (ageMin < 1440) { color = Z.da || "#ef4444"; label = `${Math.round(ageMin / 60)}h LATE`; }
         else { color = Z.da || "#ef4444"; label = `${Math.round(ageMin / 1440)}d LATE`; }
-        return <span title={`Inquiry age — respond within 30 min for best conversion. Created ${new Date(inq.created_at).toLocaleString()}`} style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: color + "22", color, fontFamily: COND, letterSpacing: 0.5 }}>● {label}</span>;
+        return <span title={`Inquiry age — respond within 30 min for best conversion. Created ${new Date(inq.created_at).toLocaleString()}`} style={{ fontSize: FS.micro, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: color + "22", color, fontFamily: COND, letterSpacing: 0.5 }}>● {label}</span>;
       };
       // Sort: new inquiries by age (oldest first — they're the most at risk),
       // then everything else by created_at desc. Keeps hot leads at the top.
@@ -1200,29 +1200,29 @@ const SalesCRM = (props) => {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{inq.business_name || inq.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (statusColors[inq.status] || Z.tm) + "18", color: statusColors[inq.status] || Z.tm, fontFamily: COND, textTransform: "uppercase" }}>{inq.status}</span>
+                      <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (statusColors[inq.status] || Z.tm) + "18", color: statusColors[inq.status] || Z.tm, fontFamily: COND, textTransform: "uppercase" }}>{inq.status}</span>
                       {slaBadge(inq)}
                       {confidenceBadge(inq.match_confidence, inq.match_reason)}
                       {matchedClient && !inq.confirmed && inq.match_confidence !== "none" && (
                         <span style={{ display: "flex", gap: 4 }}>
-                          <button onClick={() => updateInquiry(inq.id, { confirmed: true })} style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.su || "#22c55e") + "18", color: Z.su || "#22c55e", border: "none", cursor: "pointer", fontFamily: COND }}>Confirm Match</button>
-                          <button onClick={() => updateInquiry(inq.id, { client_id: null, match_confidence: "none", match_reason: "" })} style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.da || "#ef4444") + "18", color: Z.da || "#ef4444", border: "none", cursor: "pointer", fontFamily: COND }}>Reject</button>
+                          <button onClick={() => updateInquiry(inq.id, { confirmed: true })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.su || "#22c55e") + "18", color: Z.su || "#22c55e", border: "none", cursor: "pointer", fontFamily: COND }}>Confirm Match</button>
+                          <button onClick={() => updateInquiry(inq.id, { client_id: null, match_confidence: "none", match_reason: "" })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.da || "#ef4444") + "18", color: Z.da || "#ef4444", border: "none", cursor: "pointer", fontFamily: COND }}>Reject</button>
                         </span>
                       )}
-                      {inq.confirmed && <span style={{ fontSize: 10, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND }}>&#10003; Confirmed</span>}
+                      {inq.confirmed && <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND }}>&#10003; Confirmed</span>}
                     </div>
                     <div style={{ fontSize: FS.sm, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
                       {inq.name} &middot; {inq.email}{inq.phone ? " \u00b7 " + inq.phone : ""}{inq.website ? " \u00b7 " + inq.website : ""}
                     </div>
-                    {matchedClient && <div style={{ fontSize: 11, color: Z.ac, fontFamily: COND, marginTop: 2, cursor: "pointer" }} onClick={() => navTo("Clients", matchedClient.id)}>Linked to: {matchedClient.name}{rep ? " (Rep: " + rep.name + ")" : ""}</div>}
+                    {matchedClient && <div style={{ fontSize: FS.xs, color: Z.ac, fontFamily: COND, marginTop: 2, cursor: "pointer" }} onClick={() => navTo("Clients", matchedClient.id)}>Linked to: {matchedClient.name}{rep ? " (Rep: " + rep.name + ")" : ""}</div>}
                   </div>
-                  <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>
                     {new Date(inq.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
                 </div>
 
                 {/* Details row */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: Z.tx, fontFamily: COND }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: FS.sm, color: Z.tx, fontFamily: COND }}>
                   {inq.ad_types?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Types:</span> {inq.ad_types.join(", ")}</div>}
                   {inq.preferred_zones?.length > 0 && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Zones:</span> {inq.preferred_zones.join(", ")}</div>}
                   {inq.interested_product_ids?.length > 0 && (
@@ -1239,7 +1239,7 @@ const SalesCRM = (props) => {
                   {inq.how_heard && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Source:</span> {inq.how_heard}</div>}
                 </div>
 
-                {inq.message && <div style={{ fontSize: 12, color: Z.tx, fontFamily: COND, background: Z.sa, padding: "6px 10px", borderRadius: Ri, borderLeft: "3px solid " + Z.bd }}>{inq.message}</div>}
+                {inq.message && <div style={{ fontSize: FS.sm, color: Z.tx, fontFamily: COND, background: Z.sa, padding: "6px 10px", borderRadius: Ri, borderLeft: "3px solid " + Z.bd }}>{inq.message}</div>}
 
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 6, marginTop: 2 }}>

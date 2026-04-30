@@ -305,7 +305,7 @@ const Merch = ({ clients, isActive }) => {
 
         {/* Image */}
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 4 }}>Product Image</div>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 4 }}>Product Image</div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {pForm.imageUrl && <img src={pForm.imageUrl} alt="" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: Ri }} />}
             <Btn sm v="secondary" onClick={uploadImage}>Upload Image</Btn>
@@ -322,7 +322,7 @@ const Merch = ({ clients, isActive }) => {
 
         {/* Variants */}
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 4 }}>Variants (Size, Color, etc.)</div>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 4 }}>Variants (Size, Color, etc.)</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <Inp value={variantInput} onChange={e => setVariantInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addVariant(); } }} placeholder="e.g. Large, Blue" />
             <Btn sm v="secondary" onClick={addVariant}>Add</Btn>
@@ -331,7 +331,7 @@ const Merch = ({ clients, isActive }) => {
             {pForm.variants.map((v, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", background: Z.ac + "12", borderRadius: Ri, fontSize: FS.xs, color: Z.ac, fontFamily: COND }}>
                 {v}
-                <button onClick={() => setPForm(f => ({ ...f, variants: f.variants.filter((_, j) => j !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 12, fontWeight: 700, padding: 0 }}>x</button>
+                <button onClick={() => setPForm(f => ({ ...f, variants: f.variants.filter((_, j) => j !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.sm, fontWeight: 700, padding: 0 }}>x</button>
               </span>
             ))}
           </div>}
@@ -356,7 +356,7 @@ const Merch = ({ clients, isActive }) => {
 
         {/* Product picker */}
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 6 }}>Select Products ({sForm.productIds.length})</div>
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: Z.td, marginBottom: 6 }}>Select Products ({sForm.productIds.length})</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
             {products.filter(p => p.is_active).map(p => {
               const selected = sForm.productIds.includes(p.id);

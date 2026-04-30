@@ -52,10 +52,10 @@ const SectionEditor = ({ section, idx, onUpdate, onRemove, onMove, canMoveUp, ca
     <div style={{ padding: 14, border: `1px solid ${Z.bd}`, borderRadius: R, background: Z.sa, marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => onMove(idx, -1)} disabled={!canMoveUp} style={{ background: "none", border: "none", cursor: canMoveUp ? "pointer" : "default", color: canMoveUp ? Z.tm : Z.bd, fontSize: 12, padding: "0 4px" }}>{"\u25b2"}</button>
-          <button onClick={() => onMove(idx, 1)} disabled={!canMoveDown} style={{ background: "none", border: "none", cursor: canMoveDown ? "pointer" : "default", color: canMoveDown ? Z.tm : Z.bd, fontSize: 12, padding: "0 4px" }}>{"\u25bc"}</button>
+          <button onClick={() => onMove(idx, -1)} disabled={!canMoveUp} style={{ background: "none", border: "none", cursor: canMoveUp ? "pointer" : "default", color: canMoveUp ? Z.tm : Z.bd, fontSize: FS.sm, padding: "0 4px" }}>{"\u25b2"}</button>
+          <button onClick={() => onMove(idx, 1)} disabled={!canMoveDown} style={{ background: "none", border: "none", cursor: canMoveDown ? "pointer" : "default", color: canMoveDown ? Z.tm : Z.bd, fontSize: FS.sm, padding: "0 4px" }}>{"\u25bc"}</button>
         </div>
-        <button onClick={() => onRemove(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: 11, fontWeight: FW.bold, fontFamily: COND }}>Remove</button>
+        <button onClick={() => onRemove(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.xs, fontWeight: FW.bold, fontFamily: COND }}>Remove</button>
       </div>
       <Inp label="Heading" value={section.heading || ""} onChange={e => set("heading", e.target.value)} placeholder="e.g. Featured" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>

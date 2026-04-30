@@ -47,7 +47,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
     const text = isPast ? `${Math.abs(d)}d overdue` : d === 0 ? "Today" : d === 1 ? "Tomorrow" : `${d}d`;
     return (
       <div style={{ padding: "8px 14px", background: color + "10", border: `1px solid ${color}25`, borderRadius: R, textAlign: "center", minWidth: 90 }}>
-        <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8 }}>{label}</div>
+        <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8 }}>{label}</div>
         <div style={{ fontSize: 18, fontWeight: FW.black, color, fontFamily: DISPLAY, marginTop: 2 }}>{text}</div>
         {isPast && <div style={{ fontSize: 9, fontWeight: FW.bold, color: Z.da, textTransform: "uppercase", marginTop: 1 }}>PAST DUE</div>}
       </div>
@@ -105,17 +105,17 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
       {/* Ads */}
       <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${adPct >= 80 ? Z.go : adPct >= 50 ? Z.wa : Z.tm}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Ads Sold</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Ads Sold</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: adPct >= 80 ? Z.go : adPct >= 50 ? Z.wa : Z.tx }}>{closedAds.length}/{totalSlots}</span>
         </div>
         <ProgressBar pct={adPct} />
-        {openSlots > 0 && <div style={{ fontSize: 10, color: Z.wa, marginTop: 4 }}>{openSlots} slot{openSlots > 1 ? "s" : ""} available</div>}
+        {openSlots > 0 && <div style={{ fontSize: FS.micro, color: Z.wa, marginTop: 4 }}>{openSlots} slot{openSlots > 1 ? "s" : ""} available</div>}
       </div>
 
       {/* Editorial */}
       <div onClick={() => onNavigate("editorial")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${editPct >= 80 ? Z.go : editPct >= 50 ? ACCENT.blue : Z.wa}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Editorial</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Editorial</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: editPct >= 80 ? Z.go : ACCENT.blue }}>{issStories.filter(s => !["Draft", "Needs Editing"].includes(s.status)).length}/{issStories.length}</span>
         </div>
         <ProgressBar pct={editPct} />
@@ -124,19 +124,19 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
       {/* Revenue vs Goal */}
       <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${revPct >= 80 ? Z.go : revPct >= 50 ? Z.wa : Z.da}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Revenue</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Revenue</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.go }}>{fmtCurrency(adRev)}</span>
         </div>
         {revGoal > 0 ? <>
           <ProgressBar pct={revPct} color={revPct >= 80 ? Z.go : revPct >= 50 ? Z.wa : Z.da} />
-          <div style={{ fontSize: 10, color: Z.tm, marginTop: 4 }}>{revPct}% of {fmtCurrency(revGoal)} goal</div>
-        </> : <div style={{ fontSize: 10, color: Z.td, marginTop: 4 }}>No goal set</div>}
+          <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 4 }}>{revPct}% of {fmtCurrency(revGoal)} goal</div>
+        </> : <div style={{ fontSize: FS.micro, color: Z.td, marginTop: 4 }}>No goal set</div>}
       </div>
 
       {/* Pipeline */}
       <div onClick={() => onNavigate("sales")} style={{ ...cardSurface(), borderRadius: R, padding: "14px 18px", cursor: "pointer", borderBottom: `2px solid ${Z.wa}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Pipeline</span>
+          <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>Pipeline</span>
           <span style={{ fontSize: FS.sm, fontWeight: FW.black, color: Z.wa }}>{fmtCurrency(pipelineRev)}</span>
         </div>
         <div style={{ fontSize: FS.sm, color: Z.tm }}>{pipelineAds.length} deal{pipelineAds.length !== 1 ? "s" : ""} in progress</div>
@@ -168,7 +168,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
 
         {/* Closed */}
         {closedAds.length > 0 && <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.go, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Confirmed ({closedAds.length})</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.go, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Confirmed ({closedAds.length})</div>
           {closedAds.map(s => (
             <div key={s.id} onClick={() => onNavigate("sales")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, cursor: "pointer", borderLeft: `2px solid ${Z.go}` }}>
               <div>
@@ -182,7 +182,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
 
         {/* Pipeline */}
         {pipelineAds.length > 0 && <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: FW.bold, color: Z.wa, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>In Pipeline ({pipelineAds.length})</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.wa, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>In Pipeline ({pipelineAds.length})</div>
           {pipelineAds.map(s => (
             <div key={s.id} onClick={() => onNavigate("sales")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, cursor: "pointer", borderLeft: `2px solid ${Z.wa}` }}>
               <div>
@@ -215,7 +215,7 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
 
           {storyGroups.map(g => (
             <div key={g.label} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: FW.bold, color: g.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{g.label} ({g.items.length})</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.bold, color: g.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{g.label} ({g.items.length})</div>
               {g.items.map(s => (
                 <div key={s.id} onClick={() => onNavigate("stories")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: Z.bg, borderRadius: Ri, marginBottom: 2, cursor: "pointer", borderLeft: `2px solid ${g.color}` }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -236,11 +236,11 @@ const IssueDetail = ({ issueId, pubs, issues, sales, stories, clients, onBack, o
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
               <div style={{ fontSize: 18, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{pub?.pageCount || 0}</div>
-              <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Pages</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Pages</div>
             </div>
             <div style={{ padding: "10px 12px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
               <div style={{ fontSize: 18, fontWeight: FW.black, color: closedAds.length > 0 ? ACCENT.indigo : Z.td, fontFamily: DISPLAY }}>{closedAds.length}</div>
-              <div style={{ fontSize: 10, color: Z.td, textTransform: "uppercase" }}>Ads to Place</div>
+              <div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>Ads to Place</div>
             </div>
           </div>
         </GlassCard>

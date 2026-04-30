@@ -30,11 +30,11 @@ export default function AlertBanner({ alerts = [], onClickAlert }) {
         onClick={() => setExpanded(e => !e)}
         style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
       >
-        <span aria-hidden style={{ fontSize: 14 }}>⚠</span>
+        <span aria-hidden style={{ fontSize: FS.md }}>⚠</span>
         <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: palette.text, fontFamily: COND, flex: 1 }}>
           {alerts.length} item{alerts.length === 1 ? "" : "s"} need{alerts.length === 1 ? "s" : ""} your attention
         </span>
-        <span style={{ fontSize: 10, color: palette.text, fontFamily: COND, opacity: 0.7 }}>
+        <span style={{ fontSize: FS.micro, color: palette.text, fontFamily: COND, opacity: 0.7 }}>
           {expanded ? "Hide" : "Show"}
         </span>
       </div>

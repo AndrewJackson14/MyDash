@@ -208,7 +208,7 @@ const ClassifiedAds = ({ pubs, clients, issues, isActive }) => {
               ["Border", "+" + fmtCurrency(rate.border_surcharge)],
               ["Photo", "+" + fmtCurrency(rate.photo_surcharge)],
             ].map(([l, v]) => <div key={l} style={{ padding: "8px 10px", background: Z.bg, borderRadius: Ri }}>
-              <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", fontFamily: COND }}>{l}</div>
+              <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", fontFamily: COND }}>{l}</div>
               <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx }}>{v}</div>
             </div>)}
           </div>

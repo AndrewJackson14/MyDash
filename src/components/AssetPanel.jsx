@@ -171,7 +171,7 @@ const AssetPanel = memo(({ path, title = "Assets", allowUpload = true, compact =
 
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-      <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{title} ({assets.length})</span>
+      <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND }}>{title} ({assets.length})</span>
       {allowUpload && <Btn sm v="secondary" onClick={handleUpload} disabled={uploading}><Ic.up size={11} /> {uploading ? "Uploading..." : "Upload"}</Btn>}
     </div>
 
@@ -209,7 +209,7 @@ function AssetCell({ asset, compact, onOpen, onSaveNote }) {
           )}
         </div>
         {!compact && <div style={{ padding: "4px 6px" }}>
-          <div style={{ fontSize: 10, color: Z.tx, fontWeight: FW.semi, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={asset.name}>{asset.name}</div>
+          <div style={{ fontSize: FS.micro, color: Z.tx, fontWeight: FW.semi, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={asset.name}>{asset.name}</div>
           <div style={{ fontSize: 9, color: Z.td }}>{fmtSize(asset.size)}</div>
           <input
             value={draft}

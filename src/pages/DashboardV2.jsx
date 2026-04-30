@@ -548,19 +548,19 @@ const DashboardV2 = (props) => {
       {/* ── Pressure drill-down ─────────────────────────── */}
       {pressureDrillOpen && deadlineAlerts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "12px 16px", background: Z.sf, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-          <div style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Pressure Sources</div>
+          <div style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Pressure Sources</div>
           {deadlineAlerts.slice(0, 8).map((a, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderTop: i > 0 ? `1px solid ${Z.bd}20` : "none" }}>
-              <span style={{ fontSize: 10, fontWeight: FW.bold, color: a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da, background: (a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da) + "15", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", fontFamily: COND }}>{a.type === "ad" ? "Ad" : a.type === "ed" ? "Ed" : "Pub"}</span>
-              <span style={{ fontSize: 12, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da, background: (a.type === "ad" ? Z.wa : a.type === "ed" ? Z.pu : Z.da) + "15", padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", fontFamily: COND }}>{a.type === "ad" ? "Ad" : a.type === "ed" ? "Ed" : "Pub"}</span>
+              <span style={{ fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, flex: 1 }}>
                 {a.pubId && a.issueId
                   ? <EntityLink onClick={nav.toFlatplan(a.pubId, a.issueId)}>{a.pubName || a.pub} — {a.issueLabel || a.label}</EntityLink>
                   : <>{a.pubName || a.pub} — {a.issueLabel || a.label}</>}
               </span>
-              <span style={{ fontSize: 10, fontWeight: FW.heavy, color: Z.da, fontFamily: COND }}>{a.daysLeft != null ? (a.daysLeft < 0 ? `${Math.abs(a.daysLeft)}d overdue` : a.daysLeft === 0 ? "Today" : `${a.daysLeft}d left`) : ""}</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.da, fontFamily: COND }}>{a.daysLeft != null ? (a.daysLeft < 0 ? `${Math.abs(a.daysLeft)}d overdue` : a.daysLeft === 0 ? "Today" : `${a.daysLeft}d left`) : ""}</span>
             </div>
           ))}
-          {deadlineAlerts.length > 8 && <div style={{ fontSize: 10, color: Z.td, textAlign: "center", marginTop: 4 }}>+{deadlineAlerts.length - 8} more</div>}
+          {deadlineAlerts.length > 8 && <div style={{ fontSize: FS.micro, color: Z.td, textAlign: "center", marginTop: 4 }}>+{deadlineAlerts.length - 8} more</div>}
         </div>
       )}
       {pressureDrillOpen && deadlineAlerts.length === 0 && (
@@ -992,13 +992,13 @@ const DeptTile = ({ dept, data, team, idx, onOpen, onOpenMember, onNavigate }) =
             {items.length > 1 && <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
                 onClick={(e) => { e.stopPropagation(); setCycleIdx(i => (i - 1 + items.length) % items.length); setPausedAt(Date.now()); }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: 0, lineHeight: 1 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.sm, padding: 0, lineHeight: 1 }}
                 aria-label="Previous"
               >‹</button>
               <span style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>{cycleIdx + 1} / {items.length}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); setCycleIdx(i => (i + 1) % items.length); setPausedAt(Date.now()); }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 12, padding: 0, lineHeight: 1 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: FS.sm, padding: 0, lineHeight: 1 }}
                 aria-label="Next"
               >›</button>
             </div>}
@@ -1076,7 +1076,7 @@ const TeamChip = ({ member, onClick }) => {
         width: 44, height: 44, borderRadius: "50%",
         background: `hsl(${hue}, 40%, 38%)`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 14, fontWeight: FW.black, color: INV.light || "#fff",
+        fontSize: FS.md, fontWeight: FW.black, color: INV.light || "#fff",
         border: isRightHand ? `2px solid ${ACCENT.amber || "#F59E0B"}` : "none",
       }}>{ini(member.name)}</div>
       <div style={{
@@ -1188,7 +1188,7 @@ const ActivityPill = ({ emoji, text, color, fresh, anchor }) => (
         ? "calmDrift 4s ease-in-out infinite"
         : undefined,
   }}>
-    <span style={{ fontSize: 13 }}>{emoji}</span>
+    <span style={{ fontSize: FS.base }}>{emoji}</span>
     <span style={{
       fontSize: FS.xs,
       fontWeight: FW.bold,
@@ -1443,7 +1443,7 @@ const DeptAvatarStack = ({ members, onOpenMember }) => {
           width: 26, height: 26, borderRadius: "50%",
           background: `hsl(${hue}, 40%, 38%)`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 10, fontWeight: FW.black, color: INV.light || "#fff",
+          fontSize: FS.micro, fontWeight: FW.black, color: INV.light || "#fff",
           border: `2px solid ${isRightHand ? (ACCENT.amber || "#F59E0B") : ring}`,
           marginLeft: i === 0 ? 0 : -9,
           zIndex: members.length - i,
@@ -1484,7 +1484,7 @@ const DrillMember = ({ member, onOpen }) => {
       width: 46, height: 46, borderRadius: "50%",
       background: `hsl(${hue}, 40%, 38%)`,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 14, fontWeight: FW.black, color: INV.light || "#fff",
+      fontSize: FS.md, fontWeight: FW.black, color: INV.light || "#fff",
       border: isRightHand ? `2px solid ${amber}` : "none",
       boxShadow: isRightHand ? `0 0 0 1px ${amber}30, 0 4px 14px ${amber}20` : "0 2px 8px rgba(0,0,0,0.2)",
     }}>{ini(member.name)}</div>
@@ -1625,7 +1625,7 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <div>
         <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{dateStr}</div>
-        <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>Good morning, {firstName}</div>
+        <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4 }}>Good morning, {firstName}</div>
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <Btn sm v="secondary" onClick={copy}>Copy text</Btn>
@@ -1696,7 +1696,7 @@ const BriefingContent = ({ firstName, feed, perfData, stories, subscribers, onCl
           borderTop: `2px solid ${s.color}`,
         }}>
           <div style={{ fontSize: 9, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND }}>{s.label}</div>
-          <div style={{ fontSize: 22, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4, letterSpacing: -0.5 }}>{s.value}</div>
+          <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY, marginTop: 4, letterSpacing: -0.5 }}>{s.value}</div>
           {s.sub && <div style={{ fontSize: FS.micro, color: s.color, fontWeight: FW.bold, marginTop: 2 }}>{s.sub}</div>}
         </div>
       ))}

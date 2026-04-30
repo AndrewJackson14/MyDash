@@ -204,7 +204,7 @@ export default function SupportAdminJournal() {
           </>
         )}
 
-        <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, padding: "8px 4px" }}>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, padding: "8px 4px" }}>
           Private to you. Hayley and other admins do not have read access.
           One row per day; auto-saves as you type.
         </div>
@@ -223,7 +223,7 @@ function Prompt({ label, hint, value, onChange, disabled, minRows = 3 }) {
         fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td,
         textTransform: "uppercase", letterSpacing: 1, fontFamily: COND,
       }}>{label}</div>
-      <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{hint}</div>
+      <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginBottom: 4 }}>{hint}</div>
       <textarea
         value={value}
         onChange={e => onChange(e.target.value)}

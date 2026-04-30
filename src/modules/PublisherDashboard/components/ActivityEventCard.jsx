@@ -30,7 +30,7 @@ export default function ActivityEventCard({ row, ctx }) {
           </>
         ) : fmt.headline}
       </div>
-      <div style={{ fontSize: 11, color: Z.tm, fontFamily: COND, display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, display: "flex", gap: 8, alignItems: "center" }}>
         <span>{fmtTime(row.created_at || row.occurred_at)}</span>
         {fmt.detail && <span style={{ opacity: 0.7 }}>•</span>}
         {fmt.detail && <span>{fmt.detail}</span>}
