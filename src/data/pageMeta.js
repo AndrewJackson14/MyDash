@@ -56,6 +56,7 @@ export const PAGE_META = {
   emailtemplates:   { label: "Email Templates",   department: "ADMIN" },
   integrations:     { label: "Integrations",      department: "ADMIN" },
   dataimport:       { label: "Data Import",       department: "ADMIN" },
+  targets:          { label: "Activity Targets",  department: "ADMIN" },
 
   // Detail / context routes
   "team-member":    { label: "Team Member",       department: "ADMIN" },

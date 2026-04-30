@@ -44,6 +44,7 @@ const PublisherDashboard = lazyLoad(() => import("./modules/PublisherDashboard")
 const RoleDashboard = lazyLoad(() => import("./components/RoleDashboard"));
 const RoleActivityStrip = lazy(() => import("./components/activity-log/RoleActivityStrip"));
 const SupportAdminJournal = lazyLoad(() => import("./modules/SupportAdminJournal"));
+const ActivityTargetsAdmin = lazyLoad(() => import("./modules/ActivityTargetsAdmin"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
 const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
@@ -614,6 +615,11 @@ export default function App() {
       const r = currentUser?.role;
       return r === "Editor" || r === "Editor-in-Chief";
     }
+    // Activity targets admin — Publisher only. RLS on the table also
+    // gates writes; this just hides the nav entry from non-publishers.
+    if (navId === "targets") {
+      return currentUser?.role === "Publisher";
+    }
     return userModules.includes(navId);
   };
 
@@ -657,6 +663,7 @@ export default function App() {
     { id: "emailtemplates", label: "Email Templates", icon: Ic.template },
     { id: "integrations", label: "Integrations", icon: Ic.puzzle },
     { id: "dataimport", label: "Data Import", icon: Ic.up },
+    { id: "targets", label: "Activity Targets", icon: Ic.activity },
     // Dev surfaces — only show in DEV builds. Phase 3 of the UI refresh
     // adds the typography route; future phases may add color-, motion-,
     // or component-showcase surfaces under the same section.
@@ -866,6 +873,7 @@ export default function App() {
         {show("emailtemplates") && <div style={vis("emailtemplates")}><ErrorBoundary name="page:emailtemplates"><EmailTemplates isActive={pg === "emailtemplates"} pubs={pubs} currentUser={currentUser} /></ErrorBoundary></div>}
         {show("integrations") && <div style={vis("integrations")}><ErrorBoundary name="page:integrations"><IntegrationsPage isActive={pg === "integrations"} pubs={pubs} /></ErrorBoundary></div>}
         {show("dataimport") && <div style={vis("dataimport")}><ErrorBoundary name="page:dataimport"><DataImport isActive={pg === "dataimport"} onClose={() => handleNav("integrations")} /></ErrorBoundary></div>}
+        {show("targets") && <div style={vis("targets")}><ErrorBoundary name="page:targets"><ActivityTargetsAdmin /></ErrorBoundary></div>}
         {show("dev-typography") && <div style={vis("dev-typography")}><ErrorBoundary name="page:dev-typography"><DevTypography /></ErrorBoundary></div>}
         {show("permissions") && <div style={vis("permissions")}><ErrorBoundary name="page:permissions"><Permissions team={team} updateTeamMember={appData.updateTeamMember} /></ErrorBoundary></div>}
         {show("team") && <div style={vis("team")}><ErrorBoundary name="page:team"><TeamModule isActive={pg === "team"} team={team} setTeam={setTeam} sales={jSales} stories={jStories} tickets={tickets} subscribers={subscribers} legalNotices={legalNotices} creativeJobs={jJobs} pubs={pubs} clients={jClients} updateTeamMember={appData.updateTeamMember} deleteTeamMember={appData.deleteTeamMember} onOpenMemberProfile={openTeamMemberProfile} /></ErrorBoundary></div>}
