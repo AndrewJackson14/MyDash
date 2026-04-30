@@ -27,6 +27,11 @@ export default function SectionCard({
         flexDirection: "column",
         gap: 10,
         minHeight: 0,
+        // minWidth: 0 lets this card shrink inside CSS Grid columns
+        // even when its content has a wider min-content (auto-fit
+        // grids, long unbroken text). Without it, the column expands
+        // past its `fr` share and squeezes its sibling.
+        minWidth: 0,
         boxShadow: "var(--card-highlight, none)",
         ...style,
       }}

@@ -39,8 +39,10 @@ export default function IssueCard({
     <div
       onClick={onClick}
       style={{
-        background: Z.sa,
-        border: `1px solid ${Z.bd}`,
+        // Match the Month at a Glance tile pattern: dark canvas tone
+        // sits inside the lighter SectionCard chrome. Left border is
+        // load-bearing (pacing-status color); no surrounding border.
+        background: Z.bg,
         borderLeft: `3px solid ${accent}`,
         borderRadius: R,
         padding: "14px 16px",
@@ -48,7 +50,6 @@ export default function IssueCard({
         display: "flex",
         flexDirection: "column",
         gap: 6,
-        boxShadow: "var(--card-highlight, none)",
       }}
     >
       {/* Header row: pub abbrev + press date | days-to-press pill */}

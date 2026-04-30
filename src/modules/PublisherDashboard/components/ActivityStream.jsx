@@ -46,9 +46,12 @@ export default function ActivityStream({
         position: "sticky",
         top: 0,
         alignSelf: "start",
+        width: "100%",
+        minWidth: 0,
+        minHeight: 280,
         maxHeight: "calc(100vh - 80px)",
         display: "flex",
-        minHeight: 0,
+        flexDirection: "column",
       }}
     >
       <SectionCard
