@@ -37,6 +37,7 @@ export default function Sidebar({
   setImpersonating,
   showSwitcher,
   setShowSwitcher,
+  onSignOut,
 }) {
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(() => {
@@ -237,6 +238,19 @@ export default function Sidebar({
                   fontSize: 14, padding: 2,
                 }}
               >⚙</button>
+            )}
+            {expanded && onSignOut && (
+              <button
+                onClick={e => { e.stopPropagation(); onSignOut(); }}
+                title="Sign out"
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--muted)", padding: 2,
+                  display: "flex", alignItems: "center",
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = "var(--ink)"}
+                onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}
+              ><Ic.logout size={14} /></button>
             )}
           </div>
 

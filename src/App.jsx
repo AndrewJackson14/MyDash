@@ -203,7 +203,7 @@ export default function App() {
   }
 
   const appData = useAppData();
-  const { teamMember: realUser } = useAuth();
+  const { teamMember: realUser, signOut } = useAuth();
   
   // Admin impersonation
   const [impersonating, setImpersonating] = useState(null);
@@ -801,6 +801,7 @@ export default function App() {
         setImpersonating={setImpersonating}
         showSwitcher={showSwitcher}
         setShowSwitcher={setShowSwitcher}
+        onSignOut={signOut}
       />
     </ErrorBoundary>
 
