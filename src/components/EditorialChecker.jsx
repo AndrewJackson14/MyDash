@@ -31,7 +31,7 @@
 // the action / picker / panel modals. The parent doesn't manage
 // state for it.
 // ============================================================
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Z, COND, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, Modal } from "./ui";
 import { supabase } from "../lib/supabase";
@@ -161,16 +161,16 @@ export default function EditorialChecker({
     }
   };
 
-  const runGenerate = async ({ sourceStoryId, updatesText }) => {
+  const runGenerate = async ({ updatesText }) => {
     setGenLoading(true);
     setGenError(null);
     setGenResult(null);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("editorial_generate", {
         body: {
-          story_id:        story.id,
-          source_story_id: sourceStoryId,
-          updates_text:    updatesText,
+          story_id:     story.id,
+          source_body:  bodyHtml || "",
+          updates_text: updatesText,
         },
       });
       if (fnErr) throw new Error(fnErr.message || "editorial_generate failed");
@@ -206,6 +206,7 @@ export default function EditorialChecker({
         <ActionPickerModal
           canGenerate={canGenerate}
           checkDisabled={!bodyHtml || !bodyHtml.trim()}
+          generateDisabled={!bodyHtml || !bodyHtml.trim()}
           onCheck={() => { setActionOpen(false); setPickerOpen(true); }}
           onGenerate={() => { setActionOpen(false); setGenerateOpen(true); }}
           onCancel={() => setActionOpen(false)}
@@ -235,8 +236,6 @@ export default function EditorialChecker({
 
       {generateOpen && (
         <GenerateModal
-          pubId={pubId}
-          excludeStoryId={story.id}
           loading={genLoading}
           error={genError}
           result={genResult}
@@ -251,7 +250,7 @@ export default function EditorialChecker({
 
 // ── Action picker (Check vs Generate) ──────────────────────
 
-function ActionPickerModal({ canGenerate, checkDisabled, onCheck, onGenerate, onCancel }) {
+function ActionPickerModal({ canGenerate, checkDisabled, generateDisabled, onCheck, onGenerate, onCancel }) {
   return (
     <Modal open onClose={onCancel} title="Editorial Agent">
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -266,8 +265,10 @@ function ActionPickerModal({ canGenerate, checkDisabled, onCheck, onGenerate, on
         {canGenerate && (
           <ActionRow
             icon="↻"
-            title="Generate from past story"
-            hint="Revise a previously published story with new dates, quotes, names"
+            title="Generate revision"
+            hint="Revise the current body with new dates, quotes, names"
+            disabled={generateDisabled}
+            disabledHint="Paste the source story into the body first"
             onClick={onGenerate}
           />
         )}
@@ -310,112 +311,39 @@ function ActionRow({ icon, title, hint, disabled, disabledHint, onClick }) {
 
 // ── Generate modal ─────────────────────────────────────────
 //
-// Three states: pick a source story → enter updates → review result.
-// We keep all three in one modal so the user has a clear back path
-// without losing context.
+// Two states in one modal: enter updates → review revised body. The
+// source body comes from whatever is currently in the editor — the
+// user pastes the previous story's text into the editor before
+// triggering this flow. No source picker needed.
 
-function GenerateModal({ pubId, excludeStoryId, loading, error, result, onRun, onAccept, onCancel }) {
-  const [source, setSource]           = useState(null);     // selected source story
+function GenerateModal({ loading, error, result, onRun, onAccept, onCancel }) {
   const [updatesText, setUpdatesText] = useState("");
-  const [stage, setStage]             = useState("pick");   // "pick" | "input" | "review"
-  const [stories, setStories]         = useState([]);
-  const [storiesLoading, setStoriesLoading] = useState(true);
-  const [query, setQuery]             = useState("");
 
-  // Load candidate source stories: published, same pub, recent first.
-  // Stories.publication_id is text; we limit to 100 most recent so the
-  // picker stays light. Search is client-side title contains.
-  useEffect(() => {
-    if (!pubId) { setStoriesLoading(false); return; }
-    let cancelled = false;
-    setStoriesLoading(true);
-    supabase.from("stories")
-      .select("id, title, published_at, author")
-      .eq("publication_id", pubId)
-      .neq("id", excludeStoryId || "00000000-0000-0000-0000-000000000000")
-      .not("body", "is", null)
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(100)
-      .then(({ data }) => {
-        if (cancelled) return;
-        setStories(data || []);
-        setStoriesLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [pubId, excludeStoryId]);
-
-  // When the API completes, advance to review.
-  useEffect(() => {
-    if (result && stage === "input") setStage("review");
-  }, [result, stage]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return stories;
-    return stories.filter(s => (s.title || "").toLowerCase().includes(q));
-  }, [stories, query]);
-
-  const canRun = stage === "input" && updatesText.trim().length > 0 && source && !loading;
+  const stage = result ? "review" : "input";
+  const canRun = updatesText.trim().length > 0 && !loading;
 
   return (
     <Modal
       open
       onClose={onCancel}
-      title={
-        stage === "pick"   ? "Pick a source story" :
-        stage === "input"  ? "Add the new facts" :
-                             "Review revised body"
-      }
+      title={stage === "input" ? "Add the new facts" : "Review revised body"}
       width={stage === "review" ? 720 : 560}
       actions={
-        <>
-          {stage === "pick" && (
-            <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
-          )}
-          {stage === "input" && (
-            <>
-              <Btn v="ghost" onClick={() => { setStage("pick"); }}>← Back</Btn>
+        stage === "input"
+          ? <>
               <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
-              <Btn onClick={() => onRun({ sourceStoryId: source.id, updatesText: updatesText.trim() })} disabled={!canRun}>
+              <Btn onClick={() => onRun({ updatesText: updatesText.trim() })} disabled={!canRun}>
                 {loading ? "Generating…" : "Generate revision"}
               </Btn>
             </>
-          )}
-          {stage === "review" && (
-            <>
+          : <>
               <Btn v="ghost" onClick={onCancel}>Discard</Btn>
               <Btn onClick={onAccept}>Accept &amp; replace body</Btn>
             </>
-          )}
-        </>
       }
     >
-      {stage === "pick" && (
-        <SourceStoryPickList
-          loading={storiesLoading}
-          stories={filtered}
-          query={query}
-          onQuery={setQuery}
-          onPick={(s) => { setSource(s); setStage("input"); }}
-          totalLoaded={stories.length}
-        />
-      )}
-
       {stage === "input" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{
-            padding: "8px 12px", borderRadius: Ri, background: Z.sa,
-            border: `1px solid ${Z.bd}`,
-          }}>
-            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Source story</div>
-            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{source?.title}</div>
-            {source?.published_at && (
-              <div style={{ fontSize: FS.xs, color: Z.tm }}>
-                Published {new Date(source.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                {source?.author && ` · ${source.author}`}
-              </div>
-            )}
-          </div>
           <div>
             <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, fontFamily: COND, display: "block", marginBottom: 4 }}>
               What's changed for this revision
@@ -441,7 +369,7 @@ function GenerateModal({ pubId, excludeStoryId, loading, error, result, onRun, o
               }}
             />
             <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4, fontFamily: COND }}>
-              Freeform — list dates, times, quotes, names, locations. The agent parses and folds them into the source structure.
+              Freeform — list dates, times, quotes, names, locations. The agent revises the current body in place, preserving its structure and voice.
             </div>
           </div>
           {error && (
@@ -453,80 +381,22 @@ function GenerateModal({ pubId, excludeStoryId, loading, error, result, onRun, o
       )}
 
       {stage === "review" && result && (
-        <GenerateReview result={result} sourceTitle={source?.title} />
+        <GenerateReview result={result} />
       )}
     </Modal>
   );
 }
 
-function SourceStoryPickList({ loading, stories, query, onQuery, onPick, totalLoaded }) {
+function GenerateReview({ result }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <input
-        autoFocus
-        type="text"
-        value={query}
-        onChange={e => onQuery(e.target.value)}
-        placeholder="Search by title…"
-        style={{
-          padding: "8px 12px", borderRadius: Ri,
-          background: Z.bg, color: Z.tx,
-          border: `1px solid ${Z.bd}`,
-          fontSize: FS.sm, outline: "none",
-          fontFamily: "inherit",
-        }}
-      />
-      <div style={{
-        maxHeight: 360, overflowY: "auto",
-        border: `1px solid ${Z.bd}`, borderRadius: Ri,
-        background: Z.bg,
-      }}>
-        {loading && (
-          <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading recent stories…</div>
-        )}
-        {!loading && stories.length === 0 && (
-          <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
-            {totalLoaded === 0 ? "No published stories from this publication yet." : "No matches."}
+      {(result.voice_profile_used === "named" || result.voice_profile_used === "default") && (
+        <div style={{ padding: "6px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+          <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+            {result.voice_profile_used === "named" ? "Author voice profile applied" : "Default voice guidance applied"}
           </div>
-        )}
-        {!loading && stories.map(s => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onPick(s)}
-            style={{
-              display: "block", width: "100%", textAlign: "left",
-              padding: "10px 12px", border: "none", borderBottom: `1px solid ${Z.bd}`,
-              background: "transparent", cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = Z.sa}
-            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-          >
-            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, marginBottom: 2 }}>
-              {s.title || "(Untitled)"}
-            </div>
-            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-              {s.published_at ? new Date(s.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unpublished"}
-              {s.author && ` · ${s.author}`}
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function GenerateReview({ result, sourceTitle }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ padding: "6px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
-        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-          Revised from <strong style={{ color: Z.tx }}>{sourceTitle || result.source_title}</strong>
-          {result.voice_profile_used === "named" && " · author voice profile applied"}
-          {result.voice_profile_used === "default" && " · default voice"}
         </div>
-      </div>
+      )}
       <div
         style={{
           maxHeight: 480, overflowY: "auto",
@@ -538,7 +408,7 @@ function GenerateReview({ result, sourceTitle }) {
         dangerouslySetInnerHTML={{ __html: result.revised_html }}
       />
       <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
-        Accepting will replace the current story body. The next autosave (≈2s after acceptance) writes it to the database.
+        Accepting will replace the current story body. The next autosave (≈100ms after acceptance) writes it to the database.
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
 // ============================================================
 // editorial_generate — Story Update Agent
 //
-// Takes a previous story (e.g. last year's Colony Days press release)
-// plus a freeform "what's new" note (dates, quotes, names) and returns
-// a revised HTML body that preserves the source's structure and voice
-// while folding in the new facts.
+// Takes the story body the user has pasted into the editor (e.g.
+// last year's Colony Days press release) plus a freeform "what's
+// new" note (dates, quotes, names) and returns a revised HTML body
+// that preserves the source's structure and voice while folding in
+// the new facts. The source body comes from the editor directly —
+// no DB lookup; the user pastes whatever they want to revise.
 //
 // Architecture: direct Edge Function → Anthropic Claude (Path B). The
 // editorial_check function proxies to a Mac Mini FastAPI; this one
@@ -16,10 +18,10 @@
 //   StoryEditor → POST /functions/v1/editorial_generate (with user JWT)
 //   editorial_generate
 //     → verify Bearer JWT (authenticated user only)
-//     → load source story body + author from DB (service role)
+//     → look up current story's author from DB to resolve voice
 //     → fetch author voice profile from GitHub raw if available
-//     → call Anthropic claude-sonnet-4-6 with structured prompt
-//     → return { revised_html, source_title, source_published_at }
+//     → call Anthropic claude-sonnet-4-6 with the source HTML + updates
+//     → return { revised_html, voice_profile_used }
 //
 // Env vars (set via `supabase secrets set`):
 //   ANTHROPIC_API_KEY         required
@@ -130,37 +132,30 @@ async function fetchVoiceProfile(slug: string): Promise<string> {
 
 // ── Prompt construction ─────────────────────────────────────
 function buildPrompt(opts: {
-  sourceTitle: string;
   sourceBodyHtml: string;
-  sourcePublishedAt: string | null;
   updatesText: string;
   authorName: string;
   voiceProfile: string;
   hasNamedVoice: boolean;
 }): string {
-  const {
-    sourceTitle, sourceBodyHtml, sourcePublishedAt,
-    updatesText, authorName, voiceProfile, hasNamedVoice,
-  } = opts;
+  const { sourceBodyHtml, updatesText, authorName, voiceProfile, hasNamedVoice } = opts;
 
   const voiceBlock = hasNamedVoice && voiceProfile
     ? `\n## VOICE PROFILE — ${authorName}\n\n${voiceProfile}\n\nWrite in this author's voice. Match cadence, vocabulary, and structural habits.`
     : voiceProfile
-      ? `\n## DEFAULT VOICE GUIDANCE\n\n${voiceProfile}\n\nMatch the tone of the source story above. Don't impose a personality the source doesn't already have.`
-      : `\nMatch the tone of the source story above. Don't impose a personality the source doesn't already have.`;
+      ? `\n## DEFAULT VOICE GUIDANCE\n\n${voiceProfile}\n\nMatch the tone of the source body above. Don't impose a personality the source doesn't already have.`
+      : `\nMatch the tone of the source body above. Don't impose a personality the source doesn't already have.`;
 
   return `You are a newsroom editor revising a previously published story for a new event cycle.
 
 ## YOUR TASK
 
-Take the source story below and produce an updated version that folds in the new facts. Keep the same structure, lede style, paragraph rhythm, and section ordering as the source. Update only what the new facts require: dates, times, names, quotes, year references, locations, and any factual details the new info contradicts.
+Take the source body below and produce an updated version that folds in the new facts. Keep the same structure, lede style, paragraph rhythm, and section ordering as the source. Update only what the new facts require: dates, times, names, quotes, year references, locations, and any factual details the new info contradicts.
 
 Output **HTML only** — no markdown, no preamble, no explanatory commentary. Use the same HTML element vocabulary as the source (typically <p>, <h2>, <h3>, <em>, <strong>, <a>, <ul>, <ol>, <li>). If the source has a pull quote or callout structure, preserve it.
 
-## SOURCE STORY
+## SOURCE BODY
 
-**Title:** ${sourceTitle}
-${sourcePublishedAt ? `**Published:** ${sourcePublishedAt}\n` : ""}
 \`\`\`html
 ${sourceBodyHtml}
 \`\`\`
@@ -257,8 +252,11 @@ Deno.serve(async (req: Request) => {
   if (!body?.story_id || typeof body.story_id !== "string") {
     return json({ error: "story_id_required" }, 400, cors);
   }
-  if (!body?.source_story_id || typeof body.source_story_id !== "string") {
-    return json({ error: "source_story_id_required" }, 400, cors);
+  if (typeof body.source_body !== "string" || body.source_body.trim().length < 50) {
+    return json({ error: "source_body_required", detail: "Source body must be at least 50 characters." }, 400, cors);
+  }
+  if (body.source_body.length > 100_000) {
+    return json({ error: "source_body_too_long", max: 100_000 }, 400, cors);
   }
   if (typeof body.updates_text !== "string" || body.updates_text.trim().length === 0) {
     return json({ error: "updates_text_required" }, 400, cors);
@@ -288,40 +286,17 @@ Deno.serve(async (req: Request) => {
     return json({ error: "permission_denied", role: viewerRole }, 403, cors);
   }
 
-  // ── Load source story ──
-  let source: any;
-  try {
-    const rows = await sbSelect("stories", `id=eq.${body.source_story_id}&select=id,title,body,published_at,author,author_id`);
-    if (rows.length === 0) {
-      return json({ error: "source_not_found" }, 404, cors);
-    }
-    source = rows[0];
-  } catch (e: any) {
-    return json({ error: "source_load_failed", detail: e?.message }, 500, cors);
-  }
-
-  if (!source.body || typeof source.body !== "string" || source.body.trim().length < 50) {
-    return json({ error: "source_body_empty" }, 400, cors);
-  }
-
-  // ── Resolve author voice profile ──
-  // Look at the CURRENT (target) story's author_id first, falling back
-  // to the source story's author. The current author owns the new piece;
-  // their voice is what we want to match if they have a profile.
+  // ── Resolve author voice profile from current story's author ──
   let voiceProfile = "";
   let hasNamedVoice = false;
   let authorName = "";
   try {
-    let targetAuthorId: string | null = null;
     const targetRows = await sbSelect("stories", `id=eq.${body.story_id}&select=author_id,author`);
-    if (targetRows.length > 0) {
-      targetAuthorId = targetRows[0].author_id || null;
-      authorName = targetRows[0].author || "";
-    }
-    const authorIdToUse = targetAuthorId || source.author_id;
+    const targetAuthorId = targetRows[0]?.author_id || null;
+    authorName = targetRows[0]?.author || "";
 
-    if (authorIdToUse) {
-      const people = await sbSelect("people", `id=eq.${authorIdToUse}&select=display_name,slug,labels,status`);
+    if (targetAuthorId) {
+      const people = await sbSelect("people", `id=eq.${targetAuthorId}&select=display_name,slug,labels,status`);
       if (people.length > 0) {
         const p = people[0];
         if (!authorName) authorName = p.display_name || "";
@@ -343,11 +318,9 @@ Deno.serve(async (req: Request) => {
 
   // ── Build prompt + call Claude ──
   const prompt = buildPrompt({
-    sourceTitle:       source.title || "Untitled",
-    sourceBodyHtml:    source.body,
-    sourcePublishedAt: source.published_at || null,
-    updatesText:       body.updates_text.trim(),
-    authorName:        authorName || "the author",
+    sourceBodyHtml: body.source_body,
+    updatesText:    body.updates_text.trim(),
+    authorName:     authorName || "the author",
     voiceProfile,
     hasNamedVoice,
   });
@@ -367,9 +340,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return json({
-    revised_html:        revisedHtml,
-    source_title:        source.title,
-    source_published_at: source.published_at,
-    voice_profile_used:  hasNamedVoice ? "named" : (voiceProfile ? "default" : "none"),
+    revised_html:       revisedHtml,
+    voice_profile_used: hasNamedVoice ? "named" : (voiceProfile ? "default" : "none"),
   }, 200, cors);
 });
