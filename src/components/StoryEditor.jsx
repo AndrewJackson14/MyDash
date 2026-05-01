@@ -1038,6 +1038,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               bodyHtml={editor?.getHTML() || fullContent?.body || ""}
               pubId={(Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || ""}
               onSetTitle={(t) => { setMeta(m => ({ ...m, title: t })); saveMeta("title", t); }}
+              viewerId={currentUser?.id}
               viewerRole={currentUser?.role}
               viewerIsAdmin={!!(currentUser?.permissions?.includes?.("admin"))}
               onApplyGeneratedBody={(html) => {

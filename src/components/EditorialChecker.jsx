@@ -96,7 +96,7 @@ const ALL_SKILL_SLUGS = SKILLS.map(s => s.slug);
 
 export default function EditorialChecker({
   story, bodyHtml, pubId, onSetTitle,
-  viewerRole, viewerIsAdmin, onApplyGeneratedBody,
+  viewerId, viewerRole, viewerIsAdmin, onApplyGeneratedBody,
 }) {
   const [actionOpen, setActionOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -111,6 +111,10 @@ export default function EditorialChecker({
   const [genResult, setGenResult]       = useState(null); // { revised_html, source_title, source_published_at, voice_profile_used }
   const [genError, setGenError]         = useState(null);
   const [genLoading, setGenLoading]     = useState(false);
+  // Captured at runGenerate so the audit row can record updates_text
+  // length without holding the textarea content past the submit (the
+  // textarea state lives inside GenerateModal and resets on close).
+  const [lastUpdatesText, setLastUpdatesText] = useState("");
 
   const canGenerate = !!viewerIsAdmin || GENERATE_ROLES.has(viewerRole);
 
@@ -165,9 +169,11 @@ export default function EditorialChecker({
     setGenLoading(true);
     setGenError(null);
     setGenResult(null);
+    setLastUpdatesText(updatesText);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("editorial_generate", {
         body: {
+          mode:         "in_place",
           story_id:     story.id,
           source_body:  bodyHtml || "",
           updates_text: updatesText,
@@ -183,11 +189,45 @@ export default function EditorialChecker({
     }
   };
 
-  const acceptGenerated = () => {
+  const acceptGenerated = async () => {
     if (!genResult?.revised_html || !onApplyGeneratedBody) return;
+
+    // Apply revised body to editor first — audit log write is best-
+    // effort and shouldn't block the user's accept action.
     onApplyGeneratedBody(genResult.revised_html);
+
+    // Audit row. activity_log.actor_id FKs people(id), so we use
+    // the people row id (currentUser.id), not auth.uid(). For in-
+    // place mode, source_story_id === target story id by design.
+    try {
+      await supabase.from("activity_log").insert({
+        type:           "editorial_generate",
+        actor_id:       viewerId || null,
+        entity_table:   "stories",
+        entity_id:      story.id,
+        detail:         `Editorial Generate (in-place) — ${story.title || "untitled"}`,
+        event_category: "outcome",
+        event_source:   "mydash",
+        visibility:     "team",
+        metadata: {
+          mode:                "in_place",
+          source_story_id:     story.id,
+          source_story_title:  story.title || "(untitled)",
+          voice_profile_used:  genResult.voice_profile_used,
+          voice_profile_slug:  genResult.voice_profile_slug || null,
+          updates_text_length: lastUpdatesText.length,
+          revised_html_length: genResult.revised_html.length,
+          model:               genResult.model || "claude-sonnet-4-6",
+        },
+      });
+    } catch (e) {
+      // Non-fatal — generation already applied to the editor.
+      console.error("[editorial_generate] audit log write failed:", e);
+    }
+
     setGenResult(null);
     setGenerateOpen(false);
+    setLastUpdatesText("");
   };
 
   return (
