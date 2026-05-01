@@ -18,46 +18,35 @@ MyHelper and Press Processor. Pattern follows the same shape:
 editorial-assistant/
 ├── server.py                              FastAPI entrypoint, port 8765
 ├── skills/
-│   └── __init__.py                        skill registry (empty in Phase B)
-├── requirements.txt                       Python deps (Phase B subset)
+│   ├── __init__.py                        skill registry
+│   ├── ap_style.py        / ap_style.SKILL.md
+│   ├── voice_match.py     / voice_match.SKILL.md
+│   ├── headline.py        / headline.SKILL.md
+│   └── attribution.py     / attribution.SKILL.md
+├── requirements.txt                       Python deps
 ├── .env.example                           template — copy to .env, fill in
 ├── station.wednesday.editorial.plist      LaunchAgent
 └── README.md                              this file
 ```
 
-Phase C will add:
-
-```
-skills/
-├── ap_style.py
-├── ap_style.SKILL.md
-├── voice_match.py
-├── voice_match.SKILL.md
-├── headline.py
-├── headline.SKILL.md
-├── attribution.py
-└── attribution.SKILL.md
-```
-
-Dependencies: `agent-station/shared/voice_kb.py` ships in this PR.
-Phase C will also pull `agent-station/shared/gemini.py` (already
-written by the press-processor work).
+Shared modules pulled from `agent-station/shared/`:
+- `voice_kb.py` — voice profile resolver (this PR's siblings shipped it)
+- `gemini.py` — Gemini API client (already in place from press-processor)
 
 ---
 
-## Phase B status (this PR)
+## Status
 
-- ✅ Folder structure
-- ✅ `agent-station/shared/voice_kb.py` — GitHub raw fetch + 1-hour
-  TTL + stale-on-error fallback. Mirrors `role_kb.py`.
-- ✅ `server.py` skeleton with `/health`. `/check` route registered
-  but returns 501 with the resolved voice profile so the Edge
-  Function side can iterate against a stable shape before Phase C.
-- ✅ LaunchAgent plist
-- ✅ `.env.example`
-- ✅ `requirements.txt` (FastAPI + voice_kb deps only — Gemini lands
-  in Phase C)
+- ✅ **Phase B** — folder + voice_kb + /health + plist + configs
+- ✅ **Phase C** — four skills (ap_style, voice_match, headline,
+  attribution) + parallel orchestrator in /check + skill registry
+- ⬜ **Phase D** — Supabase Edge Function `editorial_check` bridge
+- ⬜ **Phase E** — StoryEditor "Check Editorial" button + side panel
+- ⬜ **Phase F** — Press Processor decommissioning
 - ⬜ Mac Mini deployment + smoke test (manual — see below)
+
+Skills consume Gemini via `agent-station/shared/gemini.py`. Set
+`GEMINI_API_KEY` in `.env` before booting in production.
 
 ---
 
@@ -111,13 +100,16 @@ node.
 
 ---
 
-## Phase B smoke-test surface
+## Smoke-test surface
 
 ```bash
 # Health
 curl -s http://127.0.0.1:8765/health | jq
+# → status:ok, skills:["ap_style","attribution","headline","voice_match"],
+#   profiles_loaded:["_default","camille-devaul"],
+#   profiles_failed:["hayley-mattson","nic-mattson"]  (until interviews land)
 
-# /check returns 501 in Phase B but the voice resolver works.
+# Single-skill run
 curl -s -X POST http://127.0.0.1:8765/check \
   -H 'Content-Type: application/json' \
   -H "X-Mydash-Token: $MYDASH_TOKEN" \
@@ -127,7 +119,18 @@ curl -s -X POST http://127.0.0.1:8765/check \
     "story_meta": { "author": "Camille DeVaul", "category": "news" },
     "skills": ["ap_style"]
   }' | jq
-# → 501 with detail.voice_used == "Camille DeVaul"
+
+# Full four-skill run
+curl -s -X POST http://127.0.0.1:8765/check \
+  -H 'Content-Type: application/json' \
+  -H "X-Mydash-Token: $MYDASH_TOKEN" \
+  -d '{
+    "story_id": "00000000-0000-0000-0000-000000000000",
+    "body": "<full story body here>",
+    "story_meta": { "author": "Camille DeVaul", "category": "news" },
+    "skills": ["ap_style","voice_match","headline","attribution"]
+  }' | jq
+# → results.voice_match.voice_used == "Camille DeVaul"
 ```
 
 `shared/voice_kb.py` self-test (run from anywhere with Python 3.7+
@@ -140,10 +143,8 @@ python3 agent-station/shared/voice_kb.py "Camille DeVaul and Hayley Mattson"
 
 ---
 
-## What's next (not in this PR)
+## What's next
 
-- **Phase C** — four skills land in `skills/`. `/check` becomes real.
-  Each skill ≤ 300 lines including its prompt.
 - **Phase D** — Supabase Edge Function `editorial_check` forwards to
   this server with JWT verification.
 - **Phase E** — StoryEditor "Check Editorial" button + side panel.

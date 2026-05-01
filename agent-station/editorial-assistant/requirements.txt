@@ -1,7 +1,9 @@
 # Editorial Assistant — Python deps.
 #
-# Phase B: just enough to boot the FastAPI server and resolve voice
-# profiles. Phase C will add google-genai when skills land.
+# Phase B/C: FastAPI server + voice profile resolver + four skills
+# that call Gemini via agent-station/shared/gemini.py (which uses
+# `requests` directly — no SDK needed). If we later move to
+# google-generativeai, add it here.
 
 fastapi>=0.110
 uvicorn[standard]>=0.27
