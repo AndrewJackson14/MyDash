@@ -6,7 +6,7 @@ import FuzzyPicker from "../components/FuzzyPicker";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail } from "../lib/gmail";
 import { generatePdf } from "../lib/pdf";
-import { supabase } from "../lib/supabase";
+import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import { generateContractHtml } from "../lib/contractTemplate";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { fmtTimeRelative } from "../lib/formatters";
@@ -930,6 +930,21 @@ const SalesCRM = (props) => {
             const reason = await dialog.prompt("Decline this self-serve submission. Reason (visible to advertiser):");
             if (reason == null) return;
             await updateProposal(p.id, { status: "Declined", notes: reason || "" });
+            // Fire the decline email via edge function. Failures are non-blocking;
+            // the status change has already saved.
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const tok = session?.access_token;
+              if (tok) {
+                await fetch(`${EDGE_FN_URL}/self-serve-decline-email`, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ proposal_id: p.id }),
+                });
+              }
+            } catch (err) {
+              console.warn("[decline-email] send failed:", err);
+            }
             setViewPropId(null);
           }} style={{ color: Z.da }}>Decline</Btn>
         </>}
