@@ -13,6 +13,7 @@ const StoryEditor = lazy(() => import("./StoryEditor"));
 const EditionManager = lazy(() => import("../pages/EditionManager"));
 const Flatplan = lazy(() => import("../pages/Flatplan"));
 import EntityThread from "./EntityThread";
+import RegenerateAsNewDraftButton from "./editor/RegenerateAsNewDraftButton";
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: FS.base }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -973,7 +974,22 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
             {sorted.map(s => (
-              <StoryCard key={s.id} story={s} pubs={pubs} team={team} onClick={() => openDetail(s)} />
+              <div key={s.id} style={{ position: "relative" }}>
+                <StoryCard story={s} pubs={pubs} team={team} onClick={() => openDetail(s)} />
+                <div style={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}>
+                  <RegenerateAsNewDraftButton
+                    sourceStory={s}
+                    viewerId={currentUser?.id}
+                    viewerName={currentUser?.name}
+                    viewerRole={currentUser?.role}
+                    viewerIsAdmin={!!currentUser?.permissions?.includes?.("admin")}
+                    onCreated={(newStory) => {
+                      setStories(prev => [newStory, ...prev]);
+                      openDetail(newStory);
+                    }}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         )}
