@@ -244,11 +244,38 @@ const SalesCRM = (props) => {
   useEffect(() => {
     if (viewPropId && loadProposalHistory) loadProposalHistory(viewPropId);
   }, [viewPropId, loadProposalHistory]);
-  const myClientIds = new Set((clients || []).filter(c => c.repId === currentUser?.id).map(c => c.id));
-  const activeSales = sales.filter(s => { if (myPipeline && currentUser?.id && !myClientIds.has(s.clientId)) return false; if (fPub !== "all" && s.publication !== fPub) return false; if (sr && !cn(s.clientId).toLowerCase().includes(sr.toLowerCase())) return false; return true; });
-  const actionSales = activeSales.filter(s => s.nextAction && s.status !== "Closed" && s.status !== "Follow-up").sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9"));
-  const todaysActions = activeSales.filter(s => s.nextAction && (s.nextActionDate <= today || !s.nextActionDate) && s.status !== "Closed" && s.status !== "Follow-up").sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9"));
-  const closedSales = sales.filter(s => s.status === "Closed").sort((a, b) => b.date.localeCompare(a.date));
+  // Pipeline-tab derived arrays. Memoized so each form keystroke doesn't
+  // re-run the filter/sort over thousands of sales.
+  const myClientIds = useMemo(
+    () => new Set((clients || []).filter(c => c.repId === currentUser?.id).map(c => c.id)),
+    [clients, currentUser?.id]
+  );
+  const activeSales = useMemo(
+    () => {
+      const srLower = sr ? sr.toLowerCase() : null;
+      return sales.filter(s => {
+        if (myPipeline && currentUser?.id && !myClientIds.has(s.clientId)) return false;
+        if (fPub !== "all" && s.publication !== fPub) return false;
+        if (srLower && !(clientMap[s.clientId] || "—").toLowerCase().includes(srLower)) return false;
+        return true;
+      });
+    },
+    [sales, myPipeline, currentUser?.id, myClientIds, fPub, sr, clientMap]
+  );
+  const actionSales = useMemo(
+    () => activeSales.filter(s => s.nextAction && s.status !== "Closed" && s.status !== "Follow-up")
+      .sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9")),
+    [activeSales]
+  );
+  const todaysActions = useMemo(
+    () => activeSales.filter(s => s.nextAction && (s.nextActionDate <= today || !s.nextActionDate) && s.status !== "Closed" && s.status !== "Follow-up")
+      .sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9")),
+    [activeSales, today]
+  );
+  const closedSales = useMemo(
+    () => sales.filter(s => s.status === "Closed").sort((a, b) => b.date.localeCompare(a.date)),
+    [sales]
+  );
   // Renewals: group closed sales by client, show one entry per client with most recent sale
   // Renewals: clients whose status is 'Renewal' (contract expiring within 45 days or ad-hoc buyer)
   // Plus top Lapsed clients sorted by total spend for re-engagement

@@ -492,7 +492,11 @@ export default function App() {
     if (pg === 'creativejobs') loads.push(appData.loadCreative?.());
     if (pg === 'editorial') loads.push(appData.loadEditions?.());
     if (pg === 'analytics') loads.push(appData.loadBilling?.(), appData.loadBills?.(), appData.loadCommissions?.(), appData.loadFullSales?.(), appData.loadCirculation?.(), appData.loadLegals?.(), appData.loadCreative?.(), appData.loadStories?.());
-    if (loads.length > 0) Promise.all(loads.filter(Boolean));
+    if (loads.length > 0) {
+      Promise.all(loads.filter(Boolean)).catch(err => {
+        console.error('[page-change loader]', pg, err);
+      });
+    }
   }, [pg, online]);
 
   // Sub-view back handler — modules register their "close sub-view" function

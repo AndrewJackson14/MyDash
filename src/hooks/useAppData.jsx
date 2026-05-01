@@ -212,7 +212,7 @@ export function DataProvider({ children, localData }) {
         });
         // Lazy-hydrate the lines for this new proposal so detail-click works
         // without waiting for the next full loadProposals refresh.
-        supabase.from('proposal_lines').select('*').eq('proposal_id', p.id).then(({ data }) => {
+        supabase.from('proposal_lines').select('id,proposal_id,publication_id,pub_name,ad_size,dims,ad_width,ad_height,issue_id,issue_label,issue_date,price,sort_order,digital_product_id,flight_start_date,flight_end_date,flight_months').eq('proposal_id', p.id).then(({ data }) => {
           if (!data) return;
           setProposals(prev => prev.map(x => x.id === p.id ? {
             ...x,
@@ -221,6 +221,10 @@ export function DataProvider({ children, localData }) {
               adW: Number(l.ad_width), adH: Number(l.ad_height),
               issueId: l.issue_id, issueLabel: l.issue_label, issueDate: l.issue_date,
               price: Number(l.price),
+              digitalProductId: l.digital_product_id || null,
+              flightStartDate: l.flight_start_date || null,
+              flightEndDate: l.flight_end_date || null,
+              flightMonths: l.flight_months || null,
             })),
           } : x));
         });
@@ -584,7 +588,7 @@ export function DataProvider({ children, localData }) {
     // {data:null}; the .data guards below already handle that path.
     const _psettled = await Promise.allSettled([
       supabase.from('proposals').select(proposalSelect).order('date', { ascending: false }).limit(2000),
-      supabase.from('proposal_lines').select('*').limit(10000),
+      supabase.from('proposal_lines').select('id,proposal_id,publication_id,pub_name,ad_size,dims,ad_width,ad_height,issue_id,issue_label,issue_date,price,sort_order,digital_product_id,flight_start_date,flight_end_date,flight_months').limit(10000),
     ]);
     const _psok = (i, name) => { if (_psettled[i].status === 'fulfilled') return _psettled[i].value; console.error(`[loadProposals] ${name} rejected`, _psettled[i].reason); return { data: null, error: _psettled[i].reason }; };
     const proposalsRes = _psok(0, 'proposals');
@@ -618,6 +622,10 @@ export function DataProvider({ children, localData }) {
           adW: Number(l.ad_width), adH: Number(l.ad_height),
           issueId: l.issue_id, issueLabel: l.issue_label, issueDate: l.issue_date,
           price: Number(l.price),
+          digitalProductId: l.digital_product_id || null,
+          flightStartDate: l.flight_start_date || null,
+          flightEndDate: l.flight_end_date || null,
+          flightMonths: l.flight_months || null,
         })),
       })));
     }

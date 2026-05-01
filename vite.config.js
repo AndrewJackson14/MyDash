@@ -33,9 +33,13 @@ export default defineConfig({
     // even though the only consumer is the lazy StoryEditor — most
     // users never need it on first paint. Keep the chunk split, just
     // don't advertise it for preload until something actually imports.
+    //
+    // DriverApp (1.8 MB / 500 KB gzip) is the same shape: lazy-imported,
+    // only mounts on /driver*, but was still being preloaded for every
+    // publisher/sales user on cold load. Excluded here.
     modulePreload: {
       resolveDependencies: (filename, deps) => {
-        return deps.filter(dep => !/\/tiptap-/.test(dep));
+        return deps.filter(dep => !/\/tiptap-/.test(dep) && !/\/DriverApp-/.test(dep));
       },
     },
     rollupOptions: {
