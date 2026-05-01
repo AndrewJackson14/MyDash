@@ -1,28 +1,44 @@
 // ============================================================
-// EditorialChecker — Phase E of editorial-assistant-spec.md
+// EditorialChecker — Editorial Agent for the StoryEditor
 //
-// "Check Editorial" button + skill picker modal + results side
-// panel. The trigger sits in the StoryEditor sidebar (next to
-// Preflight); the panel slides in over the right edge of the
-// editor and shows per-skill collapsible suggestion cards.
+// Originally Phase E of editorial-assistant-spec.md as the "Check
+// Editorial" button. Now the unified entry point ("Editorial Agent")
+// for two flows:
+//
+//   1. Check editorial — original AP/voice/headline/attribution review
+//   2. Generate from past story — new flow that takes a previously
+//      published story (e.g. last year's Colony Days press release),
+//      a freeform "what's new" note, and produces a revised HTML
+//      body via the editorial_generate Edge Function.
+//
+// The Generate path is gated to Publisher / Content Editor / Editor-in-
+// Chief / Managing Editor (and admins). The Edge Function re-checks
+// permission server-side; the client gate is just for UX.
 //
 // Wire pattern from the parent:
 //
 //   <EditorialChecker
-//     story={meta}                     // for story_id, title, category, etc.
-//     bodyHtml={fullContent || ""}     // TipTap output; we strip to plain text
+//     story={meta}
+//     bodyHtml={editor?.getHTML() || fullContent?.body || ""}
 //     pubId={meta.publication_id}
-//     onSetTitle={(t) => saveMeta("title", t)}   // headline "Use this" handler
+//     onSetTitle={(t) => saveMeta("title", t)}
+//     viewerRole={currentUser?.role}              // for Generate gate
+//     viewerIsAdmin={isAdmin}                     // admin override
+//     onApplyGeneratedBody={(html) => editor.commands.setContent(html)}
 //   />
 //
-// The component renders the trigger button itself + (when active)
-// the modal and the side panel. The parent doesn't manage any
+// The component renders the trigger button + (when active) any of
+// the action / picker / panel modals. The parent doesn't manage
 // state for it.
 // ============================================================
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Z, COND, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, Modal } from "./ui";
 import { supabase } from "../lib/supabase";
+
+const GENERATE_ROLES = new Set([
+  "Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor",
+]);
 
 // ── HTML → plain text ──────────────────────────────────────
 //
@@ -78,13 +94,25 @@ const ALL_SKILL_SLUGS = SKILLS.map(s => s.slug);
 
 // ── EditorialChecker ───────────────────────────────────────
 
-export default function EditorialChecker({ story, bodyHtml, pubId, onSetTitle }) {
+export default function EditorialChecker({
+  story, bodyHtml, pubId, onSetTitle,
+  viewerRole, viewerIsAdmin, onApplyGeneratedBody,
+}) {
+  const [actionOpen, setActionOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [picked, setPicked]     = useState(new Set(ALL_SKILL_SLUGS));
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [results, setResults]   = useState(null);  // { story_id, checked_at, results: {...} }
+
+  // Generate-flow state
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [genResult, setGenResult]       = useState(null); // { revised_html, source_title, source_published_at, voice_profile_used }
+  const [genError, setGenError]         = useState(null);
+  const [genLoading, setGenLoading]     = useState(false);
+
+  const canGenerate = !!viewerIsAdmin || GENERATE_ROLES.has(viewerRole);
 
   const togglePick = (slug) => setPicked(prev => {
     const next = new Set(prev);
@@ -133,18 +161,56 @@ export default function EditorialChecker({ story, bodyHtml, pubId, onSetTitle })
     }
   };
 
+  const runGenerate = async ({ sourceStoryId, updatesText }) => {
+    setGenLoading(true);
+    setGenError(null);
+    setGenResult(null);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke("editorial_generate", {
+        body: {
+          story_id:        story.id,
+          source_story_id: sourceStoryId,
+          updates_text:    updatesText,
+        },
+      });
+      if (fnErr) throw new Error(fnErr.message || "editorial_generate failed");
+      if (!data?.revised_html) throw new Error("Empty response");
+      setGenResult(data);
+    } catch (e) {
+      setGenError(e?.message || String(e));
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const acceptGenerated = () => {
+    if (!genResult?.revised_html || !onApplyGeneratedBody) return;
+    onApplyGeneratedBody(genResult.revised_html);
+    setGenResult(null);
+    setGenerateOpen(false);
+  };
+
   return (
     <>
       <Btn
         sm
         v="secondary"
-        onClick={() => setPickerOpen(true)}
-        disabled={!bodyHtml || !bodyHtml.trim()}
-        title={!bodyHtml ? "Add story body first" : "Run editorial checks"}
+        onClick={() => setActionOpen(true)}
+        title="Editorial Agent — checks + revisions"
         style={{ width: "100%" }}
       >
-        ✦ Check Editorial
+        ✦ Editorial Agent
       </Btn>
+
+      {actionOpen && (
+        <ActionPickerModal
+          canGenerate={canGenerate}
+          checkDisabled={!bodyHtml || !bodyHtml.trim()}
+          onCheck={() => { setActionOpen(false); setPickerOpen(true); }}
+          onGenerate={() => { setActionOpen(false); setGenerateOpen(true); }}
+          onCancel={() => setActionOpen(false)}
+        />
+      )}
 
       {pickerOpen && (
         <SkillPickerModal
@@ -166,7 +232,315 @@ export default function EditorialChecker({ story, bodyHtml, pubId, onSetTitle })
           onSetTitle={onSetTitle}
         />
       )}
+
+      {generateOpen && (
+        <GenerateModal
+          pubId={pubId}
+          excludeStoryId={story.id}
+          loading={genLoading}
+          error={genError}
+          result={genResult}
+          onRun={runGenerate}
+          onAccept={acceptGenerated}
+          onCancel={() => { setGenerateOpen(false); setGenResult(null); setGenError(null); }}
+        />
+      )}
     </>
+  );
+}
+
+// ── Action picker (Check vs Generate) ──────────────────────
+
+function ActionPickerModal({ canGenerate, checkDisabled, onCheck, onGenerate, onCancel }) {
+  return (
+    <Modal open onClose={onCancel} title="Editorial Agent">
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <ActionRow
+          icon="🔍"
+          title="Check editorial"
+          hint="AP style, voice match, headline alternatives, attribution"
+          disabled={checkDisabled}
+          disabledHint="Add story body first"
+          onClick={onCheck}
+        />
+        {canGenerate && (
+          <ActionRow
+            icon="↻"
+            title="Generate from past story"
+            hint="Revise a previously published story with new dates, quotes, names"
+            onClick={onGenerate}
+          />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ActionRow({ icon, title, hint, disabled, disabledHint, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={disabled ? disabledHint : undefined}
+      style={{
+        display: "flex", alignItems: "flex-start", gap: 12,
+        padding: "12px 14px", borderRadius: Ri,
+        background: Z.bg, border: `1px solid ${Z.bd}`,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        textAlign: "left", width: "100%",
+        fontFamily: "inherit",
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = Z.sa; }}
+      onMouseLeave={e => { e.currentTarget.style.background = Z.bg; }}
+    >
+      <span style={{ fontSize: 20, lineHeight: 1, marginTop: 2 }}>{icon}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+        <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{title}</span>
+        <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{hint}</span>
+        {disabled && disabledHint && (
+          <span style={{ fontSize: FS.xs, color: Z.tm, fontStyle: "italic" }}>{disabledHint}</span>
+        )}
+      </div>
+      <span style={{ color: Z.tm, fontSize: FS.md, marginTop: 1 }}>›</span>
+    </button>
+  );
+}
+
+// ── Generate modal ─────────────────────────────────────────
+//
+// Three states: pick a source story → enter updates → review result.
+// We keep all three in one modal so the user has a clear back path
+// without losing context.
+
+function GenerateModal({ pubId, excludeStoryId, loading, error, result, onRun, onAccept, onCancel }) {
+  const [source, setSource]           = useState(null);     // selected source story
+  const [updatesText, setUpdatesText] = useState("");
+  const [stage, setStage]             = useState("pick");   // "pick" | "input" | "review"
+  const [stories, setStories]         = useState([]);
+  const [storiesLoading, setStoriesLoading] = useState(true);
+  const [query, setQuery]             = useState("");
+
+  // Load candidate source stories: published, same pub, recent first.
+  // Stories.publication_id is text; we limit to 100 most recent so the
+  // picker stays light. Search is client-side title contains.
+  useEffect(() => {
+    if (!pubId) { setStoriesLoading(false); return; }
+    let cancelled = false;
+    setStoriesLoading(true);
+    supabase.from("stories")
+      .select("id, title, published_at, author")
+      .eq("publication_id", pubId)
+      .neq("id", excludeStoryId || "00000000-0000-0000-0000-000000000000")
+      .not("body", "is", null)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(100)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setStories(data || []);
+        setStoriesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [pubId, excludeStoryId]);
+
+  // When the API completes, advance to review.
+  useEffect(() => {
+    if (result && stage === "input") setStage("review");
+  }, [result, stage]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return stories;
+    return stories.filter(s => (s.title || "").toLowerCase().includes(q));
+  }, [stories, query]);
+
+  const canRun = stage === "input" && updatesText.trim().length > 0 && source && !loading;
+
+  return (
+    <Modal
+      open
+      onClose={onCancel}
+      title={
+        stage === "pick"   ? "Pick a source story" :
+        stage === "input"  ? "Add the new facts" :
+                             "Review revised body"
+      }
+      width={stage === "review" ? 720 : 560}
+      actions={
+        <>
+          {stage === "pick" && (
+            <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
+          )}
+          {stage === "input" && (
+            <>
+              <Btn v="ghost" onClick={() => { setStage("pick"); }}>← Back</Btn>
+              <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
+              <Btn onClick={() => onRun({ sourceStoryId: source.id, updatesText: updatesText.trim() })} disabled={!canRun}>
+                {loading ? "Generating…" : "Generate revision"}
+              </Btn>
+            </>
+          )}
+          {stage === "review" && (
+            <>
+              <Btn v="ghost" onClick={onCancel}>Discard</Btn>
+              <Btn onClick={onAccept}>Accept &amp; replace body</Btn>
+            </>
+          )}
+        </>
+      }
+    >
+      {stage === "pick" && (
+        <SourceStoryPickList
+          loading={storiesLoading}
+          stories={filtered}
+          query={query}
+          onQuery={setQuery}
+          onPick={(s) => { setSource(s); setStage("input"); }}
+          totalLoaded={stories.length}
+        />
+      )}
+
+      {stage === "input" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{
+            padding: "8px 12px", borderRadius: Ri, background: Z.sa,
+            border: `1px solid ${Z.bd}`,
+          }}>
+            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, marginBottom: 2 }}>Source story</div>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{source?.title}</div>
+            {source?.published_at && (
+              <div style={{ fontSize: FS.xs, color: Z.tm }}>
+                Published {new Date(source.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                {source?.author && ` · ${source.author}`}
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.tm, fontFamily: COND, display: "block", marginBottom: 4 }}>
+              What's changed for this revision
+            </label>
+            <textarea
+              autoFocus
+              value={updatesText}
+              onChange={e => setUpdatesText(e.target.value)}
+              placeholder={
+                "Date: Saturday, October 18, 2026\n" +
+                "Time: 10am parade, 1pm BBQ in Sunken Gardens\n" +
+                "Quote — Mayor Heather Moreno: \"…\"\n" +
+                "Grand marshal: …"
+              }
+              rows={10}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: 10, borderRadius: Ri,
+                background: Z.bg, color: Z.tx,
+                border: `1px solid ${Z.bd}`,
+                fontFamily: "inherit", fontSize: FS.sm, lineHeight: 1.5,
+                resize: "vertical",
+              }}
+            />
+            <div style={{ fontSize: FS.xs, color: Z.tm, marginTop: 4, fontFamily: COND }}>
+              Freeform — list dates, times, quotes, names, locations. The agent parses and folds them into the source structure.
+            </div>
+          </div>
+          {error && (
+            <div style={{ padding: "8px 12px", borderRadius: Ri, background: ACCENT.red + "12", color: ACCENT.red, fontSize: FS.sm }}>
+              Error: {error}
+            </div>
+          )}
+        </div>
+      )}
+
+      {stage === "review" && result && (
+        <GenerateReview result={result} sourceTitle={source?.title} />
+      )}
+    </Modal>
+  );
+}
+
+function SourceStoryPickList({ loading, stories, query, onQuery, onPick, totalLoaded }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <input
+        autoFocus
+        type="text"
+        value={query}
+        onChange={e => onQuery(e.target.value)}
+        placeholder="Search by title…"
+        style={{
+          padding: "8px 12px", borderRadius: Ri,
+          background: Z.bg, color: Z.tx,
+          border: `1px solid ${Z.bd}`,
+          fontSize: FS.sm, outline: "none",
+          fontFamily: "inherit",
+        }}
+      />
+      <div style={{
+        maxHeight: 360, overflowY: "auto",
+        border: `1px solid ${Z.bd}`, borderRadius: Ri,
+        background: Z.bg,
+      }}>
+        {loading && (
+          <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading recent stories…</div>
+        )}
+        {!loading && stories.length === 0 && (
+          <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
+            {totalLoaded === 0 ? "No published stories from this publication yet." : "No matches."}
+          </div>
+        )}
+        {!loading && stories.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onPick(s)}
+            style={{
+              display: "block", width: "100%", textAlign: "left",
+              padding: "10px 12px", border: "none", borderBottom: `1px solid ${Z.bd}`,
+              background: "transparent", cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = Z.sa}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, marginBottom: 2 }}>
+              {s.title || "(Untitled)"}
+            </div>
+            <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+              {s.published_at ? new Date(s.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unpublished"}
+              {s.author && ` · ${s.author}`}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GenerateReview({ result, sourceTitle }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ padding: "6px 10px", background: Z.sa, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+        <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+          Revised from <strong style={{ color: Z.tx }}>{sourceTitle || result.source_title}</strong>
+          {result.voice_profile_used === "named" && " · author voice profile applied"}
+          {result.voice_profile_used === "default" && " · default voice"}
+        </div>
+      </div>
+      <div
+        style={{
+          maxHeight: 480, overflowY: "auto",
+          padding: 16, borderRadius: Ri,
+          border: `1px solid ${Z.bd}`,
+          background: Z.bg,
+          fontSize: FS.base, lineHeight: 1.65, color: Z.tx,
+        }}
+        dangerouslySetInnerHTML={{ __html: result.revised_html }}
+      />
+      <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+        Accepting will replace the current story body. The next autosave (≈2s after acceptance) writes it to the database.
+      </div>
+    </div>
   );
 }
 

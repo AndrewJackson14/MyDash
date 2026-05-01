@@ -1038,6 +1038,16 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               bodyHtml={editor?.getHTML() || fullContent?.body || ""}
               pubId={(Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || ""}
               onSetTitle={(t) => { setMeta(m => ({ ...m, title: t })); saveMeta("title", t); }}
+              viewerRole={currentUser?.role}
+              viewerIsAdmin={!!(currentUser?.permissions?.includes?.("admin"))}
+              onApplyGeneratedBody={(html) => {
+                if (!editor) return;
+                editor.commands.setContent(html);
+                // Trigger autoSave manually so the user doesn't have to type
+                // before the 2s debounce sees the new content.
+                if (saveTimer.current) clearTimeout(saveTimer.current);
+                saveTimer.current = setTimeout(() => autoSave(editor.getJSON(), editor.getText()), 100);
+              }}
             />
           </div>
 

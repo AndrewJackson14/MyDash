@@ -1,0 +1,375 @@
+// ============================================================
+// editorial_generate — Story Update Agent
+//
+// Takes a previous story (e.g. last year's Colony Days press release)
+// plus a freeform "what's new" note (dates, quotes, names) and returns
+// a revised HTML body that preserves the source's structure and voice
+// while folding in the new facts.
+//
+// Architecture: direct Edge Function → Anthropic Claude (Path B). The
+// editorial_check function proxies to a Mac Mini FastAPI; this one
+// stands alone so it ships before that ops pipeline lands. If we
+// later want to centralize, the Anthropic call here is one block to
+// move into the FastAPI server.
+//
+// Flow:
+//   StoryEditor → POST /functions/v1/editorial_generate (with user JWT)
+//   editorial_generate
+//     → verify Bearer JWT (authenticated user only)
+//     → load source story body + author from DB (service role)
+//     → fetch author voice profile from GitHub raw if available
+//     → call Anthropic claude-sonnet-4-6 with structured prompt
+//     → return { revised_html, source_title, source_published_at }
+//
+// Env vars (set via `supabase secrets set`):
+//   ANTHROPIC_API_KEY         required
+//   SUPABASE_URL              auto-set by Supabase
+//   SUPABASE_SERVICE_ROLE_KEY auto-set by Supabase
+//   ALLOWED_ORIGINS           comma-separated CORS allowlist
+//   VOICE_KB_BASE             optional; defaults to GitHub raw of this repo
+// ============================================================
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const ALLOWED_ORIGINS = (
+  Deno.env.get("ALLOWED_ORIGINS") ||
+  "https://mydash.media,http://localhost:5173,http://localhost:4173"
+).split(",");
+
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const SUPABASE_URL =
+  Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL") || "";
+const SERVICE_ROLE =
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+  Deno.env.get("SERVICE_ROLE_KEY") || "";
+
+// Voice MD source. Mirrors voice_kb.py's KB_BASE so the Edge Function
+// reads the same files the agent-station reads.
+const VOICE_KB_BASE =
+  Deno.env.get("VOICE_KB_BASE") ||
+  "https://raw.githubusercontent.com/AndrewJackson14/MyDash/main/docs/knowledge-base/voices";
+
+// Slugs with hand-curated voice profiles. Matches voice_kb.py's
+// PROFILE_SLUGS. When a fourth author is added, update both lists.
+const VOICE_PROFILE_SLUGS = new Set([
+  "camille-devaul",
+  "hayley-mattson",
+  "nic-mattson",
+]);
+
+const ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const ANTHROPIC_MAX_TOKENS = 8000;
+const ANTHROPIC_TIMEOUT_MS = 90_000;
+
+
+function corsFor(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin":  allow,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary":                         "Origin",
+  };
+}
+
+function authedUserId(authHeader: string): string | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    const payload = JSON.parse(atob(authHeader.slice(7).split(".")[1]));
+    if (!payload?.sub) return null;
+    if (payload.role !== "authenticated" && payload.role !== "service_role") return null;
+    return String(payload.sub);
+  } catch {
+    return null;
+  }
+}
+
+function json(body: unknown, status: number, cors: Record<string, string>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
+
+// ── Supabase REST helpers (service role) ────────────────────
+async function sbSelect(table: string, query: string): Promise<any[]> {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
+  const res = await fetch(url, {
+    headers: {
+      "apikey":        SERVICE_ROLE,
+      "Authorization": `Bearer ${SERVICE_ROLE}`,
+      "Accept":        "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`supabase ${res.status}: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+// ── Voice profile fetch (GitHub raw, no caching since Edge Functions
+// are stateless across invocations and the file is small) ───────────
+async function fetchVoiceProfile(slug: string): Promise<string> {
+  try {
+    const res = await fetch(`${VOICE_KB_BASE}/${slug}.md`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return "";
+    const text = await res.text();
+    // Strip frontmatter (---\n...\n---) so the prompt only carries the body.
+    if (text.startsWith("---")) {
+      const end = text.indexOf("\n---", 3);
+      if (end >= 0) return text.slice(end + 4).replace(/^\n+/, "");
+    }
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+// ── Prompt construction ─────────────────────────────────────
+function buildPrompt(opts: {
+  sourceTitle: string;
+  sourceBodyHtml: string;
+  sourcePublishedAt: string | null;
+  updatesText: string;
+  authorName: string;
+  voiceProfile: string;
+  hasNamedVoice: boolean;
+}): string {
+  const {
+    sourceTitle, sourceBodyHtml, sourcePublishedAt,
+    updatesText, authorName, voiceProfile, hasNamedVoice,
+  } = opts;
+
+  const voiceBlock = hasNamedVoice && voiceProfile
+    ? `\n## VOICE PROFILE — ${authorName}\n\n${voiceProfile}\n\nWrite in this author's voice. Match cadence, vocabulary, and structural habits.`
+    : voiceProfile
+      ? `\n## DEFAULT VOICE GUIDANCE\n\n${voiceProfile}\n\nMatch the tone of the source story above. Don't impose a personality the source doesn't already have.`
+      : `\nMatch the tone of the source story above. Don't impose a personality the source doesn't already have.`;
+
+  return `You are a newsroom editor revising a previously published story for a new event cycle.
+
+## YOUR TASK
+
+Take the source story below and produce an updated version that folds in the new facts. Keep the same structure, lede style, paragraph rhythm, and section ordering as the source. Update only what the new facts require: dates, times, names, quotes, year references, locations, and any factual details the new info contradicts.
+
+Output **HTML only** — no markdown, no preamble, no explanatory commentary. Use the same HTML element vocabulary as the source (typically <p>, <h2>, <h3>, <em>, <strong>, <a>, <ul>, <ol>, <li>). If the source has a pull quote or callout structure, preserve it.
+
+## SOURCE STORY
+
+**Title:** ${sourceTitle}
+${sourcePublishedAt ? `**Published:** ${sourcePublishedAt}\n` : ""}
+\`\`\`html
+${sourceBodyHtml}
+\`\`\`
+
+## NEW FACTS TO INCORPORATE
+
+${updatesText}
+${voiceBlock}
+
+## RULES
+
+- Replace stale dates and years throughout. If the source said "2025" and the new event is 2026, update every occurrence.
+- Replace stale quotes with new ones if provided. If a new quote replaces an old one, drop the old one — don't keep both unless explicitly told to.
+- Preserve quoted speakers' titles and identifying parentheticals on their first mention (e.g. "Mayor Heather Moreno"), even if the quote text changes.
+- Where the source mentions a name or detail the new facts don't contradict, keep it as-is.
+- Do not invent details. If the new facts are silent on something the source covered, keep the source's version. If the source is silent and the new facts add something, add it.
+- Do not include the title in the body — only the article body.
+- Do not include a byline in the body.
+
+Output the revised HTML body now, nothing else:`;
+}
+
+// ── Anthropic call ──────────────────────────────────────────
+async function callClaude(prompt: string): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type":      "application/json",
+        "x-api-key":         ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model:      ANTHROPIC_MODEL,
+        max_tokens: ANTHROPIC_MAX_TOKENS,
+        messages: [
+          { role: "user", content: prompt },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`anthropic ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    const block = (data?.content || []).find((b: any) => b?.type === "text");
+    const text = String(block?.text || "").trim();
+
+    // Strip any stray markdown fence the model might have wrapped around
+    // the HTML despite the instructions.
+    return text
+      .replace(/^```(?:html)?\s*\n?/, "")
+      .replace(/\n?```\s*$/, "")
+      .trim();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+
+Deno.serve(async (req: Request) => {
+  const cors = corsFor(req.headers.get("Origin"));
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST")    return json({ error: "method_not_allowed" }, 405, cors);
+
+  const userId = authedUserId(req.headers.get("Authorization") || "");
+  if (!userId) return json({ error: "not_authenticated" }, 401, cors);
+
+  if (!ANTHROPIC_API_KEY) {
+    return json({
+      error:  "server_misconfigured",
+      detail: "ANTHROPIC_API_KEY not set",
+    }, 500, cors);
+  }
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
+    return json({
+      error:  "server_misconfigured",
+      detail: "SUPABASE_URL or SERVICE_ROLE_KEY not set",
+    }, 500, cors);
+  }
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400, cors);
+  }
+
+  if (!body?.story_id || typeof body.story_id !== "string") {
+    return json({ error: "story_id_required" }, 400, cors);
+  }
+  if (!body?.source_story_id || typeof body.source_story_id !== "string") {
+    return json({ error: "source_story_id_required" }, 400, cors);
+  }
+  if (typeof body.updates_text !== "string" || body.updates_text.trim().length === 0) {
+    return json({ error: "updates_text_required" }, 400, cors);
+  }
+  if (body.updates_text.length > 10_000) {
+    return json({ error: "updates_text_too_long", max: 10_000 }, 400, cors);
+  }
+
+  // ── Permission check: Content Editor / Publisher / admin only ──
+  // The button is gated client-side, but the Edge Function is the
+  // real auth boundary since it spends LLM credits on every call.
+  let viewerRole = "";
+  let viewerIsAdmin = false;
+  try {
+    const viewer = await sbSelect("people", `auth_id=eq.${userId}&select=role,permissions,global_role`);
+    if (viewer.length === 0) {
+      return json({ error: "no_people_row" }, 403, cors);
+    }
+    viewerRole = viewer[0].role || "";
+    viewerIsAdmin = (viewer[0].permissions || []).includes?.("admin")
+      || viewer[0].global_role === "super_admin";
+  } catch (e: any) {
+    return json({ error: "viewer_lookup_failed", detail: e?.message }, 500, cors);
+  }
+  const ALLOWED_ROLES = new Set(["Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor"]);
+  if (!viewerIsAdmin && !ALLOWED_ROLES.has(viewerRole)) {
+    return json({ error: "permission_denied", role: viewerRole }, 403, cors);
+  }
+
+  // ── Load source story ──
+  let source: any;
+  try {
+    const rows = await sbSelect("stories", `id=eq.${body.source_story_id}&select=id,title,body,published_at,author,author_id`);
+    if (rows.length === 0) {
+      return json({ error: "source_not_found" }, 404, cors);
+    }
+    source = rows[0];
+  } catch (e: any) {
+    return json({ error: "source_load_failed", detail: e?.message }, 500, cors);
+  }
+
+  if (!source.body || typeof source.body !== "string" || source.body.trim().length < 50) {
+    return json({ error: "source_body_empty" }, 400, cors);
+  }
+
+  // ── Resolve author voice profile ──
+  // Look at the CURRENT (target) story's author_id first, falling back
+  // to the source story's author. The current author owns the new piece;
+  // their voice is what we want to match if they have a profile.
+  let voiceProfile = "";
+  let hasNamedVoice = false;
+  let authorName = "";
+  try {
+    let targetAuthorId: string | null = null;
+    const targetRows = await sbSelect("stories", `id=eq.${body.story_id}&select=author_id,author`);
+    if (targetRows.length > 0) {
+      targetAuthorId = targetRows[0].author_id || null;
+      authorName = targetRows[0].author || "";
+    }
+    const authorIdToUse = targetAuthorId || source.author_id;
+
+    if (authorIdToUse) {
+      const people = await sbSelect("people", `id=eq.${authorIdToUse}&select=display_name,slug,labels,status`);
+      if (people.length > 0) {
+        const p = people[0];
+        if (!authorName) authorName = p.display_name || "";
+        const labels: string[] = Array.isArray(p.labels) ? p.labels : [];
+        const isWireOrBot = labels.includes("wire") || labels.includes("bot");
+        if (!isWireOrBot && p.slug && VOICE_PROFILE_SLUGS.has(p.slug)) {
+          voiceProfile = await fetchVoiceProfile(p.slug);
+          if (voiceProfile) hasNamedVoice = true;
+        }
+      }
+    }
+    // Fallback: generic voice guidance from _default.md
+    if (!voiceProfile) {
+      voiceProfile = await fetchVoiceProfile("_default");
+    }
+  } catch {
+    // Non-fatal — generation can proceed without voice guidance.
+  }
+
+  // ── Build prompt + call Claude ──
+  const prompt = buildPrompt({
+    sourceTitle:       source.title || "Untitled",
+    sourceBodyHtml:    source.body,
+    sourcePublishedAt: source.published_at || null,
+    updatesText:       body.updates_text.trim(),
+    authorName:        authorName || "the author",
+    voiceProfile,
+    hasNamedVoice,
+  });
+
+  let revisedHtml = "";
+  try {
+    revisedHtml = await callClaude(prompt);
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      return json({ error: "upstream_timeout" }, 504, cors);
+    }
+    return json({ error: "llm_call_failed", detail: e?.message || String(e) }, 502, cors);
+  }
+
+  if (!revisedHtml || revisedHtml.length < 50) {
+    return json({ error: "empty_response" }, 502, cors);
+  }
+
+  return json({
+    revised_html:        revisedHtml,
+    source_title:        source.title,
+    source_published_at: source.published_at,
+    voice_profile_used:  hasNamedVoice ? "named" : (voiceProfile ? "default" : "none"),
+  }, 200, cors);
+});
