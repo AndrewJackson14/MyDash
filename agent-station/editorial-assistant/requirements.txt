@@ -1,0 +1,10 @@
+# Editorial Assistant — Python deps.
+#
+# Phase B: just enough to boot the FastAPI server and resolve voice
+# profiles. Phase C will add google-genai when skills land.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+requests>=2.31
+python-dotenv>=1.0
