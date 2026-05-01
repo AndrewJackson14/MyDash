@@ -1035,7 +1035,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                 publication_id: (Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || "",
                 word_limit:     meta.word_limit || story.word_limit || null,
               }}
-              bodyHtml={fullContent || ""}
+              bodyHtml={editor?.getHTML() || fullContent?.body || ""}
               pubId={(Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || ""}
               onSetTitle={(t) => { setMeta(m => ({ ...m, title: t })); saveMeta("title", t); }}
             />
