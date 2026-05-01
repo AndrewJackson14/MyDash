@@ -947,6 +947,21 @@ const SalesCRM = (props) => {
         {p.status === "Awaiting Review" && <>
           <Btn v="success" onClick={async () => {
             if (!await dialog.confirm("Send this self-serve submission to the advertiser as-is?")) return;
+            // Mirror the proposal-wizard's signature-row creation (see
+            // useProposalWizardOrchestration.jsx). Without this row,
+            // StellarPress's ProposalStatusPage can't show a "View &
+            // Sign" link for self-serve proposals — the advertiser
+            // would have to wait for the rep's email to sign.
+            const client = clients.find(c => c.id === p.clientId);
+            const primaryContact = (client?.contacts || []).find(c => c.email) || {};
+            const snapshot = { ...p, clientName: client?.name };
+            const { error: sigErr } = await supabase.from("proposal_signatures").insert({
+              proposal_id:   p.id,
+              signer_name:   primaryContact.name || client?.name || p.intakeEmail || "",
+              signer_email:  primaryContact.email || p.intakeEmail || "",
+              proposal_snapshot: snapshot,
+            });
+            if (sigErr) console.error("[send-as-is] signature insert error:", sigErr);
             await updateProposal(p.id, { status: "Sent", sentAt: new Date().toISOString() });
           }}><Ic.mail size={12} /> Send as-is</Btn>
           <Btn v="secondary" onClick={async () => {
