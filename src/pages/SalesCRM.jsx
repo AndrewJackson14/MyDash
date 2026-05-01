@@ -657,7 +657,11 @@ const SalesCRM = (props) => {
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
-      {tab === "Proposals" && <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>}
+      {tab === "Proposals" && (() => {
+        const awaitingCount = proposals.filter(p => p.status === "Awaiting Review").length;
+        const awaitingLabel = awaitingCount > 0 ? `Awaiting Review (${awaitingCount})` : "Awaiting Review";
+        return <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Awaiting Review", label: awaitingLabel }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Declined", label: "Declined" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>;
+      })()}
       {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
     </div>
 
@@ -861,7 +865,7 @@ const SalesCRM = (props) => {
         if (propStatus === "all") fp = fp.filter(p => p.status !== "Cancelled");
         else fp = fp.filter(p => p.status === propStatus);
         if (propSearch) { const q = propSearch.toLowerCase(); fp = fp.filter(p => (p.name || "").toLowerCase().includes(q) || cn(p.clientId).toLowerCase().includes(q) || propPubNames(p).toLowerCase().includes(q)); }
-        return fp.length === 0 ? <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No proposals match filters</GlassCard> : fp.map(p => <div key={p.id} onClick={() => setViewPropId(p.id)} style={{ ...cardSurface(), borderRadius: R, padding: 16, cursor: "pointer" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.name}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{cn(p.clientId)} · {p.lines.length} items</div><div style={{ fontSize: FS.sm, color: Z.ac }}>{propPubNames(p)}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su }}>${p.total.toLocaleString()}</span><Badge status={p.status} small />
+        return fp.length === 0 ? <GlassCard style={{ textAlign: "center", padding: 24, color: Z.td }}>No proposals match filters</GlassCard> : fp.map(p => <div key={p.id} onClick={() => setViewPropId(p.id)} style={{ ...cardSurface(), borderRadius: R, padding: 16, cursor: "pointer" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><span style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.source === "self_serve" && <span title="Self-serve submission" style={{ marginRight: 6 }}>🛒</span>}{p.name}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>{cn(p.clientId)} · {p.lines.length} items</div><div style={{ fontSize: FS.sm, color: Z.ac }}>{propPubNames(p)}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: FS.lg, fontWeight: FW.black, color: Z.su }}>${p.total.toLocaleString()}</span><Badge status={p.status} small />
         {p.sentAt && <span
           title={`Sent ${new Date(p.sentAt).toLocaleString()}${p.sentTo?.length ? `\nTo: ${p.sentTo.join(", ")}` : ""}`}
           style={{
@@ -875,11 +879,60 @@ const SalesCRM = (props) => {
       </div></div></div>);
       })()}</div>}
     {tab === "Proposals" && viewPropId && (() => { const p = proposals.find(x => x.id === viewPropId); if (!p) return null; const grouped = {}; p.lines.forEach(li => { if (!grouped[li.pubName]) grouped[li.pubName] = []; grouped[li.pubName].push(li); });
-      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{p.name}</h2><div style={{ fontSize: FS.base, color: Z.tm }}>{cn(p.clientId)} · {p.term} · {p.date}</div><div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 3 }}>{propPubNames(p)}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div><Badge status={p.status} />{p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}</div></div>{Object.entries(grouped).map(([pub, lines]) => <GlassCard key={pub}><h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub}</h4><div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{lines.map((li, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{li.issueLabel}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{li.adSize}</span><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${li.price.toLocaleString()}</span></div>)}</div></GlassCard>)}<div style={{ background: Z.sa, borderRadius: R, padding: 12, border: `1px solid ${Z.bd}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Items</div><div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{p.lines.length}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Tier</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.term}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Contract</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.termMonths} months</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>{p.payPlan ? "Monthly" : "Payment"}</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.payPlan ? `$${p.monthly?.toLocaleString()}/mo` : `$${p.total.toLocaleString()}`}</div></div></div>
+      const isSelfServe = p.source === "self_serve";
+      return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {isSelfServe && (
+        <div style={{ background: Z.ss, border: `1px solid ${Z.ac}`, borderRadius: R, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20 }}>🛒</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.ac, textTransform: "uppercase", letterSpacing: 0.6 }}>Self-serve submission</div>
+            <div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 2 }}>
+              Intake email: <span style={{ fontWeight: FW.bold }}>{p.intakeEmail || "—"}</span>
+              {p.awaitingReviewAt && <> · Submitted {new Date(p.awaitingReviewAt).toLocaleString()}</>}
+            </div>
+          </div>
+        </div>
+      )}
+      {isSelfServe && (p.subtotal != null || p.markupApplied || p.discountApplied) && (
+        <GlassCard>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Original self-serve pricing</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", fontSize: FS.sm, color: Z.tx }}>
+            <span>Subtotal</span><span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>${Number(p.subtotal || 0).toLocaleString()}</span>
+            {p.markupApplied && <>
+              <span style={{ color: Z.wa }}>Industry markup ({Number(p.markupPercent || 0)}%)</span>
+              <span style={{ textAlign: "right", color: Z.wa, fontVariantNumeric: "tabular-nums" }}>+ ${Number(p.markupAmount || 0).toLocaleString()}</span>
+            </>}
+            {p.discountApplied && <>
+              <span style={{ color: Z.go }}>Local-zip discount ({Number(p.discountPercent || 0)}%)</span>
+              <span style={{ textAlign: "right", color: Z.go, fontVariantNumeric: "tabular-nums" }}>− ${Number(p.discountAmount || 0).toLocaleString()}</span>
+            </>}
+            <span style={{ fontWeight: FW.heavy, borderTop: `1px solid ${Z.bd}`, paddingTop: 4 }}>Total</span>
+            <span style={{ textAlign: "right", fontWeight: FW.heavy, borderTop: `1px solid ${Z.bd}`, paddingTop: 4, fontVariantNumeric: "tabular-nums" }}>${Number(p.total || 0).toLocaleString()}</span>
+          </div>
+          <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 8, fontFamily: COND }}>Read-only. Rep edits below override these line prices but don't recompute markup/discount.</div>
+        </GlassCard>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between" }}><div><h2 style={{ margin: "0 0 4px", fontSize: FS.xl, fontWeight: FW.black, color: Z.tx }}>{p.name}</h2><div style={{ fontSize: FS.base, color: Z.tm }}>{cn(p.clientId)} · {p.term} · {p.date}</div><div style={{ fontSize: FS.sm, color: Z.tx, marginTop: 3 }}>{propPubNames(p)}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div><Badge status={p.status} />{p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}</div></div>{Object.entries(grouped).map(([pub, lines]) => <GlassCard key={pub}><h4 style={{ margin: "0 0 8px", fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{pub}</h4><div style={{ display: "flex", flexDirection: "column", gap: 3 }}>{lines.map((li, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 6, padding: "5px 8px", background: Z.bg, borderRadius: R }}><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tx }}>{li.issueLabel}</span><span style={{ fontSize: FS.sm, color: Z.tm }}>{li.adSize}</span><span style={{ fontSize: FS.base, fontWeight: FW.heavy, color: Z.tx, textAlign: "right" }}>${li.price.toLocaleString()}</span></div>)}</div></GlassCard>)}<div style={{ background: Z.sa, borderRadius: R, padding: 12, border: `1px solid ${Z.bd}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Items</div><div style={{ fontSize: FS.lg, fontWeight: FW.heavy, color: Z.tx }}>{p.lines.length}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Tier</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.term}</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>Contract</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.termMonths} months</div></div><div><div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tm, textTransform: "uppercase" }}>{p.payPlan ? "Monthly" : "Payment"}</div><div style={{ fontSize: FS.md, fontWeight: FW.heavy, color: Z.tx }}>{p.payPlan ? `$${p.monthly?.toLocaleString()}/mo` : `$${p.total.toLocaleString()}`}</div></div></div>
       {p.sentTo?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tm }}>Sent to: {p.sentTo.join(", ")}</div>}
       {p.renewalDate && <div style={{ fontSize: FS.sm, color: Z.wa }}>Renewal: {p.renewalDate}</div>}
       {/* Actions */}
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {p.status === "Awaiting Review" && <>
+          <Btn v="success" onClick={async () => {
+            if (!await dialog.confirm("Send this self-serve submission to the advertiser as-is?")) return;
+            await updateProposal(p.id, { status: "Sent", sentAt: new Date().toISOString() });
+          }}><Ic.mail size={12} /> Send as-is</Btn>
+          <Btn v="secondary" onClick={async () => {
+            await updateProposal(p.id, { status: "Draft" });
+            editProposal(p.id);
+          }}><Ic.edit size={12} /> Edit & Send</Btn>
+          <Btn v="ghost" onClick={async () => {
+            const reason = await dialog.prompt("Decline this self-serve submission. Reason (visible to advertiser):");
+            if (reason == null) return;
+            await updateProposal(p.id, { status: "Declined", notes: reason || "" });
+            setViewPropId(null);
+          }} style={{ color: Z.da }}>Decline</Btn>
+        </>}
         {p.status === "Sent" && <Btn v="success" onClick={async () => { await signProposal(p.id); setViewPropId(null); }}>Client Signed → Contract</Btn>}
         {(p.status === "Sent" || p.status === "Draft") && <Btn v="secondary" onClick={() => editProposal(p.id)}><Ic.edit size={12} /> {p.status === "Draft" ? "Edit Draft" : "Edit & Resend"}</Btn>}
         {p.status === "Signed & Converted" && <span style={{ fontSize: FS.sm, color: Z.su, fontWeight: FW.bold }}>✓ Signed & Converted</span>}

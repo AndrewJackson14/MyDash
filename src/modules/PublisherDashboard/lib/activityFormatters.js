@@ -35,6 +35,24 @@ export function formatActivity(row, ctx = {}) {
 }
 
 const FORMATTERS = {
+  [ACTIVITY_EVENT_TYPES.PROPOSAL_RECEIVED_SELF_SERVE]: (row, ctx) => {
+    const m = row.metadata || {};
+    const intake = m.intake_email ? ` (${m.intake_email})` : "";
+    return {
+      headline: `Self-serve proposal received from ${ctx.clientName || row.client_name || "new advertiser"}${intake}`,
+      detail: m.total ? fmtUSD(m.total) : "",
+      isItalic: false,
+      isCritical: false,
+    };
+  },
+
+  [ACTIVITY_EVENT_TYPES.PROPOSAL_REJECTED_SELF_SERVE]: (row, ctx) => ({
+    headline: `${ctx.actorName || "—"} declined self-serve proposal from ${ctx.clientName || row.client_name || "—"}`,
+    detail: "",
+    isItalic: false,
+    isCritical: false,
+  }),
+
   [ACTIVITY_EVENT_TYPES.PROPOSAL_SENT]: (row, ctx) => ({
     headline: `${ctx.actorName || "—"} sent proposal to ${ctx.clientName || row.client_name || "—"}`,
     detail: amountDetail(row.metadata),

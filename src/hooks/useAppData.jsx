@@ -180,6 +180,51 @@ export function DataProvider({ children, localData }) {
           ...x, status: p.status, contractId: p.contract_id, signedAt: p.signed_at, convertedAt: p.converted_at, history: p.history || x.history,
         } : x));
       })
+      // New self-serve submissions land here as Awaiting Review proposals.
+      // Server-side filter on source so we only get the inserts we care about.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'proposals', filter: 'source=eq.self_serve' }, (payload) => {
+        const p = payload.new;
+        setProposals(prev => {
+          if (prev.some(x => x.id === p.id)) return prev;
+          return [{
+            id: p.id, clientId: p.client_id, name: p.name, term: p.term, termMonths: p.term_months,
+            total: Number(p.total || 0), payPlan: !!p.pay_plan, monthly: Number(p.monthly || 0),
+            status: p.status, date: p.date, renewalDate: p.renewal_date, closedAt: p.closed_at, sentTo: p.sent_to || [],
+            assignedTo: p.assigned_to, artSource: p.art_source, contractId: p.contract_id,
+            briefHeadline: p.brief_headline || null, briefStyle: p.brief_style || null,
+            briefColors: p.brief_colors || null, briefInstructions: p.brief_instructions || null,
+            signedAt: p.signed_at, convertedAt: p.converted_at, sentAt: p.sent_at,
+            source: p.source || 'self_serve',
+            selfServeToken: p.self_serve_token || null,
+            intakeEmail: p.intake_email || null,
+            awaitingReviewAt: p.awaiting_review_at || null,
+            subtotal: p.subtotal != null ? Number(p.subtotal) : null,
+            markupApplied: !!p.markup_applied,
+            markupPercent: p.markup_percent != null ? Number(p.markup_percent) : null,
+            markupAmount: p.markup_amount != null ? Number(p.markup_amount) : null,
+            discountApplied: !!p.discount_applied,
+            discountPercent: p.discount_percent != null ? Number(p.discount_percent) : null,
+            discountAmount: p.discount_amount != null ? Number(p.discount_amount) : null,
+            billingZip: p.billing_zip || null,
+            industryId: p.industry_id || null,
+            history: [], historyHydrated: false, lines: [],
+          }, ...prev];
+        });
+        // Lazy-hydrate the lines for this new proposal so detail-click works
+        // without waiting for the next full loadProposals refresh.
+        supabase.from('proposal_lines').select('*').eq('proposal_id', p.id).then(({ data }) => {
+          if (!data) return;
+          setProposals(prev => prev.map(x => x.id === p.id ? {
+            ...x,
+            lines: data.map(l => ({
+              pubId: l.publication_id, pubName: l.pub_name, adSize: l.ad_size, dims: l.dims,
+              adW: Number(l.ad_width), adH: Number(l.ad_height),
+              issueId: l.issue_id, issueLabel: l.issue_label, issueDate: l.issue_date,
+              price: Number(l.price),
+            })),
+          } : x));
+        });
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
         const n = payload.new;
         setNotifications(prev => [{ id: n.id, text: n.title || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || '' }, ...prev]);
@@ -531,7 +576,7 @@ export function DataProvider({ children, localData }) {
   // detail open via loadProposalHistory — keeps the list load fast even
   // after years of activity logs accumulate.
   const [proposalsLoaded, setProposalsLoaded] = useState(false);
-  const proposalSelect = 'id,client_id,name,term,term_months,total,pay_plan,monthly,status,date,renewal_date,closed_at,sent_to,assigned_to,art_source,contract_id,brief_headline,brief_style,brief_colors,brief_instructions,signed_at,converted_at,sent_at';
+  const proposalSelect = 'id,client_id,name,term,term_months,total,pay_plan,monthly,status,date,renewal_date,closed_at,sent_to,assigned_to,art_source,contract_id,brief_headline,brief_style,brief_colors,brief_instructions,signed_at,converted_at,sent_at,source,self_serve_token,intake_email,awaiting_review_at,subtotal,markup_applied,markup_percent,markup_amount,discount_applied,discount_percent,discount_amount,billing_zip,industry_id';
   const loadProposals = useCallback(async () => {
     if (proposalsLoaded || !isOnline()) return;
     // allSettled — proposals can render without lines; lines without
@@ -552,6 +597,20 @@ export function DataProvider({ children, localData }) {
         assignedTo: p.assigned_to, artSource: p.art_source, contractId: p.contract_id,
         briefHeadline: p.brief_headline || null, briefStyle: p.brief_style || null, briefColors: p.brief_colors || null, briefInstructions: p.brief_instructions || null,
         signedAt: p.signed_at, convertedAt: p.converted_at, sentAt: p.sent_at,
+        // Self-serve / intake-shape fields (migration 175)
+        source: p.source || 'rep_built',
+        selfServeToken: p.self_serve_token || null,
+        intakeEmail: p.intake_email || null,
+        awaitingReviewAt: p.awaiting_review_at || null,
+        subtotal: p.subtotal != null ? Number(p.subtotal) : null,
+        markupApplied: !!p.markup_applied,
+        markupPercent: p.markup_percent != null ? Number(p.markup_percent) : null,
+        markupAmount: p.markup_amount != null ? Number(p.markup_amount) : null,
+        discountApplied: !!p.discount_applied,
+        discountPercent: p.discount_percent != null ? Number(p.discount_percent) : null,
+        discountAmount: p.discount_amount != null ? Number(p.discount_amount) : null,
+        billingZip: p.billing_zip || null,
+        industryId: p.industry_id || null,
         history: [],
         historyHydrated: false,
         lines: propLinesRes.data.filter(l => l.proposal_id === p.id).map(l => ({
@@ -1847,6 +1906,7 @@ export function DataProvider({ children, localData }) {
       if (changes.convertedAt !== undefined) db.converted_at = changes.convertedAt;
       if (changes.deliveryReportCadence !== undefined) db.delivery_report_cadence = changes.deliveryReportCadence;
       if (changes.deliveryReportContactId !== undefined) db.delivery_report_contact_id = changes.deliveryReportContactId;
+      if (changes.notes !== undefined) db.notes = changes.notes;
       if (Object.keys(db).length) await supabase.from('proposals').update(db).eq('id', id);
       // Activity log: proposal_sent (outcome) on the null → set transition.
       if (newlySent && prev) {

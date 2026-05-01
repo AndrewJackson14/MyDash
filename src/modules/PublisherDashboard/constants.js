@@ -39,6 +39,8 @@ export const ALERT_SEVERITY = {
 // views, minor edits). Keys map to the event_type column on activity_log.
 // Hayley reviews this list before realtime goes live (per spec).
 export const ACTIVITY_EVENT_TYPES = {
+  PROPOSAL_RECEIVED_SELF_SERVE: 'proposal_received_self_serve',
+  PROPOSAL_REJECTED_SELF_SERVE: 'proposal_rejected_self_serve',
   PROPOSAL_SENT:      'proposal_sent',
   CONTRACT_SIGNED:    'contract_signed',
   PROOF_APPROVED:     'proof_approved',
@@ -52,6 +54,8 @@ export const ACTIVITY_EVENT_TYPES = {
 
 // Reverse lookup: event_type → display category (for filter UX later).
 export const ACTIVITY_EVENT_CATEGORY = {
+  proposal_received_self_serve: 'sales',
+  proposal_rejected_self_serve: 'sales',
   proposal_sent:    'sales',
   contract_signed:  'sales',
   proof_approved:   'design',
