@@ -177,7 +177,32 @@ $$;
 
 -- ────────────────────────────────────────────────────────────
 -- Phase 2: Backfill people from team_members (preserves UUIDs)
+--
+-- Slug collisions are handled inline with a ROW_NUMBER() window —
+-- the first row keeps the bare slug; subsequent rows get -2, -3, ...
+-- appended. Production has duplicates like 'Tony Stark' (50 rows of
+-- test data) and 'temp user' (29 rows) plus a handful of real-name
+-- collisions (Camille DeVaul ×3, Nicholas Mattson ×3, Diane Pershing
+-- ×2, etc.). All preserve their UUIDs; only the slug differentiates.
 -- ────────────────────────────────────────────────────────────
+WITH numbered AS (
+  SELECT
+    tm.*,
+    people_slugify(tm.name) AS base_slug,
+    ROW_NUMBER() OVER (
+      PARTITION BY people_slugify(tm.name)
+      ORDER BY tm.created_at, tm.id
+    ) AS slug_rn,
+    -- Email deduplication: keep email only on the first occurrence
+    -- per lowercase value. Subsequent duplicates get NULL email.
+    -- Production has one such case (Michael Chaldu has two rows
+    -- sharing michael@13starsmedia.com).
+    ROW_NUMBER() OVER (
+      PARTITION BY lower(NULLIF(tm.email, ''))
+      ORDER BY tm.created_at, tm.id
+    ) AS email_rn
+  FROM team_members tm
+)
 INSERT INTO people (
   id, display_name, slug, email, phone,
   role, status, labels,
@@ -189,71 +214,52 @@ INSERT INTO people (
   created_at, updated_at, notes
 )
 SELECT
-  tm.id,
-  tm.name,
-  people_slugify(tm.name) AS slug,
-  NULLIF(tm.email, ''),
-  NULLIF(tm.phone, ''),
-  tm.role,
+  n.id,
+  n.name,
+  CASE WHEN n.slug_rn = 1 THEN n.base_slug
+       ELSE n.base_slug || '-' || n.slug_rn::text END AS slug,
+  CASE WHEN NULLIF(n.email, '') IS NULL THEN NULL
+       WHEN n.email_rn = 1 THEN lower(n.email)
+       ELSE NULL
+  END AS email,
+  NULLIF(n.phone, ''),
+  n.role,
   CASE
-    WHEN tm.is_active = false THEN 'retired'
+    WHEN n.is_active = false THEN 'retired'
     ELSE 'active'
   END AS status,
   CASE
-    WHEN tm.role = 'Bot'                      THEN ARRAY['bot']::text[]
-    WHEN tm.role = 'Stringer'                 THEN ARRAY['contractor', 'author']::text[]
-    WHEN tm.is_freelance = true               THEN ARRAY['contractor']::text[]
+    WHEN n.role = 'Bot'                      THEN ARRAY['bot']::text[]
+    WHEN n.role = 'Stringer'                 THEN ARRAY['contractor', 'author']::text[]
+    WHEN n.is_freelance = true               THEN ARRAY['contractor']::text[]
     ELSE ARRAY['staff']::text[]
   END AS labels,
-  tm.auth_id,
-  COALESCE(tm.permissions, '{}'),
-  COALESCE(tm.module_permissions, '{}'),
-  COALESCE(tm.assigned_pubs, ARRAY['all']),
-  tm.global_role,
-  tm.stellarpress_roles,
-  tm.commission_trigger,
-  tm.commission_default_rate,
-  tm.commission_payout_frequency,
-  tm.rate_type,
-  tm.rate_amount,
-  COALESCE(tm.alerts, '{}'),
-  tm.alert_preferences,
-  tm.ooo_from,
-  tm.ooo_until,
-  tm.alerts_mirror_to,
-  COALESCE(tm.is_hidden, false),
-  tm.avatar_url,
-  tm.signature_url,
-  tm.signature_uploaded_at,
-  COALESCE(tm.bio, ''),
-  COALESCE(tm.created_at, now()),
-  COALESCE(tm.updated_at, now()),
+  n.auth_id,
+  COALESCE(n.permissions, '{}'),
+  COALESCE(n.module_permissions, '{}'),
+  COALESCE(n.assigned_pubs, ARRAY['all']),
+  n.global_role,
+  n.stellarpress_roles,
+  n.commission_trigger,
+  n.commission_default_rate,
+  n.commission_payout_frequency,
+  n.rate_type,
+  n.rate_amount,
+  COALESCE(n.alerts, '{}'),
+  n.alert_preferences,
+  n.ooo_from,
+  n.ooo_until,
+  n.alerts_mirror_to,
+  COALESCE(n.is_hidden, false),
+  n.avatar_url,
+  n.signature_url,
+  n.signature_uploaded_at,
+  COALESCE(n.bio, ''),
+  COALESCE(n.created_at, now()),
+  COALESCE(n.updated_at, now()),
   ''
-FROM team_members tm
-WHERE NOT EXISTS (SELECT 1 FROM people p WHERE p.id = tm.id);
-
--- Slug collisions — if multiple team_members had the same display
--- name (rare but possible), append a discriminator. We can't use
--- ON CONFLICT in the INSERT above because the UUIDs collide on the
--- PK before the slug; the safer pattern is a post-pass uniquification.
-DO $$
-DECLARE
-  rec record;
-  candidate text;
-  i int;
-BEGIN
-  FOR rec IN
-    SELECT slug, array_agg(id ORDER BY created_at) AS ids
-    FROM people GROUP BY slug HAVING count(*) > 1
-  LOOP
-    i := 1;
-    FOREACH candidate IN ARRAY rec.ids[2:array_length(rec.ids, 1)]::uuid[]
-    LOOP
-      i := i + 1;
-      UPDATE people SET slug = rec.slug || '-' || i WHERE id = candidate::uuid;
-    END LOOP;
-  END LOOP;
-END $$;
+FROM numbered n
+WHERE NOT EXISTS (SELECT 1 FROM people p WHERE p.id = n.id);
 
 DO $$ DECLARE n bigint;
 BEGIN SELECT count(*) INTO n FROM people;
@@ -356,7 +362,58 @@ END $$;
 
 
 -- ────────────────────────────────────────────────────────────
--- Phase 4: Backfill stories.author_id (3 passes)
+-- Phase 6 (moved earlier — must precede Phase 4): Re-FK every
+-- column that pointed at team_members(id) so that the Phase 4
+-- backfill can write people IDs into stories.author_id without
+-- the existing FK rejecting them.
+--
+-- Programmatic — pg_constraint enumerates them; the loop preserves
+-- each FK's ON DELETE behavior so semantics don't change.
+-- ────────────────────────────────────────────────────────────
+DO $outer$
+DECLARE
+  rec record;
+  on_delete_clause text;
+  on_update_clause text;
+BEGIN
+  FOR rec IN
+    SELECT con.conname, cls.relname AS table_name, ns.nspname AS schema_name,
+           att.attname AS column_name, con.confdeltype AS delete_action,
+           con.confupdtype AS update_action
+    FROM pg_constraint con
+    JOIN pg_class cls ON cls.oid = con.conrelid
+    JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+    JOIN pg_attribute att ON att.attrelid = cls.oid AND att.attnum = ANY(con.conkey)
+    WHERE con.confrelid = 'public.team_members'::regclass AND con.contype = 'f'
+    ORDER BY ns.nspname, cls.relname, con.conname
+  LOOP
+    on_delete_clause := CASE rec.delete_action
+      WHEN 'c' THEN 'ON DELETE CASCADE'
+      WHEN 'n' THEN 'ON DELETE SET NULL'
+      WHEN 'r' THEN 'ON DELETE RESTRICT'
+      WHEN 'd' THEN 'ON DELETE SET DEFAULT'
+      ELSE ''
+    END;
+    on_update_clause := CASE rec.update_action
+      WHEN 'c' THEN 'ON UPDATE CASCADE'
+      WHEN 'n' THEN 'ON UPDATE SET NULL'
+      WHEN 'r' THEN 'ON UPDATE RESTRICT'
+      WHEN 'd' THEN 'ON UPDATE SET DEFAULT'
+      ELSE ''
+    END;
+    EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I',
+                   rec.schema_name, rec.table_name, rec.conname);
+    EXECUTE format(
+      'ALTER TABLE %I.%I ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES public.people(id) %s %s',
+      rec.schema_name, rec.table_name, rec.conname, rec.column_name,
+      on_delete_clause, on_update_clause
+    );
+  END LOOP;
+END $outer$;
+
+
+-- ────────────────────────────────────────────────────────────
+-- Phase 4: Backfill stories.author_id (4 passes)
 -- ────────────────────────────────────────────────────────────
 
 -- Pass 1: exact-match. Fast, no false positives.
@@ -461,58 +518,7 @@ BEGIN SELECT count(*) INTO n FROM story_authors;
 END $$;
 
 
--- ────────────────────────────────────────────────────────────
--- Phase 6: Re-FK every column that pointed at team_members(id).
--- Programmatic — pg_constraint enumerates them; the loop preserves
--- each FK's ON DELETE behavior so semantics don't change.
--- ────────────────────────────────────────────────────────────
-DO $$
-DECLARE
-  rec record;
-  on_delete_clause text;
-  on_update_clause text;
-BEGIN
-  FOR rec IN
-    SELECT
-      con.conname,
-      cls.relname  AS table_name,
-      ns.nspname   AS schema_name,
-      att.attname  AS column_name,
-      con.confdeltype AS delete_action,
-      con.confupdtype AS update_action
-    FROM pg_constraint con
-    JOIN pg_class     cls ON cls.oid = con.conrelid
-    JOIN pg_namespace ns  ON ns.oid  = cls.relnamespace
-    JOIN pg_attribute att ON att.attrelid = cls.oid AND att.attnum = ANY(con.conkey)
-    WHERE con.confrelid = 'public.team_members'::regclass
-      AND con.contype = 'f'
-    ORDER BY ns.nspname, cls.relname, con.conname
-  LOOP
-    on_delete_clause := CASE rec.delete_action
-      WHEN 'c' THEN 'ON DELETE CASCADE'
-      WHEN 'n' THEN 'ON DELETE SET NULL'
-      WHEN 'r' THEN 'ON DELETE RESTRICT'
-      WHEN 'd' THEN 'ON DELETE SET DEFAULT'
-      ELSE ''
-    END;
-    on_update_clause := CASE rec.update_action
-      WHEN 'c' THEN 'ON UPDATE CASCADE'
-      WHEN 'n' THEN 'ON UPDATE SET NULL'
-      WHEN 'r' THEN 'ON UPDATE RESTRICT'
-      WHEN 'd' THEN 'ON UPDATE SET DEFAULT'
-      ELSE ''
-    END;
-
-    EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I',
-                   rec.schema_name, rec.table_name, rec.conname);
-    EXECUTE format(
-      'ALTER TABLE %I.%I ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES public.people(id) %s %s',
-      rec.schema_name, rec.table_name, rec.conname, rec.column_name,
-      on_delete_clause, on_update_clause
-    );
-    RAISE NOTICE '[179] Phase 6: re-FK''d %.%.% → people(id)', rec.schema_name, rec.table_name, rec.column_name;
-  END LOOP;
-END $$;
+-- (Phase 6 moved earlier in this file, just after Phase 3.)
 
 
 -- ────────────────────────────────────────────────────────────
@@ -541,8 +547,16 @@ BEGIN
     FROM pg_policies
     WHERE qual::text LIKE '%team_members%' OR with_check::text LIKE '%team_members%'
   LOOP
+    -- Step 1: swap the table name. Step 2: rewrite `.is_active`
+    -- column references to `.status = 'active'` since people has a
+    -- status enum instead of a boolean. team_members.name and
+    -- is_freelance don't appear in any current policy body, so
+    -- those rewrites aren't needed yet — add them here if a future
+    -- policy uses them.
     new_qual  := replace(coalesce(rec.qual::text, ''),       'team_members', 'people');
+    new_qual  := regexp_replace(new_qual,  '\.is_active', '.status = ''active''', 'g');
     new_check := replace(coalesce(rec.with_check::text, ''), 'team_members', 'people');
+    new_check := regexp_replace(new_check, '\.is_active', '.status = ''active''', 'g');
 
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',
                    rec.policyname, rec.schemaname, rec.tablename);
@@ -600,6 +614,13 @@ ALTER TABLE people DROP COLUMN IF EXISTS availability;
 -- the notes prefix `[migrated_from_writer_list]` — a follow-up
 -- migration can promote that to a real column or enum value when
 -- the opt-in flow is built.
+--
+-- Disable the handle_subscriber_insert trigger for the duration of
+-- this bulk insert: the trigger still references the legacy
+-- 'Office Manager' role (dropped in 178) and would fail at row-level
+-- casting. 180 rewrites that function with the consolidated role list.
+ALTER TABLE subscribers DISABLE TRIGGER USER;
+
 WITH no_byline AS (
   SELECT p.id, p.email, p.display_name
   FROM people p
@@ -617,10 +638,11 @@ SELECT
   'digital'::subscriber_type,
   'pending'::subscriber_status,
   split_part(nb.display_name, ' ', 1),
+  -- subscribers.last_name is NOT NULL — single-word display_name → empty string
   CASE
     WHEN position(' ' IN nb.display_name) > 0
       THEN substring(nb.display_name FROM position(' ' IN nb.display_name) + 1)
-    ELSE NULL
+    ELSE ''
   END,
   lower(nb.email),
   -- Default pub for migrated stringers — first newspaper in the
@@ -670,6 +692,9 @@ BEGIN SELECT count(*) INTO n FROM subscribers
   WHERE notes LIKE '[migrated_from_writer_list]%';
   RAISE NOTICE '[179] Phase 10 done: % stringer subscribers seeded (pending opt-in)', n;
 END $$;
+
+-- Re-enable triggers we suspended for the bulk insert.
+ALTER TABLE subscribers ENABLE TRIGGER USER;
 
 
 -- ────────────────────────────────────────────────────────────
