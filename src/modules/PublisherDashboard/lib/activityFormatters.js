@@ -1,7 +1,7 @@
 // PublisherDashboard/lib/activityFormatters.js
 // event_type → display string mapping. One pure function per event type.
 // All formatters are pure: they take a row from activity_log + optional
-// resolved metadata (actor name from team_members, client name) and
+// resolved metadata (actor name from people, client name) and
 // return { headline, detail, isItalic, isCritical }.
 
 import { ACTIVITY_EVENT_TYPES } from "../constants";

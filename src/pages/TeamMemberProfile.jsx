@@ -9,8 +9,8 @@ import { MODULES, ROLE_DEFAULTS, ALERT_EVENTS, ALERT_OPTIONS, getAlertDefaults }
 
 const today = new Date().toISOString().slice(0, 10);
 
-// Mirror of the team_members.role Postgres enum (in db sort order).
-// Keep in sync with the enum if/when it grows.
+// Mirror of the people.role Postgres enum (in db sort order).
+// Keep in sync with the team_role enum if/when it grows.
 const TEAM_ROLES = [
   "Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter",
   "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer",
@@ -19,8 +19,8 @@ const TEAM_ROLES = [
   "Layout Designer", "Content Editor", "Office Administrator",
 ];
 
-// Freelance specialties — stored in team_members.specialty (text). The
-// values are stable identifiers so reporting can group across specialties;
+// Freelance specialties — stored in people.specialty (text). The values
+// are stable identifiers so reporting can group across specialties;
 // only the labels are user-facing.
 const FREELANCE_SPECIALTIES = [
   { value: "writer", label: "Writer" },
@@ -196,7 +196,7 @@ function SettingsPanel({ member, pubs, team, updateTeamMember, salespersonPubAss
 
     {/* Role editor — admins + publishers. Changes the member's title and
         recasts their dashboards / commission eligibility / role-default
-        permissions. Backed by the Postgres team_members.role enum. */}
+        permissions. Backed by the Postgres people.role enum. */}
     {viewerCanManageTeam && <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${Z.bd}` }}>
       <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Role</div>
       <Sel

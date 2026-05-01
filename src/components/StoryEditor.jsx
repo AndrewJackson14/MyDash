@@ -319,10 +319,12 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
     const roles = ["Publisher", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
-    // Only active team members — excludes archived / import-only byline rows
-    // that were seeded to keep historical stories.author_id FKs valid.
+    // Only active staff (people-unification: isFreelance derives from
+    // labels[]; status drives isActive). Excludes archived / import-only
+    // byline rows that were seeded to keep historical stories.author_id
+    // FKs valid.
     return team.filter(t => t.isActive !== false
-      && !t.is_freelance
+      && !t.isFreelance
       && (roles.some(r => (t.role || "").includes(r)) || t.stellarpress_roles));
   }, [team]);
 
@@ -331,15 +333,39 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
   // DB to keep historical FKs valid but should not appear in the picker.
   const [freelancers, setFreelancers] = useState([]);
   useEffect(() => {
-    supabase.from("team_members").select("id, name, role, is_freelance, specialty, is_active")
-      .eq("is_freelance", true).eq("is_active", true).order("name")
-      .then(({ data }) => { if (data) setFreelancers(data); });
+    // people-unification: query the people table with the contractor
+    // label (replaces is_freelance=true) and active status.
+    supabase.from("people")
+      .select("id, display_name, role, labels, specialty, status")
+      .contains("labels", ["contractor"])
+      .eq("status", "active")
+      .order("display_name")
+      .then(({ data }) => {
+        if (data) setFreelancers(data.map(p => ({
+          id: p.id,
+          name: p.display_name,
+          role: p.role,
+          specialty: p.specialty,
+          is_freelance: true,    // legacy flag for downstream consumers
+          is_active: true,
+        })));
+      });
   }, []);
 
   const addFreelancer = async (name, specialty) => {
-    const newMember = { name, role: specialty, is_freelance: true, specialty, created_at: new Date().toISOString() };
-    const { data } = await supabase.from("team_members").insert(newMember).select().single();
-    if (data) setFreelancers(prev => [...prev, data]);
+    const newMember = {
+      display_name: name,
+      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      role: 'Stringer',
+      specialty,
+      labels: ['contractor', 'author'],
+      status: 'active',
+    };
+    const { data } = await supabase.from("people").insert(newMember).select().single();
+    if (data) setFreelancers(prev => [...prev, {
+      id: data.id, name: data.display_name, role: data.role,
+      specialty: data.specialty, is_freelance: true, is_active: true,
+    }]);
   };
 
   // ── Smart issue filter: +/-30 days, scoped to THIS story's pub ──
@@ -1204,7 +1230,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               const opts = [];
               const seen = new Set();
               authors.forEach(a => {
-                opts.push({ value: a.name, label: (a.name || "").replace(/[\u2013\u2014]/g, "-"), sub: a.is_freelance ? "Freelance" : (a.role || "Staff") });
+                opts.push({ value: a.name, label: (a.name || "").replace(/[\u2013\u2014]/g, "-"), sub: a.isFreelance ? "Freelance" : (a.role || "Staff") });
                 seen.add(a.name);
               });
               freelancers.forEach(f => {

@@ -73,9 +73,12 @@ export function AuthProvider({ children }) {
 
   const fetchTeamMember = async (authId) => {
     try {
-      // Fetch all team members (fast, small table) and match client-side
+      // people-unification (mig 179/180): team_members → people. Surface
+      // `name` and `is_active` for the rest of the app via a small mapper
+      // so callers reading teamMember.name / teamMember.is_active keep
+      // working without a sweep through every consumer.
       const { data, error } = await supabase
-        .from('team_members')
+        .from('people')
         .select('*');
 
       if (error) {
@@ -83,20 +86,26 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
+      const mapPersonToTeamMember = (p) => p && ({
+        ...p,
+        name:         p.display_name,
+        is_active:    p.status === 'active',
+        is_freelance: Array.isArray(p.labels) && p.labels.includes('contractor'),
+      });
       let match = (data || []).find(t => t.auth_id === authId || String(t.auth_id) === String(authId));
       if (!match && user?.email) {
         // Fallback: match by email and auto-link auth_id
-        match = (data || []).find(t => t.email === user.email);
+        match = (data || []).find(t => t.email && user.email && t.email.toLowerCase() === user.email.toLowerCase());
         if (match && !match.auth_id) {
-          await supabase.from('team_members').update({ auth_id: authId }).eq('id', match.id);
+          await supabase.from('people').update({ auth_id: authId }).eq('id', match.id);
           match.auth_id = authId;
           console.log('Auto-linked auth_id for', user.email);
         }
       }
       if (match) {
-        setTeamMember(match);
+        setTeamMember(mapPersonToTeamMember(match));
       } else {
-        console.warn('No team member found for auth_id:', authId, 'or email:', user?.email);
+        console.warn('No person found for auth_id:', authId, 'or email:', user?.email);
       }
     } catch (err) {
       console.error('fetchTeamMember error:', err);

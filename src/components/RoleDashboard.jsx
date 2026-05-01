@@ -406,7 +406,7 @@ const RoleDashboard = memo(({
         setLayoutReady(ready || []);
 
         // 4. Issue Pings — last 48h, posted by someone other than me.
-        // team_notes.from_user references team_members.id, so we filter
+        // team_notes.from_user references people.id, so we filter
         // against currentUser.id (NOT authId — different ref).
         const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
         const { data: pings } = await supabase
@@ -579,7 +579,7 @@ const RoleDashboard = memo(({
 
       // 2. Ping the editor — assigned_to or editor_id, falling back
       // to anyone with editor-ish role on the story's pub. team_notes
-      // FKs reference team_members(id), not auth.users(id).
+      // FKs reference people(id), not auth.users(id).
       const editorId = flagBackStory.editor_id
         || flagBackStory.editorId
         || flagBackStory.assigned_to

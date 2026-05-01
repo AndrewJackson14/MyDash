@@ -12,15 +12,22 @@ maintained markdown files with two-field frontmatter:
     ---
 
 Public API:
-    load_profile(slug)       → {"display_name", "body", "last_updated"}
-    list_profile_slugs()     → ["_default", "camille-devaul", ...]
-    resolve_voice(byline)    → profile dict, or None for joint bylines
+    load_profile(slug)                  → {"display_name", "body", "last_updated"}
+    list_profile_slugs()                → ["_default", "camille-devaul", ...]
+    resolve_voice(byline)               → profile dict, or None for joint bylines
+    resolve_voice_by_person(slug, labels)
+                                        → profile dict (post mig 179: FK path)
 
 Resolution algorithm (~15 lines):
     1. Empty byline                 → _default
     2. Joint byline ('and' / '&')   → None  (caller skips voice_match)
     3. Substring match on display_name in any named profile → that profile
     4. No match                     → _default
+
+people-unification (mig 179/180): stories.author_id now FKs people(id).
+Callers with a resolved author_id should use `resolve_voice_by_person`
+which skips substring matching entirely. Substring fallback is still
+exposed for legacy callers and for stories whose FK didn't backfill.
 
 Adding a 4th author later: drop a markdown file under
 `docs/knowledge-base/voices/<slug>.md`, add the slug to `PROFILE_SLUGS`
@@ -191,6 +198,31 @@ def resolve_voice(byline: str | None) -> dict | None:
         display_name = profile.get("display_name")
         if display_name and display_name in byline:
             return profile
+
+    return load_profile("_default")
+
+
+def resolve_voice_by_person(slug: str | None, labels: list[str] | None) -> dict:
+    """FK-path resolver for callers that already have the people row.
+
+    Mirrors the substring resolver's contract (always returns a profile
+    dict) but uses the canonical slug + labels instead of byline text.
+    `wire` / `bot` labels short-circuit to _default — those rows don't
+    get a personal voice even if a profile happens to share their slug.
+
+    Joint bylines are NOT detected here (that's a byline-text concept,
+    not a people-row concept). Callers should detect joint bylines on
+    `stories.author` text BEFORE calling this and route to None there.
+    """
+    label_set = set(labels or [])
+    if "wire" in label_set or "bot" in label_set:
+        return load_profile("_default")
+
+    if slug and slug in PROFILE_SLUGS:
+        try:
+            return load_profile(slug)
+        except VoiceProfileNotFound:
+            pass
 
     return load_profile("_default")
 

@@ -196,14 +196,17 @@ def get_unanswered():
 
 
 def get_member(user_id: str):
-    res = sb.table("team_members").select("name,role").eq("id", user_id).single().execute()
-    return res.data or {"name": "there", "role": None}
+    # people-unification (mig 179/180): team_members → people, name → display_name.
+    res = sb.table("people").select("display_name,role").eq("id", user_id).single().execute()
+    if not res.data:
+        return {"name": "there", "role": None}
+    return {"name": res.data.get("display_name"), "role": res.data.get("role")}
 
 
 def get_mysupport_ids(exclude: str | None = None) -> list[str]:
-    """Return team_members.id list of active MySupport holders, optionally
+    """Return people.id list of active MySupport holders, optionally
     excluding a specific id (used to prevent self-escalation ping-back)."""
-    res = sb.table("team_members").select("id,permissions,is_active").eq("is_active", True).execute()
+    res = sb.table("people").select("id,permissions,status").eq("status", "active").execute()
     out = []
     for m in res.data or []:
         perms = m.get("permissions") or []

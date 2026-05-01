@@ -121,7 +121,7 @@ const MemberModal = ({ open, onClose, member, pubs, updateTeamMember, deleteTeam
   if (!open || !member) return null;
   const isDk = Z.bg === "#08090D";
 
-  // Alert preferences (stored as JSONB on team_members)
+  // Alert preferences (stored as JSONB on people)
   const alertPrefs = member.alertPreferences || getAlertDefaults(member.role);
 
   const setAlertPref = async (eventKey, value) => {
@@ -508,10 +508,33 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
         setTeam(prev => (prev || []).map(t => t.id === editId ? { ...t, ...form, pubs: form.assignedPubs } : t));
       }
     } else {
-      const newMember = { name: form.name, role: form.role, email: form.email, phone: form.phone || "", assigned_pubs: form.assignedPubs, module_permissions: ROLE_DEFAULTS[form.role] || ["dashboard", "calendar"], alert_preferences: getAlertDefaults(form.role) };
+      // people-unification: insert into people with display_name + slug
+      // + status + labels (staff by default; freelance/contractor flips
+      // to ['contractor'] via the team-edit panel later).
+      const newMember = {
+        display_name: form.name,
+        slug: form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        role: form.role,
+        email: form.email,
+        phone: form.phone || "",
+        assigned_pubs: form.assignedPubs,
+        module_permissions: ROLE_DEFAULTS[form.role] || ["dashboard", "calendar"],
+        alert_preferences: getAlertDefaults(form.role),
+        labels: ['staff'],
+        status: 'active',
+      };
       if (isOnline()) {
-        const { data } = await supabase.from("team_members").insert(newMember).select().single();
-        if (data) setTeam(prev => [...(prev || []), { ...data, id: data.id, pubs: data.assigned_pubs, modulePermissions: data.module_permissions, alertPreferences: data.alert_preferences }]);
+        const { data } = await supabase.from("people").insert(newMember).select().single();
+        if (data) setTeam(prev => [...(prev || []), {
+          ...data,
+          id: data.id,
+          name: data.display_name,
+          isActive: data.status === 'active',
+          isFreelance: Array.isArray(data.labels) && data.labels.includes('contractor'),
+          pubs: data.assigned_pubs,
+          modulePermissions: data.module_permissions,
+          alertPreferences: data.alert_preferences,
+        }]);
       } else {
         setTeam(prev => [...(prev || []), { ...form, id: "tm-" + Date.now(), pubs: form.assignedPubs }]);
       }

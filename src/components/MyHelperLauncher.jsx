@@ -7,8 +7,8 @@
 // including modals.
 //
 // NOTE: This component is STAGED but not yet imported in App.jsx. Add
-// the import + mount once the MyHelper team_members row is seeded and
-// the bot.py service is running. See agent-station/myhelper/README (or
+// the import + mount once the MyHelper people row is seeded and the
+// bot.py service is running. See agent-station/myhelper/README (or
 // the build handoff doc) for the activation checklist.
 // ============================================================
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -156,7 +156,7 @@ export default function MyHelperLauncher({ currentUser, team, pg, deepLink }) {
     setSending(false);
   }, [draft, meId, helper?.id, sending, pageContext]);
 
-  if (!helper) return null;  // MyHelper team_members row doesn't exist yet
+  if (!helper) return null;  // MyHelper people row doesn't exist yet
 
   // Dark mode flips Z.ac to a light tone, which makes the user bubble and
   // floating launcher look white-on-white. Swap to brand blue in dark mode

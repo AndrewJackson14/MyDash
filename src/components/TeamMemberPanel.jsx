@@ -13,6 +13,9 @@ import { computeHotIssues } from "../lib/hotIssues";
 //
 // Self-contained: manages its own slide animation, note state,
 // and Supabase reads/writes against the team_notes table.
+// Note: `member` is a people row (post mig 179/180) but the
+// camelCase mapping in useAppData surfaces the same shape
+// (member.name, member.email) the panel was built against.
 //
 // Props:
 //   member: team member object (or null to render nothing)
@@ -61,8 +64,9 @@ const TeamMemberPanel = ({ member, onClose, currentUser, onOpenProfile, data, on
   }, [member]);
 
   // Load notes for this team member.
-  // Notes are addressed by team_members.id (not auth.users.id) so
-  // sends work regardless of whether the member has an SSO account.
+  // Notes are addressed by people.id (not auth.users.id) so sends
+  // work regardless of whether the member has an SSO account.
+  // people.id preserved the team_members UUIDs through mig 179.
   useEffect(() => {
     if (!member?.id || !isOnline()) { setNotes([]); return; }
     let cancelled = false;

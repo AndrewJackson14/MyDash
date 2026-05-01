@@ -309,10 +309,12 @@ export function DataProvider({ children, localData }) {
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
         const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,has_social,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
-        // rate_type / rate_amount / availability landed via the
-        // add_freelancer_rate_columns migration. They are nullable and only
-        // populated for freelancers; non-freelancers leave them NULL.
-        const teamSelect = 'id,auth_id,name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,is_active,is_freelance,specialty,rate_type,rate_amount,availability,commission_trigger,commission_default_rate,commission_payout_frequency,ooo_from,ooo_until,alerts_mirror_to';
+        // people-unification (mig 179/180): team_members → people with
+        // display_name (was name), labels[] (replaces is_freelance), and
+        // status (was is_active boolean). UI surfaces still expose
+        // `name` / `isActive` / `isFreelance` for backwards compat —
+        // the mapper below derives them from the new schema.
+        const teamSelect = 'id,auth_id,display_name,role,email,phone,alerts,assigned_pubs,permissions,module_permissions,alert_preferences,is_hidden,status,labels,rate_type,rate_amount,specialty,availability,commission_trigger,commission_default_rate,commission_payout_frequency,ooo_from,ooo_until,alerts_mirror_to';
         // Use allSettled so a single table failure doesn't blank the whole
         // boot. Each fulfilled slot keeps its real { data, error } shape;
         // each rejected slot collapses to a safe { data: null, error }
@@ -334,12 +336,12 @@ export function DataProvider({ children, localData }) {
 
         const settled1 = await Promise.allSettled([
           supabase.from('publications').select(pubSelect).order('name'),
-          supabase.from('team_members').select(teamSelect).order('name'),
+          supabase.from('people').select(teamSelect).order('display_name'),
           supabase.from('notifications').select('id,title,detail,type,created_at,read,link').order('created_at', { ascending: false }).limit(50),
           supabase.from('ad_sizes').select('*').order('sort_order'),
         ]);
         const pubsRes    = settledObj(settled1[0], 'publications');
-        const teamRes    = settledObj(settled1[1], 'team_members');
+        const teamRes    = settledObj(settled1[1], 'people');
         const notifsRes  = settledObj(settled1[2], 'notifications');
         const adSizesRes = settledObj(settled1[3], 'ad_sizes');
 
@@ -381,7 +383,41 @@ export function DataProvider({ children, localData }) {
           })));
         }
 
-        if (teamRes.data) setTeam(teamRes.data.map(t => ({ id: t.id, authId: t.auth_id || null, name: t.name, role: t.role, email: t.email, phone: t.phone || '', alerts: t.alerts || [], pubs: t.assigned_pubs || ['all'], permissions: t.permissions || [], modulePermissions: t.module_permissions || [], alertPreferences: t.alert_preferences || null, isHidden: t.is_hidden || false, isActive: t.is_active !== false, isFreelance: t.is_freelance, specialty: t.specialty || null, rateType: t.rate_type || null, rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null, availability: t.availability || null, commissionTrigger: t.commission_trigger || 'both', commissionDefaultRate: Number(t.commission_default_rate || 20), commissionPayoutFrequency: t.commission_payout_frequency || 'monthly', oooFrom: t.ooo_from || null, oooUntil: t.ooo_until || null, alertsMirrorTo: t.alerts_mirror_to || null })));
+        if (teamRes.data) setTeam(teamRes.data.map(t => ({
+          id: t.id,
+          authId: t.auth_id || null,
+          // people.display_name is the new column; UI consumers still
+          // use `name` everywhere.
+          name: t.display_name,
+          role: t.role,
+          email: t.email,
+          phone: t.phone || '',
+          alerts: t.alerts || [],
+          pubs: t.assigned_pubs || ['all'],
+          permissions: t.permissions || [],
+          modulePermissions: t.module_permissions || [],
+          alertPreferences: t.alert_preferences || null,
+          isHidden: t.is_hidden || false,
+          // status enum replaced is_active boolean. Backwards-compat
+          // fields surface both for any consumer that still checks
+          // isActive directly.
+          status: t.status || 'active',
+          isActive: t.status === 'active',
+          // labels array replaced is_freelance boolean. Derive
+          // isFreelance for legacy callers.
+          labels: t.labels || [],
+          isFreelance: Array.isArray(t.labels) && t.labels.includes('contractor'),
+          rateType: t.rate_type || null,
+          rateAmount: t.rate_amount != null ? Number(t.rate_amount) : null,
+          specialty: t.specialty || null,
+          availability: t.availability || null,
+          commissionTrigger: t.commission_trigger || 'both',
+          commissionDefaultRate: Number(t.commission_default_rate || 20),
+          commissionPayoutFrequency: t.commission_payout_frequency || 'monthly',
+          oooFrom: t.ooo_from || null,
+          oooUntil: t.ooo_until || null,
+          alertsMirrorTo: t.alerts_mirror_to || null,
+        })));
         if (notifsRes.data) setNotifications(notifsRes.data.map(n => ({ id: n.id, text: n.title || n.text || '', detail: n.detail || '', type: n.type || '', time: new Date(n.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), read: n.read, route: n.link || n.route || '' })));
 
         if (allClientsRaw.length > 0) setClients(allClientsRaw.map(c => ({
@@ -2933,31 +2969,34 @@ export function DataProvider({ children, localData }) {
     setTeam(t => t.map(m => m.id === id ? { ...m, ...changes } : m));
     if (isOnline()) {
       const db = {};
-      if (changes.name !== undefined) db.name = changes.name;
+      // people-unification: name → display_name, is_active → status
+      // enum, is_freelance → labels[]. Specialty / availability dropped.
+      if (changes.name !== undefined) db.display_name = changes.name;
       if (changes.role !== undefined) db.role = changes.role;
       if (changes.email !== undefined) db.email = changes.email;
       if (changes.phone !== undefined) db.phone = changes.phone;
       if (changes.permissions !== undefined) db.permissions = changes.permissions;
       if (changes.assignedPubs !== undefined) db.assigned_pubs = changes.assignedPubs;
-      if (changes.isActive !== undefined) db.is_active = changes.isActive;
+      if (changes.isActive !== undefined) db.status = changes.isActive ? 'active' : 'retired';
+      if (changes.status !== undefined) db.status = changes.status;
       if (changes.isHidden !== undefined) db.is_hidden = changes.isHidden;
       if (changes.modulePermissions !== undefined) db.module_permissions = changes.modulePermissions;
       if (changes.commissionTrigger !== undefined) db.commission_trigger = changes.commissionTrigger;
       if (changes.commissionDefaultRate !== undefined) db.commission_default_rate = changes.commissionDefaultRate;
       if (changes.commissionPayoutFrequency !== undefined) db.commission_payout_frequency = changes.commissionPayoutFrequency;
       if (changes.alertPreferences !== undefined) db.alert_preferences = changes.alertPreferences;
-      if (changes.isFreelance !== undefined) db.is_freelance = changes.isFreelance;
-      if (changes.specialty !== undefined) db.specialty = changes.specialty;
+      if (changes.labels !== undefined) db.labels = changes.labels;
       if (changes.rateType !== undefined) db.rate_type = changes.rateType;
       if (changes.rateAmount !== undefined) db.rate_amount = changes.rateAmount;
+      if (changes.specialty !== undefined) db.specialty = changes.specialty;
       if (changes.availability !== undefined) db.availability = changes.availability;
       if (changes.oooFrom !== undefined) db.ooo_from = changes.oooFrom;
       if (changes.oooUntil !== undefined) db.ooo_until = changes.oooUntil;
       if (changes.alertsMirrorTo !== undefined) db.alerts_mirror_to = changes.alertsMirrorTo;
       if (Object.keys(db).length) {
-        await supabase.from('team_members').update(db).eq('id', id);
+        await supabase.from('people').update(db).eq('id', id);
         // Audit log for role/permission changes
-        const auditFields = ['role', 'module_permissions', 'assigned_pubs', 'is_active', 'commission_trigger'];
+        const auditFields = ['role', 'module_permissions', 'assigned_pubs', 'status', 'commission_trigger'];
         const changed = Object.keys(db).filter(k => auditFields.includes(k));
         if (changed.length > 0) {
           const member = team.find(m => m.id === id);
@@ -2973,7 +3012,7 @@ export function DataProvider({ children, localData }) {
             {
               eventCategory: 'transition',
               eventSource:   'system',
-              entityTable:   'team_members',
+              entityTable:   'people',
               entityId:      id,
               entitySummary: member?.name || 'Team member',
               relatedUserId: id,
@@ -2985,13 +3024,13 @@ export function DataProvider({ children, localData }) {
     }
   }, [team, logActivity]);
 
-  // Soft-delete: hide the member and mark inactive. We never hard-delete because
-  // 48 foreign keys reference team_members (commissions, sales attribution, story
+  // Soft-delete: hide the member and mark retired. We never hard-delete because
+  // 86 foreign keys reference people(id) (commissions, sales attribution, story
   // authorship, etc.) — a hard delete would either fail outright or destroy history.
   const deleteTeamMember = useCallback(async (id) => {
-    setTeam(t => t.map(m => m.id === id ? { ...m, isHidden: true, isActive: false } : m));
+    setTeam(t => t.map(m => m.id === id ? { ...m, isHidden: true, isActive: false, status: 'retired' } : m));
     if (isOnline()) {
-      await supabase.from('team_members').update({ is_hidden: true, is_active: false }).eq('id', id);
+      await supabase.from('people').update({ is_hidden: true, status: 'retired' }).eq('id', id);
     }
   }, []);
 

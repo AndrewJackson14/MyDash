@@ -2,7 +2,7 @@
 
 **Audience:** the StellarPress repo agent.
 **Purpose:** repoint the self-serve flow from `ad_bookings` to `proposals`. MyDash side is shipped (Phases 1–3); this is the StellarPress-side counterpart.
-**Last verified against MyDash:** 2026-04-30 (commit 9a6d6a5).
+**Last verified against MyDash:** 2026-05-01.
 
 ---
 
@@ -148,7 +148,7 @@ Full rewrite. New route `/advertise/self-serve/proposal/:token`. Reads `proposal
 |-----------------------|-------------------------------------------------------------------------------------|
 | `Awaiting Review`     | "Submitted — a rep will review shortly. You can still edit." Show line items + total + "Resume editing" button (links back to `/advertise/self-serve` with cart prefilled from this proposal's lines). |
 | `Under Review`        | Same as Awaiting Review but read-only — rep is actively working. "A rep is finalizing your proposal." |
-| `Sent`                | "Your proposal is ready." Show line items + total + **View & Sign** button (links to existing proposal-signing flow). |
+| `Sent`                | "Your proposal is ready." Show line items + total + **View & Sign** button linking to `data.signing_url` (the RPC returns `https://mydash.media/sign/<access_token>` when an unsigned, unexpired `proposal_signatures` row exists; null otherwise — fall back to "watch for the email" copy). |
 | `Approved/Signed`     | "Signed. Watch your email for the Ad Project portal — that's where you'll upload creative." |
 | `Signed & Converted`  | Same as Approved/Signed — converted to contract, Ad Project should already exist.    |
 | `Declined`            | "Not accepted." Show the rep's reason from `notes`. No further actions.              |
@@ -163,10 +163,64 @@ Full rewrite. New route `/advertise/self-serve/proposal/:token`. Reads `proposal
 ### Resume-edit flow
 
 When the customer clicks "Resume editing" on an `Awaiting Review` proposal:
-1. Read the proposal's lines, billing_zip, intake_email.
-2. Hydrate `localStorage.cart` (or whatever the SelfServePage uses) with those lines.
-3. Navigate back to `/advertise/self-serve` (skip the identify step — already known by `self_serve_token`).
-4. On re-submit, the cart should *update* the existing proposal, not create a new one. **Decision needed:** does the submit RPC accept an optional `p_proposal_id` to update in place, or does StellarPress call `update` directly? Recommend the former — easier on RLS. Flag with Nic if you want this added to the spec.
+
+1. ProposalStatusPage stashes a payload in `localStorage` under the key
+   `sp:resumeProposal` and navigates to `/advertise/self-serve`. Payload shape:
+
+   ```js
+   {
+     proposal_id:      '<uuid>',
+     self_serve_token: '<uuid>',
+     intake_email:     'jdoe@acmeplumbing.com',
+     billing_zip:      '93446',
+     creative_notes:   'Headline: Spring Sale...',
+     lines: [
+       { digital_product_id: '<uuid>', flight_start_date: '2026-05-01', flight_end_date: '2026-07-31' },
+       // ...
+     ],
+   }
+   ```
+
+2. SelfServePage on mount: read the payload, pre-fill `email` / `billingZip` /
+   `creativeNotes`, set internal `editingProposal = { proposal_id, self_serve_token }`,
+   skip identify + businessDetails (the proposal already has a `client_id`),
+   jump straight to the catalog step. Clear localStorage immediately so a refresh
+   doesn't re-trigger.
+
+3. After the catalog finishes loading, hydrate the cart by matching
+   `lines[].digital_product_id` against the live `digital_ad_products` rows.
+   Lines whose product is no longer active are silently dropped — the user
+   can re-add or contact a rep.
+
+4. On submit, dispatch to `update_self_serve_proposal` (NOT `submit_self_serve_proposal`):
+
+   ```js
+   await supabase.rpc('update_self_serve_proposal', {
+     p_proposal_id:      editingProposal.proposal_id,
+     p_self_serve_token: editingProposal.self_serve_token,
+     p_line_items:       lineItems,         // same shape as submit
+     p_creative_notes:   creativeNotes,
+   })
+   // returns: { proposal_id, self_serve_token }   (same shape as submit)
+   ```
+
+   The server validates the token matches the proposal AND the proposal is still
+   `Awaiting Review`, then atomically deletes existing `proposal_lines`, inserts
+   the new ones, and recomputes/persists pricing on the proposals row.
+
+   `billing_zip`, `intake_email`, and the `client_id` are not mutable via this
+   RPC — they're locked at first-submit time. If the customer needs to change
+   those, they call the rep.
+
+5. **Errors to handle:**
+   - `not_editable` — a rep has moved the proposal off `Awaiting Review` since
+     the page was loaded. The customer's edits are dropped (intended). UI
+     should reload the proposal and show the new status.
+   - `token_mismatch` — somebody tampered with the URL or localStorage. Treat
+     as auth failure.
+   - `proposal_not_found` — proposal was deleted. Show the "not found" state.
+   - `missing_required_fields` — empty cart. UI prevents submit when cart is
+     empty already, so this should never fire from a real client.
 
 ---
 
@@ -206,11 +260,17 @@ The Talk-to-a-Rep flow continues to write to `ad_inquiries`. Nothing on this pag
 
 ## Open items needing MyDash-side action
 
-These are gaps the StellarPress spec depends on. **Confirm with Nic before relying on them:**
+Resolved since the original handoff:
 
-1. **`get_self_serve_proposal(p_token UUID)` RPC** — token-gated read for the new status page. Doesn't exist yet; needed for the status-page rewrite. Until it ships, stub the page from `localStorage.lastProposal` returned by the submit RPC.
-2. **Resume-edit submit semantics** — does `submit_self_serve_proposal` accept an optional `p_proposal_id` to update in place, or should StellarPress mutate the proposal directly via REST? Decision pending.
-3. **Decline-reason email template** — the spec called for the rep's decline reason to be emailed to the advertiser via "existing template." That email path doesn't exist today. The Decline action in MyDash writes the reason to `proposals.notes`; the email side is unbuilt. Out of scope for Phase 4, but flag for Phase 5/6 cleanup planning.
+- ~~`get_self_serve_proposal(p_token UUID)` RPC~~ — **shipped.** Returns proposal
+  metadata + lines (with `digital_product_id`) + `signing_url` (when an unsigned,
+  unexpired `proposal_signatures` row exists for the proposal). Token-gated,
+  anon-callable, `SECURITY DEFINER`.
+- ~~Resume-edit submit semantics~~ — **resolved.** `update_self_serve_proposal(p_proposal_id, p_self_serve_token, p_line_items, p_creative_notes)` is live and token-gated. Errors: `not_editable`, `token_mismatch`, `proposal_not_found`, `missing_required_fields`. See the Resume-edit flow section above.
+
+Still open:
+
+1. **Decline-reason email template** — the spec called for the rep's decline reason to be emailed to the advertiser via "existing template." That email path doesn't exist today. The Decline action in MyDash writes the reason to `proposals.notes`; the email side is unbuilt. Out of scope for Phase 4, but flag for Phase 5/6 cleanup planning.
 
 ---
 
@@ -224,10 +284,9 @@ These are gaps the StellarPress spec depends on. **Confirm with Nic before relyi
 3. Update `SelfServePage` submit handler to call `submit_self_serve_proposal`. Update redirect URL.
 4. Update identify step to call `resolve_advertiser_tier` RPC. Rename `advertiser_id` → `client_id` in callers.
 5. Add `/advertise/self-serve/booking/:token` → `/advertise/self-serve/proposal/:token` redirect.
-6. **Pause for MyDash to ship `get_self_serve_proposal` RPC.**
-7. Build `ProposalStatusPage` against the new RPC. Wire the resume-edit + view-and-sign actions per the status table.
-8. Delete `BookingStatusPage.jsx` after the rewrite is verified.
-9. End-to-end test: synthetic submission → verify in MyDash that proposal appears in Sales CRM with 🛒 badge and Awaiting Review banner.
+6. Build `ProposalStatusPage` against `get_self_serve_proposal`. Wire `data.signing_url` for Sent and the localStorage-based resume-edit handoff for Awaiting Review per the status table + Resume-edit flow section.
+7. Delete `BookingStatusPage.jsx` after the rewrite is verified.
+8. End-to-end test: synthetic submission → verify in MyDash that proposal appears in Sales CRM with 🛒 badge and Awaiting Review banner. Then click Resume editing on that submission, change a line, re-submit → confirm the same proposal updates in place (no second row).
 
 ### Cleanup (after Phase 4 ships)
 10. Remove dead references: legacy `share_token` usage, edge-function fetch helpers, creative-upload components from booking page.

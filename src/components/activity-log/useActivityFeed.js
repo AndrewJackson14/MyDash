@@ -13,7 +13,7 @@ import { supabase, isOnline } from "../../lib/supabase";
 const DAY_MS = 86400000;
 
 export function useActivityFeed({
-  actorId,           // team_members.id — null = team-wide
+  actorId,           // people.id — null = team-wide
   scope = "today",   // 'today' | 'yesterday'
   categories = ["effort", "outcome", "transition", "comment", "manual_log"],
   limit = 50,

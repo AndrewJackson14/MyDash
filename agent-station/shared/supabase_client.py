@@ -64,30 +64,43 @@ sb = _SupabaseProxy()
 # agents don't reinvent them.
 
 def get_team_member(user_id: str) -> dict:
-    """Fetch a single team_members row by id. Returns dict with name + role,
-    or a fallback dict if the user isn't found."""
-    res = sb.table("team_members").select("name,role,email").eq("id", user_id).single().execute()
-    return res.data or {"name": "there", "role": None, "email": None}
+    """Fetch a single people row by id. Returns dict with name + role,
+    or a fallback dict if the user isn't found.
+
+    people-unification (mig 179/180): table is now `people`, the legacy
+    `name` column is `display_name`, `is_active` is `status='active'`.
+    Mapped back into the legacy shape so callers don't have to change."""
+    res = sb.table("people").select("display_name,role,email,status").eq("id", user_id).single().execute()
+    if not res.data:
+        return {"name": "there", "role": None, "email": None}
+    return {
+        "name":  res.data.get("display_name"),
+        "role":  res.data.get("role"),
+        "email": res.data.get("email"),
+    }
 
 
 def get_role_holders(role: str) -> list[dict]:
-    """Return all active team_members with a given role.
+    """Return all active people rows with a given role.
     Useful for: 'send to all Editor-in-Chief role holders'."""
-    res = sb.table("team_members") \
-        .select("id,name,email,auth_id") \
+    res = sb.table("people") \
+        .select("id,display_name,email,auth_id") \
         .eq("role", role) \
-        .eq("is_active", True) \
+        .eq("status", "active") \
         .execute()
-    return res.data or []
+    return [
+        {"id": p["id"], "name": p.get("display_name"), "email": p.get("email"), "auth_id": p.get("auth_id")}
+        for p in (res.data or [])
+    ]
 
 
 def get_permission_holders(permission: str, exclude: str | None = None) -> list[str]:
-    """Return team_members.id list for active members holding `permission`.
+    """Return people.id list for active members holding `permission`.
     Optionally exclude a specific id (used to prevent self-escalation
     ping-back, the same way MyHelper excludes the asker from MySupport)."""
-    res = sb.table("team_members") \
-        .select("id,permissions,is_active") \
-        .eq("is_active", True) \
+    res = sb.table("people") \
+        .select("id,permissions,status") \
+        .eq("status", "active") \
         .execute()
     out = []
     for m in res.data or []:

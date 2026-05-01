@@ -375,8 +375,8 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
     const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString();
 
     // 1. Mark issue as sent to press. G22 fix — write the actual
-    // team_members.id, not the user's display name. Falls back to
-    // null if currentUser hasn't loaded so we don't end up with the
+    // people.id, not the user's display name. Falls back to null
+    // if currentUser hasn't loaded so we don't end up with the
     // literal string "publisher" polluting downstream queries.
     await supabase.from("issues").update({ sent_to_press_at: now, sent_to_press_by: currentUser?.id || null }).eq("id", issue.id);
     setIssues(prev => prev.map(i => i.id === issue.id ? { ...i, sentToPressAt: now, sentToPressBy: currentUser?.id || null } : i));

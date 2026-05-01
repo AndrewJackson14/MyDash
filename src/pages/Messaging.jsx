@@ -46,7 +46,7 @@ const Messaging = memo(({ team, currentUser, isActive }) => {
   }, [isActive, setHeader, clearHeader]);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeOther, setActiveOther] = useState(null); // team_members.id of the other party
+  const [activeOther, setActiveOther] = useState(null); // people.id of the other party
   const [search, setSearch] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [draft, setDraft] = useState("");
