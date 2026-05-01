@@ -8,6 +8,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { Gallery } from "../lib/tiptapGallery";
 import EntityThread from "./EntityThread";
+import EditorialChecker from "./EditorialChecker";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, TB, Modal } from "./ui";
 import FuzzyPicker from "./FuzzyPicker";
@@ -991,6 +992,27 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               : s
             )} active={meta.status || "Draft"} onChange={v => saveMeta("status", v)} />
             {isPublished && <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"\u2713"} Published</div>}
+          </div>
+
+          {/* Editorial checks — Phase E. Trigger sits next to the publish
+              flow so editors hit it before promoting to Ready. */}
+          <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
+            <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>
+              Editorial
+            </div>
+            <EditorialChecker
+              story={{
+                id:             story.id,
+                title:          meta.title || story.title || "",
+                author:         meta.author || story.author || "",
+                category:       meta.category || story.category || "news",
+                publication_id: (Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || "",
+                word_limit:     meta.word_limit || story.word_limit || null,
+              }}
+              bodyHtml={fullContent || ""}
+              pubId={(Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || ""}
+              onSetTitle={(t) => { setMeta(m => ({ ...m, title: t })); saveMeta("title", t); }}
+            />
           </div>
 
           {/* Web Approval + Publish / Featured */}
