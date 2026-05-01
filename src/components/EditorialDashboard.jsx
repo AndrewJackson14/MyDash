@@ -903,6 +903,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
             story={selected}
             onClose={closeEditor}
             onUpdate={updateStory}
+            onDraftCreated={(newStory) => {
+              // Phase C of editorial-generate-v2-spec: prepend the new
+              // draft to local state and switch the editor to it. The
+              // user lands on the fresh draft, ready to refine.
+              setStories(prev => [newStory, ...prev]);
+              setSelected(newStory);
+            }}
             pubs={pubs}
             issues={issues}
             team={team}

@@ -35,6 +35,7 @@ import { useMemo, useState } from "react";
 import { Z, COND, FS, FW, R, Ri, ACCENT } from "../lib/theme";
 import { Btn, Modal } from "./ui";
 import { supabase } from "../lib/supabase";
+import RegenerateModal from "./editor/RegenerateModal";
 
 const GENERATE_ROLES = new Set([
   "Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor",
@@ -96,7 +97,8 @@ const ALL_SKILL_SLUGS = SKILLS.map(s => s.slug);
 
 export default function EditorialChecker({
   story, bodyHtml, pubId, onSetTitle,
-  viewerId, viewerRole, viewerIsAdmin, onApplyGeneratedBody,
+  viewerId, viewerName, viewerRole, viewerIsAdmin,
+  onApplyGeneratedBody, onDraftCreated,
 }) {
   const [actionOpen, setActionOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -116,7 +118,16 @@ export default function EditorialChecker({
   // textarea state lives inside GenerateModal and resets on close).
   const [lastUpdatesText, setLastUpdatesText] = useState("");
 
+  // Regenerate-as-new-draft state (Phase C of editorial-generate-v2-spec).
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
+
   const canGenerate = !!viewerIsAdmin || GENERATE_ROLES.has(viewerRole);
+  // "Published" in this codebase = sent_to_web or sent_to_print. The
+  // status enum (Draft / Edit / Ready / Approved) doesn't carry the
+  // "live" signal directly. Spec said published-only sources for the
+  // Regenerate flow.
+  const isStoryPublished = !!(story?.sent_to_web || story?.sentToWeb || story?.sent_to_print || story?.sentToPrint);
+  const canRegenerate = canGenerate && isStoryPublished && onDraftCreated;
 
   const togglePick = (slug) => setPicked(prev => {
     const next = new Set(prev);
@@ -245,10 +256,12 @@ export default function EditorialChecker({
       {actionOpen && (
         <ActionPickerModal
           canGenerate={canGenerate}
+          canRegenerate={canRegenerate}
           checkDisabled={!bodyHtml || !bodyHtml.trim()}
           generateDisabled={!bodyHtml || !bodyHtml.trim()}
           onCheck={() => { setActionOpen(false); setPickerOpen(true); }}
           onGenerate={() => { setActionOpen(false); setGenerateOpen(true); }}
+          onRegenerate={() => { setActionOpen(false); setRegenerateOpen(true); }}
           onCancel={() => setActionOpen(false)}
         />
       )}
@@ -284,13 +297,27 @@ export default function EditorialChecker({
           onCancel={() => { setGenerateOpen(false); setGenResult(null); setGenError(null); }}
         />
       )}
+
+      {regenerateOpen && (
+        <RegenerateModal
+          sourceStory={story}
+          viewerId={viewerId}
+          viewerName={viewerName}
+          onCreated={(newStory) => onDraftCreated?.(newStory)}
+          onClose={() => setRegenerateOpen(false)}
+        />
+      )}
     </>
   );
 }
 
 // ── Action picker (Check vs Generate) ──────────────────────
 
-function ActionPickerModal({ canGenerate, checkDisabled, generateDisabled, onCheck, onGenerate, onCancel }) {
+function ActionPickerModal({
+  canGenerate, canRegenerate,
+  checkDisabled, generateDisabled,
+  onCheck, onGenerate, onRegenerate, onCancel,
+}) {
   return (
     <Modal open onClose={onCancel} title="Editorial Agent">
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -310,6 +337,14 @@ function ActionPickerModal({ canGenerate, checkDisabled, generateDisabled, onChe
             disabled={generateDisabled}
             disabledHint="Paste the source story into the body first"
             onClick={onGenerate}
+          />
+        )}
+        {canRegenerate && (
+          <ActionRow
+            icon="📋"
+            title="Regenerate as new draft"
+            hint="Create a fresh draft from this published story with new facts — your byline, blank title"
+            onClick={onRegenerate}
           />
         )}
       </div>

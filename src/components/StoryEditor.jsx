@@ -220,7 +220,7 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }
 // ══════════════════════════════════════════════════════════════════
 // STORY EDITOR
 // ══════════════════════════════════════════════════════════════════
-const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, currentUser, publishStory, unpublishStory }) => {
+const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, team, bus, currentUser, publishStory, unpublishStory }) => {
   const dialog = useDialog();
   const [meta, setMeta] = useState({ ...story });
   const [saving, setSaving] = useState(false);
@@ -1039,6 +1039,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
               pubId={(Array.isArray(meta.publication_id) ? meta.publication_id[0] : meta.publication_id) || meta.publication || ""}
               onSetTitle={(t) => { setMeta(m => ({ ...m, title: t })); saveMeta("title", t); }}
               viewerId={currentUser?.id}
+              viewerName={currentUser?.name}
               viewerRole={currentUser?.role}
               viewerIsAdmin={!!(currentUser?.permissions?.includes?.("admin"))}
               onApplyGeneratedBody={(html) => {
@@ -1049,6 +1050,7 @@ const StoryEditor = ({ story, onClose, onUpdate, pubs, issues, team, bus, curren
                 if (saveTimer.current) clearTimeout(saveTimer.current);
                 saveTimer.current = setTimeout(() => autoSave(editor.getJSON(), editor.getText()), 100);
               }}
+              onDraftCreated={onDraftCreated}
             />
           </div>
 
