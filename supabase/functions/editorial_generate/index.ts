@@ -1,27 +1,23 @@
 // ============================================================
-// editorial_generate — Story Update Agent
+// editorial_generate — Story Update Agent (v2)
 //
-// Takes the story body the user has pasted into the editor (e.g.
-// last year's Colony Days press release) plus a freeform "what's
-// new" note (dates, quotes, names) and returns a revised HTML body
-// that preserves the source's structure and voice while folding in
-// the new facts. The source body comes from the editor directly —
-// no DB lookup; the user pastes whatever they want to revise.
+// Two modes:
 //
-// Architecture: direct Edge Function → Anthropic Claude (Path B). The
+//   in_place (default — existing v1 behavior):
+//     Revises the body of the currently-open story. Voice profile
+//     resolved from the target story's author_id. story_id required.
+//
+//   new_draft (v2):
+//     Generates revised HTML to seed a brand-new draft from a published
+//     source story. The CLIENT performs the actual stories INSERT after
+//     the user accepts the preview — this function just returns the
+//     revised HTML. Voice profile resolved from the CURRENT USER (the
+//     author of the new draft, not the source author). source_story_id
+//     required; story_id ignored.
+//
+// Architecture: direct Edge Function → Anthropic Claude. The
 // editorial_check function proxies to a Mac Mini FastAPI; this one
-// stands alone so it ships before that ops pipeline lands. If we
-// later want to centralize, the Anthropic call here is one block to
-// move into the FastAPI server.
-//
-// Flow:
-//   StoryEditor → POST /functions/v1/editorial_generate (with user JWT)
-//   editorial_generate
-//     → verify Bearer JWT (authenticated user only)
-//     → look up current story's author from DB to resolve voice
-//     → fetch author voice profile from GitHub raw if available
-//     → call Anthropic claude-sonnet-4-6 with the source HTML + updates
-//     → return { revised_html, voice_profile_used }
+// stands alone.
 //
 // Env vars (set via `supabase secrets set`):
 //   ANTHROPIC_API_KEY         required
@@ -44,14 +40,10 @@ const SERVICE_ROLE =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("SERVICE_ROLE_KEY") || "";
 
-// Voice MD source. Mirrors voice_kb.py's KB_BASE so the Edge Function
-// reads the same files the agent-station reads.
 const VOICE_KB_BASE =
   Deno.env.get("VOICE_KB_BASE") ||
   "https://raw.githubusercontent.com/AndrewJackson14/MyDash/main/docs/knowledge-base/voices";
 
-// Slugs with hand-curated voice profiles. Matches voice_kb.py's
-// PROFILE_SLUGS. When a fourth author is added, update both lists.
 const VOICE_PROFILE_SLUGS = new Set([
   "camille-devaul",
   "hayley-mattson",
@@ -94,7 +86,6 @@ function json(body: unknown, status: number, cors: Record<string, string>) {
   });
 }
 
-// ── Supabase REST helpers (service role) ────────────────────
 async function sbSelect(table: string, query: string): Promise<any[]> {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
   const res = await fetch(url, {
@@ -110,8 +101,6 @@ async function sbSelect(table: string, query: string): Promise<any[]> {
   return await res.json();
 }
 
-// ── Voice profile fetch (GitHub raw, no caching since Edge Functions
-// are stateless across invocations and the file is small) ───────────
 async function fetchVoiceProfile(slug: string): Promise<string> {
   try {
     const res = await fetch(`${VOICE_KB_BASE}/${slug}.md`, {
@@ -119,7 +108,6 @@ async function fetchVoiceProfile(slug: string): Promise<string> {
     });
     if (!res.ok) return "";
     const text = await res.text();
-    // Strip frontmatter (---\n...\n---) so the prompt only carries the body.
     if (text.startsWith("---")) {
       const end = text.indexOf("\n---", 3);
       if (end >= 0) return text.slice(end + 4).replace(/^\n+/, "");
@@ -130,7 +118,6 @@ async function fetchVoiceProfile(slug: string): Promise<string> {
   }
 }
 
-// ── Prompt construction ─────────────────────────────────────
 function buildPrompt(opts: {
   sourceBodyHtml: string;
   updatesText: string;
@@ -178,7 +165,6 @@ ${voiceBlock}
 Output the revised HTML body now, nothing else:`;
 }
 
-// ── Anthropic call ──────────────────────────────────────────
 async function callClaude(prompt: string): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
@@ -209,8 +195,6 @@ async function callClaude(prompt: string): Promise<string> {
     const block = (data?.content || []).find((b: any) => b?.type === "text");
     const text = String(block?.text || "").trim();
 
-    // Strip any stray markdown fence the model might have wrapped around
-    // the HTML despite the instructions.
     return text
       .replace(/^```(?:html)?\s*\n?/, "")
       .replace(/\n?```\s*$/, "")
@@ -249,9 +233,20 @@ Deno.serve(async (req: Request) => {
     return json({ error: "invalid_json" }, 400, cors);
   }
 
-  if (!body?.story_id || typeof body.story_id !== "string") {
-    return json({ error: "story_id_required" }, 400, cors);
+  // Mode defaults to in_place for backward compatibility with v1 callers.
+  const mode = body?.mode === "new_draft" ? "new_draft" : "in_place";
+
+  // story_id required for in_place; source_story_id required for new_draft.
+  if (mode === "in_place") {
+    if (!body?.story_id || typeof body.story_id !== "string") {
+      return json({ error: "story_id_required" }, 400, cors);
+    }
+  } else {
+    if (!body?.source_story_id || typeof body.source_story_id !== "string") {
+      return json({ error: "source_story_id_required" }, 400, cors);
+    }
   }
+
   if (typeof body.source_body !== "string" || body.source_body.trim().length < 50) {
     return json({ error: "source_body_required", detail: "Source body must be at least 50 characters." }, 400, cors);
   }
@@ -265,19 +260,19 @@ Deno.serve(async (req: Request) => {
     return json({ error: "updates_text_too_long", max: 10_000 }, 400, cors);
   }
 
-  // ── Permission check: Content Editor / Publisher / admin only ──
-  // The button is gated client-side, but the Edge Function is the
-  // real auth boundary since it spends LLM credits on every call.
+  // Permission check: Content Editor / Publisher / admin only.
   let viewerRole = "";
   let viewerIsAdmin = false;
+  let viewerPersonId: string | null = null;
   try {
-    const viewer = await sbSelect("people", `auth_id=eq.${userId}&select=role,permissions,global_role`);
+    const viewer = await sbSelect("people", `auth_id=eq.${userId}&select=id,role,permissions,global_role`);
     if (viewer.length === 0) {
       return json({ error: "no_people_row" }, 403, cors);
     }
     viewerRole = viewer[0].role || "";
     viewerIsAdmin = (viewer[0].permissions || []).includes?.("admin")
       || viewer[0].global_role === "super_admin";
+    viewerPersonId = viewer[0].id || null;
   } catch (e: any) {
     return json({ error: "viewer_lookup_failed", detail: e?.message }, 500, cors);
   }
@@ -286,29 +281,48 @@ Deno.serve(async (req: Request) => {
     return json({ error: "permission_denied", role: viewerRole }, 403, cors);
   }
 
-  // ── Resolve author voice profile from current story's author ──
+  // ── Resolve author voice profile ──
+  // in_place: voice from the current story's author_id.
+  // new_draft: voice from the current user (they'll be the new draft's author).
   let voiceProfile = "";
   let hasNamedVoice = false;
   let authorName = "";
-  try {
-    const targetRows = await sbSelect("stories", `id=eq.${body.story_id}&select=author_id,author`);
-    const targetAuthorId = targetRows[0]?.author_id || null;
-    authorName = targetRows[0]?.author || "";
+  let voiceSlug: string | null = null;
 
-    if (targetAuthorId) {
-      const people = await sbSelect("people", `id=eq.${targetAuthorId}&select=display_name,slug,labels,status`);
-      if (people.length > 0) {
-        const p = people[0];
-        if (!authorName) authorName = p.display_name || "";
-        const labels: string[] = Array.isArray(p.labels) ? p.labels : [];
-        const isWireOrBot = labels.includes("wire") || labels.includes("bot");
-        if (!isWireOrBot && p.slug && VOICE_PROFILE_SLUGS.has(p.slug)) {
-          voiceProfile = await fetchVoiceProfile(p.slug);
-          if (voiceProfile) hasNamedVoice = true;
+  try {
+    let authorPerson: any = null;
+
+    if (mode === "new_draft") {
+      // Re-query so we get display_name + slug + labels (the permission
+      // query above only fetched id/role/permissions/global_role).
+      if (viewerPersonId) {
+        const rows = await sbSelect("people", `id=eq.${viewerPersonId}&select=display_name,slug,labels,status`);
+        authorPerson = rows[0] || null;
+      }
+    } else {
+      const targetRows = await sbSelect("stories", `id=eq.${body.story_id}&select=author_id,author`);
+      const targetAuthorId = targetRows[0]?.author_id || null;
+      authorName = targetRows[0]?.author || "";
+      if (targetAuthorId) {
+        const people = await sbSelect("people", `id=eq.${targetAuthorId}&select=display_name,slug,labels,status`);
+        authorPerson = people[0] || null;
+      }
+    }
+
+    if (authorPerson) {
+      if (!authorName) authorName = authorPerson.display_name || "";
+      const labels: string[] = Array.isArray(authorPerson.labels) ? authorPerson.labels : [];
+      const isWireOrBot = labels.includes("wire") || labels.includes("bot");
+      if (!isWireOrBot && authorPerson.slug && VOICE_PROFILE_SLUGS.has(authorPerson.slug)) {
+        voiceProfile = await fetchVoiceProfile(authorPerson.slug);
+        if (voiceProfile) {
+          hasNamedVoice = true;
+          voiceSlug = authorPerson.slug;
         }
       }
     }
-    // Fallback: generic voice guidance from _default.md
+
+    // Fallback: generic voice guidance from _default.md.
     if (!voiceProfile) {
       voiceProfile = await fetchVoiceProfile("_default");
     }
@@ -342,5 +356,7 @@ Deno.serve(async (req: Request) => {
   return json({
     revised_html:       revisedHtml,
     voice_profile_used: hasNamedVoice ? "named" : (voiceProfile ? "default" : "none"),
+    voice_profile_slug: voiceSlug,
+    model:              ANTHROPIC_MODEL,
   }, 200, cors);
 });
