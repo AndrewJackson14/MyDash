@@ -2,11 +2,23 @@
 // ConversationView — single-thread view. Header with back arrow +
 // participant name(s); scrollable message list; sticky input at
 // bottom above the mobile tab bar.
+//
+// The outer wrapper is sized to exactly the viewport space between
+// the mobile TopBar (60px) and the bottom TabBar (72px + safe-area).
+// Inside, header + input are flex:0 and the message list is flex:1
+// with its own scroll, so the input never scrolls off-screen even
+// when the message list is tall enough to need scrolling.
 // ============================================================
 import { useEffect, useRef, useState } from "react";
 import { TOKENS, SURFACE, ACCENT, INK, TYPE, fmtRelative } from "../mobileTokens";
 import { Ic } from "../../../components/ui";
 import { useConvoMessages } from "../../../lib/messaging";
+
+// Total chrome above + below the messaging area: ~60px TopBar +
+// 72px TabBar + safe-area inset at the bottom. Wrapped in a single
+// height calc so ConversationView and NewConversationView stay in
+// sync if the chrome heights ever change.
+const MESSAGING_AREA_HEIGHT = "calc(100dvh - 60px - 72px - env(safe-area-inset-bottom))";
 
 export default function ConversationView({ conversation, currentPersonId, onBack }) {
   const conversationId = conversation?.id || null;
@@ -33,7 +45,7 @@ export default function ConversationView({ conversation, currentPersonId, onBack
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 56px - env(safe-area-inset-bottom))" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: MESSAGING_AREA_HEIGHT }}>
       {/* Header */}
       <div style={{
         flex: "0 0 auto",

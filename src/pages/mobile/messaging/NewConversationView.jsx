@@ -2,11 +2,16 @@
 // NewConversationView — pick a teammate to start a DM with.
 // Filters team to active, non-self, has display_name. Tapping a
 // row calls getOrCreateDM and navigates into the new conversation.
+//
+// Same height constraint as ConversationView so the search bar and
+// the result list don't push past the bottom tab bar.
 // ============================================================
 import { useMemo, useState } from "react";
 import { TOKENS, SURFACE, ACCENT, INK, TYPE } from "../mobileTokens";
 import { Ic } from "../../../components/ui";
 import { getOrCreateDM } from "../../../lib/messaging";
+
+const MESSAGING_AREA_HEIGHT = "calc(100dvh - 60px - 72px - env(safe-area-inset-bottom))";
 
 export default function NewConversationView({ currentPersonId, team, onCancel, onCreated }) {
   const [query, setQuery]     = useState("");
@@ -48,7 +53,7 @@ export default function NewConversationView({ currentPersonId, team, onCancel, o
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 56px - env(safe-area-inset-bottom))" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: MESSAGING_AREA_HEIGHT }}>
       {/* Header */}
       <div style={{
         flex: "0 0 auto",
