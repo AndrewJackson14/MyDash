@@ -102,7 +102,17 @@ export default function MobileApp() {
     // maximum-scale=1 + user-scalable=no together actually disables
     // pinch zoom on iOS Safari (user-scalable=no alone is ignored
     // for accessibility unless paired with a maximum-scale).
-    viewportTag.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no");
+    //
+    // interactive-widget=resizes-content tells Chrome (Android +
+    // PWAs) to resize the LAYOUT viewport when the on-screen keyboard
+    // appears, instead of the default behavior (resizing the visual
+    // viewport and scrolling the layout up to reveal the focused
+    // input — which pushes our sticky TopBar / conversation header
+    // off the top). With resizes-content, position:fixed elements
+    // stay anchored within the new shrunken layout. iOS Safari ignores
+    // the directive; it uses our visualViewport-based handler in
+    // useKeyboardHeight instead.
+    viewportTag.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content");
 
     // Inject PWA manifest + Apple meta so "Add to Home Screen" works.
     // Done client-side rather than baked into index.html so we only
