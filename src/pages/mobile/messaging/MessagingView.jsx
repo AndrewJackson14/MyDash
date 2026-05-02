@@ -23,7 +23,7 @@ import { TOKENS, SURFACE, INK, ACCENT, TYPE } from "../mobileTokens";
 import ConversationList   from "./ConversationList";
 import ConversationView   from "./ConversationView";
 import NewConversationView from "./NewConversationView";
-import { useVisualViewport } from "./useVisualViewport";
+import { useKeyboardHeight } from "./useKeyboardHeight";
 
 const TOP_BAR_PX     = 60;
 // Tab bar inner height + safe-area padding the bar carries on iOS.
