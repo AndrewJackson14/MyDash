@@ -23,15 +23,14 @@ import { TOKENS, SURFACE, INK, ACCENT, TYPE } from "../mobileTokens";
 import ConversationList   from "./ConversationList";
 import ConversationView   from "./ConversationView";
 import NewConversationView from "./NewConversationView";
-import { useKeyboardHeight } from "./useKeyboardHeight";
+import { useVisualViewport } from "./useVisualViewport";
 
-const TOP_BAR_PX      = 60;
-const TAB_BAR_RESERVE = "calc(72px + env(safe-area-inset-bottom))";
+const TOP_BAR_PX = 60;
 
 export default function MessagingView({ currentUser, team }) {
   const personId = currentUser?.id || null;
   const { conversations, loading, reload, setConversations } = useConversations(personId);
-  const kbHeight = useKeyboardHeight();
+  const vv = useVisualViewport();
 
   // null  = inbox view
   // <id>  = open conversation
@@ -92,15 +91,29 @@ export default function MessagingView({ currentUser, team }) {
     };
   }, []);
 
-  // Fixed wrapper: anchors below TopBar, above bottom chrome /
-  // keyboard. left/right=0 + max-width + margin auto centers the
-  // wrapper within the 480px mobile shell.
+  // Fixed wrapper anchored to the VISUAL viewport (not the layout
+  // viewport). On iOS WebKit, position:fixed alone anchors to the
+  // layout, which moves out of view when the browser scrolls the
+  // visual viewport on input focus. Tracking visualViewport.offsetTop
+  // keeps the wrapper riding what the user actually sees.
+  //
+  // Sized to vv.height - TOP_BAR_PX so the MobileApp TopBar (also
+  // anchored to the visual viewport) stays visible above us. The
+  // bottom of the wrapper naturally sits flush with the keyboard
+  // edge because vv.height already excludes the keyboard area on
+  // iOS (and on Chrome Android with interactive-widget=resizes-content).
+  //
+  // Width tied to vv.width with manual centering for the 480px shell:
+  // the visualViewport tracks the full viewport, but on tablets the
+  // shell is narrower than the screen.
+  const wrapperWidth = Math.min(480, vv.width);
+  const wrapperLeft  = vv.offsetLeft + (vv.width - wrapperWidth) / 2;
   const wrapperStyle = {
     position: "fixed",
-    top: TOP_BAR_PX,
-    bottom: kbHeight > 0 ? `${kbHeight}px` : TAB_BAR_RESERVE,
-    left: 0, right: 0,
-    maxWidth: 480, margin: "0 auto",
+    top:    vv.offsetTop + TOP_BAR_PX,
+    left:   wrapperLeft,
+    width:  wrapperWidth,
+    height: Math.max(0, vv.height - TOP_BAR_PX),
     background: SURFACE.alt,
     display: "flex", flexDirection: "column",
     zIndex: 30,
