@@ -1,7 +1,14 @@
 // findDM / getOrCreateDM — 1:1 conversation lookup with lazy creation.
-// Ported from /messaging/lib/dm.js. Both ids are people.id (not auth
-// user ids); the caller is responsible for resolving auth.uid() →
-// people.id (typically via currentUser.id from useAuth's teamMember).
+// Ported from /messaging/lib/dm.js with one important change: the
+// portable package's getOrCreateDM did a two-step client INSERT
+// (conversations + participants) which hit RLS chicken-and-egg
+// problems with the SELECT policy on conversations (RETURNING ran
+// the SELECT-USING predicate before participants existed). The
+// MyDash side calls a SECURITY DEFINER RPC start_dm(p_other) that
+// performs both inserts atomically with privileges bypass-style.
+//
+// Both ids are people.id; caller resolves auth.uid() → people.id
+// upstream (typically currentUser.id from useAuth's teamMember).
 
 import { supabase } from "../supabase";
 
@@ -22,20 +29,11 @@ export async function findDM(currentPersonId, otherPersonId) {
 }
 
 export async function getOrCreateDM(currentPersonId, otherPersonId) {
-  const existing = await findDM(currentPersonId, otherPersonId);
-  if (existing) return existing;
-  const { data: convo, error: cErr } = await supabase
-    .from("conversations")
-    .insert({ type: "dm", created_by: currentPersonId })
-    .select("id")
-    .single();
-  if (cErr || !convo) throw cErr || new Error("Failed to create conversation");
-  const { error: pErr } = await supabase
-    .from("conversation_participants")
-    .insert([
-      { conversation_id: convo.id, member_id: currentPersonId, role: "member" },
-      { conversation_id: convo.id, member_id: otherPersonId,   role: "member" },
-    ]);
-  if (pErr) throw pErr;
-  return convo.id;
+  if (!currentPersonId || !otherPersonId || currentPersonId === otherPersonId) {
+    throw new Error("Invalid participants");
+  }
+  const { data, error } = await supabase.rpc("start_dm", { p_other: otherPersonId });
+  if (error) throw new Error(error.message || "Failed to start conversation");
+  if (!data) throw new Error("start_dm returned no id");
+  return data;
 }
