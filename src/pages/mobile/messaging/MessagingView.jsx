@@ -36,7 +36,7 @@ const TAB_BAR_PX     = 56;
 // want to think a 60px URL-bar shift is a keyboard.
 const KB_THRESHOLD   = 120;
 
-export default function MessagingView({ currentUser, team }) {
+export default function MessagingView({ currentUser, team, onClose }) {
   const personId = currentUser?.id || null;
   const { conversations, loading, reload, setConversations } = useConversations(personId);
   const kbHeight = useKeyboardHeight();
@@ -100,26 +100,21 @@ export default function MessagingView({ currentUser, team }) {
     };
   }, []);
 
-  // Fixed wrapper anchored to layout viewport (not visual viewport).
-  // We deliberately don't track visualViewport.offsetTop — letting
-  // every tick of iOS's keyboard slide animation re-render the
-  // wrapper at a different `top` was producing a visible rotation/
-  // slide on the chrome. As long as our height keeps the input above
-  // the keyboard, iOS doesn't auto-scroll the visual viewport at
-  // all, which means layout-viewport coordinates ARE visual-viewport
-  // coordinates — solid sticky.
-  //
-  // Top: TOP_BAR_PX (TopBar lives at top:0 above us).
+  // Full-viewport messaging overlay. The MobileApp TopBar is hidden
+  // while we're mounted, so we own the entire visible area between
+  // top:0 and the bottom chrome (or keyboard). No two-chrome layout
+  // for iOS to push around — the messaging surface IS the chrome
+  // when it's open.
   //
   // Bottom math:
-  //   keyboard open  → bottom: ${kbHeight}px so the wrapper rises
-  //                    just enough to put the input above the keyboard.
+  //   keyboard open  → bottom: ${kbHeight}px so the input sits flush
+  //                    above the keyboard.
   //   keyboard closed → bottom: TAB_BAR_PX + safe-area inset so the
-  //                    input sits above the bottom tab bar.
+  //                    input clears the bottom tab bar.
   const kbOpen = kbHeight > KB_THRESHOLD;
   const wrapperStyle = {
     position: "fixed",
-    top: TOP_BAR_PX,
+    top: 0,
     left: 0, right: 0,
     maxWidth: 480, margin: "0 auto",
     bottom: kbOpen
@@ -161,6 +156,7 @@ export default function MessagingView({ currentUser, team }) {
         currentPersonId={personId}
         onPick={(c) => setActive(c.id)}
         onNew={() => setActive("new")}
+        onClose={onClose}
       />
     );
   }

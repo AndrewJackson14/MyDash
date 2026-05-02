@@ -6,14 +6,28 @@
 import { TOKENS, SURFACE, ACCENT, INK, TYPE, fmtRelative } from "../mobileTokens";
 import { Ic } from "../../../components/ui";
 
-export default function ConversationList({ conversations, loading, currentPersonId, onPick, onNew }) {
+export default function ConversationList({ conversations, loading, currentPersonId, onPick, onNew, onClose }) {
   return (
-    <div style={{ padding: "12px 0 80px", minHeight: "calc(100dvh - 116px)" }}>
+    <div style={{ padding: "12px 0 80px", minHeight: "100%", overflowY: "auto" }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "8px 16px 12px",
+        gap: 8, padding: "8px 12px 12px",
       }}>
-        <div style={{ ...TYPE.heading, color: INK }}>Messages</div>
+        {onClose ? (
+          <button
+            onClick={onClose}
+            aria-label="Close messages"
+            style={{
+              width: 36, height: 36, borderRadius: 18,
+              background: "transparent", color: INK,
+              border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22, lineHeight: 1, fontWeight: 400,
+              fontFamily: "inherit",
+            }}
+          >×</button>
+        ) : <div style={{ width: 36 }} />}
+        <div style={{ ...TYPE.heading, color: INK, flex: 1, textAlign: "center" }}>Messages</div>
         <button
           onClick={onNew}
           aria-label="New conversation"

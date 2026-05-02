@@ -231,17 +231,27 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
       paddingBottom: "calc(72px + env(safe-area-inset-bottom))", // tab bar height
       background: SURFACE.alt,
     }}>
-      {/* Top bar: favicon (logo) + greeting + messaging icon. */}
-      <TopBar
-        currentUser={currentUser}
-        messagingOpen={messagingOpen}
-        onToggleMessaging={() => setMessagingOpen(o => !o)}
-        unreadCount={dmUnread}
-      />
+      {/* Top bar: favicon (logo) + greeting + messaging icon.
+          Hidden when messaging is open — the messaging overlay owns
+          the full viewport and provides its own close affordance, so
+          there's no two-chrome layout for iOS to push around when
+          the keyboard appears. */}
+      {!messagingOpen && (
+        <TopBar
+          currentUser={currentUser}
+          messagingOpen={messagingOpen}
+          onToggleMessaging={() => setMessagingOpen(o => !o)}
+          unreadCount={dmUnread}
+        />
+      )}
 
       <Suspense fallback={<Splash text="Loading…" embedded />}>
         {messagingOpen && (
-          <MessagingView currentUser={currentUser} team={team} />
+          <MessagingView
+            currentUser={currentUser}
+            team={team}
+            onClose={() => setMessagingOpen(false)}
+          />
         )}
         {!messagingOpen && tab === "home" && <HomeTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
         {!messagingOpen && tab === "pipeline" && <PipelineTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
