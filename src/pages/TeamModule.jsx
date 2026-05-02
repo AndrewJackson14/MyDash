@@ -8,14 +8,25 @@ import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatt
 const today = new Date().toISOString().slice(0, 10);
 
 // ── Constants ────────────────────────────────────────────────
+// Editorial freelancers (Stringers + freelance editors) get their own
+// section so the Publisher can review them as a roster separately from
+// staff editorial. Sales contractors stay grouped with staff sales by
+// design — that team works as one unit regardless of W-2/1099 status.
+const EDITORIAL_ROLES = ["Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor"];
 const DEPARTMENTS = [
-  { key: "leadership", label: "Leadership", roles: ["Publisher", "Editor-in-Chief"] },
-  { key: "admin", label: "Administration", roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
-  { key: "sales", label: "Sales", roles: ["Sales Manager", "Salesperson"] },
-  { key: "editorial", label: "Editorial", roles: ["Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor"] },
-  { key: "design", label: "Design / Production", roles: ["Graphic Designer", "Layout Designer", "Ad Designer", "Production Manager"] },
+  { key: "leadership",          label: "Leadership",            roles: ["Publisher", "Editor-in-Chief"] },
+  { key: "admin",               label: "Administration",        roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
+  { key: "sales",               label: "Sales",                 roles: ["Sales Manager", "Salesperson"] },
+  { key: "editorial",           label: "Editorial",             roles: EDITORIAL_ROLES },
+  { key: "editorial_freelance", label: "Editorial (Freelance)", roles: EDITORIAL_ROLES },
+  { key: "design",              label: "Design / Production",   roles: ["Graphic Designer", "Layout Designer", "Ad Designer", "Production Manager"] },
 ];
-const getDept = (role) => DEPARTMENTS.find(d => d.roles.includes(role))?.label || "Other";
+const getDept = (role, isFreelance) => {
+  if (isFreelance && EDITORIAL_ROLES.includes(role)) return "Editorial (Freelance)";
+  // Skip the editorial_freelance entry when matching by role alone so
+  // staff editorial doesn't accidentally land in the freelance bucket.
+  return DEPARTMENTS.find(d => d.key !== "editorial_freelance" && d.roles.includes(role))?.label || "Other";
+};
 const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
 
 
@@ -551,7 +562,7 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
   });
 
   const byDept = {};
-  filtered.forEach(t => { const dept = getDept(t.role); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
+  filtered.forEach(t => { const dept = getDept(t.role, t.isFreelance); if (!byDept[dept]) byDept[dept] = []; byDept[dept].push(t); });
 
   // Publish TopBar header while Team is the active module. Title carries
   // the filtered count (e.g. "Team (13)") to preserve the affordance the
