@@ -269,37 +269,19 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
 
 // ── Top bar: brand + greeting + messaging toggle ──────────────
 //
-// Position is sticky in normal flow when messaging is closed, and
-// fixed-to-visual-viewport when messaging is open. The visual-
-// viewport tracking matters specifically because iOS WebKit scrolls
-// the visual viewport independently of DOM scroll containers when
-// a focused input opens the keyboard — so without it our messaging
-// chrome (which is also visual-viewport-anchored) would visibly
-// part company with the TopBar above it as iOS shifts the visual
-// viewport.
+// Position: sticky top:0 in normal flow on tabs; flips to
+// position:fixed top:0 when messaging is open. We DON'T track
+// visualViewport.offsetTop on the TopBar — every tick of iOS's
+// keyboard slide would re-render the bar at a slightly different
+// `top`, producing a visible rotation/slide. Keeping it pinned at
+// top:0 makes it solid sticky. The MessagingView wrapper handles
+// its own sizing so the input stays above the keyboard, which is
+// what prevents iOS from auto-scrolling the visual viewport in the
+// first place — and as long as iOS doesn't scroll, top:0 stays at
+// the top of the visible window.
 function TopBar({ currentUser, messagingOpen, onToggleMessaging, unreadCount }) {
   const firstName = (currentUser?.name || currentUser?.display_name || "")
     .trim().split(/\s+/)[0] || "";
-
-  // Track visual viewport ONLY when messaging is open — outside
-  // messaging the sticky behavior is correct and we don't want to
-  // pay the listener cost on every tab.
-  const [vv, setVv] = useState({ width: typeof window !== "undefined" ? window.innerWidth : 0, offsetTop: 0, offsetLeft: 0 });
-  useEffect(() => {
-    if (!messagingOpen || typeof window === "undefined" || !window.visualViewport) return;
-    const v = window.visualViewport;
-    const update = () => setVv({ width: v.width, offsetTop: v.offsetTop, offsetLeft: v.offsetLeft });
-    update();
-    v.addEventListener("resize", update);
-    v.addEventListener("scroll", update);
-    return () => {
-      v.removeEventListener("resize", update);
-      v.removeEventListener("scroll", update);
-    };
-  }, [messagingOpen]);
-
-  const fixedTopbarWidth = messagingOpen ? Math.min(480, vv.width) : null;
-  const fixedTopbarLeft  = messagingOpen ? vv.offsetLeft + (vv.width - fixedTopbarWidth) / 2 : null;
 
   const baseStyle = {
     display: "flex", alignItems: "center", gap: 10,
@@ -309,7 +291,7 @@ function TopBar({ currentUser, messagingOpen, onToggleMessaging, unreadCount }) 
     zIndex: 40,
   };
   const positionStyle = messagingOpen
-    ? { position: "fixed", top: vv.offsetTop, left: fixedTopbarLeft, width: fixedTopbarWidth }
+    ? { position: "fixed", top: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto" }
     : { position: "sticky", top: 0 };
 
   return (

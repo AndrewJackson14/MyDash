@@ -39,7 +39,7 @@ const KB_THRESHOLD   = 120;
 export default function MessagingView({ currentUser, team }) {
   const personId = currentUser?.id || null;
   const { conversations, loading, reload, setConversations } = useConversations(personId);
-  const vv = useVisualViewport();
+  const kbHeight = useKeyboardHeight();
 
   // null  = inbox view
   // <id>  = open conversation
@@ -100,36 +100,31 @@ export default function MessagingView({ currentUser, team }) {
     };
   }, []);
 
-  // Fixed wrapper anchored to the VISUAL viewport (not the layout
-  // viewport). On iOS WebKit, position:fixed alone anchors to the
-  // layout, which moves out of view when the browser scrolls the
-  // visual viewport on input focus. Tracking visualViewport.offsetTop
-  // keeps the wrapper riding what the user actually sees.
+  // Fixed wrapper anchored to layout viewport (not visual viewport).
+  // We deliberately don't track visualViewport.offsetTop — letting
+  // every tick of iOS's keyboard slide animation re-render the
+  // wrapper at a different `top` was producing a visible rotation/
+  // slide on the chrome. As long as our height keeps the input above
+  // the keyboard, iOS doesn't auto-scroll the visual viewport at
+  // all, which means layout-viewport coordinates ARE visual-viewport
+  // coordinates — solid sticky.
   //
-  // Top: vv.offsetTop + TopBar height — sits below the TopBar.
+  // Top: TOP_BAR_PX (TopBar lives at top:0 above us).
   //
   // Bottom math:
-  //   keyboard open  → vv.height already excludes the keyboard, so
-  //                    extending to vv.height puts the input flush
-  //                    with the keyboard edge. No tab-bar reserve
-  //                    because the tab bar is behind the keyboard.
-  //   keyboard closed → reserve tab-bar height + safe-area inset so
-  //                    the input doesn't sit behind the bottom tab
-  //                    bar.
-  const kbHeight = Math.max(0, (typeof window !== "undefined" ? window.innerHeight : 0) - vv.height - vv.offsetTop);
-  const kbOpen   = kbHeight > KB_THRESHOLD;
-
-  const wrapperWidth = Math.min(480, vv.width);
-  const wrapperLeft  = vv.offsetLeft + (vv.width - wrapperWidth) / 2;
-  const wrapperHeight = kbOpen
-    ? Math.max(0, vv.height - TOP_BAR_PX)
-    : `calc(${vv.height - TOP_BAR_PX}px - ${TAB_BAR_PX}px - env(safe-area-inset-bottom))`;
+  //   keyboard open  → bottom: ${kbHeight}px so the wrapper rises
+  //                    just enough to put the input above the keyboard.
+  //   keyboard closed → bottom: TAB_BAR_PX + safe-area inset so the
+  //                    input sits above the bottom tab bar.
+  const kbOpen = kbHeight > KB_THRESHOLD;
   const wrapperStyle = {
     position: "fixed",
-    top:    vv.offsetTop + TOP_BAR_PX,
-    left:   wrapperLeft,
-    width:  wrapperWidth,
-    height: wrapperHeight,
+    top: TOP_BAR_PX,
+    left: 0, right: 0,
+    maxWidth: 480, margin: "0 auto",
+    bottom: kbOpen
+      ? `${kbHeight}px`
+      : `calc(${TAB_BAR_PX}px + env(safe-area-inset-bottom))`,
     background: SURFACE.alt,
     display: "flex", flexDirection: "column",
     zIndex: 30,
