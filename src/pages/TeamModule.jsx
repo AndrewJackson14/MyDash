@@ -8,26 +8,30 @@ import { initials as ini, fmtCurrencyWhole as fmtCurrency } from "../lib/formatt
 const today = new Date().toISOString().slice(0, 10);
 
 // ── Constants ────────────────────────────────────────────────
-// Editorial freelancers (Stringers + freelance editors) get their own
-// section so the Publisher can review them as a roster separately from
-// staff editorial. Sales contractors stay grouped with staff sales by
-// design — that team works as one unit regardless of W-2/1099 status.
-const EDITORIAL_ROLES = ["Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor"];
+// Editorial freelancers (Stringers + freelance Content Editors) get
+// their own section so the Publisher can review them as a roster
+// separately from staff editorial. Sales contractors stay grouped
+// with staff sales by design — that team works as one unit regardless
+// of W-2/1099 status.
+//
+// Role list mirrors the team_role enum (mig 178 consolidated to 8;
+// mig 189 added Support Admin). 'Bot' is intentionally excluded —
+// it's for agent rows like MyHelper, not for human team members.
+const EDITORIAL_ROLES = ["Content Editor", "Stringer"];
 const DEPARTMENTS = [
-  { key: "leadership",          label: "Leadership",            roles: ["Publisher", "Editor-in-Chief", "Support Admin"] },
-  { key: "admin",               label: "Administration",        roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
-  { key: "sales",               label: "Sales",                 roles: ["Sales Manager", "Salesperson"] },
+  { key: "leadership",          label: "Leadership",            roles: ["Publisher", "Support Admin"] },
+  { key: "admin",               label: "Administration",        roles: ["Office Administrator"] },
+  { key: "sales",               label: "Sales",                 roles: ["Salesperson"] },
   { key: "editorial",           label: "Editorial",             roles: EDITORIAL_ROLES },
   { key: "editorial_freelance", label: "Editorial (Freelance)", roles: EDITORIAL_ROLES },
-  { key: "design",              label: "Design / Production",   roles: ["Graphic Designer", "Layout Designer", "Ad Designer", "Production Manager"] },
+  { key: "design",              label: "Design / Production",   roles: ["Layout Designer", "Ad Designer"] },
 ];
 const getDept = (role, isFreelance) => {
   if (isFreelance && EDITORIAL_ROLES.includes(role)) return "Editorial (Freelance)";
-  // Skip the editorial_freelance entry when matching by role alone so
-  // staff editorial doesn't accidentally land in the freelance bucket.
   return DEPARTMENTS.find(d => d.key !== "editorial_freelance" && d.roles.includes(role))?.label || "Other";
 };
-const TEAM_ROLES = ["Publisher", "Support Admin", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
+// Mirrors team_role enum minus 'Bot' (system role; not for humans).
+const TEAM_ROLES = ["Publisher", "Support Admin", "Content Editor", "Stringer", "Layout Designer", "Ad Designer", "Salesperson", "Office Administrator"];
 
 
 // ── Permission modules ───────────────────────────────────────
@@ -59,20 +63,13 @@ export const MODULES = [
 ];
 
 export const ROLE_DEFAULTS = {
-  Publisher: MODULES.map(m => m.key),
-  "Support Admin": MODULES.map(m => m.key),
-  "Editor-in-Chief": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation", "social-composer"],
-  "Sales Manager": ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects", "publications", "schedule", "analytics"],
-  Salesperson: ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects"],
-  "Content Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
-  "Managing Editor": ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
-  "Writer/Reporter": ["dashboard", "calendar", "editorial"],
-  "Stringer": ["dashboard", "calendar", "editorial"],
-  "Copy Editor": ["dashboard", "calendar", "editorial", "medialibrary"],
-  "Layout Designer": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
-  "Ad Designer": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
-  "Graphic Designer": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
-  "Office Manager": ["dashboard", "calendar", "billing", "circulation", "servicedesk", "legalnotices"],
+  Publisher:              MODULES.map(m => m.key),
+  "Support Admin":        MODULES.map(m => m.key),
+  "Content Editor":       ["dashboard", "calendar", "editorial", "flatplan", "medialibrary", "social-composer"],
+  Stringer:               ["dashboard", "calendar", "editorial"],
+  "Layout Designer":      ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
+  "Ad Designer":          ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary"],
+  Salesperson:            ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects"],
   "Office Administrator": ["dashboard", "calendar", "billing", "circulation", "servicedesk", "legalnotices"],
 };
 
@@ -96,16 +93,18 @@ export const ALERT_EVENTS = [
 
 // off / in_app / email / both
 const ALERT_ROLE_DEFAULTS = {
-  Publisher:             { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
-  "Support Admin":       { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
-  "Editor-in-Chief":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "both", story_published: "both", edition_uploaded: "in_app", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "both", team_member_added: "in_app", permission_change: "off" },
-  "Writer/Reporter":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
-  Salesperson:          { ad_inquiry: "both", invoice_overdue: "email", payment_received: "in_app", contract_expiring: "both", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
-  "Office Manager":     { ad_inquiry: "in_app", invoice_overdue: "both", payment_received: "both", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "both", legal_deadline: "in_app", team_member_added: "off", permission_change: "off" },
+  Publisher:              { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
+  "Support Admin":        { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
+  "Content Editor":       { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "both", story_published: "both", edition_uploaded: "in_app", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "both", team_member_added: "in_app", permission_change: "off" },
+  Stringer:               { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
+  "Layout Designer":      { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "off", story_status_changed: "in_app", story_published: "off", edition_uploaded: "in_app", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "in_app", team_member_added: "off", permission_change: "off" },
+  "Ad Designer":          { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "in_app", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
+  Salesperson:            { ad_inquiry: "both", invoice_overdue: "email", payment_received: "in_app", contract_expiring: "both", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
+  "Office Administrator": { ad_inquiry: "in_app", invoice_overdue: "both", payment_received: "both", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "both", legal_deadline: "in_app", team_member_added: "off", permission_change: "off" },
 };
 
 export const getAlertDefaults = (role) => {
-  return ALERT_ROLE_DEFAULTS[role] || ALERT_ROLE_DEFAULTS["Writer/Reporter"] || {};
+  return ALERT_ROLE_DEFAULTS[role] || ALERT_ROLE_DEFAULTS.Stringer || {};
 };
 
 export const ALERT_OPTIONS = [

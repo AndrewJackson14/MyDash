@@ -11,12 +11,10 @@ const today = new Date().toISOString().slice(0, 10);
 
 // Mirror of the people.role Postgres enum (in db sort order).
 // Keep in sync with the team_role enum if/when it grows.
+// Mirrors team_role enum minus 'Bot' (system role; not for humans).
 const TEAM_ROLES = [
-  "Publisher", "Support Admin", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter",
-  "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer",
-  "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager",
-  "Production Manager", "Finance", "Office Manager", "Ad Designer",
-  "Layout Designer", "Content Editor", "Office Administrator",
+  "Publisher", "Support Admin", "Content Editor", "Stringer",
+  "Layout Designer", "Ad Designer", "Salesperson", "Office Administrator",
 ];
 
 // Freelance specialties — stored in people.specialty (text). The values

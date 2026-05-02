@@ -37,8 +37,11 @@ import { Btn, Modal } from "./ui";
 import { supabase } from "../lib/supabase";
 import RegenerateModal from "./editor/RegenerateModal";
 
+// Roles allowed to use Editorial Agent's Generate + Regenerate flows.
+// Mirrors team_role enum (mig 178/189). Edge Function ALLOWED_ROLES
+// is the auth boundary; this set is just the client-side gate.
 const GENERATE_ROLES = new Set([
-  "Publisher", "Support Admin", "Content Editor", "Editor-in-Chief", "Managing Editor",
+  "Publisher", "Support Admin", "Content Editor",
 ]);
 
 // ── HTML → plain text ──────────────────────────────────────
