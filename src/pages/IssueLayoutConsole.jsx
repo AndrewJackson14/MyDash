@@ -102,29 +102,50 @@ export default function IssueLayoutConsole({
     return (sales || []).filter(s => s.issueId === issueId && s.status === "Closed");
   }, [sales, issueId]);
 
-  // Publication switcher: for each pub, find its next unsent issue and
-  // count stories with print_status === 'ready' (Anthony's input queue).
-  // A pub with no upcoming unsent issue within 45 days is hidden —
-  // nothing to lay out yet. The 45-day window keeps the row scoped to
-  // issues that are actually in production now.
+  // Publication switcher: for each pub, find the most actionable unsent
+  // issue and count its Ready stories.
+  //
+  // Selection logic, in order:
+  //   1. If any unsent issue for this pub has Ready stories, pick the
+  //      EARLIEST such issue — that's the oldest unfinished layout
+  //      work, and it shouldn't fall off the edge of the switcher
+  //      just because its print date has passed without going to
+  //      press yet.
+  //   2. Otherwise, pick the next upcoming unsent issue within a
+  //      90-day horizon (covers monthly magazines + quarterly cycles
+  //      that the old 45-day window cut off — CCL had 30 ready
+  //      stories for a July issue invisible to the May layout user).
+  //   3. If neither, hide the pub from the switcher.
+  //
+  // Today is resolved in LOCAL time (used to be .toISOString().slice(0,10)
+  // which is UTC and jumped a day forward in PDT evenings, hiding
+  // legitimately-today issues).
   const pubSwitchers = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const horizon = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const horizonDate = new Date(Date.now() + 90 * 86400000);
+    const horizon = `${horizonDate.getFullYear()}-${String(horizonDate.getMonth() + 1).padStart(2, "0")}-${String(horizonDate.getDate()).padStart(2, "0")}`;
+
+    const readyByIssue = new Map();
+    (stories || []).forEach(s => {
+      if (s.status !== "Ready" || !s.print_issue_id) return;
+      readyByIssue.set(s.print_issue_id, (readyByIssue.get(s.print_issue_id) || 0) + 1);
+    });
+
     return (pubs || []).map(p => {
-      const nextIssue = (issues || [])
+      const unsentForPub = (issues || [])
         .filter(i => (i.pubId || i.publicationId) === p.id
-          && i.date >= today
-          && i.date <= horizon
           && !i.sentToPressAt && !i.sent_to_press_at)
-        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))[0];
-      if (!nextIssue) return null;
-      // "Ready" count = editorial has signed off (status==='Ready'). This
-      // matches the dominant editorial → layout handoff signal and is
-      // what the import migration sets when stories enter the issue.
-      const readyCount = (stories || []).filter(s =>
-        s.print_issue_id === nextIssue.id && s.status === "Ready"
-      ).length;
-      return { pub: p, issue: nextIssue, readyCount };
+        .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+      // Earliest unsent issue with ready stories — preferred.
+      const withReady = unsentForPub.find(i => (readyByIssue.get(i.id) || 0) > 0);
+      // Fallback: next upcoming unsent issue within horizon.
+      const upcoming = unsentForPub.find(i => i.date >= today && i.date <= horizon);
+      const issue = withReady || upcoming;
+      if (!issue) return null;
+
+      return { pub: p, issue, readyCount: readyByIssue.get(issue.id) || 0 };
     }).filter(Boolean);
   }, [pubs, issues, stories]);
 
