@@ -40,7 +40,7 @@ export default function ProposalSign() {
     if (!token) { setError("Invalid signature link."); setLoading(false); return; }
     (async () => {
       const { data: sigData, error: sigErr } = await supabase
-        .from("proposal_signatures").select("*").eq("access_token", token).single();
+        .rpc("get_proposal_signature_by_token", { p_token: token });
       if (sigErr || !sigData) { setError("This signature link is invalid or has expired."); setLoading(false); return; }
       if (sigData.signed) { setSig(sigData); setSigned(true); setLoading(false); return; }
       if (sigData.expires_at && new Date(sigData.expires_at) < new Date()) { setError("This signature link has expired."); setLoading(false); return; }
@@ -48,11 +48,7 @@ export default function ProposalSign() {
       setSignerName(sigData.signer_name || "");
       setSignerTitle(sigData.signer_title || "");
 
-      // Record view (anon can update proposal_signatures)
-      supabase.from("proposal_signatures").update({
-        viewed_at: sigData.viewed_at || new Date().toISOString(),
-        view_count: (sigData.view_count || 0) + 1,
-      }).eq("id", sigData.id).then(() => {});
+      supabase.rpc("record_proposal_signature_view", { p_token: token }).then(() => {});
 
       // Proposal data comes from the snapshot — no need to query proposals table
       setLoading(false);
@@ -72,19 +68,31 @@ export default function ProposalSign() {
     if (!agreed || !signerName.trim() || submitting) return;
     setSubmitting(true);
 
-    // 1. Record the signature
-    await supabase.from("proposal_signatures").update({
-      signed: true, signed_at: new Date().toISOString(),
-      signer_name: signerName.trim(), signer_title: signerTitle.trim(),
-      signed_ip: "", signed_user_agent: navigator.userAgent,
-    }).eq("id", sig.id);
+    // 1. Record the signature (atomic: stamps proposal_signatures and
+    //    proposals.signed_at server-side under SECURITY DEFINER).
+    const { error: signErr } = await supabase.rpc("submit_proposal_signature", {
+      p_token:        token,
+      p_signer_name:  signerName.trim(),
+      p_signer_title: signerTitle.trim(),
+    });
+    if (signErr) {
+      console.error("Sign error:", signErr);
+      setError("We couldn't record your signature. Please refresh and try again.");
+      setSubmitting(false);
+      return;
+    }
 
-    // 2. Mark proposal signed_at
-    await supabase.from("proposals").update({
-      signed_at: new Date().toISOString(),
-    }).eq("id", sig.proposal_id);
+    // Reflect the signed state locally so the success screen renders the
+    // submitted name/title/timestamp without an extra round-trip.
+    setSig(prev => prev && {
+      ...prev,
+      signed:       true,
+      signed_at:    new Date().toISOString(),
+      signer_name:  signerName.trim(),
+      signer_title: signerTitle.trim(),
+    });
 
-    // 3. If payment plan, collect card before converting
+    // 2. If payment plan, collect card before converting
     if (isPaymentPlan && stripePromise) {
       try {
         const snapshot = sig.proposal_snapshot || {};
