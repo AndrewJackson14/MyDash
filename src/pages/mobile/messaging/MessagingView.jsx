@@ -25,7 +25,16 @@ import ConversationView   from "./ConversationView";
 import NewConversationView from "./NewConversationView";
 import { useVisualViewport } from "./useVisualViewport";
 
-const TOP_BAR_PX = 60;
+const TOP_BAR_PX     = 60;
+// Tab bar inner height + safe-area padding the bar carries on iOS.
+// When the keyboard is open, the tab bar is hidden behind it so we
+// don't need to reserve this — the wrapper can extend to the visual
+// viewport bottom.
+const TAB_BAR_PX     = 56;
+// Threshold to decide "keyboard is open" — small visualViewport
+// shrinks happen for the iOS URL bar collapsing too, so we don't
+// want to think a 60px URL-bar shift is a keyboard.
+const KB_THRESHOLD   = 120;
 
 export default function MessagingView({ currentUser, team }) {
   const personId = currentUser?.id || null;
@@ -97,23 +106,30 @@ export default function MessagingView({ currentUser, team }) {
   // visual viewport on input focus. Tracking visualViewport.offsetTop
   // keeps the wrapper riding what the user actually sees.
   //
-  // Sized to vv.height - TOP_BAR_PX so the MobileApp TopBar (also
-  // anchored to the visual viewport) stays visible above us. The
-  // bottom of the wrapper naturally sits flush with the keyboard
-  // edge because vv.height already excludes the keyboard area on
-  // iOS (and on Chrome Android with interactive-widget=resizes-content).
+  // Top: vv.offsetTop + TopBar height — sits below the TopBar.
   //
-  // Width tied to vv.width with manual centering for the 480px shell:
-  // the visualViewport tracks the full viewport, but on tablets the
-  // shell is narrower than the screen.
+  // Bottom math:
+  //   keyboard open  → vv.height already excludes the keyboard, so
+  //                    extending to vv.height puts the input flush
+  //                    with the keyboard edge. No tab-bar reserve
+  //                    because the tab bar is behind the keyboard.
+  //   keyboard closed → reserve tab-bar height + safe-area inset so
+  //                    the input doesn't sit behind the bottom tab
+  //                    bar.
+  const kbHeight = Math.max(0, (typeof window !== "undefined" ? window.innerHeight : 0) - vv.height - vv.offsetTop);
+  const kbOpen   = kbHeight > KB_THRESHOLD;
+
   const wrapperWidth = Math.min(480, vv.width);
   const wrapperLeft  = vv.offsetLeft + (vv.width - wrapperWidth) / 2;
+  const wrapperHeight = kbOpen
+    ? Math.max(0, vv.height - TOP_BAR_PX)
+    : `calc(${vv.height - TOP_BAR_PX}px - ${TAB_BAR_PX}px - env(safe-area-inset-bottom))`;
   const wrapperStyle = {
     position: "fixed",
     top:    vv.offsetTop + TOP_BAR_PX,
     left:   wrapperLeft,
     width:  wrapperWidth,
-    height: Math.max(0, vv.height - TOP_BAR_PX),
+    height: wrapperHeight,
     background: SURFACE.alt,
     display: "flex", flexDirection: "column",
     zIndex: 30,
