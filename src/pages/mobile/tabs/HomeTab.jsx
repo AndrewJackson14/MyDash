@@ -17,6 +17,7 @@ import MobileHeader from "../MobileHeader";
 import { Ic } from "../../../components/ui";
 import { TOKENS, SURFACE, INK, ACCENT, GOLD, CARD, fmtMoney, fmtMoneyFull, fmtRelative, todayISO } from "../mobileTokens";
 import { supabase } from "../../../lib/supabase";
+import { timeOfDayGreeting } from "../MobileApp";
 
 const ContractReviewModal = lazy(() => import("../ContractReviewModal"));
 
@@ -141,7 +142,7 @@ export default function HomeTab({ appData, currentUser, jurisdiction, navTo }) {
 
   return <>
     <MobileHeader
-      title={`Good morning, ${myFirstName}`}
+      title={`${timeOfDayGreeting()}, ${myFirstName}`}
       sub={new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
     />
 

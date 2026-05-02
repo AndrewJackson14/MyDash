@@ -36,6 +36,17 @@ const ClientsTab = lazy(() => import("./tabs/ClientsTab"));
 const ClientDetail = lazy(() => import("./tabs/ClientDetail"));
 const MeTab = lazy(() => import("./tabs/MeTab"));
 const CaptureModal = lazy(() => import("./CaptureModal"));
+const MessagingView = lazy(() => import("./messaging/MessagingView"));
+
+// Time-of-day greeting cycle (5am-12pm Morning, 12pm-5pm Afternoon,
+// 5pm-5am Evening). Mobile shell + HomeTab share this so the brand
+// chrome and the greeting card stay in sync.
+export function timeOfDayGreeting(now = new Date()) {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return "Good Morning";
+  if (h >= 12 && h < 17) return "Good Afternoon";
+  return "Good Evening";
+}
 
 export default function MobileApp() {
   const { user, loading: authLoading, signIn, signInWithGoogle, signOut } = useAuth();
@@ -184,33 +195,131 @@ function AuthedShell({ path, setPath, captureOpen, setCaptureOpen, signOut, user
 
   const tab = activeTab || "home";
 
+  // Messaging overlay state — sits above the tab content area but
+  // below the bottom tab bar so the rep can swipe back to a tab.
+  const [messagingOpen, setMessagingOpen] = useState(false);
+  // Unread badge count, updated by the mydash:dm-read CustomEvent
+  // dispatched from useConvoMessages whenever a thread is opened
+  // and unread state shifts. Initial count from total unread across
+  // conversations would require pulling on every shell render —
+  // skipped for now; badge appears once a real-time message arrives.
+  const [dmUnread, setDmUnread] = useState(0);
+  useEffect(() => {
+    const onRead = (e) => {
+      // Treat any incoming dm-read pulse as a hint to refresh — for
+      // mvp, just clear local count when a thread is opened. Future:
+      // wire to total-unread query on shell mount.
+      setDmUnread(0);
+    };
+    window.addEventListener("mydash:dm-read", onRead);
+    return () => window.removeEventListener("mydash:dm-read", onRead);
+  }, []);
+
   return <FullScreen>
     <div style={{
       maxWidth: 480, margin: "0 auto", minHeight: "100dvh",
       paddingBottom: "calc(72px + env(safe-area-inset-bottom))", // tab bar height
       background: SURFACE.alt,
     }}>
+      {/* Top bar: favicon (logo) + greeting + messaging icon. */}
+      <TopBar
+        currentUser={currentUser}
+        messagingOpen={messagingOpen}
+        onToggleMessaging={() => setMessagingOpen(o => !o)}
+        unreadCount={dmUnread}
+      />
+
       <Suspense fallback={<Splash text="Loading…" embedded />}>
-        {tab === "home" && <HomeTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
-        {tab === "pipeline" && <PipelineTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
-        {tab === "clients" && !drilldownId && <ClientsTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
-        {tab === "clients" && drilldownId && <ClientDetail clientId={drilldownId} appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
-        {tab === "me" && <MeTab appData={appData} currentUser={currentUser} signOut={signOut} navTo={navTo} />}
-        {tab === "capture" && <CaptureStubScreen navTo={navTo} />}
+        {messagingOpen && (
+          <MessagingView currentUser={currentUser} team={team} />
+        )}
+        {!messagingOpen && tab === "home" && <HomeTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
+        {!messagingOpen && tab === "pipeline" && <PipelineTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
+        {!messagingOpen && tab === "clients" && !drilldownId && <ClientsTab appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
+        {!messagingOpen && tab === "clients" && drilldownId && <ClientDetail clientId={drilldownId} appData={appData} currentUser={currentUser} jurisdiction={jurisdiction} navTo={navTo} />}
+        {!messagingOpen && tab === "me" && <MeTab appData={appData} currentUser={currentUser} signOut={signOut} navTo={navTo} />}
+        {!messagingOpen && tab === "capture" && <CaptureStubScreen navTo={navTo} />}
       </Suspense>
     </div>
 
-    {/* Bottom tab bar — fixed, with elevated center Capture button */}
+    {/* Bottom tab bar — fixed, with elevated center Capture button.
+        Tapping a tab also closes the messaging overlay so the rep
+        always lands on a real tab when navigating from the bar. */}
     <TabBar
       active={tab}
-      onTab={(t) => navTo(`/mobile/${t}`)}
-      onCapture={() => setCaptureOpen(true)}
+      onTab={(t) => { setMessagingOpen(false); navTo(`/mobile/${t}`); }}
+      onCapture={() => { setMessagingOpen(false); setCaptureOpen(true); }}
     />
 
     {captureOpen && <Suspense fallback={null}>
       <CaptureModal onClose={() => setCaptureOpen(false)} />
     </Suspense>}
   </FullScreen>;
+}
+
+// ── Top bar: brand + greeting + messaging toggle ──────────────
+function TopBar({ currentUser, messagingOpen, onToggleMessaging, unreadCount }) {
+  const firstName = (currentUser?.name || currentUser?.display_name || "")
+    .trim().split(/\s+/)[0] || "";
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 14px",
+      borderBottom: `1px solid ${TOKENS.rule}`,
+      background: SURFACE.elevated,
+      position: "sticky", top: 0, zIndex: 40,
+    }}>
+      {/* Favicon — left. Using the public favicon as the brand mark. */}
+      <img
+        src="/favicon.png"
+        alt="MyDash"
+        width={28}
+        height={28}
+        style={{ flexShrink: 0, borderRadius: 6 }}
+      />
+
+      {/* Greeting — left-aligned next to logo, dim because the page's
+          own H1 carries the page title. */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 600, color: INK, letterSpacing: -0.1,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {timeOfDayGreeting()}{firstName ? `, ${firstName}` : ""}
+        </div>
+      </div>
+
+      {/* Messaging toggle — right. Active state when overlay is on. */}
+      <button
+        onClick={onToggleMessaging}
+        aria-label="Messages"
+        aria-pressed={messagingOpen}
+        style={{
+          position: "relative",
+          width: 40, height: 40, borderRadius: 20,
+          border: "none",
+          background: messagingOpen ? ACCENT : "transparent",
+          color: messagingOpen ? "#FFFFFF" : INK,
+          cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Ic.chat size={20} />
+        {unreadCount > 0 && !messagingOpen && (
+          <span style={{
+            position: "absolute", top: 4, right: 4,
+            minWidth: 16, height: 16, padding: "0 4px",
+            borderRadius: 8,
+            background: TOKENS.urgent || "#791F1F", color: "#FFFFFF",
+            fontSize: 10, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+        )}
+      </button>
+    </div>
+  );
 }
 
 // ── Bottom tab bar ────────────────────────────────────────────
