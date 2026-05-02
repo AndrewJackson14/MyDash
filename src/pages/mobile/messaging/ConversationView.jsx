@@ -73,9 +73,15 @@ export default function ConversationView({ conversation, currentPersonId, onBack
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages — minHeight:0 is load-bearing here. Without it, the
+          flex item refuses to shrink below its content size and the
+          internal overflowY:auto never kicks in, so a tall thread
+          pushes the input bar (and sometimes the header) off-screen
+          instead of scrolling within the messages area. */}
       <div ref={scrollRef} style={{
-        flex: 1, overflowY: "auto",
+        flex: "1 1 0",
+        minHeight: 0,
+        overflowY: "auto",
         padding: "12px 12px 8px",
         background: SURFACE.alt,
         WebkitOverflowScrolling: "touch",

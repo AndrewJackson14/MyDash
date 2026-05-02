@@ -101,8 +101,15 @@ export default function NewConversationView({ currentPersonId, team, onCancel, o
         </div>
       )}
 
-      {/* List */}
-      <div style={{ flex: 1, overflowY: "auto", background: SURFACE.alt }}>
+      {/* List — minHeight:0 keeps overflowY:auto effective on flex
+          children so the list scrolls within its allocated space
+          instead of growing past the bottom of the wrapper. */}
+      <div style={{
+        flex: "1 1 0",
+        minHeight: 0,
+        overflowY: "auto",
+        background: SURFACE.alt,
+      }}>
         {candidates.length === 0 && (
           <div style={{ padding: 32, textAlign: "center", color: TOKENS.muted, ...TYPE.small }}>
             {query
