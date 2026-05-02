@@ -12,7 +12,7 @@ const today = new Date().toISOString().slice(0, 10);
 // Mirror of the people.role Postgres enum (in db sort order).
 // Keep in sync with the team_role enum if/when it grows.
 const TEAM_ROLES = [
-  "Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter",
+  "Publisher", "Support Admin", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter",
   "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer",
   "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager",
   "Production Manager", "Finance", "Office Manager", "Ad Designer",

@@ -14,7 +14,7 @@ const today = new Date().toISOString().slice(0, 10);
 // design — that team works as one unit regardless of W-2/1099 status.
 const EDITORIAL_ROLES = ["Managing Editor", "Editor", "Content Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor"];
 const DEPARTMENTS = [
-  { key: "leadership",          label: "Leadership",            roles: ["Publisher", "Editor-in-Chief"] },
+  { key: "leadership",          label: "Leadership",            roles: ["Publisher", "Editor-in-Chief", "Support Admin"] },
   { key: "admin",               label: "Administration",        roles: ["Office Manager", "Office Administrator", "Finance", "Distribution Manager", "Marketing Manager"] },
   { key: "sales",               label: "Sales",                 roles: ["Sales Manager", "Salesperson"] },
   { key: "editorial",           label: "Editorial",             roles: EDITORIAL_ROLES },
@@ -27,7 +27,7 @@ const getDept = (role, isFreelance) => {
   // staff editorial doesn't accidentally land in the freelance bucket.
   return DEPARTMENTS.find(d => d.key !== "editorial_freelance" && d.roles.includes(role))?.label || "Other";
 };
-const TEAM_ROLES = ["Publisher", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
+const TEAM_ROLES = ["Publisher", "Support Admin", "Editor-in-Chief", "Managing Editor", "Editor", "Writer/Reporter", "Stringer", "Copy Editor", "Photo Editor", "Graphic Designer", "Sales Manager", "Salesperson", "Distribution Manager", "Marketing Manager", "Production Manager", "Finance", "Office Manager"];
 
 
 // ── Permission modules ───────────────────────────────────────
@@ -60,6 +60,7 @@ export const MODULES = [
 
 export const ROLE_DEFAULTS = {
   Publisher: MODULES.map(m => m.key),
+  "Support Admin": MODULES.map(m => m.key),
   "Editor-in-Chief": ["dashboard", "calendar", "editorial", "flatplan", "adprojects", "medialibrary", "publications", "schedule", "analytics", "team", "circulation", "social-composer"],
   "Sales Manager": ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects", "publications", "schedule", "analytics"],
   Salesperson: ["dashboard", "calendar", "sales", "contracts", "billing", "flatplan", "adprojects"],
@@ -96,6 +97,7 @@ export const ALERT_EVENTS = [
 // off / in_app / email / both
 const ALERT_ROLE_DEFAULTS = {
   Publisher:             { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
+  "Support Admin":       { ad_inquiry: "both", invoice_overdue: "both", payment_received: "in_app", contract_expiring: "in_app", story_assigned: "off", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "in_app", new_ticket: "both", ticket_assigned: "both", subscriber_expiring: "in_app", legal_deadline: "both", team_member_added: "both", permission_change: "both" },
   "Editor-in-Chief":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "both", story_published: "both", edition_uploaded: "in_app", new_ticket: "in_app", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "both", team_member_added: "in_app", permission_change: "off" },
   "Writer/Reporter":    { ad_inquiry: "off", invoice_overdue: "off", payment_received: "off", contract_expiring: "off", story_assigned: "both", story_status_changed: "in_app", story_published: "in_app", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },
   Salesperson:          { ad_inquiry: "both", invoice_overdue: "email", payment_received: "in_app", contract_expiring: "both", story_assigned: "off", story_status_changed: "off", story_published: "off", edition_uploaded: "off", new_ticket: "off", ticket_assigned: "both", subscriber_expiring: "off", legal_deadline: "off", team_member_added: "off", permission_change: "off" },

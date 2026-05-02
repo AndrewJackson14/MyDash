@@ -276,7 +276,7 @@ Deno.serve(async (req: Request) => {
   } catch (e: any) {
     return json({ error: "viewer_lookup_failed", detail: e?.message }, 500, cors);
   }
-  const ALLOWED_ROLES = new Set(["Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor"]);
+  const ALLOWED_ROLES = new Set(["Publisher", "Support Admin", "Content Editor", "Editor-in-Chief", "Managing Editor"]);
   if (!viewerIsAdmin && !ALLOWED_ROLES.has(viewerRole)) {
     return json({ error: "permission_denied", role: viewerRole }, 403, cors);
   }

@@ -30,7 +30,7 @@ import { Z, Ri, FS } from "../../lib/theme";
 import RegenerateModal from "./RegenerateModal";
 
 const GENERATE_ROLES = new Set([
-  "Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor",
+  "Publisher", "Support Admin", "Content Editor", "Editor-in-Chief", "Managing Editor",
 ]);
 
 export default function RegenerateAsNewDraftButton({

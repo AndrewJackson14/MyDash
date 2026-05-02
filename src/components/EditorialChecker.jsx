@@ -38,7 +38,7 @@ import { supabase } from "../lib/supabase";
 import RegenerateModal from "./editor/RegenerateModal";
 
 const GENERATE_ROLES = new Set([
-  "Publisher", "Content Editor", "Editor-in-Chief", "Managing Editor",
+  "Publisher", "Support Admin", "Content Editor", "Editor-in-Chief", "Managing Editor",
 ]);
 
 // ── HTML → plain text ──────────────────────────────────────

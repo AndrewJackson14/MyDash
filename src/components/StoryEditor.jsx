@@ -318,7 +318,7 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
 
   // ── Authors from team (editorial roles) ─────────────────────
   const authors = useMemo(() => {
-    const roles = ["Publisher", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
+    const roles = ["Publisher", "Support Admin", "Editor-in-Chief", "Content Editor", "Writer", "Stringer", "Contributor"];
     // Only active staff (people-unification: isFreelance derives from
     // labels[]; status drives isActive). Excludes archived / import-only
     // byline rows that were seeded to keep historical stories.author_id
