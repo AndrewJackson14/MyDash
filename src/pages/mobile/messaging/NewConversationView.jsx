@@ -3,25 +3,19 @@
 // Filters team to active, non-self, has display_name. Tapping a
 // row calls getOrCreateDM and navigates into the new conversation.
 //
-// Same height + keyboard handling as ConversationView so the search
-// input doesn't push the chrome off-screen when iOS opens the
-// keyboard on focus.
+// Fills 100% of MessagingView's position:fixed wrapper, same as
+// ConversationView. Keyboard handling lives in MessagingView so
+// focusing the search input here doesn't push chrome off-screen.
 // ============================================================
 import { useMemo, useState } from "react";
 import { TOKENS, SURFACE, ACCENT, INK, TYPE } from "../mobileTokens";
 import { Ic } from "../../../components/ui";
 import { getOrCreateDM } from "../../../lib/messaging";
-import { useKeyboardHeight } from "./useKeyboardHeight";
-
-const TOP_BAR_PX      = 60;
-const TAB_BAR_RESERVE = "calc(72px + env(safe-area-inset-bottom))";
 
 export default function NewConversationView({ currentPersonId, team, onCancel, onCreated }) {
   const [query, setQuery]     = useState("");
   const [busyId, setBusyId]   = useState(null);
   const [error, setError]     = useState(null);
-  const kbHeight = useKeyboardHeight();
-  const wrapperHeight = `calc(100dvh - ${TOP_BAR_PX}px - ${kbHeight > 0 ? `${kbHeight}px` : TAB_BAR_RESERVE})`;
 
   // Eligible DM targets:
   //   - has a people.id and isn't the current user
@@ -58,7 +52,7 @@ export default function NewConversationView({ currentPersonId, team, onCancel, o
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: wrapperHeight }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       {/* Header */}
       <div style={{
         flex: "0 0 auto",

@@ -1,35 +1,20 @@
 // ============================================================
 // ConversationView — single-thread view. Header with back arrow +
 // participant name(s); scrollable message list; sticky input at
-// bottom above the mobile tab bar.
+// bottom of the messaging area.
 //
-// The outer wrapper is sized to exactly the viewport space between
-// the mobile TopBar (60px) and either the bottom TabBar (72px +
-// safe-area) or the on-screen keyboard, whichever is taller.
-// useKeyboardHeight feeds the visible-keyboard height in real time
-// so when the user focuses the input, the messaging area shrinks
-// to fit above the keyboard instead of letting iOS Safari scroll
-// the whole page up to bring the input into view.
-//
-// Inside, header + input are flex:0 and the message list is flex:1
-// with its own scroll + minHeight:0, so the chrome never scrolls
-// off-screen even when the thread is tall.
+// The parent (MessagingView) owns the position:fixed wrapper that
+// pins the messaging area between the TopBar and the bottom chrome
+// (or the on-screen keyboard). This view just fills 100% of that
+// fixed parent with a flex column: header (flex:0) + messages
+// (flex:1, internal scroll, minHeight:0) + input (flex:0). Header
+// and input stay put; only the message list scrolls.
 // ============================================================
 import { useEffect, useRef, useState } from "react";
 import { TOKENS, SURFACE, ACCENT, INK, TYPE, fmtRelative } from "../mobileTokens";
 import { Ic } from "../../../components/ui";
 import { useConvoMessages } from "../../../lib/messaging";
 import { useKeyboardHeight } from "./useKeyboardHeight";
-
-const TOP_BAR_PX        = 60;
-const TAB_BAR_RESERVE   = "calc(72px + env(safe-area-inset-bottom))";
-
-function computeAreaHeight(kbHeight) {
-  // When the keyboard is open, swap the tab-bar reservation for the
-  // keyboard height — the tab bar is behind the keyboard anyway.
-  const bottom = kbHeight > 0 ? `${kbHeight}px` : TAB_BAR_RESERVE;
-  return `calc(100dvh - ${TOP_BAR_PX}px - ${bottom})`;
-}
 
 export default function ConversationView({ conversation, currentPersonId, onBack }) {
   const conversationId = conversation?.id || null;
@@ -38,7 +23,6 @@ export default function ConversationView({ conversation, currentPersonId, onBack
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
   const kbHeight = useKeyboardHeight();
-  const wrapperHeight = computeAreaHeight(kbHeight);
 
   // Auto-scroll to bottom on new messages OR when the keyboard opens
   // so the latest message stays in view as the area shrinks.
@@ -59,7 +43,7 @@ export default function ConversationView({ conversation, currentPersonId, onBack
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: wrapperHeight }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       {/* Header */}
       <div style={{
         flex: "0 0 auto",
