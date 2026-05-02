@@ -13,14 +13,26 @@ export default function NewConversationView({ currentPersonId, team, onCancel, o
   const [busyId, setBusyId]   = useState(null);
   const [error, setError]     = useState(null);
 
+  // Eligible DM targets:
+  //   - has a people.id and isn't the current user
+  //   - active + not hidden (camelCase via useAppData mapper)
+  //   - has auth_id (otherwise they've never signed in and can't read
+  //     messages — picking them sends into a void)
+  //   - not a Bot row (role='Bot' and/or labels includes 'bot')
+  // Then text-match by name or email if the user is searching.
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const isBot = (t) => t.role === "Bot" || (Array.isArray(t.labels) && t.labels.includes("bot"));
     return (team || [])
       .filter(t => t.id && t.id !== currentPersonId)
-      .filter(t => (t.isActive ?? t.status === "active") !== false)
-      .filter(t => !t.is_hidden && !t.isHidden)
-      .filter(t => !q || (t.name || t.display_name || "").toLowerCase().includes(q) || (t.email || "").toLowerCase().includes(q))
-      .sort((a, b) => (a.name || a.display_name || "").localeCompare(b.name || b.display_name || ""));
+      .filter(t => t.isActive !== false)
+      .filter(t => !t.isHidden)
+      .filter(t => !!t.authId)
+      .filter(t => !isBot(t))
+      .filter(t => !q
+        || (t.name  || "").toLowerCase().includes(q)
+        || (t.email || "").toLowerCase().includes(q))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [team, query, currentPersonId]);
 
   const start = async (other) => {
@@ -88,7 +100,9 @@ export default function NewConversationView({ currentPersonId, team, onCancel, o
       <div style={{ flex: 1, overflowY: "auto", background: SURFACE.alt }}>
         {candidates.length === 0 && (
           <div style={{ padding: 32, textAlign: "center", color: TOKENS.muted, ...TYPE.small }}>
-            {query ? "No matches." : "No teammates available."}
+            {query
+              ? "No matches."
+              : <>No teammates available.<br /><span style={{ color: TOKENS.muted, fontSize: 12 }}>Only active teammates with sign-in accounts appear here.</span></>}
           </div>
         )}
         {candidates.map(t => {
