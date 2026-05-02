@@ -39,7 +39,7 @@ const KB_THRESHOLD   = 120;
 export default function MessagingView({ currentUser, team, onClose }) {
   const personId = currentUser?.id || null;
   const { conversations, loading, reload, setConversations } = useConversations(personId);
-  const kbHeight = useKeyboardHeight();
+  const vv = useVisualViewport();
 
   // null  = inbox view
   // <id>  = open conversation
@@ -100,26 +100,38 @@ export default function MessagingView({ currentUser, team, onClose }) {
     };
   }, []);
 
-  // Full-viewport messaging overlay. The MobileApp TopBar is hidden
-  // while we're mounted, so we own the entire visible area between
-  // top:0 and the bottom chrome (or keyboard). No two-chrome layout
-  // for iOS to push around — the messaging surface IS the chrome
-  // when it's open.
+  // Anchor the entire messaging surface to the VISUAL viewport.
+  // iOS WebKit scrolls the visual viewport on input focus regardless
+  // of body lock or layout-viewport tricks. Since messaging owns the
+  // full surface as one block (no MobileApp TopBar above us anymore),
+  // tracking visualViewport.offsetTop moves the whole surface as one
+  // solid unit. From the user's perspective the surface stays pinned
+  // to the visible window — header at the top, input at the bottom,
+  // no rotation/parting between sub-elements like before.
+  //
+  // Top: vv.offsetTop (rides the visual viewport top).
   //
   // Bottom math:
-  //   keyboard open  → bottom: ${kbHeight}px so the input sits flush
-  //                    above the keyboard.
-  //   keyboard closed → bottom: TAB_BAR_PX + safe-area inset so the
-  //                    input clears the bottom tab bar.
-  const kbOpen = kbHeight > KB_THRESHOLD;
+  //   keyboard open  → height: vv.height (visible area excludes
+  //                    keyboard already), so the wrapper's bottom
+  //                    is at the keyboard top. Input flush above.
+  //   keyboard closed → height: vv.height - TAB_BAR_PX - safe-area
+  //                    so the input clears the bottom tab bar.
+  const kbHeight = Math.max(0, (typeof window !== "undefined" ? window.innerHeight : 0) - vv.height - vv.offsetTop);
+  const kbOpen   = kbHeight > KB_THRESHOLD;
+
+  const wrapperWidth = Math.min(480, vv.width);
+  const wrapperLeft  = vv.offsetLeft + (vv.width - wrapperWidth) / 2;
+  const wrapperHeight = kbOpen
+    ? vv.height
+    : `calc(${vv.height}px - ${TAB_BAR_PX}px - env(safe-area-inset-bottom))`;
+
   const wrapperStyle = {
     position: "fixed",
-    top: 0,
-    left: 0, right: 0,
-    maxWidth: 480, margin: "0 auto",
-    bottom: kbOpen
-      ? `${kbHeight}px`
-      : `calc(${TAB_BAR_PX}px + env(safe-area-inset-bottom))`,
+    top:    vv.offsetTop,
+    left:   wrapperLeft,
+    width:  wrapperWidth,
+    height: wrapperHeight,
     background: SURFACE.alt,
     display: "flex", flexDirection: "column",
     zIndex: 30,
