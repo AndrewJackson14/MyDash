@@ -913,6 +913,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
                 setStories(prev => [newStory, ...prev]);
                 setSelected(newStory);
               }}
+              onOpenStory={(id) => {
+                const target = stories.find(s => s.id === id);
+                if (target) setSelected(target);
+              }}
               pubs={pubs}
               issues={issues}
               team={team}

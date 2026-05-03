@@ -1,5 +1,6 @@
 import React from "react";
 import { Z, COND, ACCENT, FS, Ri } from "../../../lib/theme";
+import { Ic } from "../../ui";
 
 // Article badges that affect display, not workflow. Featured drives the
 // hero placement; Premium gates content behind the paywall; Sponsored
@@ -9,11 +10,11 @@ function FlagsPanel({ meta, saveMeta, setMeta }) {
     <>
       <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
         <input type="checkbox" checked={!!meta.is_featured} onChange={e => saveMeta("is_featured", e.target.checked)} style={{ accentColor: Z.wa }} />
-        <span style={{ fontWeight: 600 }}>{"★"} Featured Article</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(hero)</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}><Ic.star size={11} /> Featured Article</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(hero)</span>
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
         <input type="checkbox" checked={!!meta.is_premium} onChange={e => saveMeta("is_premium", e.target.checked)} style={{ accentColor: ACCENT.indigo }} />
-        <span style={{ fontWeight: 600 }}>{"🔒"} Premium</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(paywall)</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}><Ic.lock size={11} /> Premium</span><span style={{ fontSize: FS.micro, color: Z.tm }}>(paywall)</span>
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, cursor: "pointer", fontSize: FS.xs, fontFamily: COND, color: Z.tx }}>
         <input type="checkbox" checked={!!meta.is_sponsored} onChange={e => saveMeta("is_sponsored", e.target.checked)} style={{ accentColor: Z.wa }} />

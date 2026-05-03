@@ -47,7 +47,7 @@ function PreflightModal({ open, onClose, onPublish, checks, scheduledAt, onSched
                   cursor: fixable ? "pointer" : "default",
                 }}
               >
-                <span style={{ fontSize: FS.md }}>{c.pass ? "✓" : "✗"}</span>
+                <span style={{ color: c.pass ? (Z.su || "#22c55e") : Z.da, display: "inline-flex" }}>{c.pass ? <Ic.check size={14} /> : <Ic.close size={14} />}</span>
                 <span style={{ fontSize: FS.sm, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
                 {fixable && (
                   <span style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{"→ fix"}</span>

@@ -26,9 +26,9 @@ function SaveIndicator({ save }) {
       <button
         onClick={() => (save.error?.retry ? save.error.retry() : save.clearError())}
         title={save.error?.message}
-        style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, fontWeight: 700, background: Z.da + "12", border: "1px solid " + Z.da + "40", padding: "2px 8px", borderRadius: Ri, cursor: "pointer" }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, color: Z.da, fontFamily: COND, fontWeight: 700, background: Z.da + "12", border: "1px solid " + Z.da + "40", padding: "2px 8px", borderRadius: Ri, cursor: "pointer" }}
       >
-        {"⚠"} Save failed — retry
+        <Ic.alert size={11} /> Save failed — retry
       </button>
     );
   }
@@ -36,9 +36,9 @@ function SaveIndicator({ save }) {
     const ageMs = Date.now() - save.lastSavedAt.getTime();
     const ageMin = Math.floor(ageMs / 60000);
     if (ageMin >= 1) {
-      return <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"✓"} All changes saved · {ago(save.lastSavedAt)}</span>;
+      return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}><Ic.check size={11} /> All changes saved · {ago(save.lastSavedAt)}</span>;
     }
-    return <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"✓"} Saved</span>;
+    return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}><Ic.check size={11} /> Saved</span>;
   }
   return null;
 }
@@ -74,11 +74,11 @@ function StoryEditorTopBar({
             title={`${overBy} words over the ${meta.word_limit} limit`}
             style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: Ri, background: Z.da + "18", color: Z.da, fontFamily: COND }}
           >
-            {"⚠"} {overBy} over
+            <Ic.alert size={11} /> {overBy} over
           </span>
         )}
         <Badge status={meta.status || "Draft"} small />
-        <Btn sm v="secondary" onClick={onPreview} title="Preview how this story will render on the web">{"👁"} Preview</Btn>
+        <Btn sm v="secondary" onClick={onPreview} title="Preview how this story will render on the web"><Ic.eye size={11} /> Preview</Btn>
         {story?.id && (
           <div style={{ position: "relative" }}>
             <button

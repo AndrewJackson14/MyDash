@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { Gallery } from "../../lib/tiptapGallery";
+import { Figure, Figcaption } from "../../lib/tiptapFigure";
 import EntityThread from "../EntityThread";
 import EditorialChecker from "../EditorialChecker";
 import { Z, SC, COND, DISPLAY, ACCENT, FS, Ri } from "../../lib/theme";
@@ -31,6 +32,7 @@ import StoryEditorTopBar from "./StoryEditorTopBar";
 import StoryEditorToolbar from "./StoryEditorToolbar";
 import StoryEditorBody from "./StoryEditorBody";
 import LoadingSkeleton from "./LoadingSkeleton";
+import "./StoryEditor.css";
 
 // ── Upload via Edge Function ─────────────────────────────────────
 async function uploadImage(file, path) {
@@ -51,7 +53,7 @@ async function uploadImage(file, path) {
 // ══════════════════════════════════════════════════════════════════
 // STORY EDITOR
 // ══════════════════════════════════════════════════════════════════
-const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, team, bus, currentUser, publishStory, unpublishStory }) => {
+const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, onOpenStory, pubs, issues, team, bus, currentUser, publishStory, unpublishStory }) => {
   const dialog = useDialog();
   const [meta, setMeta] = useState({ ...story });
   // Wave-1 hardening: a single status object replaces the scattered
@@ -369,6 +371,7 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
       Placeholder.configure({ placeholder: "Start writing your story\u2026" }),
       Underline, TextAlign.configure({ types: ["heading", "paragraph"] }),
       Gallery,
+      Figure, Figcaption,
     ],
     content: "",
     editorProps: {
@@ -414,7 +417,14 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
         table: "story_activity",
         filter: `story_id=eq.${story.id}`,
       }, (payload) => {
-        setActivity(prev => [payload.new, ...prev].slice(0, 20));
+        // Idempotent append: server-side triggers occasionally fire
+        // alongside our own optimistic writes; dedupe on row id so
+        // ActivityPanel's memo doesn't see a churning array on
+        // unrelated re-renders.
+        setActivity(prev => {
+          if (prev.some(a => a.id === payload.new.id)) return prev;
+          return [payload.new, ...prev].slice(0, 20);
+        });
       })
       .subscribe();
     return () => { try { supabase.removeChannel(channel); } catch (_) {} };
@@ -823,8 +833,15 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
 
   const insertImage = () => {
     if (!pendingImageUrl || !editor) return;
-    editor.chain().focus().setImage({ src: pendingImageUrl, alt: imageCaption || "", title: imageCaption || "" }).run();
-    if (imageCaption) editor.chain().focus().createParagraphNear().insertContent('<em style="font-size:14px;color:#6b7280;">' + imageCaption + "</em>").run();
+    if (imageCaption) {
+      editor.chain().focus().insertFigure({
+        src: pendingImageUrl,
+        alt: imageCaption,
+        caption: imageCaption,
+      }).run();
+    } else {
+      editor.chain().focus().setImage({ src: pendingImageUrl, alt: "" }).run();
+    }
     setImageModalOpen(false); setPendingImageUrl(""); setImageCaption("");
   };
 
@@ -1034,7 +1051,7 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: Z.bg, padding: 24 }}>
         <div style={{ maxWidth: 460, textAlign: "center", background: Z.sf, border: "1px solid " + Z.bd, borderRadius: R, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>\ud83d\udd12</div>
+          <div style={{ marginBottom: 12, color: Z.tm, display: "flex", justifyContent: "center" }}><Ic.lock size={40} /></div>
           <h2 style={{ margin: "0 0 8px", fontSize: FS.xl, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Story is open elsewhere</h2>
           <p style={{ margin: "0 0 16px", fontSize: FS.md, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
             <strong style={{ color: Z.tx }}>{lockedBy.userName}</strong> is editing "{meta.title || "this story"}"{since ? ` since ${since}` : ""}. Only one editor can have a story open at a time to avoid conflicting saves.
@@ -1143,6 +1160,9 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
           onAuthorCustom={handleAuthorCustom}
           onDownloadOriginals={downloadOriginals}
           onDelete={handleDelete}
+          onOpenStory={onOpenStory}
+          onClose={onClose}
+          onUpdate={onUpdate}
         />
       </div>
 
@@ -1169,8 +1189,18 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
             });
           } else if (mediaPickerMode === "story") {
             attachAssetToStory(media);
-          } else {
-            if (editor) editor.chain().focus().setImage({ src: media.url, alt: media.alt || "", title: media.caption || "" }).run();
+          } else if (editor) {
+            // Inline insert: use semantic figure when there's a
+            // caption / alt text; otherwise plain <img>.
+            if (media.caption || media.alt) {
+              editor.chain().focus().insertFigure({
+                src: media.url,
+                alt: media.alt || "",
+                caption: media.caption || media.alt || "",
+              }).run();
+            } else {
+              editor.chain().focus().setImage({ src: media.url, alt: "" }).run();
+            }
           }
         }}
         onSelectMulti={(assets) => {
@@ -1182,27 +1212,6 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
         }}
       />
 
-      <style>{"\
-        .tiptap { outline: none; }\
-        .tiptap p { margin-bottom: 1em; }\
-        .tiptap h1 { font-size: 1.8em; font-weight: bold; margin: 1.5em 0 0.5em; }\
-        .tiptap h2 { font-size: 1.4em; font-weight: bold; margin: 1.3em 0 0.4em; }\
-        .tiptap h3 { font-size: 1.15em; font-weight: bold; margin: 1.2em 0 0.3em; }\
-        .tiptap ul, .tiptap ol { margin: 0.8em 0; padding-left: 1.5em; }\
-        .tiptap ul { list-style: disc; } .tiptap ol { list-style: decimal; }\
-        .tiptap li { margin-bottom: 0.4em; }\
-        .tiptap blockquote { border-left: 3px solid " + Z.ac + "; padding-left: 16px; margin: 1.2em 0; color: " + Z.tm + "; font-style: italic; }\
-        .tiptap a { color: " + Z.ac + "; text-decoration: underline; }\
-        .tiptap hr { border: none; border-top: 1px solid " + Z.bd + "; margin: 2em 0; }\
-        .tiptap .editor-image { max-width: 100%; max-height: 500px; width: auto; height: auto; border-radius: 4px; margin: 1.5em 0; }\
-        .tiptap .story-gallery { display: grid; gap: 6px; margin: 1.5em 0; grid-template-columns: repeat(3, 1fr); }\
-        .tiptap .story-gallery[data-columns='2'] { grid-template-columns: repeat(2, 1fr); }\
-        .tiptap .story-gallery[data-columns='4'] { grid-template-columns: repeat(4, 1fr); }\
-        .tiptap .story-gallery a { display: block; overflow: hidden; border-radius: 4px; position: relative; cursor: zoom-in; }\
-        .tiptap .story-gallery img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; margin: 0; }\
-        .tiptap .story-gallery.ProseMirror-selectednode { outline: 2px solid " + Z.ac + "; outline-offset: 2px; }\
-        .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: " + Z.tm + "; pointer-events: none; height: 0; font-style: italic; }\
-      "}</style>
     </div>
   );
 };

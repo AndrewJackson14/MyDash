@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Z, COND, FS } from "../../lib/theme";
-import { Btn, TA } from "../ui";
+import { Btn, TA, Ic } from "../ui";
 import { supabase } from "../../lib/supabase";
 
 // ══════════════════════════════════════════════════════════════════
@@ -80,7 +80,7 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog, 
           ? <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Send to <span style={{ color: Z.tx, fontWeight: 600 }}>{layoutDesigner.name}</span></div>
           : <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Layout Handoff</div>
         }
-        {lastSentAt && <span style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND }}>{"✓"} sent</span>}
+        {lastSentAt && <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: FS.micro, color: Z.go, fontFamily: COND }}><Ic.check size={11} /> sent</span>}
       </div>
       {!bare && (
         <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 6 }}>

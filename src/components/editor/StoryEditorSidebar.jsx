@@ -19,6 +19,7 @@ import DueDateAndWordLimitRow from "./sidebar/DueDateAndWordLimitRow";
 import PrintIssuePicker from "./sidebar/PrintIssuePicker";
 import LayoutHandoffPanel from "./LayoutHandoffPanel";
 import HandoffSection from "./sidebar/HandoffSection";
+import GeneratedFromPanel from "./sidebar/GeneratedFromPanel";
 import SEOPanel from "./sidebar/SEOPanel";
 import LegalReviewPanel from "./sidebar/LegalReviewPanel";
 import NotesPanel from "./sidebar/NotesPanel";
@@ -46,7 +47,7 @@ function StoryEditorSidebar(props) {
     onSetTitle, onApplyGeneratedBody, onDraftCreated,
     onClearFeatured, onSetFeatured, onUpload, onPickFromLibrary,
     onAddFreelancer, onAuthorCustom,
-    onDownloadOriginals, onDelete,
+    onDownloadOriginals, onDelete, onOpenStory,
   } = props;
 
   return (
@@ -83,6 +84,11 @@ function StoryEditorSidebar(props) {
         publication={publication}
         publicationTz={publicationTz}
         onSave={savePubDateRange}
+      />
+
+      <GeneratedFromPanel
+        generatedFromId={meta.generated_from_id}
+        onOpenSource={onOpenStory}
       />
 
       <StatusPanel
@@ -228,7 +234,16 @@ function StoryEditorSidebar(props) {
 
       <NotesPanel meta={meta} setMeta={setMeta} saveMeta={saveMeta} />
 
-      <DangerZonePanel onDelete={onDelete} />
+      <DangerZonePanel
+        story={story}
+        meta={meta}
+        dialog={props.dialog}
+        currentUser={currentUser}
+        onUpdate={props.onUpdate}
+        onClose={props.onClose}
+        onOpenStory={onOpenStory}
+        onDelete={onDelete}
+      />
 
       <TimelinePanel meta={meta} />
 

@@ -83,8 +83,8 @@ function PublishPanel({
         if (!host.includes(".")) return null;
         const href = `https://${host}/${meta.slug}`;
         return (
-          <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
-            View on {host} {"↗"}
+          <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
+            View on {host} <Ic.external size={11} />
           </a>
         );
       })()}
@@ -96,12 +96,12 @@ function LiveBlock({ republishedFlash, republishing, onRepublish, onUnpublish })
   const accent = Z.su || "#22c55e";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: FS.xs, fontWeight: 700, color: accent, fontFamily: COND }}>
-        {republishedFlash > 0 ? "✓ Republished just now" : "✓ Live on Web"}
+      <div style={{ fontSize: FS.xs, fontWeight: 700, color: accent, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>
+        <Ic.check size={12} /> {republishedFlash > 0 ? "Republished just now" : "Live on Web"}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <Btn sm onClick={onRepublish} disabled={republishing} style={{ flex: 1 }}>
-          {republishing ? "Republishing…" : "↻ Update Live"}
+          <Ic.refresh size={11} /> {republishing ? "Republishing…" : "Update Live"}
         </Btn>
         <Btn sm v="secondary" onClick={onUnpublish} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
       </div>
@@ -113,11 +113,11 @@ function NeedsRepublishBlock({ republishing, onRepublish, onUnpublish }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.wa, fontFamily: COND, display: "flex", alignItems: "center", gap: 4 }}>
-        {"⚠"} Unpublished Changes
+        <Ic.alert size={11} /> Unpublished Changes
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <Btn sm onClick={onRepublish} disabled={republishing} style={{ flex: 1, background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>
-          {republishing ? "Republishing…" : "↻ Republish"}
+          <Ic.refresh size={11} /> {republishing ? "Republishing…" : "Republish"}
         </Btn>
         <Btn sm v="secondary" onClick={onUnpublish} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Unpublish</Btn>
       </div>
@@ -128,7 +128,7 @@ function NeedsRepublishBlock({ republishing, onRepublish, onUnpublish }) {
 function ApproveBlock({ onApprove }) {
   return (
     <Btn sm onClick={onApprove} style={{ width: "100%", background: ACCENT.blue + "20", color: ACCENT.blue, border: "1px solid " + ACCENT.blue + "40" }}>
-      {"✓"} Approve for Web
+      <Ic.check size={11} /> Approve for Web
     </Btn>
   );
 }

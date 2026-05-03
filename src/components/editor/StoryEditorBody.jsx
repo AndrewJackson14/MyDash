@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { EditorContent } from "@tiptap/react";
 import { Z, COND, DISPLAY, FS } from "../../lib/theme";
+import { Ic } from "../ui";
 import { pn, pColor } from "./StoryEditor.helpers";
 
 // Title row + byline strip + EditorContent. wordCount lives here and
@@ -25,13 +26,32 @@ function StoryEditorBody({
     return () => editor.off("update", recount);
   }, [editor, onWordCount]);
 
+  // Title autosave: 10s debounce while typing so a tab crash mid-
+  // headline doesn't lose the draft. Slower than body autosave (2s)
+  // because most title changes settle quickly and we don't want to
+  // fire on every keystroke during fast typing.
+  const titleSaveTimer = useRef(null);
+  const handleTitleChange = useCallback((e) => {
+    const v = e.target.value;
+    setMeta(m => ({ ...m, title: v }));
+    if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
+    titleSaveTimer.current = setTimeout(() => onTitleBlur(v), 10000);
+  }, [setMeta, onTitleBlur]);
+  const handleTitleBlur = useCallback((e) => {
+    if (titleSaveTimer.current) { clearTimeout(titleSaveTimer.current); titleSaveTimer.current = null; }
+    onTitleBlur(e.target.value);
+  }, [onTitleBlur]);
+  useEffect(() => () => {
+    if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
+  }, []);
+
   return (
     <>
       <div style={{ padding: "20px 32px 0" }}>
         <input
           value={meta.title || ""}
-          onChange={e => setMeta(m => ({ ...m, title: e.target.value }))}
-          onBlur={e => onTitleBlur(e.target.value)}
+          onChange={handleTitleChange}
+          onBlur={handleTitleBlur}
           placeholder="Story title…"
           style={{ width: "100%", border: "none", outline: "none", background: "transparent", fontSize: 28, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY, lineHeight: 1.2, padding: 0, marginBottom: 8 }}
         />
@@ -45,7 +65,7 @@ function StoryEditorBody({
           <span style={{ color: meta.word_limit && wordCount > meta.word_limit ? Z.da : undefined, fontWeight: meta.word_limit && wordCount > meta.word_limit ? 700 : undefined }}>
             {wordCount.toLocaleString()}{meta.word_limit ? ` / ${meta.word_limit.toLocaleString()}` : ""} words
           </span>
-          {meta.word_limit && wordCount > meta.word_limit && <span style={{ color: Z.da, fontWeight: 700 }}>{"⚠"} Over by {(wordCount - meta.word_limit).toLocaleString()}</span>}
+          {meta.word_limit && wordCount > meta.word_limit && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: Z.da, fontWeight: 700 }}><Ic.alert size={11} /> Over by {(wordCount - meta.word_limit).toLocaleString()}</span>}
         </div>
       </div>
     </>

@@ -1,0 +1,101 @@
+/* ============================================================
+   StoryEditor.css — TipTap editor body styles
+   ----------------------------------------------------------------
+   Targets the `.tiptap` class TipTap injects on its ProseMirror
+   root. Uses the global theme CSS variables (--accent / --rule /
+   --muted, defined in styles/global.css) so the editor follows
+   light/dark theme switches without re-importing.
+
+   Imported once from StoryEditor.jsx; replaces the inline
+   <style>{...}</style> block that previously rebuilt this CSS on
+   every parent render.
+   ============================================================ */
+
+.tiptap { outline: none; }
+.tiptap p { margin-bottom: 1em; }
+.tiptap h1 { font-size: 1.8em; font-weight: bold; margin: 1.5em 0 0.5em; }
+.tiptap h2 { font-size: 1.4em; font-weight: bold; margin: 1.3em 0 0.4em; }
+.tiptap h3 { font-size: 1.15em; font-weight: bold; margin: 1.2em 0 0.3em; }
+.tiptap ul,
+.tiptap ol { margin: 0.8em 0; padding-left: 1.5em; }
+.tiptap ul { list-style: disc; }
+.tiptap ol { list-style: decimal; }
+.tiptap li { margin-bottom: 0.4em; }
+.tiptap blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 16px;
+  margin: 1.2em 0;
+  color: var(--muted);
+  font-style: italic;
+}
+.tiptap a { color: var(--accent); text-decoration: underline; }
+.tiptap hr { border: none; border-top: 1px solid var(--rule); margin: 2em 0; }
+.tiptap .editor-image {
+  max-width: 100%;
+  max-height: 500px;
+  width: auto;
+  height: auto;
+  border-radius: 4px;
+  margin: 1.5em 0;
+}
+
+/* Wave-4 figure/figcaption (lib/tiptapFigure.js). New image inserts
+   produce <figure class="story-figure"><img><figcaption></figcaption></figure>;
+   existing stories with the legacy <img>+<em>caption pattern keep
+   working via the rules above. */
+.tiptap figure.story-figure {
+  margin: 1.5em 0;
+  text-align: center;
+}
+.tiptap figure.story-figure img {
+  max-width: 100%;
+  max-height: 500px;
+  width: auto;
+  height: auto;
+  margin: 0;
+  display: inline-block;
+  border-radius: 4px;
+}
+.tiptap figure.story-figure figcaption {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--muted);
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.4;
+}
+
+.tiptap .story-gallery {
+  display: grid;
+  gap: 6px;
+  margin: 1.5em 0;
+  grid-template-columns: repeat(3, 1fr);
+}
+.tiptap .story-gallery[data-columns='2'] { grid-template-columns: repeat(2, 1fr); }
+.tiptap .story-gallery[data-columns='4'] { grid-template-columns: repeat(4, 1fr); }
+.tiptap .story-gallery a {
+  display: block;
+  overflow: hidden;
+  border-radius: 4px;
+  position: relative;
+  cursor: zoom-in;
+}
+.tiptap .story-gallery img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  margin: 0;
+}
+.tiptap .story-gallery.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}

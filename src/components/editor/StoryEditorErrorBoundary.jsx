@@ -1,6 +1,6 @@
 import { Component } from "react";
 import { Z, COND, FS, DISPLAY, R } from "../../lib/theme";
-import { Btn } from "../ui";
+import { Btn, Ic } from "../ui";
 
 // Catches throws from TipTap, gallery node-view, extensions, or any
 // child render path. Without this a malformed body HTML or a bad
@@ -41,7 +41,7 @@ export default class StoryEditorErrorBoundary extends Component {
           background: Z.sf, border: "1px solid " + Z.da + "40", borderRadius: R,
           padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
         }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>{"⚠"}</div>
+          <div style={{ marginBottom: 12, color: Z.da, display: "flex", justifyContent: "center" }}><Ic.alert size={40} /></div>
           <h2 style={{
             margin: "0 0 8px", fontSize: FS.xl, fontWeight: 800,
             color: Z.tx, fontFamily: DISPLAY,

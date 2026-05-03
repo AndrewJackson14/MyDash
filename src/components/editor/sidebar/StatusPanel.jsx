@@ -15,7 +15,7 @@ function StatusPanel({ status, isPublished, onChange }) {
         active={status || "Draft"}
         onChange={onChange}
       />
-      {isPublished && <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>{"✓"} Published</div>}
+      {isPublished && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}><Ic.check size={11} /> Published</div>}
     </div>
   );
 }

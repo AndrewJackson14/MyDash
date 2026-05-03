@@ -1,5 +1,6 @@
 import React from "react";
 import { Z, COND, FS, Ri } from "../../../lib/theme";
+import { Ic } from "../../ui";
 
 // All images uploaded under this story. Click a tile to promote it to
 // featured (single-UPDATE patch). Captions are saved on blur and travel
@@ -80,7 +81,7 @@ function StoryLibraryPanel({
           disabled={downloading}
           style={{ marginTop: 6, width: "100%", padding: "5px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tx, fontSize: FS.micro, fontWeight: 700, fontFamily: COND, cursor: downloading ? "default" : "pointer", opacity: downloading ? 0.6 : 1 }}
         >
-          {downloading ? "Downloading…" : `↓ Download Originals (${storyImages.length})`}
+          {downloading ? "Downloading…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "center" }}><Ic.download size={11} /> Download Originals ({storyImages.length})</span>}
         </button>
       )}
     </div>

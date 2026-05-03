@@ -1,6 +1,6 @@
 import React from "react";
 import { Z, COND, FS } from "../../../lib/theme";
-import { Inp } from "../../ui";
+import { Inp, Ic } from "../../ui";
 
 function DueDateAndWordLimitRow({ dueDate, wordLimit, wordCount, onDueDateChange, onWordLimitChange }) {
   return (
@@ -15,8 +15,8 @@ function DueDateAndWordLimitRow({ dueDate, wordLimit, wordCount, onDueDateChange
           placeholder="No limit"
         />
         {wordLimit && wordCount > wordLimit && (
-          <div style={{ fontSize: FS.micro, color: Z.da, fontWeight: 700, fontFamily: COND, marginTop: 2 }}>
-            {"⚠"} {wordCount - wordLimit} over limit
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.micro, color: Z.da, fontWeight: 700, fontFamily: COND, marginTop: 2 }}>
+            <Ic.alert size={11} /> {wordCount - wordLimit} over limit
           </div>
         )}
       </div>
