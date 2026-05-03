@@ -9,12 +9,19 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import RequireAuth from "./components/RequireAuth";
 import PortalShell from "./components/PortalShell";
 
-const Login         = lazy(() => import("./pages/Login"));
-const Setup         = lazy(() => import("./pages/Setup"));
-const SetupSent     = lazy(() => import("./pages/SetupSent"));
-const SetupComplete = lazy(() => import("./pages/SetupComplete"));
-const ClientHome    = lazy(() => import("./pages/ClientHome"));
-const NotFound      = lazy(() => import("./pages/NotFound"));
+const Login           = lazy(() => import("./pages/Login"));
+const Setup           = lazy(() => import("./pages/Setup"));
+const SetupSent       = lazy(() => import("./pages/SetupSent"));
+const SetupComplete   = lazy(() => import("./pages/SetupComplete"));
+const ClientHome      = lazy(() => import("./pages/ClientHome"));
+const ProposalsList   = lazy(() => import("./pages/ProposalsList"));
+const ProposalDetail  = lazy(() => import("./pages/ProposalDetail"));
+const InvoicesList    = lazy(() => import("./pages/InvoicesList"));
+const InvoiceDetail   = lazy(() => import("./pages/InvoiceDetail"));
+const AdProjectsList  = lazy(() => import("./pages/AdProjectsList"));
+const AdProjectDetail = lazy(() => import("./pages/AdProjectDetail"));
+const Activity        = lazy(() => import("./pages/Activity"));
+const NotFound        = lazy(() => import("./pages/NotFound"));
 
 export default function PortalApp() {
   return (
@@ -30,8 +37,15 @@ export default function PortalApp() {
             child routes can call usePortal() directly. PortalShell
             renders the chrome; nested <Outlet/> brings the page in. */}
         <Route path="/c/:slug" element={<RequireAuth><PortalShell /></RequireAuth>}>
-          <Route index            element={<Navigate to="home" replace />} />
-          <Route path="home"      element={<ClientHome />} />
+          <Route index                       element={<Navigate to="home" replace />} />
+          <Route path="home"                 element={<ClientHome />} />
+          <Route path="proposals"            element={<ProposalsList />} />
+          <Route path="proposals/:id"        element={<ProposalDetail />} />
+          <Route path="invoices"             element={<InvoicesList />} />
+          <Route path="invoices/:id"         element={<InvoiceDetail />} />
+          <Route path="ad-projects"          element={<AdProjectsList />} />
+          <Route path="ad-projects/:id"      element={<AdProjectDetail />} />
+          <Route path="activity"             element={<Activity />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
