@@ -70,7 +70,10 @@ const SOURCES = ["staff", "freelance", "syndicated", "press_release", "community
 
 const TABS = [
   { id: "workflow", label: "Workflow", icon: "flat" },
-  { id: "stories", label: "Issue Planning", icon: "pub" },
+  // IP Wave 4 — internal key renamed from "stories" to align with the
+  // UI label. Old "?tab=stories" deep-links remain valid via the
+  // legacy alias below.
+  { id: "issuePlanning", label: "Issue Planning", icon: "pub" },
   { id: "flatplan", label: "Flatplan", icon: "flat" },
   { id: "web", label: "Web Queue", icon: "send" },
   { id: "editions", label: "Editions", icon: "pub" },
@@ -259,7 +262,10 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       supabase.from("stories").delete().eq("id", id).then(() => {}).catch(() => {});
     }
   };
-  const [tab, setTab] = useState("workflow");
+  // Legacy "?tab=stories" deep-links (or DECISION-shared bookmarks)
+  // still land on Issue Planning after the IP Wave 4 key rename.
+  const initialTab = (deepLink?.tab === "stories" ? "issuePlanning" : deepLink?.tab) || "workflow";
+  const [tab, setTab] = useState(initialTab);
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
   // Issue-Planning state (collapsedGroups, draggingId, dropTarget,
@@ -845,7 +851,7 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       )}
 
       {/* STORIES VIEW — IP Wave 2 lifted into IssuePlanningTab */}
-      {tab === "stories" && (
+      {tab === "issuePlanning" && (
         <IssuePlanningTab
           stories={filtered}
           setStories={setStories}

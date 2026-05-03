@@ -27,3 +27,17 @@ export const PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6].map(n => ({
   value: String(n),
   label: String(n),
 }));
+
+// Sidebar shows up to N upcoming issues per publication. The cap
+// keeps the rail readable when a pub has dozens of scheduled issues
+// in advance. Was a magic 2 in the futureIssues memo.
+export const FUTURE_ISSUES_PER_PUB = 2;
+
+// Categories shown in the Section dropdown. Eventually will move to
+// publications.settings (per-pub category list); for now this is the
+// hard-coded list mirroring the previous inline definition.
+export const STORY_CATEGORIES = [
+  "News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports",
+  "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate",
+  "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime",
+];

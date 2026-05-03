@@ -1,5 +1,6 @@
 import React from "react";
 import { Z, COND, FS, Ri } from "../../../lib/theme";
+import { Ic } from "../../ui";
 
 // Left rail — list of upcoming issues + collapse affordance. Reads
 // per-issue story counts from the storiesByIssue index (O(1) lookup)
@@ -28,7 +29,7 @@ function IssueSidebar({
           }}
           onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "18"; e.currentTarget.style.color = Z.ac; }}
           onMouseLeave={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
-        >›</button>
+        ><Ic.chevronRight size={18} /></button>
       </div>
     );
   }
@@ -49,7 +50,7 @@ function IssueSidebar({
           }}
           onMouseEnter={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.tm; }}
-        >‹</button>
+        ><Ic.chevronLeft size={18} /></button>
       </div>
       {futureIssues.length === 0 && <div style={{ fontSize: FS.sm, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
       {futureIssues.map(iss => {

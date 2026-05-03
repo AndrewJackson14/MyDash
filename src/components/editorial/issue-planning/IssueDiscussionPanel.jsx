@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Z, COND, FS, Ri } from "../../../lib/theme";
+import { Ic } from "../../ui";
 import EntityThread from "../../EntityThread";
 
 // IP Wave 2 — replaces the always-mounted <EntityThread> at the top
@@ -22,7 +23,9 @@ function IssueDiscussionPanel({ selIssue, issueLabel, team, currentUser }) {
           fontSize: FS.sm, fontWeight: 600, textAlign: "left",
         }}
       >
-        <span style={{ fontSize: FS.micro, color: Z.tm }}>{open ? "▾" : "▸"}</span>
+        <span style={{ display: "inline-flex", color: Z.tm }}>
+          {open ? <Ic.chevronDown size={12} /> : <Ic.chevronRight size={12} />}
+        </span>
         <span>Issue discussion</span>
       </button>
       {open && (

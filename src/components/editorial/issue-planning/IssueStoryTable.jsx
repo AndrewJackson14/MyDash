@@ -1,10 +1,10 @@
 import React, { Fragment, useMemo, useState, useCallback } from "react";
 import { Z, COND, DISPLAY, ACCENT, FS, Ri } from "../../../lib/theme";
-import { Sel, DataTable } from "../../ui";
+import { Sel, DataTable, Ic } from "../../ui";
 import FuzzyPicker from "../../FuzzyPicker";
 import { STORY_STATUSES } from "../../../constants";
 import { sectionForPage, updateSection as updateSectionDb } from "../../../lib/sections";
-import { PRIORITY_OPTIONS, DEFAULT_PAGE_COUNT } from "./IssuePlanningTab.constants";
+import { PRIORITY_OPTIONS, DEFAULT_PAGE_COUNT, STORY_CATEGORIES } from "./IssuePlanningTab.constants";
 import BulkActionBar from "./BulkActionBar";
 import "./IssueStoryTable.css";
 
@@ -19,13 +19,13 @@ const COLUMNS = [
   { key: "jump_to_page", label: "Jump" },
   { key: "priority", label: "Pri" },
   { key: "word_limit", label: "Limit" },
-  { key: "_img", label: "Img" },
+  { key: "_img", label: "Img", title: "Story is flagged to run with images (planning flag — separate from attached uploads)" },
   { key: "_delete", label: "" },
 ];
 
 const CATEGORY_OPTIONS = [
   { value: "", label: "—" },
-  ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c })),
+  ...STORY_CATEGORIES.map(c => ({ value: c, label: c })),
 ];
 
 const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: FS.sm, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
@@ -47,9 +47,14 @@ function buildPageOptions(max, currentValue) {
 // Section divider row — appears above the first page-group whose
 // page falls inside a section. Editable label + kind + delete.
 const SectionHeaderRow = React.memo(function SectionHeaderRow({ section, pubType, onLabelChange, onLabelBlur, onKindChange, onDelete }) {
-  const tooltip = pubType === "Newspaper"
-    ? "Main = resets newspaper page numbering. Sub = label only."
-    : "Magazine: kind doesn't affect numbering";
+  // Cached so a per-issue render pass doesn't recompute the tooltip
+  // string for every section divider on the page.
+  const tooltip = useMemo(
+    () => pubType === "Newspaper"
+      ? "Main = resets newspaper page numbering. Sub = label only."
+      : "Magazine: kind doesn't affect numbering",
+    [pubType],
+  );
   return (
     <tr style={{ background: Z.bg }}>
       <td colSpan={12} style={{ padding: "10px 12px 4px", borderTop: `2px solid ${ACCENT.indigo}40` }}>
@@ -74,8 +79,9 @@ const SectionHeaderRow = React.memo(function SectionHeaderRow({ section, pubType
           </select>
           <button
             onClick={() => onDelete(section)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.md, padding: "0 4px" }}
-          >×</button>
+            title="Delete section"
+            style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, padding: "0 4px", display: "inline-flex", alignItems: "center" }}
+          ><Ic.close size={14} /></button>
         </div>
       </td>
     </tr>
@@ -106,7 +112,9 @@ const PageGroupRow = React.memo(function PageGroupRow({ group, isAppendTarget, i
     >
       <td colSpan={12} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => onToggle(group.key)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: FS.xs, fontWeight: 800, color: group.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          <span style={{ width: 12, color: Z.tm }}>{isCollapsed ? "▸" : "▾"}</span>
+          <span style={{ width: 12, color: Z.tm, display: "inline-flex", alignItems: "center" }}>
+            {isCollapsed ? <Ic.chevronRight size={12} /> : <Ic.chevronDown size={12} />}
+          </span>
           <span>{group.key === "unassigned" ? group.label : `Page ${fmtPage(group.page)}`}</span>
           <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>
             {group.stories.length} {group.stories.length === 1 ? "story" : "stories"}
@@ -126,7 +134,7 @@ const JumpRow = React.memo(function JumpRow({ story, onOpenDetail }) {
   return (
     <tr style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
       <td colSpan={12} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: FS.sm }}>
-        <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
+        <span style={{ color: Z.wa, marginRight: 6, display: "inline-flex", alignItems: "center", verticalAlign: "middle" }}><Ic.cornerDownLeft size={13} /></span>
         <span onClick={() => onOpenDetail(story)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{story.title || "Untitled"}</span>
         <span style={{ color: Z.td }}>(cont. from p.{story.jump_from_page ?? story.page})</span>
       </td>
@@ -188,12 +196,30 @@ const StoryRow = React.memo(function StoryRow({
           e.dataTransfer.setData("text/plain", s.id);
         }}
         onDragEnd={onDragEnd}
-        style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", fontSize: FS.md, userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1 }}
+        style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1, verticalAlign: "middle" }}
         title={(isSibling || isMirror) ? "" : "Drag to reorder"}
-      >☰</td>
+      >
+        <span style={{ display: "inline-flex", alignItems: "center" }}><Ic.gripVertical size={14} /></span>
+      </td>
       <td style={{ padding: "5px 8px", maxWidth: 280 }}>
-        {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
-        {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
+        {isSibling && (
+          <span
+            title={`Sibling-pub view from ${s._siblingPub} — read-only here.`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}
+          >
+            <Ic.link size={9} />
+            {s._siblingPub?.split(" ")[0]}
+          </span>
+        )}
+        {isMirror && (
+          <span
+            title={`This story lives on ${primaryPubName}'s issue. Edits there mirror here.`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}
+          >
+            <Ic.link size={9} />
+            {primaryPubName}
+          </span>
+        )}
         {hasSavedTitle
           ? <span onClick={() => !isSibling && onOpenDetail(s)} style={{ fontWeight: 700, color: isSibling ? Z.tm : Z.ac, cursor: isSibling ? "default" : "pointer", display: "inline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
           : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => onUpdateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
@@ -208,6 +234,7 @@ const StoryRow = React.memo(function StoryRow({
                   onClick={() => onToggleSiblingLink(s, sibIss.id)}
                   title={linked ? `Unlink from ${sibPub.name}` : `Also publish in ${sibPub.name} (${new Date(sibIss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })})`}
                   style={{
+                    display: "inline-flex", alignItems: "center", gap: 3,
                     fontSize: 9, fontWeight: 700, fontFamily: COND, letterSpacing: 0.3,
                     padding: "2px 7px", borderRadius: 10, cursor: "pointer",
                     background: linked ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa,
@@ -215,7 +242,8 @@ const StoryRow = React.memo(function StoryRow({
                     border: `1px solid ${linked ? "color-mix(in srgb, var(--action) 40%, transparent)" : Z.bd}`,
                   }}
                 >
-                  {linked ? "↔" : "⊕"} {sibPub.name}
+                  {linked ? <Ic.link size={10} /> : <Ic.plus size={10} />}
+                  {sibPub.name}
                 </button>
               );
             })}
@@ -409,9 +437,17 @@ function IssueStoryTable(props) {
                 <th
                   key={col.key}
                   onClick={!noSort ? () => handleSort(col.key) : undefined}
+                  title={col.title}
                   style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: FS.xs, cursor: !noSort ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: noSort ? 18 : undefined }}
                 >
-                  {col.label} {sortCol === col.key ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {col.label}
+                    {sortCol === col.key && (
+                      sortDir === "asc"
+                        ? <Ic.chevronUp size={11} />
+                        : <Ic.chevronDown size={11} />
+                    )}
+                  </span>
                 </th>
               );
             })}

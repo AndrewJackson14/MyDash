@@ -21,12 +21,13 @@ function IssueStatStrip({ issueStories, sales, selIssue, activeFilter, onFilterC
 
   const toggle = (key) => onFilterChange && onFilterChange(activeFilter === key ? null : key);
 
-  const Stat = ({ filterKey, val, label, color, clickable = true }) => {
+  const Stat = ({ filterKey, val, label, color, title, clickable = true }) => {
     const isActive = clickable && activeFilter === filterKey;
     return (
       <button
         type="button"
         onClick={clickable ? () => toggle(filterKey) : undefined}
+        title={title}
         style={{
           flex: 1, padding: "6px 10px",
           background: isActive ? Z.ac + "22" : Z.sa,
@@ -45,11 +46,28 @@ function IssueStatStrip({ issueStories, sales, selIssue, activeFilter, onFilterC
 
   return (
     <div style={{ display: "flex", gap: 4 }}>
-      <Stat val={stats.total} label="Stories" clickable={false} />
-      <Stat filterKey="hasPage" val={stats.pagesAssigned} label="Pages assigned" />
-      <Stat val={stats.adsPlaced} label="Ads placed" clickable={false} />
-      <Stat filterKey="withImages" val={stats.withImages} label="With images" color={stats.withImages > 0 ? Z.su : null} />
-      <Stat filterKey="withJumps" val={stats.withJumps} label="Jumps" color={stats.withJumps > 0 ? Z.wa : null} />
+      <Stat
+        val={stats.total} label="Stories" clickable={false}
+        title="Total stories assigned to this issue"
+      />
+      <Stat
+        filterKey="hasPage" val={stats.pagesAssigned} label="Pages assigned"
+        title={`${stats.pagesAssigned} unique pages have at least one story placed — click to filter to placed stories`}
+      />
+      <Stat
+        val={stats.adsPlaced} label="Ads placed" clickable={false}
+        title="Sold ads placed on a specific page in this issue"
+      />
+      <Stat
+        filterKey="withImages" val={stats.withImages} label="With images"
+        color={stats.withImages > 0 ? Z.su : null}
+        title="Stories flagged as needing images (planning flag, separate from attached uploads) — click to filter"
+      />
+      <Stat
+        filterKey="withJumps" val={stats.withJumps} label="Jumps"
+        color={stats.withJumps > 0 ? Z.wa : null}
+        title="Stories that jump to a continuation page — click to filter"
+      />
     </div>
   );
 }

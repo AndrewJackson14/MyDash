@@ -4,6 +4,7 @@ import { supabase } from "../../../lib/supabase";
 import { useDialog } from "../../../hooks/useDialog";
 import { loadSectionsForIssue, createSection as createSectionDb, applyDefaultSectionsToIssue, pageLabel } from "../../../lib/sections";
 import { bulkUpdateStories } from "../../../lib/storyBulkUpdate";
+import { FUTURE_ISSUES_PER_PUB } from "./IssuePlanningTab.constants";
 
 import IssuePlanningErrorBoundary from "./IssuePlanningErrorBoundary";
 import IssueSidebar from "./IssueSidebar";
@@ -175,7 +176,7 @@ function IssuePlanningTab({
       .forEach(i => {
         const pk = i.publicationId || i.pubId;
         if (!byPub[pk]) byPub[pk] = [];
-        if (byPub[pk].length < 2) byPub[pk].push(i);
+        if (byPub[pk].length < FUTURE_ISSUES_PER_PUB) byPub[pk].push(i);
       });
     return Object.values(byPub).flat().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [issues, fPub]);

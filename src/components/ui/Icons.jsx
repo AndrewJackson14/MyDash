@@ -80,6 +80,15 @@ const Ic = {
   camera:    p => <Iv d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2zM12 17a4 4 0 100-8 4 4 0 000 8z" {...p} />,
   refresh:   p => <Iv d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" {...p} />,
   eye:       p => <Iv d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 100-6 3 3 0 000 6z" {...p} />,
+  chevronRight:  p => <Iv d="M9 18l6-6-6-6" {...p} />,
+  chevronLeft:   p => <Iv d="M15 18l-6-6 6-6" {...p} />,
+  chevronUp:     p => <Iv d="M18 15l-6-6-6 6" {...p} />,
+  chevronDown:   p => <Iv d="M6 9l6 6 6-6" {...p} />,
+  // Six-dot grip — strokeLinecap="round" turns each "h.01" into a dot.
+  gripVertical:  p => <Iv d="M9 12.01h.01M9 5.01h.01M9 19.01h.01M15 12.01h.01M15 5.01h.01M15 19.01h.01" {...p} />,
+  // ↩-style "jump back" indicator. Wraps from the right, drops, points
+  // left — same shape lucide uses for corner-down-left.
+  cornerDownLeft: p => <Iv d="M9 10l-5 5 5 5M20 4v7a4 4 0 01-4 4H4" {...p} />,
 };
 
 export { Iv, Ic };
