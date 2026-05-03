@@ -21,6 +21,7 @@ const InvoiceDetail   = lazy(() => import("./pages/InvoiceDetail"));
 const AdProjectsList  = lazy(() => import("./pages/AdProjectsList"));
 const AdProjectDetail = lazy(() => import("./pages/AdProjectDetail"));
 const Activity        = lazy(() => import("./pages/Activity"));
+const Account         = lazy(() => import("./pages/Account"));
 const NotFound        = lazy(() => import("./pages/NotFound"));
 
 export default function PortalApp() {
@@ -46,6 +47,7 @@ export default function PortalApp() {
           <Route path="ad-projects"          element={<AdProjectsList />} />
           <Route path="ad-projects/:id"      element={<AdProjectDetail />} />
           <Route path="activity"             element={<Activity />} />
+          <Route path="account"              element={<Account />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

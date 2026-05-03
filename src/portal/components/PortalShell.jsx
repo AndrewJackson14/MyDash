@@ -4,13 +4,13 @@
 // stays brand-neutral; per-pub theming applies inside content cards
 // only (Phase D2+ when proposals/ad-projects render with publication
 // theme tokens).
-import { Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { usePortal } from "../lib/portalContext";
 import { C } from "../lib/portalUi";
 import AccountPicker from "./AccountPicker";
 
 export default function PortalShell() {
-  const { signOut, session } = usePortal();
+  const { signOut, session, activeClient } = usePortal();
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "inherit" }}>
       <header style={{
@@ -37,6 +37,12 @@ export default function PortalShell() {
           <AccountPicker />
         </div>
 
+        {activeClient && (
+          <Link to={`/c/${activeClient.clientSlug}/account`} style={{
+            fontSize: 12, fontWeight: 600, color: C.muted,
+            textDecoration: "none", padding: "8px 4px",
+          }}>Account</Link>
+        )}
         <button
           onClick={signOut}
           style={{
