@@ -17,6 +17,7 @@ import { supabase, EDGE_FN_URL } from "../lib/supabase";
 import MediaModal from "./MediaModal";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
+import { formatInTimezone, parseFromTimezone, getBrowserTimezone, tzShortLabel, fmtInTimezone } from "../lib/timezone";
 
 // ── Constants ────────────────────────────────────────────────────
 // Single-source status model: Draft → Edit → Ready → Approved.
@@ -88,10 +89,26 @@ const ChipPicker = ({ label, options, selected, onChange }) => (
 );
 
 // ── Preflight Checklist Modal ────────────────────────────────────
-const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onScheduleChange }) => {
+// The publish-time picker operates in the publication's home timezone
+// (publications.timezone, mig 208) — not the editor's browser zone.
+// Reasoning: the audience is anchored to the publication's region, so
+// "schedule for 6 AM" should mean 6 AM at the paper's location whether
+// the editor is in California or New York. When the editor's browser
+// zone differs we surface a helper line showing the equivalent local
+// wall-clock so they can sanity-check.
+const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onScheduleChange, publication }) => {
   const allPassed = checks.every(c => c.pass);
   const isScheduled = !!scheduledAt;
-  const fmtScheduled = scheduledAt ? new Date(scheduledAt).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const pubTz = publication?.timezone || "America/Los_Angeles";
+  const browserTz = getBrowserTimezone();
+  const showBrowserHelper = browserTz && browserTz !== pubTz;
+  const pubTzLabel = tzShortLabel(pubTz, scheduledAt || undefined);
+  const browserTzLabel = tzShortLabel(browserTz, scheduledAt || undefined);
+  const labelSuffix = publication?.name ? `${pubTzLabel} — ${publication.name}` : pubTzLabel;
+  const minLocal = formatInTimezone(new Date().toISOString(), pubTz);
+  const pickerValue = formatInTimezone(scheduledAt, pubTz);
+  const fmtScheduledPub = scheduledAt ? fmtInTimezone(scheduledAt, pubTz) : "";
+  const fmtScheduledBrowser = scheduledAt && showBrowserHelper ? fmtInTimezone(scheduledAt, browserTz) : "";
   return (
     <Modal open={open} onClose={onClose} title="Publish Preflight Check">
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 380 }}>
@@ -104,11 +121,32 @@ const PreflightModal = ({ open, onClose, onPublish, checks, scheduledAt, onSched
           ))}
         </div>
         <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>Publish Date & Time</div>
-          <input type="datetime-local" value={scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : ""} onChange={e => onScheduleChange(e.target.value ? new Date(e.target.value).toISOString() : null)} style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND }} />
-          <div style={{ fontSize: FS.xs, fontWeight: 600, color: isScheduled ? ACCENT.indigo : (Z.su || "#22c55e"), fontFamily: COND, marginTop: 4 }}>
-            {isScheduled ? `Scheduled: ${fmtScheduled}` : "Immediately upon publish"}
+          <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>
+            Publish Date & Time <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: Z.td || Z.tm }}>({labelSuffix})</span>
           </div>
+          <input
+            type="datetime-local"
+            value={pickerValue}
+            min={minLocal}
+            onChange={e => onScheduleChange(e.target.value ? parseFromTimezone(e.target.value, pubTz) : null)}
+            style={{ width: "100%", padding: "6px 8px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND }}
+          />
+          {isScheduled ? (
+            <div style={{ marginTop: 4, fontFamily: COND }}>
+              <div style={{ fontSize: FS.xs, fontWeight: 600, color: ACCENT.indigo }}>
+                Scheduled: {fmtScheduledPub} {pubTzLabel}
+              </div>
+              {showBrowserHelper && (
+                <div style={{ fontSize: FS.micro, color: Z.tm, marginTop: 2 }}>
+                  = {fmtScheduledBrowser} your time ({browserTzLabel})
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: FS.xs, fontWeight: 600, color: Z.su || "#22c55e", fontFamily: COND, marginTop: 4 }}>
+              Immediately upon publish
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
           <Btn sm v="cancel" onClick={onClose}>Cancel</Btn>
@@ -259,6 +297,15 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
     const pid = meta.publication_id || meta.publication;
     return Array.isArray(pid) ? pid : pid ? [pid] : [];
   }, [meta.publication_id, meta.publication]);
+
+  // The owning publication object — used by the publish-scheduler picker
+  // and the post-publish pub-date editor so both operate in the
+  // publication's editorial timezone, not the editor's browser zone.
+  const publication = useMemo(
+    () => pubs.find(p => p.id === (meta.publication_id || meta.publication)),
+    [pubs, meta.publication_id, meta.publication]
+  );
+  const publicationTz = publication?.timezone || "America/Los_Angeles";
 
   // ── FIX #5: Fetch full content (body + content_json) on mount ──
   useEffect(() => {
@@ -528,25 +575,21 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
   // backdating imported stories or correcting an incorrect auto-stamp.
   // We write both published_at (the field StellarPress sorts on) and
   // first_published_at (the displayed "Published" date) to keep them
-  // aligned as a single source of truth.
+  // aligned as a single source of truth. The picker reads/writes in
+  // the publication's editorial timezone so a backdated story lands
+  // in its correct chronological slot regardless of the editor's
+  // browser zone.
   const openPubDateEdit = () => {
     const existing = meta.first_published_at || meta.published_at;
-    if (existing) {
-      const d = new Date(existing);
-      const pad = n => String(n).padStart(2, "0");
-      setPubDateDraft(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-    } else {
-      setPubDateDraft("");
-    }
+    setPubDateDraft(existing ? formatInTimezone(existing, publicationTz) : "");
     setEditingPubDate(true);
   };
 
   const savePubDate = async () => {
     if (!pubDateDraft) { setEditingPubDate(false); return; }
-    const parsed = new Date(pubDateDraft);
-    if (isNaN(parsed.getTime())) { setEditingPubDate(false); return; }
+    const iso = parseFromTimezone(pubDateDraft, publicationTz);
+    if (!iso) { setEditingPubDate(false); return; }
     setSavingPubDate(true);
-    const iso = parsed.toISOString();
     const u = {
       published_at: iso,
       first_published_at: iso,
@@ -992,7 +1035,9 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
                     onChange={e => setPubDateDraft(e.target.value)}
                     style={{ padding: "4px 6px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sf, color: Z.tx, fontSize: FS.xs, fontFamily: COND }}
                   />
-                  <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>Controls the story's chronological slot on the public site.</div>
+                  <div style={{ fontSize: 9, color: Z.tm, fontFamily: COND }}>
+                    Controls the story's chronological slot on the public site. Time entered as <strong>{tzShortLabel(publicationTz, pubDateDraft ? parseFromTimezone(pubDateDraft, publicationTz) : undefined)}</strong>{publication?.name ? ` (${publication.name})` : ""}.
+                  </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <Btn sm onClick={savePubDate} disabled={savingPubDate || !pubDateDraft} style={{ flex: 1 }}>{savingPubDate ? "Saving…" : "Save Date"}</Btn>
                     <Btn sm v="cancel" onClick={() => setEditingPubDate(false)} disabled={savingPubDate}>Cancel</Btn>
@@ -1437,7 +1482,7 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
       </div>
 
       {/* Modals */}
-      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} scheduledAt={meta.scheduled_at} onScheduleChange={v => { saveMeta("scheduled_at", v); setMeta(m => ({ ...m, scheduled_at: v })); }} />
+      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} scheduledAt={meta.scheduled_at} onScheduleChange={v => { saveMeta("scheduled_at", v); setMeta(m => ({ ...m, scheduled_at: v })); }} publication={publication} />
 
       {/* Web preview modal — renders the current editor HTML in an
           article-shaped container so editors see what readers will

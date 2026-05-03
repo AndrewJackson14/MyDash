@@ -5,6 +5,7 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, cardSurface } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { updatePubDefaultSections } from "../lib/sections";
+import { COMMON_TIMEZONES } from "../lib/timezone";
 import EZSchedule from "./EZSchedule";
 import SocialAccountsSection from "../components/SocialAccountsSection";
 
@@ -661,6 +662,15 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           <Inp label="Trim Width (in)" type="number" value={editPub.width} onChange={e => setEditPub(p => ({ ...p, width: +e.target.value }))} />
           <Inp label="Trim Height (in)" type="number" value={editPub.height} onChange={e => setEditPub(p => ({ ...p, height: +e.target.value }))} />
         </div>
+        {/* Editorial timezone — drives the publish-scheduler picker so an
+            editor in any region picks times in the publication's local
+            zone, not their browser zone. (publications.timezone, mig 208) */}
+        <Sel
+          label="Editorial Timezone"
+          value={editPub.timezone || "America/Los_Angeles"}
+          onChange={e => setEditPub(p => ({ ...p, timezone: e.target.value }))}
+          options={COMMON_TIMEZONES}
+        />
         <div style={{ display: "flex", alignItems: "flex-end", gap: 12 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <label style={{ fontSize: FS.xs, fontWeight: FW.bold, color: Z.td, letterSpacing: 0.8, textTransform: "uppercase", fontFamily: COND }}>Brand Color</label>

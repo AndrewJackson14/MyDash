@@ -308,7 +308,7 @@ export function DataProvider({ children, localData }) {
 
         // Narrow column lists on boot — the transforms below only use these
         // specific fields. Pulls ~40% less per row over the wire.
-        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,has_social,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat';
+        const pubSelect = 'id,name,color,type,page_count,width,height,frequency,circulation,has_website,website_url,has_social,dormant,default_revenue_goal,default_sections,site_settings,legal_rate_per_char,legal_probate_flat,legal_name_change_flat,legal_fbn_flat,timezone';
         // people-unification (mig 179/180): team_members → people with
         // display_name (was name), labels[] (replaces is_freelance), and
         // status (was is_active boolean). UI surfaces still expose
@@ -376,6 +376,7 @@ export function DataProvider({ children, localData }) {
             legalProbateFlat: p.legal_probate_flat != null ? Number(p.legal_probate_flat) : null,
             legalNameChangeFlat: p.legal_name_change_flat != null ? Number(p.legal_name_change_flat) : null,
             legalFbnFlat: p.legal_fbn_flat != null ? Number(p.legal_fbn_flat) : null,
+            timezone: p.timezone || 'America/Los_Angeles',
             adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
               rate: a.rate, rate6: a.rate_6, rate12: a.rate_12, rate18: a.rate_18,
@@ -2838,6 +2839,7 @@ export function DataProvider({ children, localData }) {
       press_dates_of_month: pub.pressDatesOfMonth || [],
       has_website: pub.hasWebsite || false, website_url: pub.websiteUrl || '',
       has_social: pub.hasSocial || false,
+      timezone: pub.timezone || 'America/Los_Angeles',
     };
     if (Array.isArray(pub.sharedContentWith) && pub.sharedContentWith.length) {
       dbPub.site_settings = { shared_content_with: pub.sharedContentWith };
@@ -2884,6 +2886,7 @@ export function DataProvider({ children, localData }) {
       if (changes.websiteUrl !== undefined) db.website_url = changes.websiteUrl;
       if (changes.hasSocial !== undefined) db.has_social = changes.hasSocial;
       if (changes.dormant !== undefined) db.dormant = changes.dormant;
+      if (changes.timezone !== undefined) db.timezone = changes.timezone;
       if (Object.keys(db).length) await supabase.from('publications').update(db).eq('id', id);
       // Shared content siblings — stored in site_settings JSONB and mirrored
       // bidirectionally: if A picks B, B gets A added; if A drops B, B loses A.
