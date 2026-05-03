@@ -9,11 +9,12 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, sectionForPage, pageLabel } from "../lib/sections";
 
 // Heavy modules — lazy-load so the kanban view doesn't pull in tiptap or pdfjs
-const StoryEditor = lazy(() => import("./StoryEditor"));
+const StoryEditor = lazy(() => import("./editor/StoryEditor"));
 const EditionManager = lazy(() => import("../pages/EditionManager"));
 const Flatplan = lazy(() => import("../pages/Flatplan"));
 import EntityThread from "./EntityThread";
 import RegenerateAsNewDraftButton from "./editor/RegenerateAsNewDraftButton";
+import StoryEditorErrorBoundary from "./editor/StoryEditorErrorBoundary";
 const LazyFallback = () => <div style={{ padding: 40, textAlign: "center", color: Z.td, fontSize: FS.base }}>Loading…</div>;
 
 // ── Editorial Workflow Constants ──────────────────────────────────
@@ -900,25 +901,27 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 999, background: Z.bg, display: "flex", flexDirection: "column" }}>
         <Suspense fallback={<LazyFallback />}>
-          <StoryEditor
-            story={selected}
-            onClose={closeEditor}
-            onUpdate={updateStory}
-            onDraftCreated={(newStory) => {
-              // Phase C of editorial-generate-v2-spec: prepend the new
-              // draft to local state and switch the editor to it. The
-              // user lands on the fresh draft, ready to refine.
-              setStories(prev => [newStory, ...prev]);
-              setSelected(newStory);
-            }}
-            pubs={pubs}
-            issues={issues}
-            team={team}
-            bus={bus}
-            currentUser={currentUser}
-            publishStory={publishStory}
-            unpublishStory={unpublishStory}
-          />
+          <StoryEditorErrorBoundary onClose={closeEditor}>
+            <StoryEditor
+              story={selected}
+              onClose={closeEditor}
+              onUpdate={updateStory}
+              onDraftCreated={(newStory) => {
+                // Phase C of editorial-generate-v2-spec: prepend the new
+                // draft to local state and switch the editor to it. The
+                // user lands on the fresh draft, ready to refine.
+                setStories(prev => [newStory, ...prev]);
+                setSelected(newStory);
+              }}
+              pubs={pubs}
+              issues={issues}
+              team={team}
+              bus={bus}
+              currentUser={currentUser}
+              publishStory={publishStory}
+              unpublishStory={unpublishStory}
+            />
+          </StoryEditorErrorBoundary>
         </Suspense>
       </div>
     );

@@ -41,24 +41,66 @@ export function buildStoragePath(file) {
 }
 
 // ── Raw Bunny API via edge-function proxy ──────────────────
-export async function bunnyUpload(file, dir, filename) {
+// Optional opts: { onProgress(0..1), signal: AbortSignal }
+// When neither is supplied we keep the original fetch path (cheaper,
+// streaming-safe). When either is supplied we route through XHR so we
+// get native upload progress events and a real abort hook.
+export async function bunnyUpload(file, dir, filename, opts = {}) {
+  const { onProgress, signal } = opts;
   const auth = await bunnyAuthHeaders();
-  const res = await fetch(PROXY_URL, {
-    method: "POST",
-    headers: {
-      ...auth,
-      "Content-Type": file.type || "application/octet-stream",
-      "x-action": "upload",
-      "x-path": dir,
-      "x-filename": encodeURIComponent(filename),
-    },
-    body: file,
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Upload failed (${res.status}): ${txt || res.statusText}`);
+
+  if (!onProgress && !signal) {
+    const res = await fetch(PROXY_URL, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": file.type || "application/octet-stream",
+        "x-action": "upload",
+        "x-path": dir,
+        "x-filename": encodeURIComponent(filename),
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Upload failed (${res.status}): ${txt || res.statusText}`);
+    }
+    return res.json();
   }
-  return res.json();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", PROXY_URL);
+    xhr.setRequestHeader("apikey", auth.apikey);
+    xhr.setRequestHeader("Authorization", auth.Authorization);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader("x-action", "upload");
+    xhr.setRequestHeader("x-path", dir);
+    xhr.setRequestHeader("x-filename", encodeURIComponent(filename));
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { resolve({}); }
+      } else {
+        reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Upload network error"));
+    xhr.onabort = () => reject(new Error("Upload cancelled"));
+
+    if (signal) {
+      if (signal.aborted) { xhr.abort(); return; }
+      signal.addEventListener("abort", () => xhr.abort());
+    }
+
+    xhr.send(file);
+  });
 }
 
 export async function bunnyDelete(dir, filename) {
@@ -283,6 +325,11 @@ export async function uploadMedia(file, metadata = {}) {
     throw new Error("Please choose a publication first.");
   }
 
+  // Progress + abort support. onProgress receives a single 0..1
+  // fraction across all variants (weighted by byte size). signal,
+  // when aborted, trips every in-flight upload via the same XHR path.
+  const { onProgress, signal } = metadata;
+
   const isImage = !!file?.type?.startsWith("image/")
     && file.type !== "image/svg+xml"
     && file.type !== "image/gif";
@@ -292,7 +339,7 @@ export async function uploadMedia(file, metadata = {}) {
   // Non-image (or vector/gif) → original legacy path, single upload.
   if (!isImage || metadata.skipCompress) {
     const { dir, filename } = buildStoragePath(file);
-    const result = await bunnyUpload(file, dir, filename);
+    const result = await bunnyUpload(file, dir, filename, { onProgress, signal });
     const storagePath = `${dir}/${filename}`;
     const cdnUrl = result.cdnUrl || `${CDN_BASE}/${storagePath}`;
     return insertMediaRow({
@@ -340,11 +387,22 @@ export async function uploadMedia(file, metadata = {}) {
   const origVariant  = variantPath(mainStorage, "originals");
   const thumbVariant = variantPath(mainStorage, "thumbnails");
 
-  // Fire all three uploads in parallel.
+  // Combined progress: weighted average across the three variants by
+  // bytes-on-the-wire. We track each variant's most recent fraction
+  // and re-emit the rolled-up number whenever any of them ticks.
+  const sizes = [mainFile.size || 0, originalFile.size || 0, thumbFile.size || 0];
+  const totalBytes = sizes.reduce((a, b) => a + b, 0) || 1;
+  const fracs = [0, 0, 0];
+  const reportFor = (i) => onProgress
+    ? (p) => { fracs[i] = p; onProgress((fracs[0] * sizes[0] + fracs[1] * sizes[1] + fracs[2] * sizes[2]) / totalBytes); }
+    : undefined;
+
+  // Fire all three uploads in parallel. The same AbortSignal kills
+  // every variant if the caller cancels mid-flight.
   const [mainRes, origRes, thumbRes] = await Promise.all([
-    bunnyUpload(mainFile,     mainDir,           mainName),
-    bunnyUpload(originalFile, origVariant.dir,   origVariant.filename),
-    bunnyUpload(thumbFile,    thumbVariant.dir,  thumbVariant.filename),
+    bunnyUpload(mainFile,     mainDir,           mainName,           { onProgress: reportFor(0), signal }),
+    bunnyUpload(originalFile, origVariant.dir,   origVariant.filename, { onProgress: reportFor(1), signal }),
+    bunnyUpload(thumbFile,    thumbVariant.dir,  thumbVariant.filename, { onProgress: reportFor(2), signal }),
   ]);
 
   const cdnUrl       = mainRes.cdnUrl  || `${CDN_BASE}/${mainStorage}`;
