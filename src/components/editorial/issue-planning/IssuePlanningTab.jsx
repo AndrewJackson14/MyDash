@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Z, FS } from "../../../lib/theme";
 import { supabase } from "../../../lib/supabase";
 import { useDialog } from "../../../hooks/useDialog";
@@ -63,7 +63,14 @@ function IssuePlanningTab({
     catch {}
   }, [sidebarCollapsed]);
   const [draggingId, setDraggingId] = useState(null);
-  const [dropTarget, setDropTarget] = useState(null);
+  // Drop-target lives in a ref + DOM data attributes, not React state.
+  // The cursor fires onDragOver ~50×/sec while moving over the table;
+  // routing that through setState would re-render IssueStoryTable on
+  // every event. Now we mutate `data-drop-target` directly via the
+  // tableRef and the visual is driven by CSS attribute selectors in
+  // IssueStoryTable.css. (IP Wave 4 final fix.)
+  const dropTargetRef = useRef(null);   // { groupKey, beforeId } | null
+  const tableRef = useRef(null);
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
   // Stat-strip click-to-filter (IP Wave 3 task 3.5). Null = unfiltered.
@@ -289,7 +296,7 @@ function IssuePlanningTab({
   const reorderStories = useCallback(async (targetGroupKey, dropBeforeId) => {
     const draggedId = draggingId;
     setDraggingId(null);
-    setDropTarget(null);
+    dropTargetRef.current = null;
     if (!draggedId) return;
     const dragged = issueStories.find(s => s.id === draggedId);
     if (!dragged) return;
@@ -432,14 +439,47 @@ function IssuePlanningTab({
   }, []);
 
   // ── DnD callbacks routed to children ─────────────────────
-  const handleDragStart = useCallback((id) => setDraggingId(id), []);
-  const handleDragEnd = useCallback(() => { setDraggingId(null); setDropTarget(null); }, []);
-  const handleDragOver = useCallback((groupKey, beforeId) => {
-    setDropTarget(prev => {
-      if (prev && prev.groupKey === groupKey && prev.beforeId === beforeId) return prev;
-      return { groupKey, beforeId };
-    });
+  // Drop-target visuals: walk the table's DOM directly. Cheap, runs
+  // outside React entirely, fires the ~50/sec dragover stream without
+  // a single re-render. tableRef points at the wrapper div around the
+  // story table; rows mark themselves with data-row-id / data-group-row
+  // and `data-drop-target` toggles between "false" and "true".
+  const clearDropTargetVisuals = useCallback(() => {
+    const root = tableRef.current;
+    if (!root) return;
+    const els = root.querySelectorAll('[data-drop-target="true"]');
+    for (const el of els) el.setAttribute("data-drop-target", "false");
   }, []);
+
+  const setDropTargetVisuals = useCallback((next) => {
+    const prev = dropTargetRef.current;
+    if (prev && next && prev.groupKey === next.groupKey && prev.beforeId === next.beforeId) return;
+    dropTargetRef.current = next;
+    const root = tableRef.current;
+    if (!root) return;
+    // Clear the previous highlight if any
+    const stale = root.querySelectorAll('[data-drop-target="true"]');
+    for (const el of stale) el.setAttribute("data-drop-target", "false");
+    if (!next) return;
+    // Mark the new target. beforeId=null means "append to group" so we
+    // highlight the group-row itself; otherwise we highlight the
+    // specific story row the cursor is hovering above.
+    const sel = next.beforeId
+      ? `tr[data-row-id="${next.beforeId}"]`
+      : `tr[data-group-key="${next.groupKey}"][data-group-row="true"]`;
+    const target = root.querySelector(sel);
+    if (target) target.setAttribute("data-drop-target", "true");
+  }, []);
+
+  const handleDragStart = useCallback((id) => setDraggingId(id), []);
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+    dropTargetRef.current = null;
+    clearDropTargetVisuals();
+  }, [clearDropTargetVisuals]);
+  const handleDragOver = useCallback((groupKey, beforeId) => {
+    setDropTargetVisuals({ groupKey, beforeId });
+  }, [setDropTargetVisuals]);
 
   // ── New-section creator (IP Wave 3) ──────────────────────
   // Receives validated form data from SectionCreateModal. The modal
@@ -565,7 +605,7 @@ function IssuePlanningTab({
                 setSortCol={setSortCol}
                 setSortDir={setSortDir}
                 draggingId={draggingId}
-                dropTarget={dropTarget}
+                tableRef={tableRef}
                 fmtPage={fmtPage}
                 statusColors={statusColors}
                 statusColorsOn={statusColorsOn}

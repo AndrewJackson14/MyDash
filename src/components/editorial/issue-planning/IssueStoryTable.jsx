@@ -89,16 +89,20 @@ const SectionHeaderRow = React.memo(function SectionHeaderRow({ section, pubType
 });
 
 // Page-group header row — collapsible. Drop target for "append to this page".
-const PageGroupRow = React.memo(function PageGroupRow({ group, isAppendTarget, isCollapsed, onToggle, onDragOver, onDrop, fmtPage, draggingId }) {
+const PageGroupRow = React.memo(function PageGroupRow({ group, isCollapsed, onToggle, onDragOver, onDrop, fmtPage, draggingId }) {
   const wordSum = useMemo(
     () => group.stories.reduce((sum, s) => sum + (Number(s.word_count || s.wordCount) || 0), 0),
     [group.stories]
   );
+  // `data-drop-target` toggles between "false" and "true" via direct
+  // DOM mutation from IssuePlanningTab.setDropTargetVisuals; the
+  // append-target tint is driven by IssueStoryTable.css.
   return (
     <tr
       data-group-key={group.key}
       data-group-row="true"
-      style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s, outline 0.2s" }}
+      data-drop-target="false"
+      style={{ background: Z.sa, transition: "background 0.1s, outline 0.2s" }}
       onDragOver={(e) => {
         if (!draggingId) return;
         e.preventDefault();
@@ -121,7 +125,7 @@ const PageGroupRow = React.memo(function PageGroupRow({ group, isAppendTarget, i
             {wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}
             {group.jumpsIn.length ? ` · ${group.jumpsIn.length} jumping in` : ""}
           </span>
-          {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
+          <span className="ip-drop-append-hint" style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.ac, fontWeight: 700 }}>Drop to append</span>
         </div>
       </td>
     </tr>
@@ -147,7 +151,7 @@ const JumpRow = React.memo(function JumpRow({ story, onOpenDetail }) {
 const StoryRow = React.memo(function StoryRow({
   story,
   groupKey,
-  isDragging, isDropTarget,
+  isDragging,
   isSelected, onToggleSelect,
   authorOptions, pageOptions, jumpOptions,
   siblingOptions, primaryPubName,
@@ -163,8 +167,9 @@ const StoryRow = React.memo(function StoryRow({
   const sc = statusColor;
   return (
     <tr
+      data-row-id={s.id}
+      data-drop-target="false"
       style={{
-        borderTop: isDropTarget ? `2px solid ${Z.ac}` : "none",
         borderBottom: `1px solid ${Z.bd}`,
         opacity: isSibling ? 0.6 : (isDragging ? 0.4 : 1),
         background: isDragging ? Z.sa : undefined,
@@ -308,7 +313,7 @@ function IssueStoryTable(props) {
   const {
     pageGroups, issueSections, setIssueSections, collapsedGroups, toggleGroup,
     sortCol, sortDir, setSortCol, setSortDir,
-    draggingId, dropTarget,
+    draggingId, tableRef,
     fmtPage, statusColors, statusColorsOn,
     inactiveAuthorNames, allStories,
     issue, pubsById,
@@ -404,7 +409,7 @@ function IssueStoryTable(props) {
   const pubType = issuePub?.type;
 
   return (
-    <div style={{ overflow: "hidden" }}>
+    <div ref={tableRef} style={{ overflow: "hidden" }}>
       <BulkActionBar
         selectedCount={selectedIds.size}
         team={team}
@@ -459,7 +464,6 @@ function IssueStoryTable(props) {
           ) : null}
           {pageGroups.map((g, gi) => {
             const isCollapsed = collapsedGroups.has(g.key);
-            const isAppendTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId == null;
             const prevGroup = gi > 0 ? pageGroups[gi - 1] : null;
             const hereSection = g.page != null ? sectionForPage(g.page, issueSections) : null;
             const prevSection = prevGroup && prevGroup.page != null ? sectionForPage(prevGroup.page, issueSections) : null;
@@ -478,7 +482,6 @@ function IssueStoryTable(props) {
                 )}
                 <PageGroupRow
                   group={g}
-                  isAppendTarget={isAppendTarget}
                   isCollapsed={isCollapsed}
                   onToggle={toggleGroup}
                   onDragOver={onDragOver}
@@ -490,7 +493,6 @@ function IssueStoryTable(props) {
                   const isSibling = s._fromSibling;
                   const isMirror = !!s._mirroredFrom;
                   const isDragging = draggingId === s.id;
-                  const isDropTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId === s.id;
                   const siblingOptions = !isMirror && !isSibling ? siblingIssuesFor(s) : [];
                   const primaryPubName = isMirror
                     ? (pubsById.get(issuesById.get(s._mirroredFrom)?.publicationId
@@ -510,7 +512,6 @@ function IssueStoryTable(props) {
                       story={s}
                       groupKey={g.key}
                       isDragging={isDragging}
-                      isDropTarget={isDropTarget}
                       isSelected={selectedIds.has(s.id)}
                       onToggleSelect={toggleRowSelection}
                       authorOptions={authorOptions}

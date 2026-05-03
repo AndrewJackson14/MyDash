@@ -16,3 +16,31 @@
   background: var(--card);
   box-shadow: 0 1px 0 0 var(--rule);
 }
+
+/* IP Wave 4 deferred fix: drop-target visuals driven by DOM data
+   attributes mutated directly during drag instead of React state.
+   This avoids the ~50/sec re-render cycle as the cursor moves
+   across rows.
+
+   Story rows (data-row-id) get a 2px accent top border when
+   they're the next "drop above this row" target. */
+tr[data-row-id][data-drop-target="true"] {
+  border-top: 2px solid var(--accent);
+}
+
+/* Page-group header rows ("append to end of group" target) get an
+   accent-tinted background instead. The 18% mix matches the
+   inline `Z.ac + "20"` value the prior React-state path used. */
+tr[data-group-row="true"][data-drop-target="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* The "Drop to append" hint inside the page-group header is hidden
+   by default and revealed via the same data-attribute. Keeps the
+   text out of the React render path entirely. */
+.ip-drop-append-hint {
+  display: none;
+}
+tr[data-group-row="true"][data-drop-target="true"] .ip-drop-append-hint {
+  display: inline;
+}
