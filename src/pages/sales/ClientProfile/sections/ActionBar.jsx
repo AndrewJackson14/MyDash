@@ -1,4 +1,5 @@
 import { Z, COND, FS, FW, Ri } from "../../../../lib/theme";
+import { useDialog } from "../../../../hooks/useDialog";
 
 // Shared style for the four header action buttons (Call · Email ·
 // Proposal · Meeting). Tinted by the verb's accent color so the row
@@ -28,19 +29,40 @@ export default function ActionBar({
   persist, appData,
   onOpenEmail, onOpenProposal, onOpenMeeting,
 }) {
+  const dialog = useDialog();
+
+  // Wave 3 Task 3.10 — tap-to-call confirmation. Previously a tap
+  // unconditionally wrote a "Tapped to call" comm even when the rep
+  // dismissed the system dialer without dialing. Now we open the
+  // dialer, then ~1.5s later prompt for outcome (connected /
+  // voicemail / skip). "Skip" writes nothing.
+  const handleTapToCall = (e) => {
+    if (!primaryContact.phone) { e.preventDefault(); return; }
+    // Dialer opens via the native href — don't preventDefault here.
+    setTimeout(async () => {
+      const result = await dialog.choose("How did the call go?", [
+        { value: "connected", label: "Connected — log it" },
+        { value: "voicemail", label: "Voicemail — log it" },
+        { value: "skip", label: "Didn't connect — skip log" },
+      ]);
+      if (!result || result === "skip") return;
+      const note = result === "connected"
+        ? `Called ${primaryContact.phone} — connected`
+        : `Called ${primaryContact.phone} — left voicemail`;
+      persist(() => appData.addComm(vc.id, {
+        id: "cm" + Date.now(), type: "Call",
+        author: currentUser?.name || "Account Manager",
+        date: today,
+        note,
+      }));
+    }, 1500);
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
       <a
         href={primaryContact.phone ? `tel:${primaryContact.phone.replace(/[^0-9+]/g, "")}` : undefined}
-        onClick={(e) => {
-          if (!primaryContact.phone) { e.preventDefault(); return; }
-          persist(() => appData.addComm(vc.id, {
-            id: "cm" + Date.now(), type: "Call",
-            author: currentUser?.name || "Account Manager",
-            date: today,
-            note: `Tapped to call ${primaryContact.phone}`,
-          }));
-        }}
+        onClick={handleTapToCall}
         style={actionBtnStyle(primaryContact.phone, Z.ac)}
         title={primaryContact.phone || "No phone on file"}
       >

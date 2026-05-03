@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect, useCallback, memo, lazy, Suspense } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, memo, lazy, Suspense } from "react";
 import { useDialog } from "../../../hooks/useDialog";
 import { useSaveStatus } from "../../../hooks/useSaveStatus";
 import { Z, FS, FW, Ri } from "../../../lib/theme";
 import { Ic, Btn, Sel, SB, TB, TabRow, TabPipe, SaveStatusPill } from "../../../components/ui";
 import { COMPANY } from "../../../constants";
-import { sendGmailEmail } from "../../../lib/gmail";
+import { sendGmailEmail, initiateGmailAuth } from "../../../lib/gmail";
 import { supabase } from "../../../lib/supabase";
 import { generateContractHtml } from "../../../lib/contractTemplate";
 import { generateInvoiceHtml } from "../../../lib/invoiceTemplate";
@@ -66,6 +66,11 @@ const SalesCRM = (props) => {
 
   // Keep ad_inquiries realtime channel open while this module is mounted.
   useEffect(() => retainInquiriesRealtime?.(), [retainInquiriesRealtime]);
+
+  // Wave 3 Task 3.9 — ref tracks previous inquiry count so the
+  // notification effect (declared later, after addNotif/tab) can fire
+  // only on actual new arrivals.
+  const prevInquiryCountRef = useRef(null);
   // Fetch ad_products once so we can show names (not just IDs) when an
   // inquirer picks specific catalog items.
   const [adProductMap, setAdProductMap] = useState({});
@@ -146,7 +151,7 @@ const SalesCRM = (props) => {
   const [closeIssueChoice, setCloseIssueChoice] = useState("");
   const [editOppId, setEditOppId] = useState(null);
   const [opp, setOpp] = useState({ company: "", contact: "", email: "", phone: "", source: "Referral", notes: "", nextAction: "Send media kit", nextActionDate: "" });
-  const OPP_SOURCES = ["Referral", "Cold Call", "Walk-in", "Event", "Website Inquiry", "Social Media", "Existing Client"];
+  // OPP_SOURCES lives in SalesCRM.constants.js — consumed by OpportunityModal directly.
   const [viewPropId, setViewPropId] = useState(null);
   const [emailMo, setEmailMo] = useState(false);
   const [calMo, setCalMo] = useState(false);
@@ -159,11 +164,9 @@ const SalesCRM = (props) => {
   const [nextStepMo, setNextStepMo] = useState(false);
   const [nextStepSaleId, setNextStepSaleId] = useState(null);
   const [nextStepAction, setNextStepAction] = useState(null);
-  const [activityLog, setActivityLog] = useState([
-    { id: "al1", text: "Moved to Closed", time: "9:15 AM", type: "pipeline", clientId: "c16", clientName: "Conejo Hardwoods" },
-    { id: "al2", text: "Proposal sent — $3,600", time: "8:42 AM", type: "proposal", clientId: "c47", clientName: "UCLA Health" },
-    { id: "al3", text: "New opportunity via Referral", time: "Yesterday", type: "opp", clientId: "c22", clientName: "Five Star Rain Gutters" },
-  ]);
+  // Wave 3 — activityLog is derived from sales/clients/proposals via
+  // useSalesCRM. The legacy useState mock seed (Conejo Hardwoods /
+  // UCLA Health / Five Star) used to leak into a fresh DB.
   const [actFilter, setActFilter] = useState("all");
   const [closedSort, setClosedSort] = useState({ key: "date", dir: "desc" });
   const [viewContractId, setViewContractId] = useState(() => {
@@ -182,6 +185,9 @@ const SalesCRM = (props) => {
   const [closedSearch, setClosedSearch] = useState("");
   const [closedRep, setClosedRep] = useState("all");
   const [showCancelled, setShowCancelled] = useState(false);
+  // Wave 3 Task 3.2 — clicking a lost-reason chip on the Closed tab
+  // narrows the deal table by that reason. null = no narrowing.
+  const [lostReasonFilter, setLostReasonFilter] = useState(null);
   const [propSearch, setPropSearch] = useState("");
   const [propStatus, setPropStatus] = useState("all");
   const [renewalCelebrated, setRenewalCelebrated] = useState(null);
@@ -226,6 +232,26 @@ const SalesCRM = (props) => {
   const recentPublishedIssueIds = new Set((issues || []).filter(i => i.date && i.date >= fiveDaysAgo && i.date <= today).map(i => i.id));
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const addNotif = (t) => { if (setNotifications) setNotifications(n => [...n, { id: "n" + Date.now(), text: t, time: new Date().toLocaleTimeString(), read: false }]); };
+
+  // Wave 3 Task 3.9 — fire a notification when a new inquiry lands
+  // while the rep is on a different tab. realtime channel (above)
+  // pushes rows into adInquiries; we watch length for increase. Ref
+  // avoids a false positive on initial load by seeding only after
+  // inquiriesLoaded flips true.
+  useEffect(() => {
+    if (!inquiriesLoaded) return;
+    const count = (adInquiries || []).length;
+    if (prevInquiryCountRef.current === null) {
+      prevInquiryCountRef.current = count;
+      return;
+    }
+    if (count > prevInquiryCountRef.current && tab !== "Inquiries") {
+      const arrived = count - prevInquiryCountRef.current;
+      addNotif(`${arrived} new inquir${arrived > 1 ? "ies" : "y"} — Pipeline → Inquiries`);
+    }
+    prevInquiryCountRef.current = count;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adInquiries?.length, inquiriesLoaded, tab]);
   // Local-state activity strip + parallel mirror to the global
   // activity_log RPC for selected pipeline events. The strip serves
   // the in-page UX (50-row rolling feed); the RPC feeds Hayley's
@@ -233,7 +259,10 @@ const SalesCRM = (props) => {
   // below — soft fail (a missed mapping just means that one transition
   // doesn't surface in the team-wide feed).
   const logActivity = (t, type, cId, cName) => {
-    setActivityLog(a => [{ id: "al" + Date.now(), text: t, time: new Date().toLocaleTimeString(), type, clientId: cId, clientName: cName }, ...a].slice(0, 50));
+    // Wave 3 — local strip is now derived from sales/clients/proposals
+    // in useSalesCRM. The strip recomputes on the next render after
+    // the optimistic state mutation lands. RPC mirror to Hayley's
+    // team-wide feed continues below.
     // Pipeline transitions are the events worth Hayley's attention.
     // Effort events (calls / emails) are intentionally NOT mirrored
     // here — they're already covered (calls via QuickLogButton, emails
@@ -289,11 +318,11 @@ const SalesCRM = (props) => {
   // deferred copies of the filter inputs for debounced filtering.
   const {
     clientMap, myClientIds,
-    activeSales, todaysActions, closedSales, renewalsDue,
+    activeSales, todaysActions, closedSales, renewalsDue, activityLog,
     clientsByIdLocal, salesByStatusLocal,
     closedSearchDeferred, propSearchDeferred,
   } = useSalesCRM({
-    clients, sales, currentUser,
+    clients, sales, proposals, currentUser,
     sr, closedSearch, propSearch,
     fPub, myPipeline,
     today,
@@ -445,15 +474,64 @@ const SalesCRM = (props) => {
     if (nextStepSaleId) persist(() => updateSale(nextStepSaleId, { nextAction: null, nextActionDate: null }));
     setNextStepMo(false); setNextStepSaleId(null);
   };
-  const sendEmail = () => {
+  // Wave 3 Task 3.3 — actually send via Gmail. Pre-Wave-3 this only
+  // logged a comm locally, which mismatched the elaborate compose UI
+  // (rep typed a long message and nothing left their machine). Now:
+  //   1. POST through sendGmailEmail (mode="send")
+  //   2. needs_auth → prompt the rep to connect Gmail, abort send
+  //   3. other failures → surface via dialog.alert, don't close modal
+  //   4. success → log comm + activity + complete the action with a
+  //      5-day "follow up on email" next-action so the deal doesn't
+  //      go stale waiting on a reply
+  const sendEmail = async () => {
     if (!emailSaleId) return;
     const s = sales.find(x => x.id === emailSaleId);
+    // Plaintext body → minimal HTML wrapping. White-space preserved
+    // so multi-paragraph drafts read correctly in Gmail.
+    const htmlBody = `<div style="font-family:-apple-system,sans-serif;white-space:pre-wrap;line-height:1.5">${(emailBody || "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }</div>`;
+
+    const result = await sendGmailEmail({
+      teamMemberId: currentUser?.id || null,
+      to: [emailTo],
+      subject: emailSubj,
+      htmlBody,
+      mode: "send",
+      emailType: "rep_email",
+      clientId: s?.clientId || null,
+      refId: s?.id || null,
+      refType: "sale",
+    });
+
+    if (result?.needs_auth) {
+      const ok = await dialog.confirm("Gmail isn't connected for your account. Connect now?");
+      if (ok) await initiateGmailAuth(currentUser?.id || null);
+      return;
+    }
+    if (result?.error || result?.success === false) {
+      await dialog.alert(`Email failed: ${result?.error || "Unknown error"}`);
+      return;
+    }
+
     if (s) {
-      persist(() => addComm(s.clientId, { id: "cm" + Date.now(), type: "Email", author: currentUser?.name || "Account Manager", date: today, note: `To: ${emailTo}\nSubject: ${emailSubj}\n${emailBody.slice(0, 100)}...` }));
+      persist(() => addComm(s.clientId, {
+        id: "cm" + Date.now(), type: "Email",
+        author: currentUser?.name || "Account Manager",
+        date: today,
+        note: `To: ${emailTo}\nSubject: ${emailSubj}\n${(emailBody || "").slice(0, 200)}${(emailBody || "").length > 200 ? "…" : ""}`,
+      }));
       logActivity(`Email sent: ${emailSubj}`, "comm", s.clientId, cn(s.clientId));
+      // 5-day follow-up so the deal surfaces back into actions if the
+      // recipient hasn't replied. Mirrors the Outreach module's cadence.
+      const nd = new Date(); nd.setDate(nd.getDate() + 5);
+      persist(() => updateSale(s.id, {
+        nextAction: { type: "follow_up", label: "Follow up on email" },
+        nextActionDate: nd.toISOString().slice(0, 10),
+      }));
     }
     setEmailMo(false);
-    completeAction(emailSaleId, `Sent: ${emailSubj}`);
+    addNotif(`Email sent — ${cn(s?.clientId)}`);
   };
 
   const cloneSale = async (s) => {
@@ -864,7 +942,15 @@ const SalesCRM = (props) => {
         const awaitingLabel = awaitingCount > 0 ? `Awaiting Review (${awaitingCount})` : "Awaiting Review";
         return <><SB value={propSearch} onChange={setPropSearch} placeholder="Search..." /><Sel value={propStatus} onChange={e => setPropStatus(e.target.value)} options={[{ value: "all", label: "All Statuses" }, { value: "Awaiting Review", label: awaitingLabel }, { value: "Draft", label: "Draft" }, { value: "Sent", label: "Sent" }, { value: "Signed & Converted", label: "Signed & Converted" }, { value: "Declined", label: "Declined" }, { value: "Cancelled", label: "Cancelled" }]} /><Btn sm onClick={() => openProposal()}><Ic.plus size={13} /> Proposal</Btn></>;
       })()}
-      {tab === "Closed" && <><SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /><Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} /><Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn></>}
+      {tab === "Closed" && <>
+        <SB value={closedSearch} onChange={setClosedSearch} placeholder="Search..." />
+        <Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Publications" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} />
+        <Sel value={closedRep} onChange={e => setClosedRep(e.target.value)} options={[{ value: "all", label: "All Salespeople" }, ...(props.team || []).filter(t => t.permissions?.includes("sales") || t.permissions?.includes("admin")).map(t => ({ value: t.id, label: t.name }))]} />
+        <Btn sm v={showCancelled ? "primary" : "ghost"} onClick={() => setShowCancelled(s => !s)}>{showCancelled ? "Showing Cancelled" : "Show Cancelled"}</Btn>
+        {(closedSearch || fPub !== "all" || closedRep !== "all" || showCancelled || lostReasonFilter) && (
+          <Btn sm v="ghost" onClick={() => { setClosedSearch(""); setFPub("all"); setClosedRep("all"); setShowCancelled(false); setLostReasonFilter(null); }} title="Clear all Closed-tab filters"><Ic.x size={11} /> Clear filters</Btn>
+        )}
+      </>}
     </div>
 
     <TabRow><TB tabs={["Pipeline", "Inquiries", "Clients", "Proposals", "Closed", "Renewals", "Outreach", "Commissions"]} active={tab} onChange={t => { if (t === "Inquiries" && loadInquiries && !inquiriesLoaded) loadInquiries(); navTo(t); }} />{tab === "Pipeline" && !jurisdiction?.isSalesperson && <><TabPipe /><TB tabs={["All", "By Rep"]} active={myPipeline ? "By Rep" : "All"} onChange={v => setMyPipeline(v === "By Rep")} /></>}{tab === "Clients" && !viewClientId && <><TabPipe /><TB tabs={["Signals", "All Clients"]} active={clientView === "signals" ? "Signals" : "All Clients"} onChange={v => setClientView(v === "Signals" ? "signals" : "list")} /></>}</TabRow>
@@ -968,6 +1054,7 @@ const SalesCRM = (props) => {
         propSearch={propSearchDeferred}
         clientsById={clientsByIdLocal}
         setViewPropId={setViewPropId}
+        openProposal={openProposal}
       />
     )}
     {tab === "Proposals" && viewPropId && (
@@ -975,6 +1062,9 @@ const SalesCRM = (props) => {
         proposal={proposals.find(x => x.id === viewPropId)}
         clients={clients}
         clientsById={clientsByIdLocal}
+        pubs={pubs}
+        team={props.team}
+        currentUser={currentUser}
         dialog={dialog}
         updateProposal={updateProposal}
         insertProposal={insertProposal}
@@ -1007,6 +1097,8 @@ const SalesCRM = (props) => {
         closedSort={closedSort}
         setClosedSort={setClosedSort}
         showCancelled={showCancelled}
+        lostReasonFilter={lostReasonFilter}
+        setLostReasonFilter={setLostReasonFilter}
         dialog={dialog}
       />
     )}
@@ -1015,6 +1107,7 @@ const SalesCRM = (props) => {
         renewalsDue={renewalsDue}
         sales={sales}
         pubs={pubs}
+        team={props.team}
         clientsById={clientsByIdLocal}
         navTo={navTo}
         openRenewalProposal={openRenewalProposal}
@@ -1059,6 +1152,7 @@ const SalesCRM = (props) => {
       today={today}
       clientsById={clientsByIdLocal}
       pubs={pubs}
+      team={props.team}
       finalizeClose={finalizeClose}
     />
 

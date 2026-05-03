@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Z, COND, FS, FW, Ri, R, CARD } from "../../../../lib/theme";
-import { cardSurface } from "../../../../components/ui";
+import { cardSurface, Ic } from "../../../../components/ui";
 import { actInfo, PIPELINE, PIPELINE_COLORS } from "../../constants";
 
 // Memoized pipeline card. Pre-Wave-2 the card was an inline div inside
@@ -38,11 +38,31 @@ function SaleCard({
 
   return (
     <div
-      draggable
-      onDragStart={() => onAction?.("dragStart", sale)}
       onClick={() => onAction?.("click", sale)}
-      style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, cursor: "grab" }}
+      style={{ ...cardSurface(), borderRadius: R, padding: CARD.pad, paddingLeft: CARD.pad + 14, cursor: "pointer", position: "relative" }}
     >
+      {/* Wave 3 Task 3.6 — dedicated grab handle. The card body is
+          click-only; only the strip on the left fires drag. Stops the
+          touchpad-micro-drift accidental drags reps were getting on
+          large pipelines. */}
+      <div
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", sale.id);
+          onAction?.("dragStart", sale);
+        }}
+        title="Drag to move stage"
+        style={{
+          position: "absolute", left: 2, top: 2, bottom: 2, width: 14,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "grab", borderRadius: Ri,
+          color: Z.td,
+        }}
+        onClick={stop}
+      >
+        <Ic.gripVertical size={12} />
+      </div>
       <div
         onClick={(e) => { stop(e); onAction?.("client", sale); }}
         style={{ fontWeight: FW.semi, color: Z.ac, fontSize: FS.md, cursor: "pointer", marginBottom: 2, fontFamily: COND }}

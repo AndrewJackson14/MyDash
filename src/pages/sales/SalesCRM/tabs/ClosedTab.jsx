@@ -1,9 +1,15 @@
-import { Z, COND, DISPLAY, FS, FW, R } from "../../../../lib/theme";
-import { Btn, GlassCard, Modal, Ic, cardSurface } from "../../../../components/ui";
+import { useMemo } from "react";
+import { Z, COND, DISPLAY, FS, FW, Ri, R } from "../../../../lib/theme";
+import { Btn, EmptyState, GlassCard, Modal, Ic, cardSurface } from "../../../../components/ui";
 import EntityThread from "../../../../components/EntityThread";
 import { generatePdf } from "../../../../lib/pdf";
 import { supabase } from "../../../../lib/supabase";
 import { cn as cnHelper, pn as pnHelper } from "../SalesCRM.helpers";
+
+// Stable palette for the per-rep stacked bar — Wave 3 Task 3.11.
+// Six accent shades pulled from theme.js so the legend stays
+// dark/light-mode safe.
+const REP_COLORS = ["#6BA4F0", "#F0A66B", "#9B7FE0", "#5DC9A6", "#E8B86B", "#E07F8B"];
 
 // Closed tab — last-30-day deal tape sourced from contracts (one row per
 // contract, not per sale). Keeps its sort/filter/scroll state independent
@@ -17,6 +23,7 @@ export default function ClosedTab({
   sales, closedSales, invoices, issues, pubs, clientsById, team,
   setContracts, setSales, setViewContractId, viewContractId,
   fPub, closedRep, closedSearch, closedSort, setClosedSort, showCancelled,
+  lostReasonFilter, setLostReasonFilter,
   dialog,
 }) {
   // Idempotent — appData's loadContracts gates on contractsLoaded itself.
@@ -63,6 +70,46 @@ export default function ClosedTab({
   filtered.forEach(c => { if (c.assignedTo) { const rn = repName(c.assignedTo); repRevs[rn] = (repRevs[rn] || 0) + (c.totalValue || 0); } });
   const topRep = Object.entries(repRevs).sort((a, b) => b[1] - a[1])[0];
 
+  // Wave 3 Task 3.11 — per-rep stacked bar visible only when no rep
+  // filter is active. Uses contract value (same dataset the table
+  // shows) so the bar's slices always match the visible deals.
+  const repBreakdown = useMemo(() => {
+    if (closedRep !== "all") return null;
+    const total = Object.values(repRevs).reduce((a, b) => a + b, 0);
+    if (!total) return null;
+    return Object.entries(repRevs)
+      .sort((a, b) => b[1] - a[1])
+      .map(([rep, amt]) => ({ rep, amt, pct: amt / total }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closedRep, JSON.stringify(repRevs)]);
+
+  // Wave 3 Task 3.2 — lost-reasons summary. Sales-side (status="Lost"
+  // never become contracts), so this is a parallel dataset to the
+  // deal table. Hidden when a rep filter is active to keep manager
+  // overview vs. rep view distinct.
+  const lostReasonsAgg = useMemo(() => {
+    if (closedRep !== "all") return null;
+    const lostSales = (sales || []).filter(s => s.status === "Lost" && s.lostReason);
+    if (lostSales.length === 0) return null;
+    const counts = {};
+    lostSales.forEach(s => {
+      counts[s.lostReason] = (counts[s.lostReason] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [sales, closedRep]);
+
+  // Lost deals panel — surfaces only when a reason chip is active.
+  // Lets the manager see which clients to revisit, not just the
+  // aggregate count.
+  const lostDealsForReason = useMemo(() => {
+    if (!lostReasonFilter) return [];
+    return (sales || [])
+      .filter(s => s.status === "Lost" && s.lostReason === lostReasonFilter)
+      .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [sales, lostReasonFilter]);
+
   const viewContract = viewContractId ? (contracts || []).find(c => c.id === viewContractId) : null;
   const contractSalesForView = viewContract ? closedSales.filter(s => s.contractId === viewContract.id) : [];
   const pubGroups = {};
@@ -85,6 +132,69 @@ export default function ClosedTab({
         ))}
       </div>
       {!contractsLoaded && <div style={{ padding: 16, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>Loading...</div>}
+
+      {/* Wave 3 Task 3.11 — per-rep revenue stacked bar. Only when no
+          rep filter; shows the same revenue the table aggregates. */}
+      {repBreakdown && repBreakdown.length > 0 && (
+        <div>
+          <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Revenue by rep</div>
+          <div style={{ display: "flex", height: 18, borderRadius: Ri, overflow: "hidden", border: `1px solid ${Z.bd}` }}>
+            {repBreakdown.map(({ rep, pct, amt }, i) => (
+              <div
+                key={rep}
+                title={`${rep}: $${amt.toLocaleString()} (${(pct * 100).toFixed(0)}%)`}
+                style={{ width: `${pct * 100}%`, background: REP_COLORS[i % REP_COLORS.length] }}
+              />
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 6 }}>
+            {repBreakdown.map(({ rep, amt }, i) => (
+              <span key={rep} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>
+                <span style={{ width: 10, height: 10, background: REP_COLORS[i % REP_COLORS.length], borderRadius: 2, display: "inline-block" }} />
+                {rep} · ${amt.toLocaleString()}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Wave 3 Task 3.2 — top-5 lost reasons. Click a chip to drill
+          into the matching lost deals (panel below the contracts table). */}
+      {lostReasonsAgg && lostReasonsAgg.length > 0 && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Lost reasons (top 5)</span>
+            {lostReasonFilter && (
+              <button onClick={() => setLostReasonFilter(null)} style={{ background: "none", border: "none", color: Z.tm, fontSize: FS.xs, cursor: "pointer", fontFamily: COND }}>Clear</button>
+            )}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {lostReasonsAgg.map(([reason, count]) => {
+              const active = lostReasonFilter === reason;
+              return (
+                <button
+                  key={reason}
+                  onClick={() => setLostReasonFilter(active ? null : reason)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: Ri,
+                    border: `1px solid ${active ? Z.da : Z.bd}`,
+                    background: active ? Z.da + "15" : "transparent",
+                    color: active ? Z.da : Z.tx,
+                    cursor: "pointer",
+                    fontSize: FS.xs,
+                    fontWeight: FW.bold,
+                    fontFamily: COND,
+                  }}
+                >
+                  {reason} <span style={{ color: Z.td, fontWeight: FW.semi, marginLeft: 4 }}>· {count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
           <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
@@ -110,6 +220,31 @@ export default function ClosedTab({
         </table>
         {filtered.length > 100 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 100 of {filtered.length}</div>}
       </GlassCard>
+
+      {/* Wave 3 Task 3.2 — drilldown panel when a lost-reason chip is
+          active. Surfaces the actual lost deals (sales-side, status=Lost),
+          not contracts, so the manager can revisit the clients. */}
+      {lostReasonFilter && lostDealsForReason.length > 0 && (
+        <GlassCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>
+              Lost deals — {lostReasonFilter} ({lostDealsForReason.length})
+            </span>
+            <Btn sm v="ghost" onClick={() => setLostReasonFilter(null)}><Ic.x size={11} /> Clear</Btn>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {lostDealsForReason.slice(0, 50).map(s => (
+              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 80px", gap: 10, padding: "5px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.sm }}>
+                <span style={{ color: Z.tx, fontWeight: FW.semi }}>{cn(s.clientId)}</span>
+                <span style={{ color: Z.tm, fontSize: FS.xs }}>{pn(s.publication)}</span>
+                <span style={{ color: Z.tm, fontSize: FS.xs }}>{(s.updatedAt || "").slice(0, 10)}</span>
+                <span style={{ color: Z.tx, fontWeight: FW.bold, textAlign: "right" }}>${(s.amount || 0).toLocaleString()}</span>
+              </div>
+            ))}
+            {lostDealsForReason.length > 50 && <div style={{ padding: 6, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 50 of {lostDealsForReason.length}</div>}
+          </div>
+        </GlassCard>
+      )}
 
       <Modal
         open={!!viewContract}

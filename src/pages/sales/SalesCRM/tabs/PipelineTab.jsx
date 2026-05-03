@@ -1,5 +1,5 @@
 import { Z, COND, ACCENT, FS, FW, Ri, R, CARD } from "../../../../lib/theme";
-import { Btn, GlassCard, Ic, cardSurface } from "../../../../components/ui";
+import { Btn, EmptyState, GlassCard, Ic, cardSurface } from "../../../../components/ui";
 import { PIPELINE, PIPELINE_COLORS, actInfo } from "../../constants";
 import { cn as cnHelper, pn as pnHelper, actLabel as actLabelHelper } from "../SalesCRM.helpers";
 import SaleCard from "./SaleCard";
@@ -94,11 +94,12 @@ export default function PipelineTab({
       })()}
 
       {activeSales.length === 0 ? (
-        <div style={{ padding: "40px 20px", textAlign: "center", background: Z.sf, borderRadius: R, border: `1px solid ${Z.bd}` }}>
-          <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, marginBottom: 8 }}>Pipeline is clear</div>
-          <div style={{ fontSize: FS.sm, color: Z.tm, marginBottom: 16 }}>Time to prospect — find your next deal.</div>
-          <Btn onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>
-        </div>
+        <EmptyState
+          icon="🎯"
+          title="No deals in your pipeline yet"
+          body="Time to prospect — start with a new opportunity."
+          action={<Btn onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
+        />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
           {PIPELINE.map(stage => {

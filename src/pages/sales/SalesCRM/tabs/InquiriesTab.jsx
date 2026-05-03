@@ -1,5 +1,5 @@
 import { Z, COND, FS, FW, Ri, R, CARD } from "../../../../lib/theme";
-import { Btn, GlassStat, cardSurface } from "../../../../components/ui";
+import { Btn, EmptyState, GlassStat, cardSurface } from "../../../../components/ui";
 import { COMPANY } from "../../../../constants";
 
 // Inquiries tab — website Advertise-page form submissions land here as
@@ -83,7 +83,11 @@ export default function InquiriesTab({
       {!inquiriesLoaded ? (
         <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>Loading inquiries...</div>
       ) : inquiries.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>No inquiries yet. Inquiries from your website's Advertise page will appear here.</div>
+        <EmptyState
+          icon="📨"
+          title="No new inquiries"
+          body="Submissions from your website's Advertise page land here. We'll surface a notification on the Pipeline tab when one arrives."
+        />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {sortedInquiries.map(inq => {

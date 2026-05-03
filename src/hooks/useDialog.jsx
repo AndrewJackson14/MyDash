@@ -40,8 +40,20 @@ export function DialogProvider({ children }) {
     });
   }, []);
 
+  // Wave 3 — N-option picker. Each option is { value, label }; resolves
+  // with the chosen value or null if the user cancels (backdrop click /
+  // Esc / explicit Cancel button). Distinct from confirm (binary y/n)
+  // and prompt (free-text) — used when a workflow has 2+ named outcomes
+  // such as "Connected / Voicemail / Skip" on a tap-to-call.
+  const showChoose = useCallback((message, options) => {
+    return new Promise(resolve => {
+      resolveRef.current = resolve;
+      setDialog({ type: "choose", message, options });
+    });
+  }, []);
+
   return (
-    <DialogContext.Provider value={{ alert: showAlert, confirm: showConfirm, prompt: showPrompt }}>
+    <DialogContext.Provider value={{ alert: showAlert, confirm: showConfirm, prompt: showPrompt, choose: showChoose }}>
       {children}
       {dialog && <DialogHost dialog={dialog} close={close} />}
     </DialogContext.Provider>
@@ -52,7 +64,7 @@ function DialogHost({ dialog, close }) {
   const [inputVal, setInputVal] = useState(dialog.defaultValue || "");
 
   return <>
-    <div onClick={() => close(dialog.type === "confirm" ? false : dialog.type === "prompt" ? null : undefined)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 10000 }} />
+    <div onClick={() => close(dialog.type === "confirm" ? false : dialog.type === "prompt" || dialog.type === "choose" ? null : undefined)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 10000 }} />
     <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 400, maxWidth: "90vw", background: Z.sf, borderRadius: R, boxShadow: "0 16px 48px rgba(0,0,0,0.3)", zIndex: 10001, overflow: "hidden" }}>
       <div style={{ padding: "20px 24px 12px" }}>
         <div style={{ fontSize: FS.md, fontWeight: FW.bold, color: Z.tx, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{dialog.message}</div>
@@ -62,6 +74,31 @@ function DialogHost({ dialog, close }) {
           <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") close(inputVal); if (e.key === "Escape") close(null); }} style={{ width: "100%", padding: "10px 14px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, color: Z.tx, fontSize: FS.base, fontWeight: FW.semi, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
         </div>
       )}
+      {dialog.type === "choose" && (
+        <div style={{ padding: "0 24px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {(dialog.options || []).map((opt, i) => (
+            <button
+              key={opt.value ?? i}
+              autoFocus={i === 0}
+              onClick={() => close(opt.value)}
+              style={{
+                padding: "10px 14px",
+                borderRadius: Ri,
+                border: `1px solid ${Z.bd}`,
+                background: Z.sa,
+                color: Z.tx,
+                fontSize: FS.base,
+                fontWeight: FW.semi,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 24px 20px" }}>
         {dialog.type === "confirm" && (
           <button onClick={() => close(false)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
@@ -69,7 +106,12 @@ function DialogHost({ dialog, close }) {
         {dialog.type === "prompt" && (
           <button onClick={() => close(null)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
         )}
-        <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: "var(--action)", color: "#fff", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
+        {dialog.type === "choose" && (
+          <button onClick={() => close(null)} style={{ padding: "8px 20px", borderRadius: Ri, border: "1px solid rgba(224,80,80,0.3)", background: "rgba(224,80,80,0.12)", color: Z.da, fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>Cancel</button>
+        )}
+        {dialog.type !== "choose" && (
+          <button autoFocus={dialog.type !== "prompt"} onClick={() => close(dialog.type === "alert" ? undefined : dialog.type === "confirm" ? true : inputVal)} style={{ padding: "8px 20px", borderRadius: Ri, border: "none", background: "var(--action)", color: "#fff", fontSize: FS.sm, fontWeight: FW.bold, cursor: "pointer", fontFamily: COND }}>OK</button>
+        )}
       </div>
     </div>
   </>;

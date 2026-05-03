@@ -10,7 +10,7 @@ import { useMemo, useDeferredValue } from "react";
 // search inputs return alongside the memos so the parent can pass
 // them into tab components without re-deriving.
 export function useSalesCRM({
-  clients, sales, currentUser,
+  clients, sales, proposals, currentUser,
   sr, closedSearch, propSearch,
   fPub, myPipeline,
   today,
@@ -111,9 +111,83 @@ export function useSalesCRM({
       .sort((a, b) => b.totalSpend - a.totalSpend);
   }, [sales, clients]);
 
+  // Wave 3 Task 3.1 — derived activity feed. Replaces the legacy mock
+  // useState seed ("Conejo Hardwoods" / "UCLA Health") that surfaced
+  // even on a fresh DB. Pulls real events from three sources:
+  //   - sales.updatedAt within the last 30 days → status transition
+  //   - clients[].comms in the last 30 days → comm log
+  //   - proposals.{sentAt|signedAt|convertedAt|closedAt} → proposal events
+  // Newest first, capped at 50 entries (matches the previous local-state
+  // cap). Logging a call now surfaces in the rail as soon as the addComm
+  // round-trip completes (clients state mutates → memo recomputes).
+  const activityLog = useMemo(() => {
+    const events = [];
+    const cutoffMs = Date.now() - 30 * 86400000;
+    const cutoffIso = new Date(cutoffMs).toISOString();
+    const cutoffDate = cutoffIso.slice(0, 10);
+
+    // Sales status transitions
+    for (const s of sales || []) {
+      if (s.updatedAt && s.updatedAt >= cutoffIso && s.status) {
+        events.push({
+          id: `sl-${s.id}-${s.updatedAt}`,
+          text: s.status === "Lost" && s.lostReason ? `Lost: ${s.lostReason}` : `→ ${s.status}`,
+          time: s.updatedAt,
+          type: s.status === "Lost" ? "outcome" : "pipeline",
+          clientId: s.clientId,
+          clientName: clientMap[s.clientId] || "—",
+        });
+      }
+    }
+
+    // Comms (calls / emails / comments / surveys)
+    for (const c of clients || []) {
+      for (const comm of c.comms || []) {
+        if (!comm.date || comm.date < cutoffDate) continue;
+        const note = (comm.note || "").trim();
+        events.push({
+          id: `cm-${comm.id}`,
+          text: `${comm.type}${note ? `: ${note.slice(0, 60)}${note.length > 60 ? "…" : ""}` : ""}`,
+          time: `${comm.date}T${comm.time || "12:00"}`,
+          type: "comm",
+          clientId: c.id,
+          clientName: c.name,
+        });
+      }
+    }
+
+    // Proposal lifecycle — sent / signed / converted / closed.
+    // Each gets its own entry so the rep sees the full arc, not just
+    // the latest status.
+    for (const p of proposals || []) {
+      const stamps = [
+        ["sent", p.sentAt],
+        ["signed", p.signedAt],
+        ["converted", p.convertedAt],
+        ["closed", p.closedAt],
+      ];
+      for (const [verb, stamp] of stamps) {
+        if (!stamp || stamp < cutoffIso) continue;
+        const dollars = p.total ? `$${Number(p.total).toLocaleString()}` : "";
+        events.push({
+          id: `pr-${p.id}-${verb}`,
+          text: `Proposal ${verb}${dollars ? ` — ${dollars}` : ""}`,
+          time: stamp,
+          type: "proposal",
+          clientId: p.clientId,
+          clientName: clientMap[p.clientId] || "—",
+        });
+      }
+    }
+
+    return events
+      .sort((a, b) => b.time.localeCompare(a.time))
+      .slice(0, 50);
+  }, [sales, clients, proposals, clientMap]);
+
   return {
     clientMap, myClientIds,
-    activeSales, todaysActions, closedSales, renewalsDue,
+    activeSales, todaysActions, closedSales, renewalsDue, activityLog,
     clientsByIdLocal, salesByStatusLocal,
     srDeferred, closedSearchDeferred, propSearchDeferred,
   };

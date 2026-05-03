@@ -1,5 +1,5 @@
 import { Z, COND, DISPLAY, FS, FW, R } from "../../../../lib/theme";
-import { Badge, GlassCard, cardSurface } from "../../../../components/ui";
+import { Badge, Btn, EmptyState, GlassCard, Ic, cardSurface } from "../../../../components/ui";
 import { fmtTimeRelative } from "../../../../lib/formatters";
 import { cn as cnHelper } from "../SalesCRM.helpers";
 
@@ -12,9 +12,23 @@ import { cn as cnHelper } from "../SalesCRM.helpers";
 export const propPubNames = (p) => [...new Set((p.lines || []).map(l => l.pubName))].join(", ");
 
 export default function ProposalsTab({
-  proposals, propStatus, propSearch, clientsById, setViewPropId,
+  proposals, propStatus, propSearch, clientsById, setViewPropId, openProposal,
 }) {
   const cn = (id) => cnHelper(id, clientsById);
+
+  // True-empty state — no proposals at all in the system, not a filter
+  // miss. Hero CTA bumps the rep into the wizard rather than leaving
+  // the rail blank.
+  if ((proposals || []).length === 0) {
+    return (
+      <EmptyState
+        icon="📄"
+        title="No proposals yet"
+        body="Build your first proposal to send rate cards, pricing, and contract terms to a client."
+        action={openProposal && <Btn onClick={() => openProposal()}><Ic.plus size={13} /> Create Proposal</Btn>}
+      />
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

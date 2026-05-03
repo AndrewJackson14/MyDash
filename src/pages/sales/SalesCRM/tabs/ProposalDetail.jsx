@@ -1,6 +1,8 @@
-import { Z, COND, FS, FW, R } from "../../../../lib/theme";
+import { useMemo, useState } from "react";
+import { Z, COND, FS, FW, R, Ri } from "../../../../lib/theme";
 import { Badge, Btn, GlassCard, Ic } from "../../../../components/ui";
 import { supabase, EDGE_FN_URL } from "../../../../lib/supabase";
+import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../../../../lib/proposalTemplate";
 import { cn as cnHelper } from "../SalesCRM.helpers";
 import { propPubNames } from "./ProposalsTab";
 
@@ -8,9 +10,14 @@ import { propPubNames } from "./ProposalsTab";
 // viewPropId is set. Owns its own action toolbar (sign, edit, decline,
 // copy, cancel) but defers to parent callbacks for state changes that
 // affect sibling tabs (signProposal, editProposal).
+//
+// Wave 3 Task 3.7 — adds a "Preview" toggle that renders the proposal
+// through the same generateProposalHtml the wizard uses. Two consumers,
+// one source of truth — the rep sees identical chrome before signing
+// and during the wizard's review step.
 export default function ProposalDetail({
   proposal: p,
-  clients, clientsById,
+  clients, clientsById, pubs, team, currentUser,
   dialog,
   updateProposal, insertProposal,
   signProposal, editProposal,
@@ -22,8 +29,66 @@ export default function ProposalDetail({
   (p.lines || []).forEach(li => { if (!grouped[li.pubName]) grouped[li.pubName] = []; grouped[li.pubName].push(li); });
   const isSelfServe = p.source === "self_serve";
 
+  // Wave 3 Task 3.7 — view mode toggle
+  const [viewMode, setViewMode] = useState("summary"); // "summary" | "preview"
+
+  // Live preview HTML — generated only when the rep flips to preview
+  // mode (saves cycles on the default summary view).
+  const previewHtml = useMemo(() => {
+    if (viewMode !== "preview") return "";
+    const client = (clients || []).find(c => c.id === p.clientId) || null;
+    const salesperson = currentUser || (team || []).find(t => t.id === p.assignedTo) || (team || [])[0] || null;
+    try {
+      return generateProposalHtml({
+        config: { ...DEFAULT_PROPOSAL_CONFIG, paymentTiming: p.paymentTiming },
+        proposal: p,
+        client,
+        salesperson,
+        pubs: pubs || [],
+      });
+    } catch (e) {
+      return `<html><body style="font-family:sans-serif;padding:24px;color:#94a3b8"><strong>Preview unavailable</strong><br/><small>${String(e?.message ?? e)}</small></body></html>`;
+    }
+  }, [viewMode, p, clients, pubs, team, currentUser]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Wave 3 Task 3.7 — Summary / Preview toggle. Summary is the
+          local hand-rolled card view; Preview renders the actual email
+          HTML the wizard sends, sharing the renderer with Step7Review. */}
+      <div style={{ display: "flex", gap: 4, alignSelf: "flex-start" }}>
+        {[["summary", "Summary"], ["preview", "Preview"]].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setViewMode(key)}
+            style={{
+              padding: "5px 14px",
+              borderRadius: Ri,
+              border: `1px solid ${viewMode === key ? Z.ac : Z.bd}`,
+              background: viewMode === key ? Z.ac + "15" : "transparent",
+              color: viewMode === key ? Z.ac : Z.tm,
+              cursor: "pointer",
+              fontSize: FS.xs,
+              fontWeight: FW.heavy,
+              fontFamily: COND,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >{label}</button>
+        ))}
+      </div>
+
+      {viewMode === "preview" && (
+        <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+          <iframe
+            srcDoc={previewHtml}
+            title={`Proposal preview — ${p.name}`}
+            style={{ width: "100%", height: "70vh", border: "none", background: "#fff", borderRadius: R, display: "block" }}
+          />
+        </GlassCard>
+      )}
+
+      {viewMode === "summary" && <>
       {isSelfServe && (
         <div style={{ background: Z.ss, border: `1px solid ${Z.ac}`, borderRadius: R, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 20 }}>🛒</span>
@@ -89,6 +154,7 @@ export default function ProposalDetail({
       </div>
       {p.sentTo?.length > 0 && <div style={{ fontSize: FS.sm, color: Z.tm }}>Sent to: {p.sentTo.join(", ")}</div>}
       {p.renewalDate && <div style={{ fontSize: FS.sm, color: Z.wa }}>Renewal: {p.renewalDate}</div>}
+      </>}
 
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         {p.status === "Awaiting Review" && <>
