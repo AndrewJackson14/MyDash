@@ -57,7 +57,7 @@ portal.13stars.media   CNAME  <existing UpCloud hostname>
 
 Confirm propagation with `dig portal.13stars.media`.
 
-### 2. RunCloud — provision the webapp
+### 2. RunCloud — provision the webapp + SPA fallback
 
 **Where:** RunCloud panel → server hosting `mydash.media` (same UpCloud
 box per existing pattern).
@@ -66,6 +66,26 @@ box per existing pattern).
 - Domain: `portal.13stars.media`
 - Webroot: `/home/stars/webapps/portal/` (or whatever the convention is)
 - Issue Let's Encrypt SSL via the panel (it auto-renews)
+
+**Critical: SPA fallback rewrite.** React Router uses real URLs
+(`/login`, `/setup/complete`), so any deep link must be rewritten to
+`/index.html`. Without this, refreshing or sharing a portal URL
+returns 404. In RunCloud → webapp → Nginx Config → add to the main
+`location /` block (or pick the "Single Page Application" template if
+RunCloud offers one):
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+**Smoke test:**
+
+```bash
+curl -I https://portal.13stars.media/login
+# Expect: HTTP/2 200, content-type: text/html (NOT 404)
+```
 
 ### 3. GitHub Actions / deploy step (optional for v1, recommended)
 
