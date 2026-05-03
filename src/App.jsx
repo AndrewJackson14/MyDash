@@ -48,7 +48,7 @@ const ActivityTargetsAdmin = lazyLoad(() => import("./modules/ActivityTargetsAdm
 const RoleKB = lazyLoad(() => import("./modules/RoleKB"));
 const Publications = lazyLoad(() => import("./pages/Publications"));
 const IssueSchedule = lazyLoad(() => import("./pages/IssueSchedule"));
-const SalesCRM = lazyLoad(() => import("./pages/SalesCRM"));
+const SalesCRM = lazyLoad(() => import("./pages/sales/SalesCRM/SalesCRM"));
 const Contracts = lazyLoad(() => import("./pages/sales/Contracts"));
 const CalendarPage = lazyLoad(() => import("./pages/CalendarPage"));
 const EditorialDashboard = lazyLoad(() => import("./components/EditorialDashboard"));
@@ -894,7 +894,7 @@ export default function App() {
         {show("servicedesk") && <div style={vis("servicedesk")}><ErrorBoundary name="page:servicedesk"><ServiceDesk isActive={pg === "servicedesk"} tickets={tickets} setTickets={setTickets} ticketComments={ticketComments} setTicketComments={setTicketComments} clients={jClients} subscribers={subscribers} pubs={pubs} issues={jIssues} team={team} bus={bus} currentUser={currentUser} insertTicket={appData.insertTicket} updateTicket={appData.updateTicket} insertTicketComment={appData.insertTicketComment} onNavigate={handleNav} /></ErrorBoundary></div>}
         {show("performance") && <div style={vis("performance")}><ErrorBoundary name="page:performance"><Performance isActive={pg === "performance"} sales={jSales} clients={jClients} stories={jStories} issues={jIssues} adProjects={appData.adProjects || []} loadAdProjects={appData.loadAdProjects} team={team} onNavigate={handleNav} /></ErrorBoundary></div>}
         {show("legalnotices") && <div style={vis("legalnotices")}><ErrorBoundary name="page:legalnotices"><LegalNotices isActive={pg === "legalnotices"} legalNotices={legalNotices} setLegalNotices={setLegalNotices} legalNoticeIssues={legalNoticeIssues} setLegalNoticeIssues={setLegalNoticeIssues} pubs={pubs} issues={jIssues} team={team} bus={bus} clients={jClients} currentUser={currentUser} insertClient={appData.insertClient} insertInvoice={appData.insertInvoice} insertLegalNotice={appData.insertLegalNotice} onNavigate={handleNav} /></ErrorBoundary></div>}
-        {show("adprojects") && <div style={vis("adprojects")}><ErrorBoundary name="page:adprojects"><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} /></ErrorBoundary></div>}
+        {show("adprojects") && <div style={vis("adprojects")}><ErrorBoundary name="page:adprojects"><AdProjects isActive={pg === "adprojects"} pubs={pubs} clients={jClients} sales={jSales} issues={jIssues} team={team} currentUser={currentUser} deepLink={deepLink} onNavigate={handleNav} digitalAdProducts={appData.digitalAdProducts} loadDigitalAdProducts={appData.loadDigitalAdProducts} bus={bus} /></ErrorBoundary></div>}
         {show("knowledgebase") && <div style={vis("knowledgebase")}><ErrorBoundary name="page:knowledgebase"><KnowledgeBase isActive={pg === "knowledgebase"} team={team} currentUser={currentUser} /></ErrorBoundary></div>}
         {show("rolekb") && <div style={vis("rolekb")}><ErrorBoundary name="page:rolekb"><RoleKB isActive={pg === "rolekb"} deepLink={deepLink} /></ErrorBoundary></div>}
         {show("journal") && <div style={vis("journal")}><ErrorBoundary name="page:journal"><SupportAdminJournal isActive={pg === "journal"} /></ErrorBoundary></div>}

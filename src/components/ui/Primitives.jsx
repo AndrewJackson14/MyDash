@@ -8,6 +8,7 @@
 // been touched yet — they collapse out in subsequent batches.
 // ============================================================
 import { Component, useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useModalStack } from "../../hooks/useModalStack";
 import {
   Z, SC, COND, DISPLAY, R, Ri, SP, TBL, CARD, FS, FW,
   INPUT, BTN, MODAL, LABEL, TOGGLE, AVATAR, ZI, INV, RADII,
@@ -580,6 +581,11 @@ export const Stat = ({ label, value, sub, animate = true }) => {
 // it. Panel itself stays opaque card surface — reading content needs
 // solid contrast. Title is a Geist h3, not Cormorant.
 export const Modal = ({ open, onClose, title, children, actions, width = MODAL.defaultWidth, onSubmit }) => {
+  // Stack-aware Esc — only the topmost open modal closes per keypress, so
+  // a deep modal stack (e.g. Calendar over Opportunity) closes one layer
+  // at a time. Replaces the old onKeyDown Esc handler that fired
+  // everywhere regardless of stacking.
+  useModalStack(open, onClose);
   if (!open) return null;
   return <div tabIndex={-1} style={{
     position: "fixed", inset: 0,
@@ -593,7 +599,8 @@ export const Modal = ({ open, onClose, title, children, actions, width = MODAL.d
   }}
     onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     onKeyDown={e => {
-      if (e.key === "Escape") { onClose(); }
+      // Esc is owned by useModalStack (callers register on mount). The
+      // backdrop click handler above handles outside-click close.
       if (e.key === "Enter" && !e.shiftKey && onSubmit && !["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) {
         e.preventDefault();
         onSubmit();

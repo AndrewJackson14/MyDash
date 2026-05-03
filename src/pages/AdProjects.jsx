@@ -110,7 +110,7 @@ function LinkedEmailsPanel({ projectId }) {
   </div>;
 }
 
-const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate, digitalAdProducts, loadDigitalAdProducts }) => {
+const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate, digitalAdProducts, loadDigitalAdProducts, bus }) => {
   const nav = useNav(onNavigate);
 
   const { setHeader, clearHeader } = usePageHeader();
@@ -630,6 +630,13 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...updates } : p));
     // Activity log: proof_approved (designer) or ad_press_ready (salesperson).
     const proj = projects.find(p => p.id === projectId);
+    // Wave 2 — emit so SalesCRM's proofReadyMap can update without a refetch.
+    if (bus && proj?.source_contract_id) {
+      bus.emit(role === "designer" ? "proof.designerSignoff" : "proof.salespersonSignoff", {
+        contractId: proj.source_contract_id,
+        projectId,
+      });
+    }
     await logActivity?.(
       role === "designer"
         ? `approved proof — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim()
@@ -668,6 +675,16 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     if (!error) {
       setProjects(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...updates } : p));
       setSelectedSignoff(new Set());
+      // Bulk sign-off completes both designer + salesperson — emit the
+      // salesperson event so SalesCRM removes the proof badge.
+      if (bus) {
+        for (const id of ids) {
+          const proj = projects.find(p => p.id === id);
+          if (proj?.source_contract_id) {
+            bus.emit("proof.salespersonSignoff", { contractId: proj.source_contract_id, projectId: id });
+          }
+        }
+      }
       // Activity log: ad_press_ready (outcome) per project. Sequential
       // calls — bulk_signoff is a power-action, ~10-50 cards typical;
       // not worth a batch RPC.
