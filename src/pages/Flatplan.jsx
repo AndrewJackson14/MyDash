@@ -916,7 +916,38 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       updateSale(itemId, { page: null, gridRow: null, gridCol: null });
     }
   };
-  const adjustPages = (d) => { if (!issue) return; setIssues(iss => iss.map(i => i.id === issue.id ? { ...i, pageCount: Math.max(4, i.pageCount + d) } : i)); };
+  const canEditPageCount = ["Publisher", "Content Editor", "Office Administrator"].includes(currentUser?.role);
+  const pageHasContent = (pg) => {
+    const pm = pageMapRef.current;
+    const hasSale = issSales.some(s => {
+      const local = pm[s.id];
+      return local !== undefined ? local.page === pg : s.page === pg;
+    });
+    const hasPlaceholder = issPlaceholders.some(p => p.page === pg);
+    const hasStory = (pageStories[pageStoryKey(pg)] || []).length > 0;
+    return hasSale || hasPlaceholder || hasStory;
+  };
+  const adjustPages = async (d) => {
+    if (!issue || !canEditPageCount) return;
+    const next = Math.max(4, issue.pageCount + d);
+    if (next === issue.pageCount) return;
+    if (d < 0) {
+      for (let pg = next + 1; pg <= issue.pageCount; pg++) {
+        if (pageHasContent(pg)) {
+          alert("Page you are trying to delete has content. Remove content first.");
+          return;
+        }
+      }
+    }
+    const prev = issue.pageCount;
+    setIssues(iss => iss.map(i => i.id === issue.id ? { ...i, pageCount: next } : i));
+    const { error } = await supabase.from("issues").update({ page_count: next }).eq("id", issue.id);
+    if (error) {
+      console.error("Page count update failed:", error);
+      setIssues(iss => iss.map(i => i.id === issue.id ? { ...i, pageCount: prev } : i));
+      alert("Could not update page count: " + (error.message || "unknown error"));
+    }
+  };
   const copyFromPrevious = () => { if (!issue) return; const idx = allPubIssues.findIndex(i => i.id === issue.id); if (idx <= 0) return; const prev = allPubIssues[idx - 1]; const prevSales = sales.filter(s => s.issueId === prev.id && s.page !== null); setSales(sl => sl.map(s => { if (s.issueId !== selIssue || s.page !== null) return s; const m = prevSales.find(ps => ps.clientId === s.clientId && ps.type === s.type); return m ? { ...s, page: m.page, gridRow: null, gridCol: null } : s; })); };
   const addPlaceholder = (adSize) => { if (!issue) return; setPlaceholders(pl => [...pl, { id: "ph" + Date.now(), issueId: issue.id, adSizeName: adSize.name, adW: adSize.w, adH: adSize.h, dims: adSize.dims, page: null, gridRow: null, gridCol: null }]); };
 
@@ -976,7 +1007,11 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
         <span>·</span>
         <span>${totalAdRevenue.toLocaleString()}</span>
         <span>·</span>
-        <span>{issue.pageCount} pages</span>
+        {canEditPageCount ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <button onClick={() => adjustPages(-1)} disabled={issue.pageCount <= 4} title="Remove page" style={{ background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri, width: 18, height: 18, padding: 0, cursor: issue.pageCount <= 4 ? "not-allowed" : "pointer", color: Z.tm, fontSize: 12, fontWeight: FW.black, lineHeight: 1, opacity: issue.pageCount <= 4 ? 0.4 : 1 }}>−</button>
+          <span>{issue.pageCount} pages</span>
+          <button onClick={() => adjustPages(1)} title="Add page" style={{ background: Z.sa, border: `1px solid ${Z.bd}`, borderRadius: Ri, width: 18, height: 18, padding: 0, cursor: "pointer", color: Z.tm, fontSize: 12, fontWeight: FW.black, lineHeight: 1 }}>+</button>
+        </span> : <span>{issue.pageCount} pages</span>}
         <span>·</span>
         <span>{issueAdPct}% fill</span>
       </div>}
