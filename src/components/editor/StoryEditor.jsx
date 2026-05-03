@@ -577,6 +577,11 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, onOpenStory, pu
   }, [story.id, onUpdate, updateStoryGuarded, save]);
 
   // ── Preflight checks ────────────────────────────────────────
+  // wordCount state lives here but is fed by StoryEditorBody's
+  // editor.on("update") callback (see onWordCount). Avoids the
+  // editor.getText() recompute on every parent render.
+  const [wordCount, setWordCount] = useState(0);
+
   // Live: re-evaluates on every meta / wordCount change so the modal
   // updates as the user fixes issues instead of going stale on open.
   // Each check has a stable id so the click-through "→ fix" handler
@@ -989,10 +994,6 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, onOpenStory, pu
 
   const insertLink = () => { if (!linkUrl || !editor) return; editor.chain().focus().setLink({ href: linkUrl.startsWith("http") ? linkUrl : "https://" + linkUrl }).run(); setLinkModalOpen(false); setLinkUrl(""); };
 
-  // wordCount state lives here but is fed by StoryEditorBody's
-  // editor.on("update") callback (see onWordCount). Avoids the
-  // editor.getText() recompute on every parent render.
-  const [wordCount, setWordCount] = useState(0);
   const needsRepublish = meta.published_at && meta.last_significant_edit_at && new Date(meta.last_significant_edit_at) > new Date(meta.published_at);
   const currentStage = getStage(meta.status);
   const isPublished = !!(meta.sent_to_web || meta.sentToWeb || meta.sent_to_print || meta.sentToPrint);
