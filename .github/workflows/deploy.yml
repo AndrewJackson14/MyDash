@@ -24,7 +24,12 @@ jobs:
           VITE_STRIPE_PUBLIC_KEY: ${{ secrets.VITE_STRIPE_PUBLIC_KEY }}
           VITE_MAPBOX_CLIENT_TOKEN: ${{ secrets.VITE_MAPBOX_CLIENT_TOKEN }}
 
-      - name: Deploy to server
+      - run: npm run build:portal
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Deploy staff app to server
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
@@ -34,3 +39,13 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             dist/ \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/stars/webapps/MyDash/
+
+      - name: Deploy portal to server
+        # Same SSH key + host as the staff deploy; different webroot.
+        # Spec: docs/portal-deploy.md (portal.13stars.media).
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude='.DS_Store' \
+            dist-portal/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/stars/webapps/13StarsMediaPortal/
