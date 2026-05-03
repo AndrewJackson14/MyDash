@@ -1,7 +1,8 @@
-import { useState, useRef, useMemo, useEffect, memo, lazy, Suspense } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, memo, lazy, Suspense } from "react";
 import { useDialog } from "../hooks/useDialog";
+import { useSaveStatus } from "../hooks/useSaveStatus";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, ACCENT } from "../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, cardSurface, Pill, FilterPillStrip } from "../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle, GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, ListCard, ListDivider, ListGrid, glass, cardSurface, Pill, FilterPillStrip, SaveStatusPill } from "../components/ui";
 import FuzzyPicker from "../components/FuzzyPicker";
 import { COMPANY, CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS, STORY_AUTHORS } from "../constants";
 import { sendGmailEmail } from "../lib/gmail";
@@ -13,6 +14,9 @@ import { fmtTimeRelative } from "../lib/formatters";
 import ClientList from "./sales/ClientList";
 import EntityThread from "../components/EntityThread";
 import ProposalWizard from "../components/proposal-wizard/ProposalWizard";
+import SalesErrorBoundary from "../components/sales/SalesErrorBoundary";
+import SaleCard from "./sales/SalesCRM/tabs/SaleCard";
+import RenewalsTab from "./sales/SalesCRM/tabs/RenewalsTab";
 // Heavy sub-views — only load when the user opens the relevant tab/row
 const ClientProfile = lazy(() => import("./sales/ClientProfile"));
 const ClientSignals = lazy(() => import("./sales/ClientSignals"));
@@ -25,7 +29,20 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 // Constants imported from ./sales/constants
 
 const SalesCRM = (props) => {
-  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded, industries = [], onNavigate, registerSubBack, isActive } = props;
+  const { clients, setClients, sales, setSales, updateSale, insertSale, pubs, issues, proposals, setProposals, notifications, setNotifications, bus, contracts, setContracts, loadContracts, contractsLoaded, invoices, payments, insertClient, updateClient, addComm, currentUser, insertProposal, updateProposal, convertProposal, loadProposalHistory, commissionLedger, commissionPayouts, commissionGoals, commissionRates, salespersonPubAssignments, commissionHelpers, outreachCampaigns, outreachEntries, outreachHelpers, jurisdiction, myPriorities, priorityHelpers, adInquiries, loadInquiries, inquiriesLoaded, updateInquiry, retainInquiriesRealtime, digitalAdProducts, loadDigitalAdProducts, digitalAdProductsLoaded, industries = [], onNavigate, registerSubBack, isActive } = props;
+
+  // Sales Wave 1 — every CRM write flows through this so RLS rejections,
+  // network failures, and 0-rows-affected results show up as a visible
+  // pill with retry instead of disappearing into console.error. The
+  // wrapper swallows the rejection because save.error already surfaces it.
+  const save = useSaveStatus();
+  const persist = useCallback(async (factory, retryFactory) => {
+    try {
+      return await save.track(factory(), { retry: retryFactory ? () => save.track(retryFactory()) : undefined });
+    } catch (_) {
+      return null;
+    }
+  }, [save]);
 
   // Publish TopBar header while this module is the active page. Gated on
   // isActive because App.jsx keeps modules mounted after first visit.
@@ -227,8 +244,6 @@ const SalesCRM = (props) => {
   const actIcon = (s) => { const a = actInfo(s.nextAction); return a?.icon || "→"; };
   const actVerb = (s) => { const a = actInfo(s.nextAction); return a?.verb || "Act"; };
 
-  const currentUser = props.currentUser;
-
   // Register sub-view back handler with global back button
   useEffect(() => {
     if (!registerSubBack) return;
@@ -262,6 +277,24 @@ const SalesCRM = (props) => {
     },
     [sales, myPipeline, currentUser?.id, myClientIds, fPub, sr, clientMap]
   );
+  // Local lookup indexes — Wave 2. Derived from the jurisdiction-filtered
+  // props rather than the global useAppData maps so cn()/pn() return the
+  // same "—" for out-of-jurisdiction refs that the legacy `find` did.
+  const clientsByIdLocal = useMemo(() => {
+    const m = new Map();
+    for (const c of clients) m.set(c.id, c);
+    return m;
+  }, [clients]);
+  const salesByStatusLocal = useMemo(() => {
+    const m = new Map();
+    for (const s of sales) {
+      let arr = m.get(s.status);
+      if (!arr) { arr = []; m.set(s.status, arr); }
+      arr.push(s);
+    }
+    return m;
+  }, [sales]);
+
   const actionSales = useMemo(
     () => activeSales.filter(s => s.nextAction && s.status !== "Closed" && s.status !== "Follow-up")
       .sort((a, b) => (a.nextActionDate || "9").localeCompare(b.nextActionDate || "9")),
@@ -324,25 +357,15 @@ const SalesCRM = (props) => {
     const billingState = (cf.billingState || "").trim() || null;
     const billingZip = (cf.billingZip || "").trim() || null;
     if (ec) {
-      // Edit existing client
-      if (updateClient) {
-        await updateClient(ec.id, { name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
-      } else {
-        setClients(cl => cl.map(c => c.id === ec.id ? { ...c, name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip } : c));
-      }
+      await persist(() => updateClient(ec.id, { name: cf.name, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip }));
     } else {
-      // Create new client — persists to Supabase with real UUID
-      if (insertClient) {
-        // New client — default ownership to whoever is creating the
-        // record (same philosophy as Convert to Lead). Admin can
-        // reassign from the client profile later.
-        const newClient = await insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, repId: currentUser?.id || null, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip });
-        if (newClient?.id) {
-          logActivity(`New client: ${cf.name}`, "pipeline", newClient.id, cf.name);
-          addNotif(`Client "${cf.name}" created`);
-        }
-      } else {
-        setClients(cl => [...cl, { ...cf, id: "c" + Date.now(), totalSpend: 0, status: "Lead", comms: [] }]);
+      // New client — default ownership to whoever is creating the record
+      // (same philosophy as Convert to Lead). Admin can reassign from the
+      // client profile later.
+      const newClient = await persist(() => insertClient({ name: cf.name, status: "Lead", totalSpend: 0, industries: cf.industries, leadSource: cf.leadSource, interestedPubs: cf.interestedPubs, contacts: cf.contacts, notes: cf.notes, repId: currentUser?.id || null, billingEmail, billingCcEmails: cleanCc, billingAddress, billingAddress2, billingCity, billingState, billingZip }));
+      if (newClient?.id) {
+        logActivity(`New client: ${cf.name}`, "pipeline", newClient.id, cf.name);
+        addNotif(`Client "${cf.name}" created`);
       }
     }
     setCmo(false);
@@ -359,28 +382,23 @@ const SalesCRM = (props) => {
     const nextDue = new Date(today); nextDue.setDate(nextDue.getDate() + 3);
     const nextActDate = autoAct ? nextDue.toISOString().slice(0, 10) : "";
     const finalIssueId = issueIdOverride || s.issueId;
-    if (updateSale) {
-      updateSale(saleId, {
-        status: "Closed",
-        issueId: finalIssueId,
-        closedAt: new Date().toISOString(),
-        nextAction: autoAct,
-        nextActionDate: nextActDate,
-      });
-    } else {
-      // Fallback if updateSale isn't wired (offline or older harness)
-      setSales(sl => sl.map(x => x.id === saleId ? { ...x, status: "Closed", issueId: finalIssueId, nextAction: autoAct, nextActionDate: nextActDate } : x));
-    }
+    persist(() => updateSale(saleId, {
+      status: "Closed",
+      issueId: finalIssueId,
+      closedAt: new Date().toISOString(),
+      nextAction: autoAct,
+      nextActionDate: nextActDate,
+    }));
     logActivity(`→ Closed`, "pipeline", s.clientId, cn(s.clientId));
     addNotif(`${cn(s.clientId)} → Closed`);
-    setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `→ Closed` }] } : c));
+    persist(() => addComm(s.clientId, { id: "cm" + Date.now(), type: "Comment", author: currentUser?.name || "Account Manager", date: today, note: `→ Closed` }));
     if (bus) bus.emit("sale.closed", { saleId, clientId: s.clientId, clientName: cn(s.clientId), amount: s.amount, publication: pn(s.publication) });
     const client = clients.find(c => c.id === s.clientId);
     if (client) {
       const updates = {};
       if (client.status === "Lead") updates.status = "Active";
       if (!client.repId && currentUser?.id) updates.repId = currentUser.id;
-      if (Object.keys(updates).length && updateClient) updateClient(client.id, updates);
+      if (Object.keys(updates).length && updateClient) persist(() => updateClient(client.id, updates));
     }
   };
 
@@ -419,8 +437,12 @@ const SalesCRM = (props) => {
     }
     const autoAct = STAGE_AUTO_ACTIONS[ns] || null;
     const nextDue = new Date(today); nextDue.setDate(nextDue.getDate() + 3);
-    setSales(sl => sl.map(x => x.id === saleId ? { ...x, status: ns, nextAction: autoAct, nextActionDate: autoAct ? nextDue.toISOString().slice(0, 10) : "" } : x));
-    if (s) { logActivity(`→ ${ns}`, "pipeline", s.clientId, cn(s.clientId)); addNotif(`${cn(s.clientId)} → ${ns}`); setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `→ ${ns}` }] } : c)); }
+    persist(() => updateSale(saleId, { status: ns, nextAction: autoAct, nextActionDate: autoAct ? nextDue.toISOString().slice(0, 10) : null }));
+    if (s) {
+      logActivity(`→ ${ns}`, "pipeline", s.clientId, cn(s.clientId));
+      addNotif(`${cn(s.clientId)} → ${ns}`);
+      persist(() => addComm(s.clientId, { id: "cm" + Date.now(), type: "Comment", author: currentUser?.name || "Account Manager", date: today, note: `→ ${ns}` }));
+    }
   };
 
   const handleAct = (saleId) => {
@@ -453,30 +475,47 @@ const SalesCRM = (props) => {
 
   const completeAction = (saleId, note) => {
     const s = sales.find(x => x.id === saleId);
-    setSales(sl => sl.map(x => x.id === saleId ? { ...x, nextAction: null, nextActionDate: "" } : x));
-    if (s) { setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `Done: ${note}` }] } : c)); logActivity(`Done: ${note}`, "comm", s.clientId, cn(s.clientId)); }
+    persist(() => updateSale(saleId, { nextAction: null, nextActionDate: null }));
+    if (s) {
+      persist(() => addComm(s.clientId, { id: "cm" + Date.now(), type: "Comment", author: currentUser?.name || "Account Manager", date: today, note: `Done: ${note}` }));
+      logActivity(`Done: ${note}`, "comm", s.clientId, cn(s.clientId));
+    }
     if (s) { setEditOppId(saleId); const cl = clients.find(c => c.id === s.clientId); setOpp({ company: cl?.name || "", contact: cl?.contacts?.[0]?.name || "", email: cl?.contacts?.[0]?.email || "", phone: cl?.contacts?.[0]?.phone || "", source: "Existing Client", notes: "", nextAction: "", nextActionDate: "" }); setOppSendKit(false); setOppKitSent(false); setOppMo(true); }
   };
   const saveNextStep = () => {
     if (nextStepSaleId && nextStepAction) {
       const nd = new Date(today); nd.setDate(nd.getDate() + 3);
-      setSales(sl => sl.map(s => s.id === nextStepSaleId ? { ...s, nextAction: nextStepAction, nextActionDate: nd.toISOString().slice(0, 10) } : s));
+      persist(() => updateSale(nextStepSaleId, { nextAction: nextStepAction, nextActionDate: nd.toISOString().slice(0, 10) }));
     }
     setNextStepMo(false); setNextStepSaleId(null);
   };
   const clearAction = () => {
-    if (nextStepSaleId) setSales(sl => sl.map(s => s.id === nextStepSaleId ? { ...s, nextAction: null, nextActionDate: "" } : s));
+    if (nextStepSaleId) persist(() => updateSale(nextStepSaleId, { nextAction: null, nextActionDate: null }));
     setNextStepMo(false); setNextStepSaleId(null);
   };
   const sendEmail = () => {
     if (!emailSaleId) return;
     const s = sales.find(x => x.id === emailSaleId);
-    if (s) { setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: `To: ${emailTo}\nSubject: ${emailSubj}\n${emailBody.slice(0, 100)}...` }] } : c)); logActivity(`Email sent: ${emailSubj}`, "comm", s.clientId, cn(s.clientId)); }
+    if (s) {
+      persist(() => addComm(s.clientId, { id: "cm" + Date.now(), type: "Email", author: currentUser?.name || "Account Manager", date: today, note: `To: ${emailTo}\nSubject: ${emailSubj}\n${emailBody.slice(0, 100)}...` }));
+      logActivity(`Email sent: ${emailSubj}`, "comm", s.clientId, cn(s.clientId));
+    }
     setEmailMo(false);
     completeAction(emailSaleId, `Sent: ${emailSubj}`);
   };
 
-  const cloneSale = (s) => { const ni = issues.find(i => i.pubId === s.publication && i.date > s.date); if (!ni) return; setSales(sl => [...sl, { ...s, id: "sl" + Date.now(), issueId: ni.id, date: ni.date, status: "Discovery", page: null, pagePos: null, proposalId: null, nextAction: STAGE_AUTO_ACTIONS.Discovery, nextActionDate: today, oppNotes: [] }]); logActivity(`Repeat → ${pn(s.publication)}`, "opp", s.clientId, cn(s.clientId)); };
+  const cloneSale = async (s) => {
+    const ni = issues.find(i => i.pubId === s.publication && i.date > s.date);
+    if (!ni) return;
+    await persist(() => insertSale({
+      clientId: s.clientId, publication: s.publication, issueId: ni.id,
+      type: s.type, size: s.size, adW: s.adW, adH: s.adH, amount: s.amount,
+      status: "Discovery", date: ni.date, page: null, pagePos: null,
+      proposalId: null, nextAction: STAGE_AUTO_ACTIONS.Discovery,
+      nextActionDate: today, oppNotes: [],
+    }));
+    logActivity(`Repeat → ${pn(s.publication)}`, "opp", s.clientId, cn(s.clientId));
+  };
 
   const handleCardClick = (s) => {
     if (s.status === "Discovery" || s.status === "Presentation") { setEditOppId(s.id); const cl = clients.find(c => c.id === s.clientId); setOpp({ company: cl?.name || "", contact: cl?.contacts?.[0]?.name || "", email: cl?.contacts?.[0]?.email || "", phone: cl?.contacts?.[0]?.phone || "", source: "Existing Client", notes: "", nextAction: actLabel(s), nextActionDate: s.nextActionDate || "" }); setOppSendKit(false); setOppKitSent(false); setOppMo(true); }
@@ -491,10 +530,91 @@ const SalesCRM = (props) => {
   };
 
   const openOpp = () => { setEditOppId(null); setOpp({ company: "", contact: "", email: "", phone: "", source: "Referral", notes: "", nextAction: "Send media kit", nextActionDate: tomorrow }); setOppSendKit(false); setOppKitPubs([]); setOppKitMsg(""); setOppKitSent(false); setOppMo(true); setTimeout(() => { const el = document.querySelector("[data-opp-company]"); if (el) el.focus(); }, 100); };
-  const saveOpp = (close = true) => {
-    if (!opp.company.trim()) return; let cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id; if (!cid) { cid = "c" + Date.now(); setClients(cl => [...cl, { id: cid, name: opp.company, status: "Lead", totalSpend: 0, contacts: [{ name: opp.contact, email: opp.email, phone: opp.phone, role: "Business Owner" }], comms: [] }]); } if (opp.notes.trim()) setClients(cl => cl.map(c => c.id === cid ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: opp.notes }] } : c)); if (editOppId) { setSales(sl => sl.map(s => s.id === editOppId ? { ...s, nextAction: typeof s.nextAction === "object" ? s.nextAction : { type: "task", label: opp.nextAction }, nextActionDate: opp.nextActionDate, oppNotes: [...(s.oppNotes || []), ...(opp.notes.trim() ? [{ id: "on" + Date.now(), text: opp.notes, time: new Date().toLocaleTimeString(), date: today }] : [])] } : s)); } else { setSales(sl => [...sl, { id: "sl" + Date.now(), clientId: cid, publication: pubs[0]?.id || "", issueId: "", type: "TBD", size: "", adW: 0, adH: 0, amount: 0, status: "Discovery", date: today, page: null, pagePos: null, nextAction: STAGE_AUTO_ACTIONS.Discovery, nextActionDate: opp.nextActionDate || tomorrow, proposalId: null, oppNotes: opp.notes.trim() ? [{ id: "on" + Date.now(), text: opp.notes, time: new Date().toLocaleTimeString(), date: today }] : [] }]); logActivity(`New opportunity via ${opp.source}`, "opp", cid, opp.company); } if (close && !oppSendKit) { setOppMo(false); setOpp(x => ({ ...x, notes: "" })); } };
-  const sendKit = () => { saveOpp(false); setOppKitSent(true); const cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id; logActivity(`Rate cards sent`, "comm", cid, opp.company); if (cid) { setClients(cl => cl.map(c => c.id === cid ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: `Sent rate cards: ${oppKitPubs.map(pid => pn(pid)).join(", ")}` }] } : c)); setSales(sl => sl.map(s => s.clientId === cid && s.status === "Discovery" ? { ...s, status: "Presentation", nextAction: STAGE_AUTO_ACTIONS.Presentation, nextActionDate: opp.nextActionDate } : s)); } };
-  const oppToProposal = () => { saveOpp(false); const cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id || (editOppId && sales.find(s => s.id === editOppId)?.clientId); if (cid) setSales(sl => sl.map(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation") ? { ...s, status: "Proposal" } : s)); setOppMo(false); openProposal(cid); };
+  // Returns the resolved client id (existing or newly inserted), or null
+  // if validation failed. Callers downstream (sendKit, oppToProposal)
+  // need that id to chain follow-up writes.
+  const saveOpp = async (close = true) => {
+    if (!opp.company.trim()) return null;
+    let cid = clients.find(c => (c.name || "").toLowerCase() === opp.company.toLowerCase())?.id;
+    if (!cid) {
+      const created = await persist(() => insertClient({
+        name: opp.company, status: "Lead", totalSpend: 0,
+        contacts: [{ name: opp.contact, email: opp.email, phone: opp.phone, role: "Business Owner" }],
+        repId: currentUser?.id || null,
+      }));
+      cid = created?.id;
+      if (!cid) return null;
+    }
+    if (opp.notes.trim()) {
+      await persist(() => addComm(cid, {
+        id: "cm" + Date.now(), type: "Comment",
+        author: currentUser?.name || "Account Manager",
+        date: today, note: opp.notes,
+      }));
+    }
+    if (editOppId) {
+      const existing = sales.find(s => s.id === editOppId);
+      const noteArr = [
+        ...(existing?.oppNotes || []),
+        ...(opp.notes.trim() ? [{ id: "on" + Date.now(), text: opp.notes, time: new Date().toLocaleTimeString(), date: today }] : []),
+      ];
+      const nextAction = typeof existing?.nextAction === "object"
+        ? existing.nextAction
+        : { type: "task", label: opp.nextAction };
+      await persist(() => updateSale(editOppId, {
+        nextAction,
+        nextActionDate: opp.nextActionDate || null,
+        oppNotes: noteArr,
+      }));
+    } else {
+      await persist(() => insertSale({
+        clientId: cid, publication: pubs[0]?.id || "", issueId: "",
+        type: "TBD", size: "", adW: 0, adH: 0, amount: 0,
+        status: "Discovery", date: today,
+        nextAction: STAGE_AUTO_ACTIONS.Discovery,
+        nextActionDate: opp.nextActionDate || tomorrow,
+        proposalId: null,
+        oppNotes: opp.notes.trim()
+          ? [{ id: "on" + Date.now(), text: opp.notes, time: new Date().toLocaleTimeString(), date: today }]
+          : [],
+      }));
+      logActivity(`New opportunity via ${opp.source}`, "opp", cid, opp.company);
+    }
+    if (close && !oppSendKit) { setOppMo(false); setOpp(x => ({ ...x, notes: "" })); }
+    return cid;
+  };
+  const sendKit = async () => {
+    const cid = await saveOpp(false);
+    setOppKitSent(true);
+    if (!cid) return;
+    logActivity(`Rate cards sent`, "comm", cid, opp.company);
+    await persist(() => addComm(cid, {
+      id: "cm" + Date.now(), type: "Email",
+      author: currentUser?.name || "Account Manager",
+      date: today,
+      note: `Sent rate cards: ${oppKitPubs.map(pid => pn(pid)).join(", ")}`,
+    }));
+    const targets = sales.filter(s => s.clientId === cid && s.status === "Discovery");
+    for (const s of targets) {
+      await persist(() => updateSale(s.id, {
+        status: "Presentation",
+        nextAction: STAGE_AUTO_ACTIONS.Presentation,
+        nextActionDate: opp.nextActionDate || null,
+      }));
+    }
+  };
+  const oppToProposal = async () => {
+    const created = await saveOpp(false);
+    const cid = created || (editOppId && sales.find(s => s.id === editOppId)?.clientId);
+    if (cid) {
+      const targets = sales.filter(s => s.clientId === cid && (s.status === "Discovery" || s.status === "Presentation"));
+      for (const s of targets) {
+        await persist(() => updateSale(s.id, { status: "Proposal" }));
+      }
+    }
+    setOppMo(false);
+    openProposal(cid);
+  };
 
   // ─── Proposal wizard entry points ────────────────────────
   // proposal-wizard-spec.md §4 — wizardState replaces ~20 prop* useState
@@ -571,8 +691,8 @@ const SalesCRM = (props) => {
     // launched mid-pipeline (via setPropPending), Cancel reverts to the
     // prior stage. wizardState.pendingSaleId carries that sale id.
     if (wizardState?.pendingSaleId) {
-      setSales(sl => sl.map(s => s.id === wizardState.pendingSaleId ? { ...s, status: "Presentation" } : s));
       const s = sales.find(s2 => s2.id === wizardState.pendingSaleId);
+      persist(() => updateSale(wizardState.pendingSaleId, { status: "Presentation" }));
       logActivity("Proposal cancelled — back to Presentation", "pipeline", s?.clientId, cn(s?.clientId));
     }
     setWizardState(null);
@@ -677,10 +797,14 @@ const SalesCRM = (props) => {
 
   const actColors = { pipeline: Z.ac, proposal: Z.pu, opp: Z.su, comm: Z.wa };
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+  return <SalesErrorBoundary><div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     {/* Action row — title moved to TopBar via usePageHeader above. Keep
-        only the tab-aware controls (search, filters, + buttons) here. */}
+        only the tab-aware controls (search, filters, + buttons) here.
+        SaveStatusPill at the front announces every persisted write —
+        critical now that pipeline drags / call logs / opp creates round-trip
+        the DB instead of mutating local state. */}
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+      <SaveStatusPill save={save} />
       {(tab === "Pipeline" || (tab === "Clients" && !viewClientId && clientView === "list")) && <><SB value={sr} onChange={setSr} placeholder="Search..." /><Sel value={fPub} onChange={e => setFPub(e.target.value)} options={[{ value: "all", label: "All Pubs" }, ...pubs.map(p => ({ value: p.id, label: p.name }))]} /></>}
       {tab === "Clients" && !viewClientId && <Btn sm onClick={() => { setEc(null); setCf({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" }); setCmo(true); }}><Ic.plus size={13} /> Client</Btn>}
       {tab === "Pipeline" && <Btn sm onClick={openOpp}><Ic.plus size={13} /> New Opportunity</Btn>}
@@ -806,9 +930,53 @@ const SalesCRM = (props) => {
                 </div>}
                 <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
                   {stage !== "Closed" && stage !== "Follow-up" && <>
-                    <button onClick={async e => { e.stopPropagation(); const note = await dialog.prompt(`Log call — ${cn(s.clientId)}`, "Connected"); if (note === null) return; const txt = note.trim() || "Connected"; logActivity(`Called ${cn(s.clientId)}: ${txt}`, "comm", s.clientId, cn(s.clientId)); const nd = new Date(); nd.setDate(nd.getDate() + 3); setSales(sl => sl.map(x => x.id === s.id ? { ...x, nextAction: { type: "call", label: "Follow up call" }, nextActionDate: nd.toISOString().slice(0, 10), oppNotes: [...(x.oppNotes || []), { id: "n" + Date.now(), text: `Call: ${txt}`, date: today }] } : x)); setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Call", author: "Account Manager", date: today, note: txt }] } : c)); addNotif(`Call logged — ${cn(s.clientId)}`); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Log call (writes to client comms)">📞</button>
-                    <button onClick={async e => { e.stopPropagation(); const note = await dialog.prompt(`Log email — ${cn(s.clientId)}`, "Sent follow-up"); if (note === null) return; const txt = note.trim() || "Sent email"; logActivity(`Emailed ${cn(s.clientId)}: ${txt}`, "comm", s.clientId, cn(s.clientId)); const nd = new Date(); nd.setDate(nd.getDate() + 5); setSales(sl => sl.map(x => x.id === s.id ? { ...x, nextAction: { type: "email", label: "Follow up email" }, nextActionDate: nd.toISOString().slice(0, 10), oppNotes: [...(x.oppNotes || []), { id: "n" + Date.now(), text: `Email: ${txt}`, date: today }] } : x)); setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Email", author: "Account Manager", date: today, note: txt }] } : c)); addNotif(`Email logged — ${cn(s.clientId)}`); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Log email (writes to client comms)">✉️</button>
-                    <button onClick={e => { e.stopPropagation(); const nd = new Date(); nd.setDate(nd.getDate() + 7); setSales(sl => sl.map(x => x.id === s.id ? { ...x, nextActionDate: nd.toISOString().slice(0, 10) } : x)); addNotif(`Snoozed 7d — ${cn(s.clientId)}`); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Snooze 7 days">💤</button>
+                    <button onClick={async e => {
+                      e.stopPropagation();
+                      const note = await dialog.prompt(`Log call — ${cn(s.clientId)}`, "Connected");
+                      if (note === null) return;
+                      const txt = note.trim() || "Connected";
+                      logActivity(`Called ${cn(s.clientId)}: ${txt}`, "comm", s.clientId, cn(s.clientId));
+                      const nd = new Date(); nd.setDate(nd.getDate() + 3);
+                      const ndStr = nd.toISOString().slice(0, 10);
+                      persist(() => updateSale(s.id, {
+                        nextAction: { type: "call", label: "Follow up call" },
+                        nextActionDate: ndStr,
+                        oppNotes: [...(s.oppNotes || []), { id: "n" + Date.now(), text: `Call: ${txt}`, date: today }],
+                      }));
+                      persist(() => addComm(s.clientId, {
+                        id: "cm" + Date.now(), type: "Call",
+                        author: currentUser?.name || "Account Manager",
+                        date: today, note: txt,
+                      }));
+                      addNotif(`Call logged — ${cn(s.clientId)}`);
+                    }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Log call (writes to client comms)">📞</button>
+                    <button onClick={async e => {
+                      e.stopPropagation();
+                      const note = await dialog.prompt(`Log email — ${cn(s.clientId)}`, "Sent follow-up");
+                      if (note === null) return;
+                      const txt = note.trim() || "Sent email";
+                      logActivity(`Emailed ${cn(s.clientId)}: ${txt}`, "comm", s.clientId, cn(s.clientId));
+                      const nd = new Date(); nd.setDate(nd.getDate() + 5);
+                      const ndStr = nd.toISOString().slice(0, 10);
+                      persist(() => updateSale(s.id, {
+                        nextAction: { type: "email", label: "Follow up email" },
+                        nextActionDate: ndStr,
+                        oppNotes: [...(s.oppNotes || []), { id: "n" + Date.now(), text: `Email: ${txt}`, date: today }],
+                      }));
+                      persist(() => addComm(s.clientId, {
+                        id: "cm" + Date.now(), type: "Email",
+                        author: currentUser?.name || "Account Manager",
+                        date: today, note: txt,
+                      }));
+                      addNotif(`Email logged — ${cn(s.clientId)}`);
+                    }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Log email (writes to client comms)">✉️</button>
+                    <button onClick={e => {
+                      e.stopPropagation();
+                      const nd = new Date(); nd.setDate(nd.getDate() + 7);
+                      const ndStr = nd.toISOString().slice(0, 10);
+                      persist(() => updateSale(s.id, { nextActionDate: ndStr }));
+                      addNotif(`Snoozed 7d — ${cn(s.clientId)}`);
+                    }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }} title="Snooze 7 days">💤</button>
                   </>}
                   {stage !== "Follow-up" && <button onClick={e => { e.stopPropagation(); moveToStage(s.id, PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]); }} style={{ flex: 1, padding: "3px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }}>→ {PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]}</button>}
                   {stage !== "Closed" && stage !== "Follow-up" && <button onClick={async e => { e.stopPropagation(); const REASONS = ["Budget cut", "Chose competitor", "Timing not right", "No response", "Bad fit", "Price too high", "Other"]; const reason = await dialog.prompt("Why was this deal lost?", { options: REASONS }); if (!reason) return; await updateSale(s.id, { status: "Lost", lost_reason: reason, nextAction: null, nextActionDate: null }); logActivity(`Lost: ${reason}`, "pipeline", s.clientId, cn(s.clientId)); addNotif(`Deal lost — ${cn(s.clientId)}: ${reason}`); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: Z.da + "08", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da }} title="Mark deal as lost">✕</button>}
@@ -840,11 +1008,11 @@ const SalesCRM = (props) => {
     {/* CLIENTS + PROFILE (abbreviated — same structure as before) */}
     {tab === "Clients" && !viewClientId && clientView === "signals" && <Suspense fallback={<SubFallback />}><ClientSignals clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} currentUser={currentUser} jurisdiction={jurisdiction} myPriorities={myPriorities} priorityHelpers={priorityHelpers} onSelectClient={(cId) => navTo("Clients", cId)} /></Suspense>}
     {tab === "Clients" && !viewClientId && clientView === "list" && <ClientList clients={jurisdiction?.isSalesperson ? jurisdiction.myClients : clients} sales={jurisdiction?.isSalesperson ? jurisdiction.mySales : sales} pubs={pubs} issues={issues} proposals={proposals} sr={sr} setSr={setSr} fPub={fPub} onSelectClient={(cId) => navTo("Clients", cId)} />}
-    {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><ClientProfile
+    {tab === "Clients" && viewClientId && <Suspense fallback={<SubFallback />}><SalesErrorBoundary><ClientProfile
       clientId={viewClientId} clients={clients} setClients={setClients}
       sales={sales} setSales={setSales} pubs={pubs} issues={issues} proposals={proposals}
       contracts={contracts} invoices={invoices} payments={payments}
-      team={props.team} commForm={commForm} setCommForm={setCommForm}
+      team={props.team} currentUser={currentUser} commForm={commForm} setCommForm={setCommForm}
       onBack={goBack} onNavTo={navTo} onNavigate={props.onNavigate}
       onOpenProposal={openProposal} onSetViewPropId={setViewPropId}
       bus={bus} updateClientContact={props.updateClientContact}
@@ -874,7 +1042,7 @@ const SalesCRM = (props) => {
         });
         setCalMo(true);
       }}
-    /></Suspense>}
+    /></SalesErrorBoundary></Suspense>}
 
     {/* PROPOSALS */}
     {tab === "Proposals" && !viewPropId && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1134,6 +1302,8 @@ const SalesCRM = (props) => {
             const { data, error } = await supabase.rpc("cancel_contract", { p_contract_id: viewContract.id, p_reason: reason });
             if (error) { await dialog.alert("Error: " + error.message); return; }
             if (data?.error) { await dialog.alert(data.error); return; }
+            // RPC already wrote contract + cascaded to sales server-side;
+            // mirror locally for instant feedback (realtime will reconcile).
             if (setContracts) setContracts(prev => prev.map(c => c.id === viewContract.id ? { ...c, status: "cancelled" } : c));
             setSales(prev => prev.map(s => s.contractId === viewContract.id && s.status === "Closed" ? { ...s, status: "Cancelled" } : s));
             await dialog.alert(`Contract cancelled. ${data.sales_cancelled} sales, ${data.projects_cancelled} ad projects, ${data.invoices_voided} invoices, ${data.commissions_reversed || 0} commissions reversed.`);
@@ -1188,65 +1358,16 @@ const SalesCRM = (props) => {
         </div>}
       </Modal>
       </div>; })()}
-    {tab === "Renewals" && (() => {
-      const calcScore = (s) => {
-        let score = 50;
-        // Renewal status clients get a boost (they have contract or recent ad)
-        if (s.clientStatus === "Renewal") score += 25;
-        // Sales volume
-        if (s.saleCount > 6) score += 15; else if (s.saleCount > 2) score += 5;
-        // Revenue
-        if (s.totalSpend > 5000) score += 15; else if (s.totalSpend > 1000) score += 5;
-        // Multi-pub buyers
-        if (s.pubCount > 1) score += 10;
-        // Recency
-        const daysSince = s.lastDate ? Math.floor((new Date() - new Date(s.lastDate)) / 86400000) : 999;
-        if (daysSince < 60) score += 10; else if (daysSince > 180) score -= 15; else if (daysSince > 365) score -= 30;
-        return Math.min(100, Math.max(0, score));
-      };
-      const scored = renewalsDue.map(s => ({ ...s, score: calcScore(s) }));
-      const ready = scored.filter(s => s.score >= 80).slice(0, 25);
-      const warm = scored.filter(s => s.score >= 40 && s.score < 80).slice(0, 25);
-      const atRisk = scored.filter(s => s.score < 40).slice(0, 25);
-      const totalRenewRev = scored.reduce((s,x) => s + (x.totalSpend || x.amount || 0), 0);
-      const totalReady = scored.filter(s => s.score >= 80).length;
-      const totalWarm = scored.filter(s => s.score >= 40 && s.score < 80).length;
-      const totalAtRisk = scored.filter(s => s.score < 40).length;
-      return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* SCOREBOARD */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-        {[
-          ["Renewal Revenue", "$" + (totalRenewRev/1000).toFixed(0) + "K", Z.ac],
-          ["Ready", String(totalReady), Z.ac],
-          ["Warm Up", String(totalWarm), Z.wa],
-          ["At Risk", String(totalAtRisk), totalAtRisk > 0 ? Z.da : Z.ac],
-        ].map(([l, v, c]) => <div key={l} style={{ ...cardSurface(), borderRadius: R, padding: "10px 14px" }}><div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>{l}</div><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{v}</div></div>)}
-      </div>
-      {scored.length === 0 && <GlassCard style={{ textAlign: "center", padding: 20, color: Z.ac, fontSize: FS.lg, fontWeight: FW.bold }}>All caught up — no renewals due</GlassCard>}
-      {/* THREE LANES */}
-      {[{ label: "Ready to Renew", items: ready, total: totalReady, color: Z.ac, action: "Send Renewal" }, { label: "Warm Up Needed", items: warm, total: totalWarm, color: Z.wa, action: "Schedule Check-in" }, { label: "At Risk", items: atRisk, total: totalAtRisk, color: Z.da, action: "Review Account" }].map(lane => lane.items.length === 0 ? null : <div key={lane.label}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0 4px", borderBottom: `2px solid ${lane.color}` }}><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{lane.label}</span><span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: INV.light, background: lane.color, padding: "1px 7px", borderRadius: R }}>{lane.items.length}{lane.total > lane.items.length ? ` of ${lane.total}` : ""}</span></div>
-        {lane.items.slice(0, 25).map(s => <div key={s.clientId || s.id} style={{ ...cardSurface(), borderRadius: R, padding: 16, marginTop: 4 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div><span style={{ fontSize: FS.lg, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{cn(s.clientId)}</span><div style={{ fontSize: FS.sm, color: Z.tm }}>${(s.totalSpend || s.amount || 0).toLocaleString()} total · {s.saleCount || 1} orders · {s.pubCount || 1} pub{(s.pubCount || 1) > 1 ? "s" : ""}</div><div style={{ fontSize: FS.xs, color: Z.td }}>Last: {s.lastDate || s.date}</div></div>
-            <div style={{ textAlign: "right" }}><div style={{ fontSize: FS.xl, fontWeight: FW.black, color: lane.color }}>{s.score}</div><div style={{ fontSize: FS.micro, color: Z.td, textTransform: "uppercase" }}>score</div></div>
-          </div>
-          {/* Upsell intelligence */}
-          {(() => {
-            const clientSales = sales.filter(x => x.clientId === s.clientId && x.status === "Closed");
-            const activePubs = [...new Set(clientSales.map(x => x.publication))];
-            const otherPubs = pubs.filter(p => !activePubs.includes(p.id));
-            return otherPubs.length > 0 ? <div style={{ marginTop: 4, padding: "6px 10px", background: Z.bg, borderRadius: Ri, fontSize: FS.xs, color: Z.tm }}>
-              Cross-sell: {otherPubs.slice(0,3).map(p => p.name).join(", ")}
-            </div> : null;
-          })()}
-          <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-            <Btn sm onClick={() => openRenewalProposal(s.clientId)}>{lane.action}</Btn>
-            <Btn sm v="secondary" onClick={() => navTo("Clients", s.clientId)}>Profile</Btn>
-          </div>
-        </div>)}
-      </div>)}
-      </div>; })()}
+    {tab === "Renewals" && (
+      <RenewalsTab
+        renewalsDue={renewalsDue}
+        sales={sales}
+        pubs={pubs}
+        clientsById={clientsByIdLocal}
+        navTo={navTo}
+        openRenewalProposal={openRenewalProposal}
+      />
+    )}
 
     {/* COMMISSIONS */}
     {tab === "Commissions" && <Suspense fallback={<SubFallback />}><Commissions sales={sales} clients={clients} pubs={pubs} issues={issues} team={props.team || []} commissionRates={commissionRates || []} commissionLedger={commissionLedger || []} commissionPayouts={commissionPayouts || []} commissionGoals={commissionGoals || []} salespersonPubAssignments={salespersonPubAssignments || []} helpers={commissionHelpers || {}} tab={commTab} setTab={setCommTab} /></Suspense>}
@@ -1608,16 +1729,22 @@ const SalesCRM = (props) => {
         loadDigitalAdProducts={loadDigitalAdProducts}
         loadClientDetails={props.loadClientDetails}
         onClose={closeWizard}
-        onSent={(propId) => {
-          setSales(sl => sl.map(s =>
-            s.clientId === wizardState.clientId && (s.status === "Discovery" || s.status === "Presentation")
-              ? { ...s, status: "Proposal", nextAction: STAGE_AUTO_ACTIONS.Proposal }
-              : s
-          ));
+        onSent={async (propId) => {
+          const targets = sales.filter(s =>
+            s.clientId === wizardState.clientId &&
+            (s.status === "Discovery" || s.status === "Presentation")
+          );
+          for (const s of targets) {
+            await persist(() => updateSale(s.id, {
+              status: "Proposal",
+              nextAction: STAGE_AUTO_ACTIONS.Proposal,
+            }));
+          }
           if (wizardState.pendingSaleId) {
-            setSales(sl => sl.map(s => s.id === wizardState.pendingSaleId
-              ? { ...s, proposalId: propId, status: "Proposal" }
-              : s));
+            await persist(() => updateSale(wizardState.pendingSaleId, {
+              proposalId: propId,
+              status: "Proposal",
+            }));
           }
           logActivity(`Proposal sent`, "proposal", wizardState.clientId, cn(wizardState.clientId));
           addNotif(`Proposal sent`);
@@ -1654,7 +1781,21 @@ const SalesCRM = (props) => {
         <TA label="Notes" value={schEvent.notes} onChange={e => setSchEvent(x => ({ ...x, notes: e.target.value }))} placeholder="Agenda..." />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <Btn v="cancel" onClick={() => setCalMo(false)}>Cancel</Btn>
-          <Btn onClick={() => { if (calSaleId) { const s = sales.find(x => x.id === calSaleId); if (s) { setClients(cl => cl.map(c => c.id === s.clientId ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Comment", author: "Account Manager", date: today, note: `Scheduled: ${schEvent.title} on ${schEvent.date} at ${schEvent.time}` }] } : c)); completeAction(calSaleId, `Scheduled: ${schEvent.title} ${schEvent.date}`); } } setCalMo(false); }}>Schedule</Btn>
+          <Btn onClick={async () => {
+            if (calSaleId) {
+              const s = sales.find(x => x.id === calSaleId);
+              if (s) {
+                await persist(() => addComm(s.clientId, {
+                  id: "cm" + Date.now(), type: "Comment",
+                  author: currentUser?.name || "Account Manager",
+                  date: today,
+                  note: `Scheduled: ${schEvent.title} on ${schEvent.date} at ${schEvent.time}`,
+                }));
+                completeAction(calSaleId, `Scheduled: ${schEvent.title} ${schEvent.date}`);
+              }
+            }
+            setCalMo(false);
+          }}>Schedule</Btn>
         </div>
       </div>
     </Modal>
@@ -1674,7 +1815,7 @@ const SalesCRM = (props) => {
       </div>
     </Modal>
 
-  </div>;
+  </div></SalesErrorBoundary>;
 };
 
 export default memo(SalesCRM);

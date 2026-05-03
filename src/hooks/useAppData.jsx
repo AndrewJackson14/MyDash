@@ -6,6 +6,21 @@ import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 const DataContext = createContext(null);
 
+// sales.notes is a TEXT column holding a JSON-stringified array (legacy —
+// the original mig 001 declared jsonb but the live column is text). Pre
+// Sales-Wave-1, hydration was reading the raw string into oppNotes which
+// silently broke array spreads everywhere downstream. Parse defensively
+// here so the UI always sees an array; updateSale / insertSale call
+// JSON.stringify on the way out.
+function parseSaleNotes(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
 // Maps a raw stories DB row → the shape the UI consumes. Lives at
 // module scope so both the bulk loader and the realtime subscription
 // produce identical objects (otherwise an UPDATE patch would drop
@@ -452,7 +467,7 @@ export function DataProvider({ children, localData }) {
           amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
           page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
           nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
-          nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+          nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: parseSaleNotes(s.notes),
           productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
           digitalProductId: s.digital_product_id || null, flightStartDate: s.flight_start_date || null, flightEndDate: s.flight_end_date || null, flightMonths: s.flight_months || null,
           contractId: s.contract_id || null,
@@ -518,7 +533,7 @@ export function DataProvider({ children, localData }) {
       amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
       page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
       nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
-      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: parseSaleNotes(s.notes),
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
       assignedTo: s.assigned_to || null,
@@ -554,7 +569,7 @@ export function DataProvider({ children, localData }) {
       amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
       page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
       nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
-      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: parseSaleNotes(s.notes),
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
       assignedTo: s.assigned_to || null,
@@ -1712,6 +1727,51 @@ export function DataProvider({ children, localData }) {
     }
   }, []);
 
+  // Sales Wave 1: Insert a new contact row. The previous "+ Add"
+  // affordance in ClientProfile mutated clients[].contacts directly,
+  // creating a contact with a temp id that no subsequent
+  // updateClientContact could find. Optimistic insert with temp id;
+  // server response replaces the temp id with the real one. Rolls back
+  // on error so the UI doesn't show a phantom row.
+  const insertClientContact = useCallback(async (clientId, contact) => {
+    const tempId = 'ct' + Date.now();
+    const optimistic = { ...contact, id: tempId };
+    setClients(cl => cl.map(c => c.id === clientId
+      ? { ...c, contacts: [...(c.contacts || []), optimistic] }
+      : c));
+    if (!isOnline()) return optimistic;
+    const { data, error } = await supabase.from('client_contacts').insert({
+      client_id: clientId,
+      name:       contact.name       || '',
+      email:      contact.email      || '',
+      phone:      contact.phone      || '',
+      role:       contact.role       || 'Other',
+      is_primary: !!contact.isPrimary,
+      notes:      contact.notes      || '',
+    }).select().single();
+    if (error) {
+      setClients(cl => cl.map(c => c.id === clientId
+        ? { ...c, contacts: (c.contacts || []).filter(ct => ct.id !== tempId) }
+        : c));
+      throw error;
+    }
+    const real = {
+      id: data.id, name: data.name, email: data.email, phone: data.phone,
+      role: data.role, isPrimary: data.is_primary, notes: data.notes || '',
+    };
+    setClients(cl => cl.map(c => c.id === clientId
+      ? { ...c, contacts: (c.contacts || []).map(ct => ct.id === tempId ? real : ct) }
+      : c));
+    return real;
+  }, []);
+
+  const deleteClientContact = useCallback(async (clientId, contactId) => {
+    setClients(cl => cl.map(c => c.id === clientId
+      ? { ...c, contacts: (c.contacts || []).filter(ct => ct.id !== contactId) }
+      : c));
+    if (isOnline()) await supabase.from('client_contacts').delete().eq('id', contactId);
+  }, []);
+
   const insertClient = useCallback(async (client) => {
     if (isOnline()) {
       const { data } = await supabase.from('clients').insert({
@@ -1901,27 +1961,69 @@ export function DataProvider({ children, localData }) {
     if (isOnline()) await supabase.from('stories').delete().eq('id', id);
   }, []);
 
+  // Sales Wave 1: exhaustive UI-camelCase → DB snake_case map. Anything
+  // outside this list used to be silently dropped on the DB write while
+  // the local state was happily mutated — that's how lost_reason and
+  // flight dates went missing on refresh. Keep this list in sync with
+  // every UI write target.
+  const SALE_FIELD_MAP = {
+    status:           "status",
+    amount:           "amount",
+    closedAt:         "closed_at",
+    page:             "page",
+    gridRow:          "grid_row",
+    gridCol:          "grid_col",
+    proposalId:       "proposal_id",
+    issueId:          "issue_id",
+    date:             "date",
+    // Was missing pre-Wave-1 — every entry below is a "silent drop" fix.
+    oppNotes:         "notes",
+    lostReason:       "lost_reason",
+    assignedTo:       "assigned_to",
+    productType:      "product_type",
+    digitalProductId: "digital_product_id",
+    flightStartDate:  "flight_start_date",
+    flightEndDate:    "flight_end_date",
+    flightMonths:     "flight_months",
+    contractId:       "contract_id",
+    // pagePos is a UI-side composite ({row, col}); split into the
+    // grid_row + grid_col columns in the composite handler below.
+    // Do NOT add it here — there is no `page_pos` column on sales.
+  };
+
   const updateSale = useCallback(async (id, changes) => {
     setSales(sl => sl.map(s => s.id === id ? { ...s, ...changes } : s));
-    if (isOnline()) {
-      const db = {};
-      if (changes.status !== undefined) db.status = changes.status;
-      if (changes.amount !== undefined) db.amount = changes.amount;
-      if (changes.closedAt !== undefined) db.closed_at = changes.closedAt;
-      if (changes.nextAction !== undefined) { db.next_action_type = changes.nextAction?.type || null; db.next_action_label = changes.nextAction?.label || null; }
-      if (changes.nextActionDate !== undefined) db.next_action_date = changes.nextActionDate || null;
-      if (changes.page !== undefined) db.page = changes.page;
-      if (changes.gridRow !== undefined) db.grid_row = changes.gridRow;
-      if (changes.gridCol !== undefined) db.grid_col = changes.gridCol;
-      if (changes.proposalId !== undefined) db.proposal_id = changes.proposalId;
-      if (changes.issueId !== undefined) db.issue_id = changes.issueId;
-      if (Object.keys(db).length) await supabase.from('sales').update(db).eq('id', id);
+    if (!isOnline()) return;
+    const db = {};
+    for (const [uiKey, dbKey] of Object.entries(SALE_FIELD_MAP)) {
+      if (changes[uiKey] !== undefined) db[dbKey] = changes[uiKey];
     }
+    // Composite next-action: split into _type + _label columns.
+    if (changes.nextAction !== undefined) {
+      db.next_action_type  = changes.nextAction?.type  || null;
+      db.next_action_label = changes.nextAction?.label || null;
+    }
+    if (changes.nextActionDate !== undefined) {
+      db.next_action_date = changes.nextActionDate || null;
+    }
+    // Composite pagePos: split into grid_row + grid_col. UI sends
+    // `pagePos: null` to clear placement (e.g. cloneSale, saveOpp).
+    if (changes.pagePos !== undefined) {
+      db.grid_row = changes.pagePos?.row ?? null;
+      db.grid_col = changes.pagePos?.col ?? null;
+    }
+    // sales.notes is text, not jsonb — stringify any array we send.
+    if (db.notes !== undefined && Array.isArray(db.notes)) {
+      db.notes = JSON.stringify(db.notes);
+    }
+    if (Object.keys(db).length === 0) return;
+    const { error } = await supabase.from('sales').update(db).eq('id', id);
+    if (error) throw error;
   }, []);
 
   const insertSale = useCallback(async (sale) => {
     if (isOnline()) {
-      const { data } = await supabase.from('sales').insert({ client_id: sale.clientId, publication_id: sale.publication, issue_id: sale.issueId || null, ad_type: sale.type || 'TBD', ad_size: sale.size || '', ad_width: sale.adW || 0, ad_height: sale.adH || 0, amount: sale.amount || 0, status: sale.status || 'Discovery', date: sale.date, next_action_type: sale.nextAction?.type || null, next_action_label: sale.nextAction?.label || null, next_action_date: sale.nextActionDate || null, proposal_id: sale.proposalId || null, notes: sale.oppNotes || [], product_type: sale.productType || 'display_print', assigned_to: sale.assignedTo || null, digital_product_id: sale.digitalProductId || null, flight_start_date: sale.flightStartDate || null, flight_end_date: sale.flightEndDate || null, flight_months: sale.flightMonths || null }).select().single();
+      const { data } = await supabase.from('sales').insert({ client_id: sale.clientId, publication_id: sale.publication, issue_id: sale.issueId || null, ad_type: sale.type || 'TBD', ad_size: sale.size || '', ad_width: sale.adW || 0, ad_height: sale.adH || 0, amount: sale.amount || 0, status: sale.status || 'Discovery', date: sale.date, next_action_type: sale.nextAction?.type || null, next_action_label: sale.nextAction?.label || null, next_action_date: sale.nextActionDate || null, proposal_id: sale.proposalId || null, notes: JSON.stringify(sale.oppNotes || []), product_type: sale.productType || 'display_print', assigned_to: sale.assignedTo || null, digital_product_id: sale.digitalProductId || null, flight_start_date: sale.flightStartDate || null, flight_end_date: sale.flightEndDate || null, flight_months: sale.flightMonths || null }).select().single();
       if (data) { const ns = { ...sale, id: data.id }; setSales(sl => [...sl, ns]); return ns; }
     }
     const ns = { ...sale, id: 'sl' + Date.now() }; setSales(sl => [...sl, ns]); return ns;
@@ -2120,7 +2222,7 @@ export function DataProvider({ children, localData }) {
       amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
       page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
       nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
-      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+      nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: parseSaleNotes(s.notes),
       productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
       contractId: s.contract_id || null,
       assignedTo: s.assigned_to || null,
@@ -3145,7 +3247,7 @@ export function DataProvider({ children, localData }) {
         amount: Number(s.amount), status: s.status, date: s.date, closedAt: s.closed_at,
         page: s.page, pagePos: s.grid_row != null ? { row: s.grid_row, col: s.grid_col } : null,
         nextAction: s.next_action_type ? { type: s.next_action_type, label: s.next_action_label } : null,
-        nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: s.notes || [],
+        nextActionDate: s.next_action_date || '', proposalId: s.proposal_id, oppNotes: parseSaleNotes(s.notes),
         productType: s.product_type || 'display_print', placementNotes: s.placement_notes || '',
         contractId: s.contract_id || null,
       })));
@@ -3223,6 +3325,50 @@ export function DataProvider({ children, localData }) {
     return m;
   }, [issues]);
 
+  // ── Sales/Clients indexes (Sales Wave 2) ──
+  // Replaces ~40 `clients.find(...)` calls and ~20 `sales.filter(...)`
+  // calls scattered across SalesCRM + ClientProfile. Each one was an
+  // O(N) walk that fired on every keystroke; with 200+ clients and
+  // 500+ sales the kanban was burning real CPU.
+  const clientsById = useMemo(() => {
+    const m = new Map();
+    for (const c of clients) m.set(c.id, c);
+    return m;
+  }, [clients]);
+
+  const salesById = useMemo(() => {
+    const m = new Map();
+    for (const s of sales) m.set(s.id, s);
+    return m;
+  }, [sales]);
+
+  // status → array of sales. One pass over the canonical sales array
+  // produces every kanban column at once. Order within a column is
+  // preserved from the source array (the kanban applies its own sort).
+  const salesByStatus = useMemo(() => {
+    const m = new Map();
+    for (const s of sales) {
+      let arr = m.get(s.status);
+      if (!arr) { arr = []; m.set(s.status, arr); }
+      arr.push(s);
+    }
+    return m;
+  }, [sales]);
+
+  const salesByClient = useMemo(() => {
+    const m = new Map();
+    for (const s of sales) {
+      let arr = m.get(s.clientId);
+      if (!arr) { arr = []; m.set(s.clientId, arr); }
+      arr.push(s);
+    }
+    return m;
+  }, [sales]);
+
+  const getSalesForClient = useCallback((clientId) =>
+    salesByClient.get(clientId) || [],
+  [salesByClient]);
+
   // ============================================================
   // Context value — memoized to prevent unnecessary re-renders
   // ============================================================
@@ -3231,8 +3377,9 @@ export function DataProvider({ children, localData }) {
     pubs: activePubs, allPubs: pubs, setPubs, pubsById,
     issues, setIssues, issuesByPubAndDate,
     stories, setStories, storiesById, storiesByIssue, getStoriesForIssue,
-    clients, setClients,
-    sales, setSales, proposals, setProposals, team, setTeam, notifications, setNotifications,
+    clients, setClients, clientsById,
+    sales, setSales, salesById, salesByStatus, salesByClient, getSalesForClient,
+    proposals, setProposals, team, setTeam, notifications, setNotifications,
     // Phase 2 data + setters
     invoices, setInvoices, payments, setPayments,
     subscribers, setSubscribers, dropLocations, setDropLocations, dropLocationPubs, setDropLocationPubs,
@@ -3270,7 +3417,8 @@ export function DataProvider({ children, localData }) {
     addPriority, removePriority, highlightPriority, autoRemoveClosedPriorities,
     loaded, bootStatus, bootFailures,
     // Original write helpers
-    updateClient, updateClientContact, insertClient, deleteClient,
+    updateClient, updateClientContact, insertClientContact, deleteClientContact,
+    insertClient, deleteClient,
     updatePubGoal, updateIssueGoal,
     updateStory, insertStory, deleteStory, publishStory, unpublishStory,
     updateSale, insertSale, deleteSale,

@@ -13,3 +13,4 @@ export {
 } from "./Primitives";
 export { FilterPillStrip } from "./FilterPillStrip";
 export { EntityLink } from "./EntityLink";
+export { SaveStatusPill } from "./SaveStatusPill";

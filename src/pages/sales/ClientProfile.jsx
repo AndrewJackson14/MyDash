@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Z, COND, DISPLAY, FS, FW, Ri, R, INV } from "../../lib/theme";
-import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, EntityLink } from "../../components/ui";
+import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, Modal, EntityLink, SaveStatusPill } from "../../components/ui";
 import { useNav } from "../../hooks/useNav";
 import AssetPanel from "../../components/AssetPanel";
 import EntityThread from "../../components/EntityThread";
 import { CONTACT_ROLES, COMM_TYPES, COMM_AUTHORS } from "../../constants";
 import { computeClientStatus, CLIENT_STATUS_COLORS, actInfo } from "./constants";
 import { useAppData } from "../../hooks/useAppData";
+import { useSaveStatus } from "../../hooks/useSaveStatus";
 import { supabase, EDGE_FN_URL } from "../../lib/supabase";
 import SendTearsheetModal from "../../components/SendTearsheetModal";
 import { TokenAdminMenu } from "../../components/TokenAdminMenu";
@@ -357,13 +358,25 @@ function SendPortfolioModal({ client, onClose }) {
 
 const ClientProfile = ({
   clientId, clients, setClients, sales, setSales, pubs, issues, proposals, contracts,
-  invoices, payments, team,
+  invoices, payments, team, currentUser,
   commForm, setCommForm, onBack, onNavTo, onNavigate, onOpenProposal, onSetViewPropId,
   onOpenEditClient, onOpenEmail, onOpenMeeting,
   bus, updateClientContact,
 }) => {
   const nav = useNav(onNavigate);
   const appData = useAppData();
+  const save = useSaveStatus();
+  // Mirrors the SalesCRM pattern (Sales Wave 1) — wraps every async write
+  // in save.track so the SaveStatusPill flips through saving / saved /
+  // error states. Swallow rejects so a single failure doesn't crash the
+  // surrounding handler — the pill exposes retry on click.
+  const persist = useCallback(async (factory, retryFactory) => {
+    try {
+      return await save.track(factory(), {
+        retry: retryFactory ? () => save.track(retryFactory()) : undefined,
+      });
+    } catch (_) { return null; }
+  }, [save]);
   useEffect(() => {
     if (clientId && appData?.loadSalesForClient) appData.loadSalesForClient(clientId);
   }, [clientId, appData]);
@@ -578,14 +591,49 @@ const ClientProfile = ({
   const toggleYear = (y) => setExpandedYears(s => { const n = new Set(s); n.has(y) ? n.delete(y) : n.add(y); return n; });
   const toggleContract = (id) => setExpandedContracts(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  // Helpers
-  const addComm = () => { if (!commForm.note.trim()) return; setClients(cl => cl.map(c => c.id === vc.id ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: commForm.type, author: commForm.author, date: today, note: commForm.note }] } : c)); setCommForm({ type: "Comment", author: "Account Manager", note: "" }); };
-  const updClient = (f, v) => setClients(cl => cl.map(c => c.id === vc.id ? { ...c, [f]: v } : c));
-  const updCt = (i, f, v) => setClients(cl => cl.map(c => c.id === vc.id ? { ...c, contacts: c.contacts.map((ct, j) => j === i ? { ...ct, [f]: v } : ct) } : c));
+  // Helpers — Sales Wave 1: every write routes through useAppData so
+  // it lands in Supabase (was setClients-only / data-loss before).
+  const addComm = async () => {
+    if (!commForm.note.trim()) return;
+    const author = commForm.author || currentUser?.name || "Account Manager";
+    await persist(() => appData.addComm(vc.id, {
+      id: "cm" + Date.now(),
+      type: commForm.type,
+      author,
+      date: today,
+      note: commForm.note,
+    }));
+    setCommForm({ type: "Comment", author: commForm.author, note: "" });
+  };
+  const updClient = (f, v) => {
+    // Optimistic local update keeps the input feeling instant; the
+    // appData.updateClient call writes through to Supabase and
+    // mirrors back into context state.
+    setClients(cl => cl.map(c => c.id === vc.id ? { ...c, [f]: v } : c));
+    persist(() => appData.updateClient(vc.id, { [f]: v }));
+  };
+  // Per-contact field edit. Local update on every change for instant UI;
+  // the per-field onBlur handlers below queue a DB flush so we don't
+  // hammer Supabase on each keystroke. Sel onChange events get a direct
+  // DB write inline (one event per selection — cheap to fire).
+  const updCt = (i, f, v) => {
+    setClients(cl => cl.map(c => c.id === vc.id ? { ...c, contacts: c.contacts.map((ct, j) => j === i ? { ...ct, [f]: v } : ct) } : c));
+  };
+  const flushCt = (idx, patch) => {
+    const ct = (vc.contacts || [])[idx];
+    if (ct?.id) persist(() => appData.updateClientContact(vc.id, ct.id, patch));
+  };
   const cc = t => ({ Email: Z.tx, Phone: Z.tx, Text: Z.tx, Comment: Z.tm, Survey: Z.tm, Result: Z.tm })[t] || Z.tm;
   const fmtD = d => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+    {/* ── SAVE STATUS — flips through saving / saved / error as the
+         per-field updateClient + addComm + insertClientContact writes
+         round-trip the DB (Sales Wave 1). Pill is hidden on idle. */}
+    <div style={{ display: "flex", justifyContent: "flex-end", minHeight: 0 }}>
+      <SaveStatusPill save={save} />
+    </div>
 
     {/* ── HEADER ── */}
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -607,7 +655,7 @@ const ClientProfile = ({
                 if (reason === null) return; // cancelled
               }
               setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: hold, creditHoldReason: reason } : c));
-              if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: hold, creditHoldReason: reason });
+              persist(() => appData.updateClient(vc.id, { creditHold: hold, creditHoldReason: reason }));
             }}
             title={vc.creditHold ? (vc.creditHoldReason ? `Credit Hold — ${vc.creditHoldReason}. Click to release.` : "Credit Hold Active — click to release") : "Toggle Credit Hold"}
             style={{
@@ -644,7 +692,7 @@ const ClientProfile = ({
           <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: Z.td, textTransform: "uppercase" }}>Flag:</span>
           <select
             value={vc.lapsedReason || ""}
-            onChange={e => { const v = e.target.value || null; setClients(cl => cl.map(c => c.id === vc.id ? { ...c, lapsedReason: v } : c)); if (appData?.updateClient) appData.updateClient(vc.id, { lapsedReason: v }); }}
+            onChange={e => { const v = e.target.value || null; setClients(cl => cl.map(c => c.id === vc.id ? { ...c, lapsedReason: v } : c)); persist(() => appData.updateClient(vc.id, { lapsedReason: v })); }}
             style={{ background: vc.lapsedReason ? Z.wa + "15" : Z.bg, border: `1px solid ${vc.lapsedReason ? Z.wa : Z.bd}`, borderRadius: Ri, padding: "3px 8px", color: vc.lapsedReason ? Z.wa : Z.td, fontSize: FS.xs, fontWeight: FW.semi, fontFamily: COND, cursor: "pointer", outline: "none" }}
           >
             <option value="">Not flagged</option>
@@ -666,7 +714,7 @@ const ClientProfile = ({
           {vc.creditHoldReason || "Production is blocked for this client."} Ad projects will not auto-create on sale close. Flatplan placement will warn.
         </div>
       </div>
-      <Btn sm v="secondary" onClick={() => { setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: false, creditHoldReason: null } : c)); if (appData?.updateClient) appData.updateClient(vc.id, { creditHold: false, creditHoldReason: null }); }}>Clear Hold</Btn>
+      <Btn sm v="secondary" onClick={() => { setClients(cl => cl.map(c => c.id === vc.id ? { ...c, creditHold: false, creditHoldReason: null } : c)); persist(() => appData.updateClient(vc.id, { creditHold: false, creditHoldReason: null })); }}>Clear Hold</Btn>
     </div>}
 
     {/* ── RENEWAL ALERT ── */}
@@ -694,7 +742,12 @@ const ClientProfile = ({
           if (!primaryContact.phone) { e.preventDefault(); return; }
           // Drop a Call comm immediately so the timeline reflects the
           // attempt even if the rep doesn't loop back to log a result.
-          setClients(cl => cl.map(c => c.id === vc.id ? { ...c, comms: [...(c.comms || []), { id: "cm" + Date.now(), type: "Call", author: "Account Manager", date: today, note: `Tapped to call ${primaryContact.phone}` }] } : c));
+          persist(() => appData.addComm(vc.id, {
+            id: "cm" + Date.now(), type: "Call",
+            author: currentUser?.name || "Account Manager",
+            date: today,
+            note: `Tapped to call ${primaryContact.phone}`,
+          }));
         }}
         style={actionBtnStyle(primaryContact.phone, Z.ac)}
         title={primaryContact.phone || "No phone on file"}
@@ -844,16 +897,16 @@ const ClientProfile = ({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Contacts</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={() => setClients(cl => cl.map(c => c.id === vc.id ? { ...c, contacts: [...(c.contacts || []), { name: "", email: "", phone: "", role: "Other" }] } : c))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "2px 8px" }}>+ Add</button>
+              <button onClick={() => persist(() => appData.insertClientContact(vc.id, { name: "", email: "", phone: "", role: "Other" }))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "2px 8px" }}>+ Add</button>
               {onOpenEditClient && <button onClick={() => onOpenEditClient(vc)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, padding: "2px 8px" }}>Edit</button>}
             </div>
           </div>
           {(vc.contacts || []).map((ct, idx) => <div key={ct.id || idx} style={{ background: Z.bg, borderRadius: R, padding: 16, marginBottom: 4 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
-              <Sel value={ct.role} onChange={e => updCt(idx, "role", e.target.value)} options={CONTACT_ROLES.map(r => ({ value: r, label: r }))} style={{ padding: "2px 24px 2px 6px", textTransform: "uppercase" }} />
+              <Sel value={ct.role} onChange={e => { updCt(idx, "role", e.target.value); flushCt(idx, { role: e.target.value }); }} options={CONTACT_ROLES.map(r => ({ value: r, label: r }))} style={{ padding: "2px 24px 2px 6px", textTransform: "uppercase" }} />
               {idx === 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.wa, background: Z.ws, padding: "1px 5px", borderRadius: Ri }}>PRIMARY</span>}
             </div>
-            <input value={ct.name} onChange={e => updCt(idx, "name", e.target.value)} placeholder="Name" style={{ display: "block", width: "100%", background: "none", border: "none", color: Z.tx, fontSize: FS.md, fontWeight: FW.semi, fontFamily: COND, outline: "none", boxSizing: "border-box" }} />
+            <input value={ct.name} onChange={e => updCt(idx, "name", e.target.value)} onBlur={e => flushCt(idx, { name: e.target.value })} placeholder="Name" style={{ display: "block", width: "100%", background: "none", border: "none", color: Z.tx, fontSize: FS.md, fontWeight: FW.semi, fontFamily: COND, outline: "none", boxSizing: "border-box" }} />
             <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: Z.tm }}><span>{ct.email}</span>{ct.phone && <span>· {ct.phone}</span>}</div>
             {/* Per-contact Relationship Notes — distinct from the
                 account-level notes above. Persists on blur so the
@@ -865,7 +918,7 @@ const ClientProfile = ({
               <textarea
                 value={ct.notes || ""}
                 onChange={e => updCt(idx, "notes", e.target.value)}
-                onBlur={e => { if (ct.id && updateClientContact) updateClientContact(vc.id, ct.id, { notes: e.target.value }); }}
+                onBlur={e => flushCt(idx, { notes: e.target.value })}
                 placeholder="Preferred channel, family, interests, best time to call…"
                 style={{ width: "100%", minHeight: 56, background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: 8, color: Z.tx, fontSize: FS.sm, outline: "none", resize: "vertical", fontFamily: "'Source Sans 3',sans-serif", lineHeight: 1.4, boxSizing: "border-box" }}
               />
