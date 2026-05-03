@@ -1,11 +1,13 @@
 # Batch 5 — `rls_policy_always_true` audit
 
-**Status:** Documentation pass. No migration applied. Tightening
-the flagged policies requires app-side changes (audit fields,
-ownership checks) that don't belong in a one-shot SQL migration.
+**Status:** Tightened in mig 202 after re-review concluded the portal
+launch already broke the "authenticated == staff" assumption. 19
+authenticated-role write policies now require `current_user_is_team_member()`.
+Advisor count: 27 → 7 (the remainder are intentional public-ingest +
+customer-cart endpoints documented in Category 1).
 
 **Generated:** 2026-05-03 alongside batches 1–4 of the RLS / perf
-hardening pass.
+hardening pass. Updated 2026-05-03 after mig 202.
 
 ---
 
@@ -15,10 +17,12 @@ hardening pass.
 |---|---|---|
 | Anon public-ingest | 4 | **Keep as-is** — intentional public form endpoints |
 | Service-role only | 15 | **Keep as-is** — service role bypasses RLS regardless; policies are documentation |
-| Authenticated — `INSERT`-only audit/log writes | 10 | **Defer** — requires app-side audit-field plumbing |
-| Authenticated — blanket `ALL` / `UPDATE` / `DELETE` | 13 | **Defer** — currently intentional in single-tenant staff model |
-| **Total non-SELECT always-true policies in production** | **42** |  |
-| **Advisor-flagged subset** | **27** | All categorized below |
+| Authenticated write — staff surfaces | 19 | **Tightened in mig 202** — require `current_user_is_team_member()` |
+| Customer cart (`merch_orders`, `merch_order_items`) | 2 | **Keep as-is** — intentional public-cart |
+| Tokenized customer flow (`ad_proofs/ad_proofs_public_update`) | 1 | **Defer** — needs SECURITY DEFINER RPC refactor like proposal_signatures |
+| **Total non-SELECT always-true policies (pre-mig-202)** | **42** |  |
+| **Advisor-flagged subset (pre-mig-202)** | **27** |  |
+| **Advisor-flagged subset (post-mig-202)** | **7** | 4 anon + 2 cart + 1 ad_proofs |
 
 (SELECT-only `USING (true)` policies are not flagged — they're the
 standard "everyone can read this public reference data" pattern,
