@@ -202,6 +202,19 @@ Other (no daily target, surfaced via Performance):
 | Email send rejected | Gmail throttle. Wait or use a different sender; for high volume, swap to SES via Newsletter (sales emails go via Gmail today). |
 | Inquiry won't auto-match a client | Email exact-match against `client_contacts` only — domain match is intentionally off (false-positive risk too high). Add the contact email to the client manually. |
 
+## Customer Portal
+
+> Reps see the portal mostly through the **View as customer · portal
+> (read-only)** button on every client profile. Opens
+> `portal.13stars.media/c/<slug>/?staff_view=1` in a new tab — yellow
+> banner on top, all write actions disabled, full read across the
+> customer's proposals / invoices / ad projects / activity feed.
+> Useful when a customer asks "what does my account show?" and you
+> want to see exactly their view without simulating their auth.
+
+For the full portal context (account creation paths, what customers
+can/can't do, troubleshooting), see `_shared/customer-portal.md`.
+
 ## Glossary References
 
 See `_shared/glossary.md` for: Sale, Proposal, Contract, Ad Project, contract_signed, proposal_sent, ProposalSign, ProofApproval, jurisdiction, A/R.

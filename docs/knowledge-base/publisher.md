@@ -223,6 +223,22 @@ For deeper drill-in: Performance page (per-team-member rollups across sales / ed
 | Need to grant a new module to a team member | Team → member → Permissions tab → toggle the module. Or use Permissions page for bulk admin. |
 | Subscriber expired but is on auto-renew | Verify `subscriptions.stripe_subscription_id` is set and Stripe webhook is hitting `stripe-webhook` Edge Function. Stripe → renewal → MyDash subscription `end_date` advance loop. |
 
+## Customer Portal
+
+The customer portal at `portal.13stars.media` gives advertisers a
+read-first window into their own slice of MyDash — proposals, ad
+projects, invoices, activity feed, plus team and notification
+management. Same Supabase project, separate bundle, RLS-isolated.
+
+As Publisher, you'll mostly interact through the **View as customer ·
+portal (read-only)** button on every client profile in MyDash. It
+opens the customer's portal view with a yellow "support view" banner
+and all write actions disabled, so you can confirm what they're
+seeing during a call without simulating their auth.
+
+For full context (account creation paths, what customers can/can't do
+in v1 vs v2, troubleshooting), see `_shared/customer-portal.md`.
+
 ## Glossary References
 
 See `_shared/glossary.md` for definitions of:

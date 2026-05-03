@@ -6,12 +6,18 @@
 // client_contacts row. The portal_clients_read RLS policy lets us
 // query clients for that slug.
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { sx, C, isValidEmail } from "../lib/portalUi";
 
 export default function Login() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  // RequireAuth bounces deep links here as /login?next=<encoded path>.
+  // We restrict next to same-origin paths only (string starts with "/")
+  // so the param can't be used for an open redirect.
+  const rawNext = params.get("next");
+  const safeNext = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
   const [email,         setEmail]         = useState("");
   const [password,      setPassword]      = useState("");
   const [showPwd,       setShowPwd]       = useState(false);
@@ -20,28 +26,34 @@ export default function Login() {
   const [error,         setError]         = useState(null);
   const [resolvingAuth, setResolvingAuth] = useState(true);
 
-  // If already signed in, jump straight to the user's home.
+  // If already signed in, jump straight to the requested next URL or
+  // the user's home.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!session) { setResolvingAuth(false); return; }
+      if (safeNext) { nav(safeNext, { replace: true }); return; }
       const slug = await resolveActiveClientSlug();
       if (cancelled) return;
       if (slug) nav(`/c/${slug}/home`, { replace: true });
       else      setResolvingAuth(false);
     })();
     return () => { cancelled = true; };
-  }, [nav]);
+  }, [nav, safeNext]);
 
   const sendMagicLink = async () => {
     setError(null);
     if (!isValidEmail(email)) { setError("Please enter a valid email."); return; }
     setSubmitting(true);
-    const redirectTo = `${window.location.origin}/setup/complete`;
+    // Magic-link from /login is for returning users — there's no setup
+    // token to redeem, so we round-trip through /login itself. The
+    // already-signed-in useEffect picks up the session and routes to
+    // ?next=<original path> or /c/<slug>/home.
+    const back = `${window.location.origin}/login${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`;
     const { error: e } = await supabase.auth.signInWithOtp({
-      email: email.trim(), options: { emailRedirectTo: redirectTo },
+      email: email.trim(), options: { emailRedirectTo: back },
     });
     setSubmitting(false);
     if (e) { setError(e.message || "Couldn't send the sign-in link. Try again."); return; }
@@ -58,6 +70,7 @@ export default function Login() {
     });
     setSubmitting(false);
     if (e) { setError(e.message || "Sign-in failed."); return; }
+    if (safeNext) { nav(safeNext, { replace: true }); return; }
     const slug = await resolveActiveClientSlug();
     nav(slug ? `/c/${slug}/home` : "/setup", { replace: true });
   };

@@ -10,11 +10,23 @@ import { C } from "../lib/portalUi";
 import AccountPicker from "./AccountPicker";
 
 export default function PortalShell() {
-  const { signOut, session, activeClient } = usePortal();
+  const { signOut, session, activeClient, isStaffView } = usePortal();
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "inherit" }}>
+      {isStaffView && (
+        <div style={{
+          position: "sticky", top: 0, zIndex: 11,
+          background: "#FEF3C7", color: "#92400E",
+          borderBottom: "1px solid #FCD34D",
+          padding: "8px 16px",
+          fontSize: 12, fontWeight: 600,
+          textAlign: "center",
+        }}>
+          Support view as <strong>{activeClient?.clientName || "—"}</strong> — read-only.
+        </div>
+      )}
       <header style={{
-        position: "sticky", top: 0, zIndex: 10,
+        position: "sticky", top: isStaffView ? 33 : 0, zIndex: 10,
         background: "#fff", borderBottom: `1px solid ${C.rule}`,
         padding: "10px 20px",
         display: "flex", alignItems: "center", gap: 16,

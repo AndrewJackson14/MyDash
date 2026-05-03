@@ -2,16 +2,20 @@
 // auth + active-client + accessible-clients state. Every /c/<slug>/*
 // page reads from here via usePortal().
 //
-// Design:
-//   - Mount once inside RequireAuth (which itself wraps the whole
-//     /c/<slug>/* tree), so the client list is fetched at most once
-//     per portal session.
-//   - The active client is derived from the URL slug, not from
-//     localStorage — URL is the source of truth (per spec D13).
-//   - localStorage stores "last visited slug" only as a redirect
-//     hint after /setup/complete or /login.
+// Two paths:
+//   1. Customer mode (default) — load every client_contacts row keyed
+//      to auth.uid(); accessibleClients is the flattened result.
+//   2. Staff support view (URL ?staff_view=1) — verify the auth user
+//      via current_user_is_staff() RPC; if true, fetch the single
+//      client by URL slug directly (existing has_permission RLS
+//      grants this) and set isStaffView=true. UI flips to read-only.
+//      If verification fails, fall through to normal mode.
+//
+// The active client is always derived from the URL slug, not local-
+// storage (D13). localStorage just hints last-visited so /login can
+// redirect post-magic-link.
 import { createContext, useContext, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
 const PortalCtx = createContext(null);
@@ -19,13 +23,16 @@ const PortalCtx = createContext(null);
 export const ACTIVE_SLUG_KEY = "mydash:active_client_slug";
 
 export function PortalProvider({ children }) {
-  const { slug } = useParams();
-  const [session,         setSession]         = useState(null);
-  const [accessibleClients, setAccessibleClients] = useState([]);
-  const [loading,         setLoading]         = useState(true);
-  const [error,           setError]           = useState(null);
+  const { slug }     = useParams();
+  const [params]     = useSearchParams();
+  const wantStaffView = params.get("staff_view") === "1";
 
-  // Resolve session + load accessible clients
+  const [session,           setSession]           = useState(null);
+  const [accessibleClients, setAccessibleClients] = useState([]);
+  const [isStaffView,       setIsStaffView]       = useState(false);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -33,6 +40,37 @@ export function PortalProvider({ children }) {
       if (cancelled) return;
       setSession(s);
       if (!s) { setLoading(false); return; }
+
+      // Staff support view path: verify staff role, then load just
+      // the URL-slug client directly via existing staff RLS.
+      if (wantStaffView && slug) {
+        const { data: isStaff } = await supabase.rpc("current_user_is_staff");
+        if (cancelled) return;
+        if (isStaff === true) {
+          const { data: client } = await supabase
+            .from("clients")
+            .select("id, name, slug, status")
+            .eq("slug", slug)
+            .maybeSingle();
+          if (cancelled) return;
+          if (client?.id) {
+            setAccessibleClients([{
+              contactId:    null,
+              contactRole:  "staff_view",
+              contactName:  s.user?.email || "Staff",
+              clientId:     client.id,
+              clientName:   client.name,
+              clientSlug:   client.slug,
+              clientStatus: client.status,
+            }]);
+            setIsStaffView(true);
+            setLoading(false);
+            return;
+          }
+        }
+        // Staff verification failed or client not found — fall through
+        // to normal customer-mode load.
+      }
 
       const { data, error: e } = await supabase
         .from("client_contacts")
@@ -50,8 +88,6 @@ export function PortalProvider({ children }) {
         setLoading(false);
         return;
       }
-      // Flatten: one row per (contact, client) — UI groups by client.
-      // Some contacts may have a NULL clients join if RLS hides; filter.
       const flat = (data || [])
         .filter((r) => r.clients?.id && r.clients?.slug)
         .map((r) => ({
@@ -71,7 +107,8 @@ export function PortalProvider({ children }) {
       setSession(s);
     });
     return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, wantStaffView]);
 
   const activeClient = slug
     ? accessibleClients.find((c) => c.clientSlug === slug) || null
@@ -81,6 +118,7 @@ export function PortalProvider({ children }) {
     session,
     accessibleClients,
     activeClient,
+    isStaffView,
     loading,
     error,
     signOut: async () => {

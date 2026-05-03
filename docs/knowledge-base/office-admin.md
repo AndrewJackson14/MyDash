@@ -208,6 +208,29 @@ Other (Performance Review):
 | A/R aging shows clients I just collected from | Refresh after Stripe webhook fully replicates (~2-3 min). If still wrong, manually verify `payments` rows are linked to the right `invoice_id`. |
 | Tearsheet wasn't auto-generated | Currently manual. Generate the PDF outside MyDash and upload via Tearsheet Center. |
 
+## Customer Portal
+
+Most customer-facing support traffic lands here. Every client profile
+in MyDash has a **View as customer · portal (read-only)** button that
+opens `portal.13stars.media/c/<slug>/?staff_view=1` in a new tab —
+yellow banner, write actions disabled, full read across the
+customer's proposals / invoices / ad projects / activity feed.
+
+Common admin scenarios:
+
+- **Customer can't sign in.** Confirm their email matches a
+  `client_contacts.email` row with `portal_revoked_at IS NULL`. If
+  not, ask the primary contact to invite them via
+  Account → Team → Invite (or invite directly from MyDash if you have
+  Support Admin role — both routes call `invite_client_contact`).
+- **Customer asks "where's my invoice?"** Open View as customer →
+  Invoices tab. Confirm the invoice exists with non-draft `status`.
+- **Customer wants to pay online.** Not in v1 — point them to their
+  rep. Stripe payment is v2.
+
+For full context (account creation paths, what customers can/can't
+do, RPC catalog, troubleshooting), see `_shared/customer-portal.md`.
+
 ## Glossary References
 
 See `_shared/glossary.md` for: Invoice, Payment, Bill, A/R, A/P, DSO, MTD, Subscription, Subscriber, Drop Location, QBO, Stripe, send-statement, applied_to_credit.

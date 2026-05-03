@@ -18,7 +18,7 @@ const ROLE_OPTIONS = [
 ];
 
 export default function TeamTab({ clientId }) {
-  const { session, accessibleClients } = usePortal();
+  const { session, accessibleClients, isStaffView } = usePortal();
   const [contacts, setContacts] = useState(null);
   const [error,    setError]    = useState(null);
   const [busyId,   setBusyId]   = useState(null);
@@ -26,7 +26,7 @@ export default function TeamTab({ clientId }) {
 
   const myAuth = session?.user?.id;
   const myContact = (accessibleClients || []).find((c) => c.clientId === clientId);
-  const canManage = !!myContact && /advertising|billing/i.test(myContact.contactRole || "");
+  const canManage = !isStaffView && !!myContact && /advertising|billing/i.test(myContact.contactRole || "");
 
   const reload = async () => {
     setContacts(null);

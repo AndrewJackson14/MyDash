@@ -27,7 +27,7 @@ const DEFAULT_PREFS = {
 };
 
 export default function NotificationsTab({ clientId }) {
-  const { session } = usePortal();
+  const { session, isStaffView } = usePortal();
   const [prefs,    setPrefs]    = useState(null);
   const [original, setOriginal] = useState(null);
   const [saving,   setSaving]   = useState(false);
@@ -82,13 +82,15 @@ export default function NotificationsTab({ clientId }) {
           display: "flex", alignItems: "flex-start", gap: 12,
           padding: "14px 0",
           borderTop: `1px solid ${C.rule}`,
-          cursor: "pointer",
+          cursor: isStaffView ? "not-allowed" : "pointer",
+          opacity: isStaffView ? 0.6 : 1,
         }}>
           <input
             type="checkbox"
             checked={!!prefs[f.key]}
+            disabled={isStaffView}
             onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.checked }))}
-            style={{ marginTop: 3, accentColor: C.ac, cursor: "pointer" }}
+            style={{ marginTop: 3, accentColor: C.ac, cursor: isStaffView ? "not-allowed" : "pointer" }}
           />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{f.label}</div>
@@ -100,11 +102,13 @@ export default function NotificationsTab({ clientId }) {
       <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.rule}`, display: "flex", alignItems: "center", gap: 12 }}>
         <button
           onClick={save}
-          disabled={saving || !dirty}
-          style={{ ...sx.btn(saving || !dirty), width: "auto", padding: "10px 18px", fontSize: 13 }}
+          disabled={saving || !dirty || isStaffView}
+          title={isStaffView ? "Read-only in support view" : ""}
+          style={{ ...sx.btn(saving || !dirty || isStaffView), width: "auto", padding: "10px 18px", fontSize: 13 }}
         >{saving ? "Saving…" : "Save changes"}</button>
         {saved && <span style={{ fontSize: 12, color: C.ok, fontWeight: 600 }}>Saved ✓</span>}
-        {!dirty && !saved && <span style={{ fontSize: 12, color: C.muted }}>Up to date</span>}
+        {!dirty && !saved && !isStaffView && <span style={{ fontSize: 12, color: C.muted }}>Up to date</span>}
+        {isStaffView && <span style={{ fontSize: 12, color: C.muted }}>Read-only in support view</span>}
       </div>
 
       <div style={{ marginTop: 16, fontSize: 11, color: C.cap, lineHeight: 1.5 }}>

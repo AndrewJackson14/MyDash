@@ -3,7 +3,7 @@
 // 2. If session but no contact rows → "no portal access" message
 // 3. If session + slug not in accessibleClients → 404 (slug invalid or revoked)
 // 4. Else render children with PortalProvider in scope
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import { PortalProvider, usePortal } from "../lib/portalContext";
 import { sx, C } from "../lib/portalUi";
 
@@ -17,13 +17,19 @@ export default function RequireAuth({ children }) {
 
 function Gate({ children }) {
   const { slug } = useParams();
+  const location = useLocation();
   const { session, accessibleClients, activeClient, loading, error } = usePortal();
 
   if (loading) {
     return <div style={sx.page}><div style={{ color: C.muted }}>Loading…</div></div>;
   }
   if (!session) {
-    return <Navigate to="/login" replace />;
+    // Preserve where the user was trying to go so /login can route
+    // them back after sign-in. Critical for the staff-support flow
+    // (portal.13stars.media/c/<slug>/?staff_view=1) — without this
+    // the staff_view=1 flag is lost across the login round-trip.
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
   }
   if (error) {
     return <ErrorCard title="Couldn't load your accounts" body={error} />;
