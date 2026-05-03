@@ -1,11 +1,13 @@
 import React from "react";
 import { FS } from "../../lib/theme";
+import { useModalStack } from "../../hooks/useModalStack";
 
 // Reader-view preview of the live editor body. Reads `editor.getHTML()`
 // once on render so editors see in-flight changes (not just persisted
 // body). Markup mirrors a StellarPress article page enough to catch
 // "did I forget the byline / featured image / category" before publish.
 function WebPreviewModal({ open, onClose, meta, pubs, editor }) {
+  useModalStack(open, onClose);
   if (!open) return null;
   const pubName = (pubs.find(p => p.id === (meta.publication_id || meta.publication))?.name) || "Publication";
   return (

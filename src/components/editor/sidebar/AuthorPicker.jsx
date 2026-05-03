@@ -10,13 +10,23 @@ function AuthorPicker({ author, authors, freelancers, onChange, onCustom }) {
   const opts = useMemo(() => {
     const out = [];
     const seen = new Set();
+    // Freelancers always read "Freelance" — collapsing the staff role
+    // (typically "Stringer") makes the picker scannable.
     authors.forEach(a => {
-      out.push({ value: a.name, label: (a.name || "").replace(/[–—]/g, "-"), sub: a.isFreelance ? "Freelance" : (a.role || "Staff") });
+      out.push({
+        value: a.name,
+        label: (a.name || "").replace(/[–—]/g, "-"),
+        sub: a.isFreelance ? "Freelance" : (a.role || "Staff"),
+      });
       seen.add(a.name);
     });
     freelancers.forEach(f => {
       if (!seen.has(f.name)) {
-        out.push({ value: f.name, label: f.name, sub: "Freelance" + (f.specialty ? " · " + f.specialty : "") });
+        out.push({
+          value: f.name,
+          label: f.name,
+          sub: f.specialty ? "Freelance · " + f.specialty : "Freelance",
+        });
         seen.add(f.name);
       }
     });
@@ -45,7 +55,7 @@ function AuthorPicker({ author, authors, freelancers, onChange, onCustom }) {
           title="Type a custom byline (freelancer, syndicated, etc.)"
           onClick={onCustom}
           style={{ padding: "0 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, color: Z.tm, fontSize: FS.sm, cursor: "pointer", fontFamily: COND, flexShrink: 0 }}
-        >+ Custom</button>
+        >Custom byline…</button>
       </div>
     </div>
   );

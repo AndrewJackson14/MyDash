@@ -19,6 +19,7 @@ import { useDialog } from "../../hooks/useDialog";
 import { uploadMedia } from "../../lib/media";
 import { formatInTimezone, parseFromTimezone, getBrowserTimezone, tzShortLabel, fmtInTimezone } from "../../lib/timezone";
 import { useSaveStatus } from "../../hooks/useSaveStatus";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 
 import { WORKFLOW_STAGES, STORY_TYPES } from "./StoryEditor.constants";
 import { pn, pColor, tn, ago, getStage, fmtDate, slugify } from "./StoryEditor.helpers";
@@ -29,6 +30,7 @@ import StoryEditorSidebar from "./StoryEditorSidebar";
 import StoryEditorTopBar from "./StoryEditorTopBar";
 import StoryEditorToolbar from "./StoryEditorToolbar";
 import StoryEditorBody from "./StoryEditorBody";
+import LoadingSkeleton from "./LoadingSkeleton";
 
 // ── Upload via Edge Function ─────────────────────────────────────
 async function uploadImage(file, path) {
@@ -90,6 +92,12 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
   // there first — we refetch and warn the user instead of silently
   // overwriting. Initialized when the full row loads in the mount fetch.
   const lastUpdatedAtRef = useRef(null);
+  // Captured for Wave-3 admin Break Lock: re-track ourselves with
+  // joinedAt=0 so we win the earliest-joiner tiebreaker
+  // deterministically. The other tab (if alive) sees itself flip to
+  // the loser side on its next sync.
+  const lockChannelRef = useRef(null);
+  const lockMeRef = useRef(null);
 
   // ── FIX #3: Use 'publication' (camelCase from useAppData) ───
   const selectedPubs = useMemo(() => {
@@ -390,11 +398,26 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
     }
   }, [editor, contentLoading, fullContent, story.content_json, story.body]);
 
-  // ── Load activity log ───────────────────────────────────────
+  // ── Load activity log + subscribe to real-time inserts ─────
+  // The mount fetch grabs the last 20 entries; the realtime subscription
+  // prepends new ones so the panel doesn't lag behind action triggers
+  // (publish, status flips, layout handoff pings) coming from elsewhere.
   useEffect(() => {
     if (!story.id) return;
     supabase.from("story_activity").select("*").eq("story_id", story.id).order("created_at", { ascending: false }).limit(20)
       .then(({ data }) => { if (data) setActivity(data); });
+    const channel = supabase
+      .channel(`story-activity-${story.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "story_activity",
+        filter: `story_id=eq.${story.id}`,
+      }, (payload) => {
+        setActivity(prev => [payload.new, ...prev].slice(0, 20));
+      })
+      .subscribe();
+    return () => { try { supabase.removeChannel(channel); } catch (_) {} };
   }, [story.id]);
 
   // (Wednesday Agent's per-story social_posts panel was removed in
@@ -433,9 +456,11 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
       }
       if (cancelled) return;
       const key = me.id;
+      lockMeRef.current = me;
       channel = supabase.channel(`story-lock-${story.id}`, {
         config: { presence: { key } },
       });
+      lockChannelRef.current = channel;
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         // Flatten — presenceState returns { key: [ {…meta} ] }.
@@ -456,9 +481,31 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
     })();
     return () => {
       cancelled = true;
+      lockChannelRef.current = null;
       try { if (channel) { channel.untrack(); supabase.removeChannel(channel); } } catch (_) {}
     };
   }, [story?.id, currentUser?.id, team]);
+
+  // Admin Break Lock — re-tracks self with joinedAt=0. Sync recomputes
+  // the winner (us, since 0 sorts first) and the lock screen falls
+  // away. The previous holder (if their tab is alive) flips to the
+  // loser side on their next sync.
+  const breakLock = useCallback(async () => {
+    if (!lockedBy) return;
+    const ok = await dialog.confirm(
+      `Break ${lockedBy.userName}'s lock? If they're actually still editing, both edits may conflict.`
+    );
+    if (!ok) return;
+    const ch = lockChannelRef.current;
+    const me = lockMeRef.current;
+    if (!ch || !me) return;
+    try {
+      await ch.track({ userId: me.id, userName: me.name || "Editor", joinedAt: 0 });
+    } catch (err) {
+      console.error("breakLock failed:", err);
+      await dialog.alert("Couldn't break the lock: " + (err?.message || "unknown"));
+    }
+  }, [dialog, lockedBy]);
 
   // ── Auto-save content ───────────────────────────────────────
   const autoSave = useCallback(async (cj, pt) => {
@@ -519,24 +566,72 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
     return save.track(doSave(), { retry: () => save.track(doSave()) });
   }, [story.id, onUpdate, updateStoryGuarded, save]);
 
-  // ── FIX #4: Preflight check before publish ──────────────────
+  // ── Preflight checks ────────────────────────────────────────
+  // Live: re-evaluates on every meta / wordCount change so the modal
+  // updates as the user fixes issues instead of going stale on open.
+  // Each check has a stable id so the click-through "→ fix" handler
+  // can scroll the relevant sidebar panel into view.
   const preflightChecks = useMemo(() => {
     const hasTitle = !!(meta.title && meta.title.trim() && meta.title !== "New Story");
-    const hasBody = !!(editor && editor.getText().trim().length > 20);
+    const hasBody = wordCount >= 5;
     const hasCategory = !!(meta.category || meta.category_id);
     const hasFeaturedImage = !!meta.featured_image_url;
     const legalOk = !meta.needs_legal_review || !!meta.legal_reviewed_at;
     const checks = [
-      { label: "Title is set", pass: hasTitle },
-      { label: "Body has content (20+ characters)", pass: hasBody },
-      { label: "Category is selected", pass: hasCategory },
-      { label: "Featured image is set", pass: hasFeaturedImage },
+      { id: "title",    label: "Title is set",                  pass: hasTitle },
+      { id: "body",     label: "Body has content (5+ words)",   pass: hasBody },
+      { id: "category", label: "Category is selected",          pass: hasCategory },
+      { id: "image",    label: "Featured image is set",         pass: hasFeaturedImage },
     ];
-    if (meta.needs_legal_review) checks.push({ label: "Legal review signed off", pass: legalOk, blocking: true });
+    if (meta.needs_legal_review) checks.push({ id: "legal", label: "Legal review signed off", pass: legalOk });
     return checks;
-  }, [meta, editor]);
+  }, [meta, wordCount]);
 
   const handlePublishClick = useCallback(() => setPreflightOpen(true), []);
+
+  // Click-through "→ fix" from the preflight modal: scroll the
+  // relevant sidebar panel into view and flash an accent outline so
+  // the editor's eye lands on the right control. Keys map to the
+  // `id` attributes wired onto each panel's outermost element.
+  const scrollAndFlash = useCallback((domId) => {
+    const el = typeof document !== "undefined" ? document.getElementById(domId) : null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const prevTransition = el.style.transition;
+    const prevOutline = el.style.outline;
+    const prevOffset = el.style.outlineOffset;
+    el.style.transition = "outline 0.2s";
+    el.style.outline = `2px solid ${Z.ac}`;
+    el.style.outlineOffset = "2px";
+    setTimeout(() => {
+      el.style.outline = prevOutline || "none";
+      el.style.outlineOffset = prevOffset || "";
+      el.style.transition = prevTransition || "";
+    }, 1500);
+  }, []);
+
+  const fixPreflight = useCallback((checkId) => {
+    setPreflightOpen(false);
+    if (checkId === "title") {
+      // Title input lives inside the body. Defer to next tick so the
+      // modal close finishes before we steal focus.
+      setTimeout(() => {
+        const el = typeof document !== "undefined" ? document.querySelector('input[placeholder^="Story title"]') : null;
+        el?.focus();
+      }, 80);
+      return;
+    }
+    if (checkId === "body") {
+      setTimeout(() => editor?.commands.focus(), 80);
+      return;
+    }
+    const targetId = {
+      category: "panel-category",
+      image:    "panel-story-library",
+      legal:    "panel-legal-review",
+    }[checkId];
+    if (targetId) setTimeout(() => scrollAndFlash(targetId), 80);
+  }, [editor, scrollAndFlash]);
 
   // Sidebar callbacks. Wrapped in useCallback so the memoized panels
   // don't tear down when meta changes for unrelated reasons.
@@ -887,7 +982,42 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
 
   useEffect(() => { return () => { if (saveTimer.current) clearTimeout(saveTimer.current); }; }, []);
 
-  if (contentLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontFamily: COND }}>Loading story content\u2026</div>;
+  // Keyboard shortcuts. Defined after the render-state derivations
+  // above (isPublished / needsRepublish / webApproved) and after the
+  // save / publish handlers \u2014 referencing those in TDZ throws.
+  // Esc is owned by the modal-stack hook in each open modal so this
+  // hook intentionally doesn't bind it.
+  const shortcuts = useMemo(() => [
+    {
+      key: "s", cmd: true, allowInInputs: true,
+      fn: () => {
+        if (!editor) return;
+        if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+        autoSave(editor.getJSON(), editor.getText());
+      },
+    },
+    {
+      key: "Enter", cmd: true, allowInInputs: true,
+      fn: () => {
+        if (isPublished && needsRepublish) republishToWeb();
+        else if (!isPublished && webApproved) setPreflightOpen(true);
+      },
+    },
+    {
+      key: "k", cmd: true, allowInInputs: true,
+      fn: () => {
+        setLinkUrl(editor?.getAttributes("link").href || "");
+        setLinkModalOpen(true);
+      },
+    },
+    {
+      key: "p", cmd: true, allowInInputs: true,
+      fn: () => setPreviewOpen(true),
+    },
+  ], [editor, autoSave, isPublished, needsRepublish, webApproved, republishToWeb]);
+  useKeyboardShortcuts(shortcuts);
+
+  if (contentLoading) return <LoadingSkeleton />;
   if (!editor) return null;
 
   // ── Story-lock blocking modal ──────────────────────────────
@@ -895,15 +1025,31 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
   // all — show a full-screen notice with a single exit affordance.
   if (lockedBy) {
     const since = lockedBy.joinedAt ? new Date(lockedBy.joinedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
+    // Stale-lock surface: presence rows past 30 minutes likely belong
+    // to a closed-laptop / hibernated tab whose heartbeat hasn't yet
+    // timed out. Admins get a Break Lock affordance for those.
+    const lockAgeMin = lockedBy.joinedAt ? (Date.now() - lockedBy.joinedAt) / 60000 : 0;
+    const isStale = lockAgeMin > 30;
+    const isAdmin = !!(currentUser?.permissions?.includes?.("admin"));
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: Z.bg, padding: 24 }}>
         <div style={{ maxWidth: 460, textAlign: "center", background: Z.sf, border: "1px solid " + Z.bd, borderRadius: R, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>\ud83d\udd12</div>
           <h2 style={{ margin: "0 0 8px", fontSize: FS.xl, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY }}>Story is open elsewhere</h2>
-          <p style={{ margin: "0 0 20px", fontSize: FS.md, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
+          <p style={{ margin: "0 0 16px", fontSize: FS.md, color: Z.tm, fontFamily: COND, lineHeight: 1.5 }}>
             <strong style={{ color: Z.tx }}>{lockedBy.userName}</strong> is editing "{meta.title || "this story"}"{since ? ` since ${since}` : ""}. Only one editor can have a story open at a time to avoid conflicting saves.
           </p>
-          <Btn onClick={onClose} style={{ width: "100%" }}>Back to Editorial</Btn>
+          {isStale && (
+            <div style={{ fontSize: FS.xs, color: Z.wa, fontFamily: COND, marginBottom: 16, padding: "8px 10px", background: Z.wa + "12", borderRadius: R, border: "1px solid " + Z.wa + "30" }}>
+              This lock has been held for over 30 minutes \u2014 they may have closed their browser without releasing it.
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <Btn onClick={onClose} style={{ flex: 1 }}>Back to Editorial</Btn>
+            {isAdmin && isStale && (
+              <Btn v="secondary" onClick={breakLock} style={{ flex: 1, color: Z.da, borderColor: Z.da + "40" }}>Break Lock</Btn>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -918,15 +1064,11 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
         uploads={uploads}
         story={story}
         team={team}
-        isPublished={isPublished}
-        needsRepublish={needsRepublish}
-        republishedFlash={republishedFlash}
-        republishing={republishing}
+        wordCount={wordCount}
         discussionOpen={discussionOpen}
         discussionCount={discussionCount}
         onBack={onClose}
         onPreview={() => setPreviewOpen(true)}
-        onRepublish={republishToWeb}
         onSetDiscussionOpen={setDiscussionOpen}
         onMsgCount={setDiscussionCount}
       />
@@ -1005,7 +1147,7 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, pubs, issues, t
       </div>
 
       {/* Modals */}
-      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} scheduledAt={meta.scheduled_at} onScheduleChange={v => { saveMeta("scheduled_at", v); setMeta(m => ({ ...m, scheduled_at: v })); }} publication={publication} />
+      <PreflightModal open={preflightOpen} onClose={() => setPreflightOpen(false)} onPublish={publishToWeb} checks={preflightChecks} scheduledAt={meta.scheduled_at} onScheduleChange={v => { saveMeta("scheduled_at", v); setMeta(m => ({ ...m, scheduled_at: v })); }} publication={publication} onFix={fixPreflight} />
 
       <WebPreviewModal open={previewOpen} onClose={() => setPreviewOpen(false)} meta={meta} pubs={pubs} editor={editor} />
 

@@ -9,7 +9,7 @@ import { supabase } from "../../lib/supabase";
 // print_status to ready (if not already), then posts a team_notes
 // ping with notes so Anthony's dashboard surfaces it as an Issue Ping.
 // ══════════════════════════════════════════════════════════════════
-function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }) {
+function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog, bare = false }) {
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [lastSentAt, setLastSentAt] = useState(null);
@@ -21,9 +21,10 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }
     || (team || []).find(t => t.role === "Production Manager" && t.isActive !== false);
 
   if (!layoutDesigner) {
+    const wrapperStyle = bare ? {} : { borderTop: "1px solid " + Z.bd, paddingTop: 10 };
     return (
-      <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
-        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Layout Handoff</div>
+      <div style={wrapperStyle}>
+        {!bare && <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Layout Handoff</div>}
         <div style={{ fontSize: FS.xs, color: Z.td, fontStyle: "italic" }}>No Layout Designer assigned</div>
       </div>
     );
@@ -71,15 +72,21 @@ function LayoutHandoffPanel({ story, meta, saveMeta, team, currentUser, dialog }
 
   const designerFirst = (layoutDesigner.name || "Layout Designer").split(" ")[0];
 
+  const wrapperStyle = bare ? {} : { borderTop: "1px solid " + Z.bd, paddingTop: 10 };
   return (
-    <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+    <div style={wrapperStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Layout Handoff</div>
+        {bare
+          ? <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>Send to <span style={{ color: Z.tx, fontWeight: 600 }}>{layoutDesigner.name}</span></div>
+          : <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Layout Handoff</div>
+        }
         {lastSentAt && <span style={{ fontSize: FS.micro, color: Z.go, fontFamily: COND }}>{"✓"} sent</span>}
       </div>
-      <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 6 }}>
-        Send to <span style={{ color: Z.tx, fontWeight: 600 }}>{layoutDesigner.name}</span>
-      </div>
+      {!bare && (
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 6 }}>
+          Send to <span style={{ color: Z.tx, fontWeight: 600 }}>{layoutDesigner.name}</span>
+        </div>
+      )}
       <TA
         label={`Notes for ${designerFirst} (optional)`}
         value={notes}

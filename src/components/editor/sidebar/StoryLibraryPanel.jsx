@@ -10,7 +10,7 @@ function StoryLibraryPanel({
   onUpload, onPickFromLibrary, onSetFeatured, onSaveCaption, onDownloadOriginals,
 }) {
   return (
-    <div>
+    <div id="panel-story-library">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND }}>Story Library · {storyImages.length}</div>
         <div style={{ display: "flex", gap: 4 }}>
@@ -49,6 +49,13 @@ function StoryLibraryPanel({
                   <img src={img.thumbnail_url || img.cdn_url} alt={img.caption || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: Ri }} />
                   {isFeatured && (
                     <div style={{ position: "absolute", top: 2, right: 2, background: Z.ac, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: Ri, fontFamily: COND }}>★ Featured</div>
+                  )}
+                  {/* Dimensions overlay — quick visual sanity check
+                      that a designer is grabbing a high-res original. */}
+                  {img.width && img.height && (
+                    <div style={{ position: "absolute", bottom: 2, left: 2, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 9, fontWeight: 600, padding: "1px 5px", borderRadius: 2, fontFamily: COND }}>
+                      {img.width}×{img.height}
+                    </div>
                   )}
                 </button>
                 <input

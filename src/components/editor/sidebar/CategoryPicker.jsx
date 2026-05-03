@@ -6,7 +6,7 @@ import { Z, COND, FS, Ri } from "../../../lib/theme";
 // category_slug — so the sidebar never lands a partial-write state.
 function CategoryPicker({ categoryId, categories, onChange }) {
   return (
-    <div>
+    <div id="panel-category">
       <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 4 }}>Category</div>
       <select
         value={categoryId || ""}

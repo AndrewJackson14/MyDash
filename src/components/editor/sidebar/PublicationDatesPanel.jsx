@@ -65,7 +65,7 @@ function PublicationDatesPanel({
         <>
           {meta.first_published_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.first_published_at)}</strong></div>}
           {!meta.first_published_at && meta.published_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND }}>Published: <strong>{fmtDate(meta.published_at)}</strong></div>}
-          {meta.slug && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 4, wordBreak: "break-all" }} title="URL slug — set automatically on first publish, cannot be changed">Slug: <code style={{ background: Z.sa, padding: "1px 4px", borderRadius: 2, color: Z.tx }}>{meta.slug}</code></div>}
+          {/* Slug lives in SEOPanel (single source) — Wave 3 dedupe. */}
           {meta.last_significant_edit_at && <div style={{ fontSize: FS.xs, color: Z.tx, fontFamily: COND, marginTop: 2 }}>Updated: <strong>{fmtDate(meta.last_significant_edit_at)}</strong></div>}
           {meta.edit_count > 0 && <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>{meta.edit_count} edit{meta.edit_count > 1 ? "s" : ""} since first publish</div>}
         </>

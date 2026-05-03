@@ -5,6 +5,7 @@ import {
   formatInTimezone, parseFromTimezone, getBrowserTimezone,
   tzShortLabel, fmtInTimezone,
 } from "../../lib/timezone";
+import { useModalStack } from "../../hooks/useModalStack";
 
 // ── Preflight Checklist Modal ────────────────────────────────────
 // The publish-time picker operates in the publication's home timezone
@@ -14,7 +15,8 @@ import {
 // the editor is in California or New York. When the editor's browser
 // zone differs we surface a helper line showing the equivalent local
 // wall-clock so they can sanity-check.
-function PreflightModal({ open, onClose, onPublish, checks, scheduledAt, onScheduleChange, publication }) {
+function PreflightModal({ open, onClose, onPublish, checks, scheduledAt, onScheduleChange, publication, onFix }) {
+  useModalStack(open, onClose);
   const allPassed = checks.every(c => c.pass);
   const isScheduled = !!scheduledAt;
   const pubTz = publication?.timezone || "America/Los_Angeles";
@@ -31,12 +33,28 @@ function PreflightModal({ open, onClose, onPublish, checks, scheduledAt, onSched
     <Modal open={open} onClose={onClose} title="Publish Preflight Check">
       <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 380 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {checks.map((c, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: Ri, background: c.pass ? (Z.su || "#22c55e") + "10" : Z.da + "10", border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : Z.da + "30") }}>
-              <span style={{ fontSize: FS.md }}>{c.pass ? "✓" : "✗"}</span>
-              <span style={{ fontSize: FS.sm, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
-            </div>
-          ))}
+          {checks.map((c) => {
+            const fixable = !c.pass && onFix && c.id;
+            return (
+              <div
+                key={c.id || c.label}
+                onClick={fixable ? () => onFix(c.id) : undefined}
+                role={fixable ? "button" : undefined}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: Ri,
+                  background: c.pass ? (Z.su || "#22c55e") + "10" : Z.da + "10",
+                  border: "1px solid " + (c.pass ? (Z.su || "#22c55e") + "30" : Z.da + "30"),
+                  cursor: fixable ? "pointer" : "default",
+                }}
+              >
+                <span style={{ fontSize: FS.md }}>{c.pass ? "✓" : "✗"}</span>
+                <span style={{ fontSize: FS.sm, fontWeight: 600, color: c.pass ? (Z.su || "#22c55e") : Z.da, fontFamily: COND }}>{c.label}</span>
+                {fixable && (
+                  <span style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{"→ fix"}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
         <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
           <div style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: Z.tm, fontFamily: COND, marginBottom: 6 }}>

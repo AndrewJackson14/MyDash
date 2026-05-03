@@ -8,7 +8,7 @@ import { Btn } from "../../ui";
 // gate is removed.
 function LegalReviewPanel({ meta, saveMeta, story }) {
   return (
-    <div style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
+    <div id="panel-legal-review" style={{ borderTop: "1px solid " + Z.bd, paddingTop: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: meta.needs_legal_review ? Z.wa : Z.tm, fontFamily: COND, cursor: "pointer" }}>
           <input

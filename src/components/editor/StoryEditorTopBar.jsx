@@ -1,47 +1,83 @@
-import React from "react";
-import { Z, COND, ACCENT, FS, Ri } from "../../lib/theme";
+import React, { useState, useEffect, useCallback } from "react";
+import { Z, COND, FS, Ri } from "../../lib/theme";
 import { Ic, Badge, Btn } from "../ui";
 import EntityThread from "../EntityThread";
 import { ago } from "./StoryEditor.helpers";
+import { useModalStack } from "../../hooks/useModalStack";
 
 const TSep = () => <div style={{ width: 1, height: 20, background: Z.bd, margin: "0 4px" }} />;
 
+// Save indicator. Wave-3 polish: relative time stays fresh via a 30s
+// tick, and the idle-with-a-saved-state copy reads "All changes
+// saved · Xm ago" past the first minute so the editor doesn't appear
+// frozen during a quiet stretch.
+function SaveIndicator({ save }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick(n => n + 1), 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (save.status === "saving") {
+    return <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Saving…</span>;
+  }
+  if (save.status === "error") {
+    return (
+      <button
+        onClick={() => (save.error?.retry ? save.error.retry() : save.clearError())}
+        title={save.error?.message}
+        style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, fontWeight: 700, background: Z.da + "12", border: "1px solid " + Z.da + "40", padding: "2px 8px", borderRadius: Ri, cursor: "pointer" }}
+      >
+        {"⚠"} Save failed — retry
+      </button>
+    );
+  }
+  if (save.status === "saved" && save.lastSavedAt) {
+    const ageMs = Date.now() - save.lastSavedAt.getTime();
+    const ageMin = Math.floor(ageMs / 60000);
+    if (ageMin >= 1) {
+      return <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"✓"} All changes saved · {ago(save.lastSavedAt)}</span>;
+    }
+    return <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"✓"} Saved</span>;
+  }
+  return null;
+}
+
 // Sticky top of the editor: back nav, story title, save status pill,
-// upload counter, status badges, preview pill, and the discussion
-// popover. None of this depends on body content (the editor instance
-// is passed only for the discussion height calc), so memoizing this
-// keeps title-input keystrokes from flowing through the discussion
-// thread render.
+// upload counter, workflow status badge, word-limit warning, preview
+// pill, and the discussion popover. Wave-3 trim: the Live/Republished
+// pills and the Republish button moved into the sidebar's Hand-off
+// section so publish state has one canonical home. Featured pill also
+// removed from the top bar — already shown in the sidebar's Flags
+// panel.
 function StoryEditorTopBar({
-  meta, save, uploads, story, team,
-  isPublished, needsRepublish, republishedFlash,
-  republishing,
+  meta, save, uploads, story, team, wordCount,
   discussionOpen, discussionCount,
-  onBack, onPreview, onRepublish, onSetDiscussionOpen, onMsgCount,
+  onBack, onPreview, onSetDiscussionOpen, onMsgCount,
 }) {
+  const overBy = meta.word_limit && wordCount > meta.word_limit ? wordCount - meta.word_limit : 0;
+  const closeDiscussion = useCallback(() => onSetDiscussionOpen(false), [onSetDiscussionOpen]);
+  useModalStack(discussionOpen, closeDiscussion);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderBottom: "1px solid " + Z.bd, background: Z.sf, flexShrink: 0 }}>
       <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, display: "flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontFamily: COND, fontWeight: 600 }}>{"←"} Back to Editorial</button>
       <TSep />
       <span style={{ fontSize: FS.base, fontWeight: 700, color: Z.tx, fontFamily: COND, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.title || "Untitled Story"}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {save.status === "saving" && <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>Saving…</span>}
-        {save.status === "saved" && save.lastSavedAt && <span style={{ fontSize: FS.micro, color: Z.su || "#22c55e", fontFamily: COND }}>{"✓"} Saved {ago(save.lastSavedAt)}</span>}
-        {save.status === "error" && (
-          <button
-            onClick={() => (save.error?.retry ? save.error.retry() : save.clearError())}
-            title={save.error?.message}
-            style={{ fontSize: FS.micro, color: Z.da, fontFamily: COND, fontWeight: 700, background: Z.da + "12", border: "1px solid " + Z.da + "40", padding: "2px 8px", borderRadius: Ri, cursor: "pointer" }}
-          >
-            {"⚠"} Save failed — retry
-          </button>
-        )}
+        <SaveIndicator save={save} />
         {uploads.size > 0 && <span style={{ fontSize: FS.micro, color: Z.wa, fontFamily: COND }}>Uploading {uploads.size}…</span>}
+        {/* Word-limit overflow badge — sticky from anywhere in the editor.
+            Distinct from the byline-strip count (which shows current
+            count); this one only appears once you're over and nags. */}
+        {overBy > 0 && (
+          <span
+            title={`${overBy} words over the ${meta.word_limit} limit`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: Ri, background: Z.da + "18", color: Z.da, fontFamily: COND }}
+          >
+            {"⚠"} {overBy} over
+          </span>
+        )}
         <Badge status={meta.status || "Draft"} small />
-        {meta.is_featured && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: Z.wa + "18", color: Z.wa }}>{"★"} Featured</span>}
-        {isPublished && !needsRepublish && !republishedFlash && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "18", color: ACCENT.green }}>Live</span>}
-        {republishedFlash > 0 && <span style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 6px", borderRadius: Ri, background: ACCENT.green + "22", color: ACCENT.green }}>{"✓"} Republished</span>}
-        {needsRepublish && !republishedFlash && <Btn sm onClick={onRepublish} disabled={republishing} style={{ background: Z.wa + "18", color: Z.wa, border: "1px solid " + Z.wa + "40" }}>{republishing ? "Republishing…" : "↻ Republish"}</Btn>}
         <Btn sm v="secondary" onClick={onPreview} title="Preview how this story will render on the web">{"👁"} Preview</Btn>
         {story?.id && (
           <div style={{ position: "relative" }}>

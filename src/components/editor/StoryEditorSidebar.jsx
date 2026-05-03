@@ -18,6 +18,7 @@ import TypeAndAssigneeRow from "./sidebar/TypeAndAssigneeRow";
 import DueDateAndWordLimitRow from "./sidebar/DueDateAndWordLimitRow";
 import PrintIssuePicker from "./sidebar/PrintIssuePicker";
 import LayoutHandoffPanel from "./LayoutHandoffPanel";
+import HandoffSection from "./sidebar/HandoffSection";
 import SEOPanel from "./sidebar/SEOPanel";
 import LegalReviewPanel from "./sidebar/LegalReviewPanel";
 import NotesPanel from "./sidebar/NotesPanel";
@@ -101,48 +102,40 @@ function StoryEditorSidebar(props) {
         onApplyGeneratedBody={onApplyGeneratedBody}
       />
 
+      <HandoffSection
+        webBody={
+          <PublishPanel
+            bare
+            meta={meta}
+            primaryPub={publication}
+            isPublished={isPublished}
+            needsRepublish={needsRepublish}
+            currentStage={currentStage}
+            webApproved={webApproved}
+            republishedFlash={republishedFlash}
+            republishing={republishing}
+            onPublish={onPublish}
+            onRepublish={onRepublish}
+            onApprove={onApprove}
+            onUnpublish={onUnpublish}
+          />
+        }
+        printBody={
+          <LayoutHandoffPanel
+            bare
+            story={story}
+            meta={meta}
+            saveMeta={saveMeta}
+            team={team}
+            currentUser={currentUser}
+            dialog={props.dialog}
+          />
+        }
+      />
+
       <div style={{ background: Z.bg, borderRadius: Ri, padding: 10, border: "1px solid " + Z.bd }}>
-        <PublishPanel
-          isPublished={isPublished}
-          needsRepublish={needsRepublish}
-          currentStage={currentStage}
-          webApproved={webApproved}
-          republishedFlash={republishedFlash}
-          republishing={republishing}
-          onPublish={onPublish}
-          onRepublish={onRepublish}
-          onApprove={onApprove}
-          onUnpublish={onUnpublish}
-        />
         <FlagsPanel meta={meta} saveMeta={saveMeta} setMeta={setMeta} />
       </div>
-
-      {/* Scheduled indicator (set via preflight) */}
-      {!isPublished && meta.scheduled_at && (
-        <div style={{ fontSize: FS.micro, color: ACCENT.indigo, fontFamily: COND, padding: "6px 8px", background: ACCENT.indigo + "10", borderRadius: Ri, border: "1px solid " + ACCENT.indigo + "30" }}>
-          Scheduled: {fmtDate(meta.scheduled_at)}
-        </div>
-      )}
-
-      {/* View on site — only render when the publication has a real
-          website configured. Previously this fell back to turning
-          the publication name into a fake slug-as-domain (e.g.
-          'calabasas-style-magazine' with no TLD) which generated
-          broken links. Now: no website_url, no link. */}
-      {isPublished && meta.slug && selectedPubs[0] && (() => {
-        const site = (pubs || []).find(p => p.id === selectedPubs[0]);
-        if (!site?.hasWebsite) return null;
-        const raw = (site.websiteUrl || "").trim();
-        if (!raw) return null;
-        const host = raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-        if (!host.includes(".")) return null;
-        const href = `https://${host}/${meta.slug}`;
-        return (
-          <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", borderRadius: Ri, border: "1px solid " + Z.bd, background: Z.sa, textAlign: "center", fontSize: FS.xs, fontWeight: 600, color: Z.ac, fontFamily: COND, textDecoration: "none" }}>
-            View on {host} {"↗"}
-          </a>
-        );
-      })()}
 
       {/* View count */}
       {meta.view_count > 0 && (
@@ -221,21 +214,14 @@ function StoryEditorSidebar(props) {
         onChange={(v) => saveMeta("print_issue_id", v)}
       />
 
-      <LayoutHandoffPanel
-        story={story}
-        meta={meta}
-        saveMeta={saveMeta}
-        team={team}
-        currentUser={currentUser}
-        dialog={props.dialog}
-      />
+      {/* LayoutHandoffPanel relocated to HandoffSection (Wave 3 Task 3.6). */}
 
       <SEOPanel
         meta={meta}
         setMeta={setMeta}
         saveMeta={saveMeta}
-        selectedPubs={selectedPubs}
-        pubs={pubs}
+        primaryPub={publication}
+        currentUser={currentUser}
       />
 
       <LegalReviewPanel meta={meta} saveMeta={saveMeta} story={story} />
