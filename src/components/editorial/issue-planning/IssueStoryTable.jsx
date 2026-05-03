@@ -1,12 +1,15 @@
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment, useMemo, useState, useCallback } from "react";
 import { Z, COND, DISPLAY, ACCENT, FS, Ri } from "../../../lib/theme";
 import { Sel, DataTable } from "../../ui";
 import FuzzyPicker from "../../FuzzyPicker";
 import { STORY_STATUSES } from "../../../constants";
-import { sectionForPage, updateSection as updateSectionDb, deleteSection as deleteSectionDb } from "../../../lib/sections";
+import { sectionForPage, updateSection as updateSectionDb } from "../../../lib/sections";
 import { PRIORITY_OPTIONS, DEFAULT_PAGE_COUNT } from "./IssuePlanningTab.constants";
+import BulkActionBar from "./BulkActionBar";
+import "./IssueStoryTable.css";
 
 const COLUMNS = [
+  { key: "_select", label: "" },
   { key: "_drag", label: "" },
   { key: "title", label: "Title" },
   { key: "author", label: "Author" },
@@ -49,7 +52,7 @@ const SectionHeaderRow = React.memo(function SectionHeaderRow({ section, pubType
     : "Magazine: kind doesn't affect numbering";
   return (
     <tr style={{ background: Z.bg }}>
-      <td colSpan={11} style={{ padding: "10px 12px 4px", borderTop: `2px solid ${ACCENT.indigo}40` }}>
+      <td colSpan={12} style={{ padding: "10px 12px 4px", borderTop: `2px solid ${ACCENT.indigo}40` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 9, fontWeight: 800, color: ACCENT.indigo, fontFamily: COND, padding: "2px 6px", background: ACCENT.indigo + "15", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.6 }}>
             {section.kind === "sub" ? "SUB" : "SECTION"}
@@ -87,16 +90,21 @@ const PageGroupRow = React.memo(function PageGroupRow({ group, isAppendTarget, i
   );
   return (
     <tr
-      style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s" }}
+      data-group-key={group.key}
+      data-group-row="true"
+      style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s, outline 0.2s" }}
       onDragOver={(e) => {
         if (!draggingId) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        // IP Wave 3 task 3.8: auto-expand a collapsed group when a
+        // drag enters it so the editor can drop to a specific row.
+        if (isCollapsed) onToggle(group.key);
         onDragOver(group.key, null);
       }}
       onDrop={(e) => { e.preventDefault(); if (draggingId) onDrop(group.key, null); }}
     >
-      <td colSpan={11} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => onToggle(group.key)}>
+      <td colSpan={12} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => onToggle(group.key)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: FS.xs, fontWeight: 800, color: group.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           <span style={{ width: 12, color: Z.tm }}>{isCollapsed ? "▸" : "▾"}</span>
           <span>{group.key === "unassigned" ? group.label : `Page ${fmtPage(group.page)}`}</span>
@@ -117,7 +125,7 @@ const PageGroupRow = React.memo(function PageGroupRow({ group, isAppendTarget, i
 const JumpRow = React.memo(function JumpRow({ story, onOpenDetail }) {
   return (
     <tr style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
-      <td colSpan={11} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: FS.sm }}>
+      <td colSpan={12} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: FS.sm }}>
         <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
         <span onClick={() => onOpenDetail(story)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{story.title || "Untitled"}</span>
         <span style={{ color: Z.td }}>(cont. from p.{story.jump_from_page ?? story.page})</span>
@@ -132,6 +140,7 @@ const StoryRow = React.memo(function StoryRow({
   story,
   groupKey,
   isDragging, isDropTarget,
+  isSelected, onToggleSelect,
   authorOptions, pageOptions, jumpOptions,
   siblingOptions, primaryPubName,
   isSibling, isMirror,
@@ -160,6 +169,16 @@ const StoryRow = React.memo(function StoryRow({
       }}
       onDrop={(e) => { e.preventDefault(); if (draggingId) onDrop(groupKey, s.id); }}
     >
+      <td style={{ padding: "5px 4px", width: 24, textAlign: "center" }}>
+        {!isSibling && !isMirror && (
+          <input
+            type="checkbox"
+            checked={!!isSelected}
+            onChange={() => onToggleSelect(s.id)}
+            style={{ cursor: "pointer", accentColor: Z.ac, width: 14, height: 14 }}
+          />
+        )}
+      </td>
       <td
         draggable={!isSibling && !isMirror}
         onDragStart={(e) => {
@@ -268,8 +287,61 @@ function IssueStoryTable(props) {
     siblingIssuesFor, issuesById,
     // Callbacks
     onUpdateStory, onDeleteStory, onOpenDetail, onToggleSiblingLink,
+    onDeleteSection,
+    onBulkPatch, onBulkDelete,
+    team,
     onDragStart, onDragOver, onDrop, onDragEnd,
   } = props;
+
+  // ── Bulk selection (IP Wave 3 task 3.6) ──────────────────
+  // Local because no parent surface needs to read it. The bulk
+  // handlers below pull the id list from this Set when invoked.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleRowSelection = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  // Bulk-select header: only primary rows (skip mirror + sibling rows
+  // since they aren't editable from the IP table).
+  const allSelectableIds = useMemo(() => {
+    const out = [];
+    for (const g of pageGroups) {
+      for (const s of g.stories) {
+        if (!s._fromSibling && !s._mirroredFrom) out.push(s.id);
+      }
+    }
+    return out;
+  }, [pageGroups]);
+  const allSelected = allSelectableIds.length > 0 && allSelectableIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(allSelectableIds));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkStatus = async (status) => {
+    if (!onBulkPatch) return;
+    await onBulkPatch([...selectedIds], { status });
+  };
+  const handleBulkAssignee = async (val) => {
+    if (!onBulkPatch) return;
+    const assigned_to = val === "__unassigned__" ? null : val;
+    await onBulkPatch([...selectedIds], { assigned_to });
+  };
+  const handleBulkClearPage = async () => {
+    if (!onBulkPatch) return;
+    await onBulkPatch([...selectedIds], { page: null });
+  };
+  const handleBulkDelete = async () => {
+    if (!onBulkDelete) return;
+    const ids = [...selectedIds];
+    const ok = await onBulkDelete(ids);
+    if (ok) setSelectedIds(new Set());
+  };
 
   const max = issue?.pageCount || DEFAULT_PAGE_COUNT;
 
@@ -296,24 +368,43 @@ function IssueStoryTable(props) {
     setIssueSections(prev => prev.map(s => s.id === sectionId ? { ...s, kind: value } : s));
     try { await updateSectionDb(sectionId, { kind: value }); } catch (err) { console.error("Section kind change failed:", err); }
   };
-  const handleSectionDelete = async (section) => {
-    if (!confirm(`Delete section "${section.label}"?`)) return;
-    try {
-      await deleteSectionDb(section.id);
-      setIssueSections(prev => prev.filter(s => s.id !== section.id));
-    } catch (err) { console.error("Section delete failed:", err); }
-  };
+  // Section delete is owned by the parent (IP Wave 3) so it can
+  // count in-range stories and route through the themed dialog.
+  const handleSectionDelete = (section) => onDeleteSection(section);
 
   const issuePub = issue ? pubsById.get(issue.publicationId || issue.pubId) : null;
   const pubType = issuePub?.type;
 
   return (
     <div style={{ overflow: "hidden" }}>
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        team={team}
+        onClearSelection={clearSelection}
+        onChangeStatus={handleBulkStatus}
+        onChangeAssignee={handleBulkAssignee}
+        onClearPage={handleBulkClearPage}
+        onDelete={handleBulkDelete}
+      />
       <DataTable>
-        <thead>
+        <thead className="ip-table-thead">
           <tr>
             {COLUMNS.map(col => {
-              const noSort = col.key === "_delete" || col.key === "_drag";
+              const noSort = col.key === "_delete" || col.key === "_drag" || col.key === "_select";
+              if (col.key === "_select") {
+                return (
+                  <th key={col.key} style={{ padding: "6px 4px", width: 24, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = someSelected; }}
+                      onChange={toggleAll}
+                      title={allSelected ? "Clear all" : "Select all"}
+                      style={{ cursor: "pointer", accentColor: Z.ac }}
+                    />
+                  </th>
+                );
+              }
               return (
                 <th
                   key={col.key}
@@ -328,7 +419,7 @@ function IssueStoryTable(props) {
         </thead>
         <tbody>
           {pageGroups.length === 0 || pageGroups.every(g => g.stories.length === 0 && g.jumpsIn.length === 0) ? (
-            <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
+            <tr><td colSpan={12} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
           ) : null}
           {pageGroups.map((g, gi) => {
             const isCollapsed = collapsedGroups.has(g.key);
@@ -384,6 +475,8 @@ function IssueStoryTable(props) {
                       groupKey={g.key}
                       isDragging={isDragging}
                       isDropTarget={isDropTarget}
+                      isSelected={selectedIds.has(s.id)}
+                      onToggleSelect={toggleRowSelection}
                       authorOptions={authorOptions}
                       pageOptions={pageOptions}
                       jumpOptions={jumpOptions}

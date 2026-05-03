@@ -52,11 +52,21 @@ function IssuePlanningTab({
   const [showSiblings, setShowSiblings] = useState(false);
   const [issueSections, setIssueSections] = useState([]);
   const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Sidebar-collapsed state survives reload (IP Wave 3 task 3.8).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("ip_sidebar_collapsed") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ip_sidebar_collapsed", sidebarCollapsed ? "1" : "0"); }
+    catch {}
+  }, [sidebarCollapsed]);
   const [draggingId, setDraggingId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [sortCol, setSortCol] = useState("title");
   const [sortDir, setSortDir] = useState("asc");
+  // Stat-strip click-to-filter (IP Wave 3 task 3.5). Null = unfiltered.
+  const [statFilter, setStatFilter] = useState(null);
 
   // ── Lookup indices (IP Wave 2) ───────────────────────────
   // Computed locally so the parent shell doesn't need to thread them
@@ -229,11 +239,21 @@ function IssuePlanningTab({
     });
   }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
 
+  // Stat-strip filter (IP Wave 3 task 3.5). Applied AFTER sorting so
+  // the filter chip narrows the existing view rather than reordering it.
+  const filteredIssueStories = useMemo(() => {
+    if (!statFilter) return issueStories;
+    if (statFilter === "hasPage")    return issueStories.filter(s => s.page != null && s.page !== "");
+    if (statFilter === "withImages") return issueStories.filter(s => s.has_images);
+    if (statFilter === "withJumps")  return issueStories.filter(s => s.jump_to_page != null);
+    return issueStories;
+  }, [issueStories, statFilter]);
+
   // ── Page-grouped layout for the table ────────────────────
   const pageGroups = useMemo(() => {
     const buckets = new Map();
     buckets.set("unassigned", { key: "unassigned", page: null, label: "Unassigned", stories: [], jumpsIn: [] });
-    issueStories.forEach(s => {
+    filteredIssueStories.forEach(s => {
       const p = (s.page_number ?? s.page);
       const pn = (p === null || p === undefined || p === "" || isNaN(Number(p))) ? null : Number(p);
       if (pn === null) {
@@ -244,7 +264,7 @@ function IssuePlanningTab({
       if (!buckets.has(k)) buckets.set(k, { key: k, page: pn, label: `Page ${pn}`, stories: [], jumpsIn: [] });
       buckets.get(k).stories.push(s);
     });
-    issueStories.forEach(s => {
+    filteredIssueStories.forEach(s => {
       const j = parseInt(s.jump_to_page);
       if (isNaN(j)) return;
       const k = String(j);
@@ -257,7 +277,7 @@ function IssuePlanningTab({
       if (b.key === "unassigned") return 1;
       return a.page - b.page;
     });
-  }, [issueStories]);
+  }, [filteredIssueStories]);
 
   // ── Inactive-author filter for the byline dropdown ──────
   const inactiveAuthorNames = useMemo(() => new Set(
@@ -353,6 +373,63 @@ function IssuePlanningTab({
     save.track(doSave(), { retry: () => save.track(doSave()) }).catch(() => {});
   }, [setStories, save]);
 
+  // ── Bulk-action callbacks (IP Wave 3 task 3.6) ───────────
+  // Each goes through one Supabase round-trip via storyBulkUpdate
+  // (status/assignee/clear-page) or one .delete().in() (delete).
+  const handleBulkPatch = useCallback(async (ids, patch) => {
+    if (!ids || ids.length === 0) return;
+    setStories(prev => prev.map(s => ids.includes(s.id) ? { ...s, ...patch } : s));
+    const updates = ids.map(id => ({ id, patch }));
+    const doBulk = async () => {
+      const { error } = await bulkUpdateStories(updates);
+      if (error) throw error;
+    };
+    save.track(doBulk(), { retry: () => save.track(doBulk()) }).catch(() => {});
+  }, [setStories, save]);
+
+  const handleBulkDelete = useCallback(async (ids) => {
+    if (!ids || ids.length === 0) return false;
+    const ok = await dialog.confirm(
+      `Delete ${ids.length} stor${ids.length === 1 ? "y" : "ies"}? This cannot be undone.`
+    );
+    if (!ok) return false;
+    setStories(prev => prev.filter(s => !ids.includes(s.id)));
+    const doDelete = async () => {
+      const { error } = await supabase.from("stories").delete().in("id", ids);
+      if (error) throw error;
+    };
+    save.track(doDelete(), { retry: () => save.track(doDelete()) }).catch(() => {});
+    return true;
+  }, [setStories, save, dialog]);
+
+  // ── Page-Map click → scroll + flash (IP Wave 3 task 3.4) ─
+  const handlePageMapClick = useCallback((page) => {
+    const key = String(page);
+    // Expand the group if collapsed so we have something to scroll to.
+    setCollapsedGroups(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    // Defer one tick so the expanded group has rendered.
+    setTimeout(() => {
+      const el = typeof document !== "undefined"
+        ? document.querySelector(`[data-group-key="${key}"][data-group-row="true"]`)
+        : null;
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const prevOutline = el.style.outline;
+      const prevOffset = el.style.outlineOffset;
+      el.style.outline = `2px solid ${Z.ac}`;
+      el.style.outlineOffset = "-2px";
+      setTimeout(() => {
+        el.style.outline = prevOutline || "none";
+        el.style.outlineOffset = prevOffset || "";
+      }, 1500);
+    }, 80);
+  }, []);
+
   // ── DnD callbacks routed to children ─────────────────────
   const handleDragStart = useCallback((id) => setDraggingId(id), []);
   const handleDragEnd = useCallback(() => { setDraggingId(null); setDropTarget(null); }, []);
@@ -363,29 +440,22 @@ function IssuePlanningTab({
     });
   }, []);
 
-  // ── New-section creator ──────────────────────────────────
-  const handleNewSection = useCallback(async () => {
+  // ── New-section creator (IP Wave 3) ──────────────────────
+  // Receives validated form data from SectionCreateModal. The modal
+  // owns label/startPage/kind validation; this just persists and
+  // updates local state. Throws bubble back to the modal which
+  // surfaces them as inline errors instead of a native alert.
+  const handleCreateSection = useCallback(async ({ label, startPage, kind }) => {
     if (!selIssue) return;
-    const labelStr = window.prompt("Section name (e.g. A, Sports, B):", "");
-    if (!labelStr) return;
-    const startStr = window.prompt("Starts at page number (use the global page #, leave blank for page 1):", "");
-    const startNum = parseInt(startStr);
-    const afterPage = isNaN(startNum) ? 0 : Math.max(0, startNum - 1);
-    const kindAns = (window.prompt("Type — 'main' (newspaper page reset) or 'sub' (label only). Default: main", "main") || "main").toLowerCase();
-    const kind = kindAns === "sub" ? "sub" : "main";
-    try {
-      const row = await createSectionDb({ issueId: selIssue, afterPage, label: labelStr, kind });
-      setIssueSections(prev => [...prev, row].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
-    } catch (err) {
-      console.error("Create section failed:", err);
-      alert("Could not save section: " + (err.message || "unknown error"));
-    }
+    const afterPage = Math.max(0, (startPage || 1) - 1);
+    const row = await createSectionDb({ issueId: selIssue, afterPage, label, kind });
+    setIssueSections(prev => [...prev, row].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
   }, [selIssue]);
 
   const handleApplyDefaults = useCallback(async () => {
     if (!selIssue) return;
     const issue = issuesById.get(selIssue);
-    const pub = pubsById.get(issue?.pubId);
+    const pub = pubsById.get(issue?.pubId || issue?.publicationId);
     const defaults = Array.isArray(pub?.defaultSections) ? pub.defaultSections : [];
     if (!defaults.length) return;
     try {
@@ -393,9 +463,34 @@ function IssuePlanningTab({
       setIssueSections(prev => [...prev, ...rows].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
     } catch (err) {
       console.error("Apply default sections failed:", err);
-      alert("Could not apply defaults: " + (err.message || "unknown error"));
+      await dialog.alert("Could not apply defaults: " + (err.message || "unknown error"));
     }
-  }, [selIssue, issuesById, pubsById]);
+  }, [selIssue, issuesById, pubsById, dialog]);
+
+  // Section delete moved here from IssueStoryTable so we can count
+  // the in-range stories and surface a dialog.confirm with that count.
+  const handleDeleteSection = useCallback(async (section) => {
+    const start = section.startPage ?? ((section.afterPage ?? 0) + 1);
+    const end = section.endPage ?? start;
+    const inRange = issueStories.filter(s => {
+      const p = parseInt(s.page);
+      if (isNaN(p)) return false;
+      return p >= start && p <= end;
+    }).length;
+    const message = inRange === 0
+      ? `Delete section "${section.label || section.name}"?`
+      : `Delete section "${section.label || section.name}"?\n\n${inRange} stor${inRange === 1 ? "y" : "ies"} on these pages will lose their section label (page numbers won't change).`;
+    const ok = await dialog.confirm(message);
+    if (!ok) return;
+    try {
+      const { deleteSection } = await import("../../../lib/sections");
+      await deleteSection(section.id);
+      setIssueSections(prev => prev.filter(s => s.id !== section.id));
+    } catch (err) {
+      console.error("Section delete failed:", err);
+      await dialog.alert("Could not delete section: " + (err.message || "unknown error"));
+    }
+  }, [issueStories, dialog]);
 
   // Default-sections affordance visibility
   const issue = issuesById.get(selIssue);
@@ -430,7 +525,13 @@ function IssuePlanningTab({
                 storyCount={issueStories.length}
                 save={save}
               />
-              <IssueStatStrip issueStories={issueStories} sales={sales} selIssue={selIssue} />
+              <IssueStatStrip
+                issueStories={issueStories}
+                sales={sales}
+                selIssue={selIssue}
+                activeFilter={statFilter}
+                onFilterChange={setStatFilter}
+              />
               <IssueDiscussionPanel
                 selIssue={selIssue}
                 issueLabel={issue?.label}
@@ -438,20 +539,24 @@ function IssuePlanningTab({
                 currentUser={currentUser}
               />
               <IssuePrintPipeline issueStories={issueStories} />
-              <IssuePageMap issue={issue} issueStories={issueStories} fmtPage={fmtPage} />
+              <IssuePageMap issue={issue} issueStories={issueStories} fmtPage={fmtPage} onPageClick={handlePageMapClick} />
               <IssueToolbar
                 selIssue={selIssue}
                 addingInlineStory={addingInlineStory}
+                pubName={issuePub?.name}
+                pubType={issuePub?.type}
+                issuePageCount={issue?.pageCount}
                 defaultSectionsCount={defaultSectionsCount}
                 hasIssueSections={issueSections.length > 0}
                 onNewStory={onAddInlineStoryForIssue}
-                onNewSection={handleNewSection}
+                onCreateSection={handleCreateSection}
                 onApplyDefaults={handleApplyDefaults}
               />
               <IssueStoryTable
                 pageGroups={pageGroups}
                 issueSections={issueSections}
                 setIssueSections={setIssueSections}
+                onDeleteSection={handleDeleteSection}
                 collapsedGroups={collapsedGroups}
                 toggleGroup={toggleGroup}
                 sortCol={sortCol}
@@ -473,6 +578,9 @@ function IssuePlanningTab({
                 onDeleteStory={onDeleteStory}
                 onOpenDetail={openDetail}
                 onToggleSiblingLink={toggleSiblingLink}
+                onBulkPatch={handleBulkPatch}
+                onBulkDelete={handleBulkDelete}
+                team={team}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={reorderStories}

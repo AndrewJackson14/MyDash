@@ -57,6 +57,9 @@ function IssueSidebar({
         const pubId = iss.publicationId || iss.pubId;
         const pubName = pubsById.get(pubId)?.name || pubId;
         const stCount = getStoryCount(iss.id);
+        // IP Wave 3 task 3.9: dim issues that have no stories yet so
+        // populated issues stand out in a long sidebar.
+        const isEmpty = stCount === 0;
         return (
           <div
             key={iss.id}
@@ -64,11 +67,13 @@ function IssueSidebar({
             style={{
               padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
               background: isSelected ? Z.ac + "18" : "transparent",
+              opacity: isEmpty && !isSelected ? 0.55 : 1,
+              transition: "opacity 0.15s",
             }}
           >
             <div style={{ fontSize: FS.sm, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pubName}</div>
             <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
-              {iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : iss.label || "Issue"} · {stCount} stories
+              {iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : iss.label || "Issue"} · {stCount} {stCount === 1 ? "story" : "stories"}
             </div>
           </div>
         );

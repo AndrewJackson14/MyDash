@@ -5,7 +5,7 @@ import { DEFAULT_PAGE_COUNT } from "./IssuePlanningTab.constants";
 // Mini flatplan of the selected issue. Read-only in Wave 2 — clicking
 // a tile is a no-op. Wave 3 (separate work) plans to make tiles
 // clickable to open the page in the full Flatplan.
-function IssuePageMap({ issue, issueStories, fmtPage }) {
+function IssuePageMap({ issue, issueStories, fmtPage, onPageClick }) {
   // Pre-compute story → page lookups. Story `page` can be a single
   // number ("3"), a comma list ("3,4"), or a range ("3-5"); we
   // expand all three forms once instead of re-parsing on every tile.
@@ -43,8 +43,31 @@ function IssuePageMap({ issue, issueStories, fmtPage }) {
         {pages.map(pg => {
           const pgStories = storiesByPage.get(pg) || [];
           const hasContent = pgStories.length > 0;
+          const truncated = pgStories.length > 3;
+          // IP Wave 3 task 3.4: tile is a button — clicking jumps the
+          // table to the corresponding page group with a flash. The
+          // button styling matches the previous div layout exactly so
+          // the visual hasn't changed; only the cursor + hover.
           return (
-            <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
+            <button
+              key={pg}
+              type="button"
+              onClick={() => onPageClick && onPageClick(pg)}
+              title={`Jump to page ${pg}`}
+              style={{
+                width: 52, height: 62,
+                border: `1px solid ${Z.bd}`, borderRadius: 3,
+                background: hasContent ? Z.ac + "12" : Z.bg,
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "flex-start",
+                padding: 2, overflow: "hidden",
+                cursor: onPageClick ? "pointer" : "default",
+                transition: "border-color 0.12s",
+                font: "inherit",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = Z.ac; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = Z.bd; }}
+            >
               <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.td }}>{fmtPage(pg)}</div>
               {pgStories.slice(0, 3).map((s, idx) => (
                 <div
@@ -55,7 +78,12 @@ function IssuePageMap({ issue, issueStories, fmtPage }) {
                   {(s.title || "").slice(0, 12)}
                 </div>
               ))}
-            </div>
+              {truncated && (
+                <div style={{ fontSize: 8, fontWeight: 700, color: Z.tm, marginTop: "auto" }}>
+                  +{pgStories.length - 3} more
+                </div>
+              )}
+            </button>
           );
         })}
       </div>

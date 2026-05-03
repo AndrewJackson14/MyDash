@@ -1,0 +1,18 @@
+/* ============================================================
+   IssueStoryTable.css — sticky header + drop-target visuals
+   ----------------------------------------------------------------
+   Imported once from IssueStoryTable.jsx. Uses theme CSS variables
+   (--card / --rule from styles/global.css) so it follows the
+   light/dark theme without re-importing.
+   ============================================================ */
+
+/* Sticky table head so column labels stay visible while scrolling
+   long issues. The z-index keeps it above row content but below
+   the bulk-action bar (which sits at z-index: 10). */
+.ip-table-thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--card);
+  box-shadow: 0 1px 0 0 var(--rule);
+}
