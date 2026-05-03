@@ -4,6 +4,7 @@ import EntityThread from "../../../components/EntityThread";
 import { useNav } from "../../../hooks/useNav";
 import { useAppData } from "../../../hooks/useAppData";
 import { useSaveStatus } from "../../../hooks/useSaveStatus";
+import { fmtDate } from "../../../lib/formatters";
 
 import { useClientProfileData } from "./useClientProfileData";
 import ViewAsCustomerLink from "./components/ViewAsCustomerLink";
@@ -56,7 +57,10 @@ export default function ClientProfile({
 
   const vc = (clients || []).find(x => x.id === clientId);
   const today = new Date().toISOString().slice(0, 10);
-  const fmtD = d => d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  // Wave 4 Task 4.2 — use the shared fmtDate so every Sales subview
+  // renders dates the same way. Local alias keeps the prop signature
+  // for sections that historically took a `fmtD` callback.
+  const fmtD = fmtDate;
   const pn = id => (pubs || []).find(p => p.id === id)?.name || "—";
 
   const data = useClientProfileData({
@@ -159,7 +163,7 @@ export default function ClientProfile({
           vcIndustries={data.vcIndustries} industryPeers={data.industryPeers}
           crossSellPubs={data.crossSellPubs}
           commForm={commForm} setCommForm={setCommForm} addComm={addComm}
-          bus={bus} pn={pn}
+          bus={bus} pn={pn} currentUser={currentUser}
           onOpenProposal={onOpenProposal}
         />
       </div>

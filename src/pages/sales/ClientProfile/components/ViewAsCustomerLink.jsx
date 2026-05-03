@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Z, COND, FS, FW, Ri } from "../../../../lib/theme";
+import { Ic } from "../../../../components/ui";
 import { supabase } from "../../../../lib/supabase";
 
 const PORTAL_BASE = "https://portal.13stars.media";
@@ -36,10 +37,11 @@ export default function ViewAsCustomerLink({ clientId, clientSlug }) {
         fontFamily: COND, letterSpacing: 0.4, textTransform: "uppercase",
         cursor: busy ? "wait" : "pointer",
         textAlign: "center",
+        display: "inline-flex", alignItems: "center", gap: 6,
       }}
       title="Open this client's portal view (read-only)"
     >
-      {busy ? "Opening…" : "View as customer · portal (read-only) ↗"}
+      {busy ? "Opening…" : <>View as customer · portal (read-only) <Ic.external size={11} /></>}
     </button>
   );
 }

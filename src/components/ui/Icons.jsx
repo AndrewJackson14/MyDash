@@ -89,6 +89,10 @@ const Ic = {
   // ↩-style "jump back" indicator. Wraps from the right, drops, points
   // left — same shape lucide uses for corner-down-left.
   cornerDownLeft: p => <Iv d="M9 10l-5 5 5 5M20 4v7a4 4 0 01-4 4H4" {...p} />,
+  // Wave 4 — added for the activity-rail "→" prefix and the snooze
+  // affordance on pipeline cards (was 💤 emoji).
+  arrowRight:    p => <Iv d="M5 12h14M12 5l7 7-7 7" {...p} />,
+  moon:          p => <Iv d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />,
 };
 
 export { Iv, Ic };

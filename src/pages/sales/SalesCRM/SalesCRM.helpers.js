@@ -34,8 +34,17 @@ export const hasProposal = (saleId, proposals, sales) => {
   return (proposals || []).some(p => p.clientId === sale.clientId && p.status !== "Cancelled");
 };
 
+// Find an existing reviewable proposal for a client. "Reviewable" means
+// the rep can open it for the client to look at — Sent (awaiting their
+// review) or Signed & Converted (already done; rep wants to revisit).
+// Drafts are intentionally excluded — they're not ready to share, so
+// the review_proposal action skips them and opens the wizard instead.
+//
+// Wave 4 — reconciled with the production intent. Earlier helper had
+// "Sent || Draft" which didn't match the only real consumer in
+// SalesCRM.jsx's handleAct review_proposal branch.
 export const getClientProposal = (clientId, proposals) =>
-  (proposals || []).find(p => p.clientId === clientId && (p.status === "Sent" || p.status === "Draft"));
+  (proposals || []).find(p => p.clientId === clientId && (p.status === "Sent" || p.status === "Signed & Converted")) || null;
 
 // Time helpers. Recompute on each call (don't cache at module load) so a
 // long-open session that crosses midnight doesn't end up with a stale

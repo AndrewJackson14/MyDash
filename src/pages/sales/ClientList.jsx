@@ -35,7 +35,11 @@ const ClientRow = memo(({ client, data, nextAction, onSelect }) => {
     </td>
     <td style={{ padding: TBL.cellPad, textAlign: "right" }}>
       <span style={{ fontWeight: FW.heavy, color: Z.tx }}>{fmtK(d.spend || 0)}</span>
-      {trend && <span style={{ marginLeft: 4, fontSize: FS.micro, color: trend === "up" ? Z.go : trend === "down" ? Z.da : Z.tm }}>{trend === "up" ? "▲" : trend === "down" ? "▼" : "—"}</span>}
+      {trend && (
+        <span style={{ marginLeft: 4, display: "inline-flex", color: trend === "up" ? Z.go : trend === "down" ? Z.da : Z.tm }}>
+          {trend === "up" ? <Ic.chevronUp size={11} /> : trend === "down" ? <Ic.chevronDown size={11} /> : <span style={{ fontSize: FS.micro }}>—</span>}
+        </span>
+      )}
     </td>
     <td style={{ padding: TBL.cellPad, textAlign: "center", color: Z.tm, fontSize: FS.sm }}>
       {d.pubSet?.size || 0}
@@ -150,16 +154,25 @@ const ClientList = ({ clients, sales, pubs, issues, proposals, sr, setSr, fPub, 
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortCol(col); setSortDir(col === "name" ? "asc" : "desc"); }
   };
-  const sortArrow = (col) => sortCol === col ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-
-  const ThCol = ({ col, children, align }) => (
-    <th onClick={() => toggleSort(col)} style={{
-      padding: TBL.cellPad, textAlign: align || "left", fontWeight: TBL.headerWeight,
-      color: sortCol === col ? Z.tx : Z.td, fontSize: TBL.headerSize, textTransform: "uppercase",
-      letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none",
-      fontFamily: COND, whiteSpace: "nowrap",
-    }}>{children}{sortArrow(col)}</th>
-  );
+  // Wave 4 — sort arrow uses Lucide chevrons. Renders inline with the
+  // header label so the asc/desc indicator stays on the same baseline
+  // as the column name.
+  const ThCol = ({ col, children, align }) => {
+    const active = sortCol === col;
+    return (
+      <th onClick={() => toggleSort(col)} style={{
+        padding: TBL.cellPad, textAlign: align || "left", fontWeight: TBL.headerWeight,
+        color: active ? Z.tx : Z.td, fontSize: TBL.headerSize, textTransform: "uppercase",
+        letterSpacing: 0.5, borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none",
+        fontFamily: COND, whiteSpace: "nowrap",
+      }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          {children}
+          {active && (sortDir === "asc" ? <Ic.chevronUp size={11} /> : <Ic.chevronDown size={11} />)}
+        </span>
+      </th>
+    );
+  };
 
   const flaggedCount = (clients || []).filter(c => c.lapsedReason).length;
 

@@ -101,50 +101,54 @@ function SaleCard({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
         {!isClosed && !isFollowUp && (
           <>
-            <button onClick={(e) => { stop(e); onAction?.("logCall", sale); }} style={iconBtnStyle()} title="Log call (writes to client comms)">📞</button>
-            <button onClick={(e) => { stop(e); onAction?.("logEmail", sale); }} style={iconBtnStyle()} title="Log email (writes to client comms)">✉️</button>
-            <button onClick={(e) => { stop(e); onAction?.("snooze", sale); }} style={iconBtnStyle()} title="Snooze 7 days">💤</button>
+            <button onClick={(e) => { stop(e); onAction?.("logCall", sale); }} style={iconBtnStyle()} title="Log call (writes to client comms)"><Ic.phone size={13} /></button>
+            <button onClick={(e) => { stop(e); onAction?.("logEmail", sale); }} style={iconBtnStyle()} title="Log email (writes to client comms)"><Ic.mail size={13} /></button>
+            <button onClick={(e) => { stop(e); onAction?.("snooze", sale); }} style={iconBtnStyle()} title="Snooze 7 days"><Ic.moon size={13} /></button>
           </>
         )}
 
         {!isFollowUp && (
           <button
             onClick={(e) => { stop(e); onAction?.("moveStage", sale, PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]); }}
-            style={{ flex: 1, padding: "3px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm }}
-          >→ {PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]}</button>
+            style={{ flex: 1, minHeight: 30, padding: "0 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.tm, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+          ><Ic.arrowRight size={11} /> {PIPELINE[Math.min(PIPELINE.indexOf(stage) + 1, 5)]}</button>
         )}
 
         {!isClosed && !isFollowUp && (
           <button
             onClick={(e) => { stop(e); onAction?.("markLost", sale); }}
-            style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.da}40`, background: Z.da + "08", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.da }}
+            style={{ ...iconBtnStyle(), border: `1px solid ${Z.da}40`, background: Z.da + "08", color: Z.da }}
             title="Mark deal as lost"
-          >✕</button>
+          ><Ic.x size={13} /></button>
         )}
 
         {(isClosed || isFollowUp) && (
-          <button onClick={(e) => { stop(e); onAction?.("clone", sale); }} style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa, cursor: "pointer", fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tm }}>⟳</button>
+          <button onClick={(e) => { stop(e); onAction?.("clone", sale); }} style={iconBtnStyle()} title="Clone into next issue"><Ic.refresh size={13} /></button>
         )}
 
         {isClosed && (
           <button
             onClick={(e) => { stop(e); onAction?.("adProject", sale); }}
-            style={{ padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.pu}40`, background: Z.pu + "10", cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy, color: Z.pu }}
+            style={{ ...iconBtnStyle(), border: `1px solid ${Z.pu}40`, background: Z.pu + "10", color: Z.pu }}
             title="Start ad design project"
-          >🎨</button>
+          ><Ic.palette size={13} /></button>
         )}
       </div>
     </div>
   );
 }
 
+// Wave 4 Tasks 4.1 + 4.9 — Lucide icons replace emoji chrome, and the
+// touch target bumps from ~18px to 30px (spec calls for ≥36 on mobile;
+// pipeline cards are desktop-primary, so 30 is the row-fit compromise).
 const iconBtnStyle = () => ({
-  padding: "3px 5px", borderRadius: Ri, border: `1px solid ${Z.bd}`,
-  background: Z.sa, cursor: "pointer", fontSize: FS.xs, fontWeight: FW.heavy,
-  color: Z.tm,
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  width: 30, height: 30,
+  borderRadius: Ri, border: `1px solid ${Z.bd}`,
+  background: Z.sa, cursor: "pointer", color: Z.tm,
 });
 
 export { PIPELINE_COLORS };

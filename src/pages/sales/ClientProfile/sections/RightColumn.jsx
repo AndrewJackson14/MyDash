@@ -14,9 +14,13 @@ export default function RightColumn({
   avgDeal, peerAvgSpend, peerTopSpend, peerTopSpender, vcIndustries, industryPeers,
   crossSellPubs,
   commForm, setCommForm, addComm,
-  bus, pn,
+  bus, pn, currentUser,
   onOpenProposal,
 }) {
+  // Wave 4 Task 4.3 — every comm logs the actual signed-in rep, not a
+  // hardcoded "Account Manager". Falls back only when no user is in
+  // session (system writes).
+  const authorName = currentUser?.name || "Account Manager";
   const cc = t => ({ Email: Z.tx, Phone: Z.tx, Text: Z.tx, Comment: Z.tm, Survey: Z.tm, Result: Z.tm })[t] || Z.tm;
 
   return (
@@ -31,8 +35,8 @@ export default function RightColumn({
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <Btn sm onClick={() => onOpenProposal(vc.id)}><Ic.send size={11} /> Draft Proposal</Btn>
           {closedCS.length > 0 && <Btn sm v="secondary" onClick={() => { if (bus) bus.emit("invoice.create", { clientId: vc.id, clientName: vc.name }); }}><Ic.invoice size={11} /> Create Invoice</Btn>}
-          <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: "Account Manager", note: "" })}>Log Call</Btn>
-          <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: "Account Manager", note: "" })}>Log Email</Btn>
+          <Btn sm v="secondary" onClick={() => setCommForm({ type: "Phone", author: authorName, note: "" })}>Log Call</Btn>
+          <Btn sm v="secondary" onClick={() => setCommForm({ type: "Email", author: authorName, note: "" })}>Log Email</Btn>
           {vc.portfolioToken && <PortfolioLinkButton client={vc} />}
         </div>
       </Card>

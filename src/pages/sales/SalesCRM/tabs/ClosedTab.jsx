@@ -5,11 +5,7 @@ import EntityThread from "../../../../components/EntityThread";
 import { generatePdf } from "../../../../lib/pdf";
 import { supabase } from "../../../../lib/supabase";
 import { cn as cnHelper, pn as pnHelper } from "../SalesCRM.helpers";
-
-// Stable palette for the per-rep stacked bar — Wave 3 Task 3.11.
-// Six accent shades pulled from theme.js so the legend stays
-// dark/light-mode safe.
-const REP_COLORS = ["#6BA4F0", "#F0A66B", "#9B7FE0", "#5DC9A6", "#E8B86B", "#E07F8B"];
+import { REP_COLORS } from "../SalesCRM.constants";
 
 // Closed tab — last-30-day deal tape sourced from contracts (one row per
 // contract, not per sale). Keeps its sort/filter/scroll state independent
@@ -195,14 +191,25 @@ export default function ClosedTab({
         </div>
       )}
 
+      {/* Wave 4 Task 4.5 — scrollable wrapper enables position: sticky on
+          the thead row. Without an overflow-auto ancestor, sticky has
+          no scroll container to stick to and falls back to static. */}
       <GlassCard style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FS.sm, fontFamily: COND }}>
-          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}` }}>
-            {[["Client", "client"], ["Publications", "pubs"], ["Value", "amount"], ["Closed", "date"], ["Salesperson", "rep"]].map(([label, key]) => (
-              <th key={label} onClick={() => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "8px 12px", textAlign: label === "Value" ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: closedSort.key === key ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>
-                {label}{closedSort.key === key ? (closedSort.dir === "asc" ? " ▲" : " ▼") : ""}
-              </th>
-            ))}
+          <thead><tr style={{ borderBottom: `1px solid ${Z.bd}`, position: "sticky", top: 0, zIndex: 2, background: Z.sa, boxShadow: `0 1px 0 0 ${Z.bd}` }}>
+            {[["Client", "client"], ["Publications", "pubs"], ["Value", "amount"], ["Closed", "date"], ["Salesperson", "rep"]].map(([label, key]) => {
+              const active = closedSort.key === key;
+              const isVal = label === "Value";
+              return (
+                <th key={label} onClick={() => setClosedSort(prev => ({ key, dir: prev.key === key && prev.dir === "asc" ? "desc" : "asc" }))} style={{ padding: "8px 12px", textAlign: isVal ? "right" : "left", fontSize: FS.xs, fontWeight: FW.heavy, color: active ? Z.ac : Z.td, textTransform: "uppercase", cursor: "pointer", userSelect: "none", position: "sticky", top: 0, background: Z.sa }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 3, justifyContent: isVal ? "flex-end" : "flex-start", width: "100%" }}>
+                    {label}
+                    {active && (closedSort.dir === "asc" ? <Ic.chevronUp size={11} /> : <Ic.chevronDown size={11} />)}
+                  </span>
+                </th>
+              );
+            })}
           </tr></thead>
           <tbody>
             {filtered.length === 0 ? <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: Z.td }}>No deals in this period</td></tr>
@@ -219,6 +226,7 @@ export default function ClosedTab({
           </tbody>
         </table>
         {filtered.length > 100 && <div style={{ padding: 8, textAlign: "center", fontSize: FS.xs, color: Z.td }}>Showing 100 of {filtered.length}</div>}
+        </div>
       </GlassCard>
 
       {/* Wave 3 Task 3.2 — drilldown panel when a lost-reason chip is

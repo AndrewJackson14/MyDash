@@ -3,7 +3,17 @@ import { Z, COND, FS, FW, R, Ri } from "../../../../lib/theme";
 import { Badge, Btn, GlassCard, Ic } from "../../../../components/ui";
 import { supabase, EDGE_FN_URL } from "../../../../lib/supabase";
 import { generateProposalHtml, DEFAULT_PROPOSAL_CONFIG } from "../../../../lib/proposalTemplate";
+import { fmtDate } from "../../../../lib/formatters";
 import { cn as cnHelper } from "../SalesCRM.helpers";
+
+// Proposals carry mixed timestamp shapes — sometimes ISO (closedAt,
+// signedAt, history[].date), sometimes YYYY-MM-DD (p.date). fmtDate
+// expects YYYY-MM-DD; this wrapper normalizes ISO inputs.
+const fmtPropDate = (d) => {
+  if (!d) return "";
+  const s = typeof d === "string" ? d : "";
+  return fmtDate(s.length > 10 ? s.slice(0, 10) : s);
+};
 import { propPubNames } from "./ProposalsTab";
 
 // Proposal detail view — right pane of the Proposals tab. Renders when
@@ -129,7 +139,7 @@ export default function ProposalDetail({
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: FS.title, fontWeight: FW.black, color: Z.tx }}>${p.total.toLocaleString()}</div>
           <Badge status={p.status} />
-          {p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {new Date(p.closedAt).toLocaleDateString()}</div>}
+          {p.closedAt && <div style={{ fontSize: FS.sm, color: Z.tm, marginTop: 2 }}>Closed: {fmtPropDate(p.closedAt)}</div>}
         </div>
       </div>
       {Object.entries(grouped).map(([pub, lines]) => (
@@ -220,7 +230,7 @@ export default function ProposalDetail({
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {(p.history || []).map((h, i) => (
             <div key={i} style={{ display: "flex", gap: 10, padding: "4px 0", borderBottom: i < p.history.length - 1 ? `1px solid ${Z.bd}15` : "none" }}>
-              <span style={{ fontSize: FS.xs, color: Z.tm, minWidth: 90 }}>{h.date ? new Date(h.date).toLocaleDateString() : ""}</span>
+              <span style={{ fontSize: FS.xs, color: Z.tm, minWidth: 90 }}>{fmtPropDate(h.date)}</span>
               <span style={{ fontSize: FS.sm, color: Z.tx }}>{h.detail || h.event}</span>
             </div>
           ))}

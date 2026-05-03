@@ -145,8 +145,8 @@ export default function LeftColumn({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <span style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, letterSpacing: 1, textTransform: "uppercase" }}>Contacts</span>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={() => persist(() => appData.insertClientContact(vc.id, { name: "", email: "", phone: "", role: "Other" }))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "2px 8px" }}>+ Add</button>
-            {onOpenEditClient && <button onClick={() => onOpenEditClient(vc)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, padding: "2px 8px" }}>Edit</button>}
+            <button onClick={() => persist(() => appData.insertClientContact(vc.id, { name: "", email: "", phone: "", role: "Other" }))} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.ac, fontSize: FS.sm, fontWeight: FW.bold, padding: "5px 10px", minHeight: 28 }}>+ Add</button>
+            {onOpenEditClient && <button onClick={() => onOpenEditClient(vc)} style={{ background: "none", border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", color: Z.tm, fontSize: FS.sm, fontWeight: FW.semi, padding: "5px 10px", minHeight: 28 }}>Edit</button>}
           </div>
         </div>
         {(vc.contacts || []).map((ct, idx) => (

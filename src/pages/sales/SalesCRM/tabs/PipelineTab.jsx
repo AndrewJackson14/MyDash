@@ -1,5 +1,6 @@
 import { Z, COND, ACCENT, FS, FW, Ri, R, CARD } from "../../../../lib/theme";
 import { Btn, EmptyState, GlassCard, Ic, cardSurface } from "../../../../components/ui";
+import { fmtTimeRelative } from "../../../../lib/formatters";
 import { PIPELINE, PIPELINE_COLORS, actInfo } from "../../constants";
 import { cn as cnHelper, pn as pnHelper, actLabel as actLabelHelper } from "../SalesCRM.helpers";
 import SaleCard from "./SaleCard";
@@ -211,15 +212,45 @@ export default function PipelineTab({
         </GlassCard>
         <GlassCard>
           <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: COND, marginBottom: 6 }}>Recent Activity</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {activityLog.slice(0, 4).map(a => (
-              <div key={a.id} onClick={() => { if (a.clientId) navTo("Clients", a.clientId); }} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${Z.bd}15`, cursor: a.clientId ? "pointer" : "default" }}>
-                <div>
-                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>{a.clientName}</div>
-                  <div style={{ fontSize: FS.xs, color: Z.tm }}>{a.text}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {/* Wave 4 Tasks 4.6 + 4.2 — entries are buttons (keyboard
+                navigable) that route to the client. Time uses
+                fmtTimeRelative so each entry reads "9m ago" instead
+                of a raw ISO string. The Ic.arrowRight prefix mirrors
+                the activity-direction visual. */}
+            {activityLog.slice(0, 6).map(a => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => { if (a.clientId) navTo("Clients", a.clientId); }}
+                disabled={!a.clientId}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr auto",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 6px",
+                  borderRadius: Ri,
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `1px solid ${Z.bd}15`,
+                  cursor: a.clientId ? "pointer" : "default",
+                  textAlign: "left",
+                  color: Z.tx,
+                  fontFamily: "inherit",
+                  minHeight: 36,
+                }}
+                onMouseEnter={e => { if (a.clientId) e.currentTarget.style.background = Z.sa; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                title={a.clientName ? `Open ${a.clientName}` : undefined}
+              >
+                <Ic.arrowRight size={11} color={Z.tm} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.clientName}</div>
+                  <div style={{ fontSize: FS.xs, color: Z.tm, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.text}</div>
                 </div>
-                <span style={{ fontSize: FS.xs, color: Z.td, flexShrink: 0 }}>{a.time}</span>
-              </div>
+                <span style={{ fontSize: FS.xs, color: Z.td, flexShrink: 0, fontFamily: COND }}>{fmtTimeRelative(a.time)}</span>
+              </button>
             ))}
             {activityLog.length === 0 && <div style={{ padding: 12, textAlign: "center", color: Z.td, fontSize: FS.sm }}>No recent activity</div>}
           </div>

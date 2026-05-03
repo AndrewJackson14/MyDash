@@ -20,10 +20,13 @@ import ClientsTab from "./tabs/ClientsTab";
 import CloseIssueModal from "./modals/CloseIssueModal";
 import ClientFormModal from "./modals/ClientFormModal";
 import OpportunityModal from "./modals/OpportunityModal";
+import SendKitModal from "./modals/SendKitModal";
 import EmailComposeModal from "./modals/EmailComposeModal";
 import CalendarSchedulerModal from "./modals/CalendarSchedulerModal";
 import NextStepModal from "./modals/NextStepModal";
 import { useSalesCRM } from "./useSalesCRM";
+import { getClientProposal as getClientProposalHelper } from "./SalesCRM.helpers";
+import { LOST_REASONS } from "./SalesCRM.constants";
 // Heavy sub-views — only load when the user opens the relevant tab/row.
 // ClientProfile + ClientSignals are lazy-loaded inside ClientsTab.
 const Commissions = lazy(() => import("../Commissions"));
@@ -50,19 +53,10 @@ const SalesCRM = (props) => {
     }
   }, [save]);
 
-  // Publish TopBar header while this module is the active page. Gated on
-  // isActive because App.jsx keeps modules mounted after first visit.
+  // Publish TopBar header while this module is the active page. The
+  // tab/viewClientId-aware effect that sets the breadcrumb + title
+  // lives further down, after those state vars are declared.
   const { setHeader, clearHeader } = usePageHeader();
-  useEffect(() => {
-    if (isActive) {
-      setHeader({
-        breadcrumb: [{ label: "Home" }, { label: "Sales" }],
-        title: "Sales",
-      });
-    } else {
-      clearHeader();
-    }
-  }, [isActive, setHeader, clearHeader]);
 
   // Keep ad_inquiries realtime channel open while this module is mounted.
   useEffect(() => retainInquiriesRealtime?.(), [retainInquiriesRealtime]);
@@ -139,7 +133,18 @@ const SalesCRM = (props) => {
   const [ec, setEc] = useState(null);
   const [cf, setCf] = useState({ name: "", industries: [], leadSource: "", interestedPubs: [], contacts: [{ name: "", email: "", phone: "", role: "Business Owner" }], notes: "", billingEmail: "", billingCcEmails: ["", ""], billingAddress: "", billingAddress2: "", billingCity: "", billingState: "", billingZip: "" });
   const [viewClientId, setViewClientId] = useState(null);
-  const [commForm, setCommForm] = useState({ type: "Comment", author: "Account Manager", note: "" });
+  // Wave 4 Task 4.3 — seed the commForm author with the signed-in
+  // rep's name. The lazy initializer + the effect below keep author in
+  // sync if currentUser arrives after first render (auth restore).
+  const [commForm, setCommForm] = useState(() => ({
+    type: "Comment",
+    author: currentUser?.name || "Account Manager",
+    note: "",
+  }));
+  useEffect(() => {
+    if (!currentUser?.name) return;
+    setCommForm(f => (f.author === currentUser.name ? f : { ...f, author: currentUser.name }));
+  }, [currentUser?.name]);
   const [profFYear, setProfFYear] = useState("all");
   const [profFPub, setProfFPub] = useState("all");
   const [pipeView, setPipeView] = useState("actions");
@@ -252,6 +257,35 @@ const SalesCRM = (props) => {
     prevInquiryCountRef.current = count;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adInquiries?.length, inquiriesLoaded, tab]);
+
+  // Wave 4 Task 4.4 — header reflects "Sales / <tab> / <client>" when
+  // a profile is open. TopBar (post-Andrew-override 2026-04-26) only
+  // renders the title, so we bake the breadcrumb path into the title
+  // string. The breadcrumb prop on setHeader is kept for forward
+  // compat — if/when TopBar starts rendering it again, this is ready.
+  useEffect(() => {
+    if (!isActive) { clearHeader(); return; }
+    if (viewClientId) {
+      const client = clients.find(c => c.id === viewClientId);
+      const sourceTab = (prevTab || "Pipeline").split(":")[0] || "Pipeline";
+      const clientName = client?.name || "Client";
+      setHeader({
+        breadcrumb: [
+          { label: "Home" },
+          { label: "Sales" },
+          { label: sourceTab },
+          { label: clientName },
+        ],
+        title: `Sales · ${sourceTab} · ${clientName}`,
+      });
+    } else {
+      setHeader({
+        breadcrumb: [{ label: "Home" }, { label: "Sales" }, { label: tab }],
+        title: tab === "Pipeline" ? "Sales" : `Sales · ${tab}`,
+      });
+    }
+  }, [isActive, viewClientId, clients, tab, prevTab, setHeader, clearHeader]);
+
   // Local-state activity strip + parallel mirror to the global
   // activity_log RPC for selected pipeline events. The strip serves
   // the in-page UX (50-row rolling feed); the RPC feeds Hayley's
@@ -293,7 +327,10 @@ const SalesCRM = (props) => {
   const navTo = (t, cId) => { setPrevTab(tab + (viewClientId ? `:${viewClientId}` : "")); setTab(t); setViewClientId(cId || null); };
   const goBack = () => { const [t, c] = (prevTab || "Pipeline").split(":"); setTab(t); setViewClientId(c || null); };
   const hasProposal = (saleId) => { const s = sales.find(x => x.id === saleId); return s?.proposalId || proposals.some(p => p.clientId === s?.clientId && (p.status === "Sent" || p.status === "Signed & Converted" || p.status === "Draft")); };
-  const getClientProposal = (cid) => proposals.find(p => p.clientId === cid && (p.status === "Sent" || p.status === "Signed & Converted"));
+  // Wave 4 Task 4.8 — single source of truth in SalesCRM.helpers.
+  // Local closure captures `proposals` so call sites still take just
+  // `(cid)` (the helper itself takes both args).
+  const getClientProposal = (cid) => getClientProposalHelper(cid, proposals);
   const actLabel = (s) => { const a = actInfo(s.nextAction); return a ? a.label : ""; };
   const actIcon = (s) => { const a = actInfo(s.nextAction); return a?.icon || "→"; };
   const actVerb = (s) => { const a = actInfo(s.nextAction); return a?.verb || "Act"; };
@@ -638,8 +675,8 @@ const SalesCRM = (props) => {
         break;
       case "markLost": {
         (async () => {
-          const REASONS = ["Budget cut", "Chose competitor", "Timing not right", "No response", "Bad fit", "Price too high", "Other"];
-          const reason = await dialog.prompt("Why was this deal lost?", { options: REASONS });
+          // Wave 4 — single source of truth in SalesCRM.constants.js.
+          const reason = await dialog.prompt("Why was this deal lost?", { options: LOST_REASONS });
           if (!reason) return;
           await updateSale(s.id, { status: "Lost", lost_reason: reason, nextAction: null, nextActionDate: null });
           logActivity(`Lost: ${reason}`, "pipeline", s.clientId, cn(s.clientId));
@@ -1172,20 +1209,27 @@ const SalesCRM = (props) => {
       onClose={() => setOppMo(false)}
       opp={opp}
       setOpp={setOpp}
-      oppSendKit={oppSendKit}
       setOppSendKit={setOppSendKit}
-      oppKitSent={oppKitSent}
-      oppKitPubs={oppKitPubs}
-      setOppKitPubs={setOppKitPubs}
-      oppKitMsg={oppKitMsg}
       setOppKitMsg={setOppKitMsg}
       editOppId={editOppId}
       sales={sales}
       clients={clients}
-      dropdownPubs={dropdownPubs}
       saveOpp={saveOpp}
-      sendKit={sendKit}
       oppToProposal={oppToProposal}
+    />
+
+    {/* Wave 4 Task 4.7 — own modal, not a sub-mode of Opportunity. */}
+    <SendKitModal
+      open={oppSendKit}
+      onClose={() => { setOppSendKit(false); setOppKitSent(false); }}
+      opp={opp}
+      oppKitPubs={oppKitPubs}
+      setOppKitPubs={setOppKitPubs}
+      oppKitMsg={oppKitMsg}
+      setOppKitMsg={setOppKitMsg}
+      oppKitSent={oppKitSent}
+      dropdownPubs={dropdownPubs}
+      sendKit={sendKit}
     />
 
     <EmailComposeModal

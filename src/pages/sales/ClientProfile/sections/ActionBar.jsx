@@ -1,4 +1,5 @@
 import { Z, COND, FS, FW, Ri } from "../../../../lib/theme";
+import { Ic } from "../../../../components/ui";
 import { useDialog } from "../../../../hooks/useDialog";
 
 // Shared style for the four header action buttons (Call · Email ·
@@ -66,7 +67,7 @@ export default function ActionBar({
         style={actionBtnStyle(primaryContact.phone, Z.ac)}
         title={primaryContact.phone || "No phone on file"}
       >
-        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📞</span>
+        <Ic.phone size={20} />
         <span>Call</span>
       </a>
       <button
@@ -76,7 +77,7 @@ export default function ActionBar({
         style={actionBtnStyle(primaryContact.email && onOpenEmail, Z.ac)}
         title={primaryContact.email || "No email on file"}
       >
-        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>✉️</span>
+        <Ic.mail size={20} />
         <span>Email</span>
       </button>
       <button
@@ -86,7 +87,7 @@ export default function ActionBar({
         style={actionBtnStyle(!!onOpenProposal, Z.go)}
         title="Build a proposal pre-filled for this client"
       >
-        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📄</span>
+        <Ic.file size={20} />
         <span>Proposal</span>
       </button>
       <button
@@ -96,7 +97,7 @@ export default function ActionBar({
         style={actionBtnStyle(!!onOpenMeeting, Z.pu)}
         title="Schedule a meeting with this client"
       >
-        <span style={{ fontSize: FS.xl, lineHeight: 1 }}>📅</span>
+        <Ic.cal size={20} />
         <span>Meeting</span>
       </button>
     </div>

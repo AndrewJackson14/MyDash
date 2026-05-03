@@ -35,7 +35,7 @@ export default function PurchaseTimelineCard({
             <button onClick={() => toggleYear(yr.year)}
               style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, cursor: "pointer", textAlign: "left" }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: FS.micro, color: Z.tm, width: 10, display: "inline-block" }}>{open ? "▼" : "▶"}</span>
+                <span style={{ display: "inline-flex", color: Z.tm, width: 10 }}>{open ? <Ic.chevronDown size={11} /> : <Ic.chevronRight size={11} />}</span>
                 <span style={{ fontSize: FS.md, fontWeight: FW.black, color: Z.tx, fontFamily: DISPLAY }}>{yr.year}</span>
                 <span style={{ fontSize: FS.xs, color: Z.td, marginLeft: 8 }}>
                   {yr.contracts.length > 0 && `${yr.contracts.length} contract${yr.contracts.length !== 1 ? "s" : ""} · `}
@@ -58,7 +58,7 @@ export default function PurchaseTimelineCard({
                         style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: Z.tx }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                            <span style={{ fontSize: FS.micro, color: Z.tm, width: 10 }}>{ctOpen ? "▼" : "▶"}</span>
+                            <span style={{ display: "inline-flex", color: Z.tm, width: 10 }}>{ctOpen ? <Ic.chevronDown size={11} /> : <Ic.chevronRight size={11} />}</span>
                             <Ic.handshake size={11} color={Z.tm} />
                             <span style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx, fontFamily: COND }}>{ct.name}</span>
                             <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: stColor, background: stColor + "15", padding: "1px 6px", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.3 }}>{ct.status}</span>

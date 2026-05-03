@@ -1,6 +1,12 @@
 import { Z, COND, FS, FW, Ri, R, CARD } from "../../../../lib/theme";
 import { Btn, EmptyState, GlassStat, cardSurface } from "../../../../components/ui";
 import { COMPANY } from "../../../../constants";
+import { fmtDate } from "../../../../lib/formatters";
+
+// Inquiry timestamps come back from Postgres as ISO strings (TZ-aware).
+// fmtDate expects a YYYY-MM-DD; for ISO strings we pass new Date(iso) →
+// ISO slice. Wrapping here so both paths produce the same display.
+const fmtInq = (iso) => iso ? fmtDate(iso.slice(0, 10)) : "—";
 
 // Inquiries tab — website Advertise-page form submissions land here as
 // "new" rows. SLA badge surfaces aging (audit I-2: <30m fresh, <2h yellow,
@@ -105,8 +111,8 @@ export default function InquiriesTab({
                       {confidenceBadge(inq.match_confidence, inq.match_reason)}
                       {matchedClient && !inq.confirmed && inq.match_confidence !== "none" && (
                         <span style={{ display: "flex", gap: 4 }}>
-                          <button onClick={() => updateInquiry(inq.id, { confirmed: true })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.su || "#22c55e") + "18", color: Z.su || "#22c55e", border: "none", cursor: "pointer", fontFamily: COND }}>Confirm Match</button>
-                          <button onClick={() => updateInquiry(inq.id, { client_id: null, match_confidence: "none", match_reason: "" })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "2px 8px", borderRadius: 3, background: (Z.da || "#ef4444") + "18", color: Z.da || "#ef4444", border: "none", cursor: "pointer", fontFamily: COND }}>Reject</button>
+                          <button onClick={() => updateInquiry(inq.id, { confirmed: true })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "5px 10px", borderRadius: 3, background: (Z.su || "#22c55e") + "18", color: Z.su || "#22c55e", border: "none", cursor: "pointer", fontFamily: COND, minHeight: 26 }}>Confirm Match</button>
+                          <button onClick={() => updateInquiry(inq.id, { client_id: null, match_confidence: "none", match_reason: "" })} style={{ fontSize: FS.micro, fontWeight: 700, padding: "5px 10px", borderRadius: 3, background: (Z.da || "#ef4444") + "18", color: Z.da || "#ef4444", border: "none", cursor: "pointer", fontFamily: COND, minHeight: 26 }}>Reject</button>
                         </span>
                       )}
                       {inq.confirmed && <span style={{ fontSize: FS.micro, fontWeight: 700, color: Z.su || "#22c55e", fontFamily: COND }}>&#10003; Confirmed</span>}
@@ -117,7 +123,7 @@ export default function InquiriesTab({
                     {matchedClient && <div style={{ fontSize: FS.xs, color: Z.ac, fontFamily: COND, marginTop: 2, cursor: "pointer" }} onClick={() => navTo("Clients", matchedClient.id)}>Linked to: {matchedClient.name}{rep ? " (Rep: " + rep.name + ")" : ""}</div>}
                   </div>
                   <div style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND, whiteSpace: "nowrap" }}>
-                    {new Date(inq.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {fmtInq(inq.created_at)}
                   </div>
                 </div>
 
@@ -132,7 +138,7 @@ export default function InquiriesTab({
                     </div>
                   )}
                   {inq.budget_range && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Budget:</span> {inq.budget_range}</div>}
-                  {inq.desired_start && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Start:</span> {new Date(inq.desired_start).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
+                  {inq.desired_start && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Start:</span> {fmtInq(inq.desired_start)}</div>}
                   {inq.how_heard && <div><span style={{ color: Z.tm, fontWeight: 600 }}>Source:</span> {inq.how_heard}</div>}
                 </div>
 

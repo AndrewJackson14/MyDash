@@ -13,6 +13,12 @@ export const LOST_REASONS = [
   "No response", "Bad fit", "Price too high", "Other",
 ];
 
+// Wave 4 — palette for the per-rep stacked revenue bar on the Closed
+// tab (Wave 3 Task 3.11). Distinct enough across light + dark that
+// adjacent slices stay readable; six entries support the typical
+// 4–6 active sales reps before wrapping.
+export const REP_COLORS = ["#6BA4F0", "#F0A66B", "#9B7FE0", "#5DC9A6", "#E8B86B", "#E07F8B"];
+
 // Initial form state factories. Centralized so a schema change is one
 // edit instead of three (modal init, reset on close, "+ New" reset).
 export const newClientForm = () => ({

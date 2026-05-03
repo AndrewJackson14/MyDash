@@ -35,7 +35,7 @@ function GroupHeader({ icon, label, open, onToggle, hint }) {
       <span style={{ color: Z.tm, display: "inline-flex" }}>{icon}</span>
       <span style={{ flex: 1, fontSize: FS.sm, fontWeight: FW.heavy, color: Z.tx, fontFamily: COND, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
       {hint && <span style={{ fontSize: FS.micro, color: Z.td, fontFamily: COND }}>{hint}</span>}
-      <span style={{ color: Z.td, fontSize: FS.xs }}>{open ? "▼" : "▶"}</span>
+      <span style={{ color: Z.td, display: "inline-flex" }}>{open ? <Ic.chevronDown size={12} /> : <Ic.chevronRight size={12} />}</span>
     </button>
   );
 }
