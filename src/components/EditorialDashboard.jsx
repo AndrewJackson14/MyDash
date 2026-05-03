@@ -5,6 +5,10 @@ import FuzzyPicker from "./FuzzyPicker";
 import { STORY_STATUSES } from "../constants";
 import { supabase } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
+import { useSaveStatus } from "../hooks/useSaveStatus";
+import { bulkUpdateStories } from "../lib/storyBulkUpdate";
+import IssuePlanningErrorBoundary from "./editorial/issue-planning/IssuePlanningErrorBoundary";
+import IssuePlanningTab from "./editorial/issue-planning/IssuePlanningTab";
 import { usePageHeader } from "../contexts/PageHeaderContext";
 import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, sectionForPage, pageLabel } from "../lib/sections";
 
@@ -231,6 +235,11 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   }, [isActive, setHeader, clearHeader]);
   const stories = storiesRaw || [];
   const dialog = useDialog();
+  // IP Wave 1: every Issue-Planning write flows through this so RLS
+  // rejections, network failures, and 0-rows-affected results show up
+  // as a visible badge with retry — instead of disappearing into
+  // console.error like they used to.
+  const save = useSaveStatus();
 
   // Load status colors + enabled flag from org_settings (publisher-configurable)
   const [statusColors, setStatusColors] = useState(DEFAULT_statusColors);
@@ -253,17 +262,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   const [tab, setTab] = useState("workflow");
   const [fPub, setFPub] = useState("all");
   const [fAssignee, setFAssignee] = useState("all");
-  // Page-group collapsed state (Phase 3b). Keys are page numbers as
-  // strings, plus "unassigned" for the null-page bucket. Persisted per
-  // issue in localStorage so the editor's open/closed shape survives
-  // tab switches and reloads.
-  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
-  // Drag-and-drop state (Phase 3b/3c — story reorder across page groups).
-  // draggingId = the story currently held by the cursor; dropTarget
-  // = where it would land if released right now (group key + the row
-  // it would insert above, or null for "append to end of group").
-  const [draggingId, setDraggingId] = useState(null);
-  const [dropTarget, setDropTarget] = useState(null);
+  // Issue-Planning state (collapsedGroups, draggingId, dropTarget,
+  // showSiblings, issueSections, sidebarCollapsed, sortCol/Dir)
+  // moved into IssuePlanningTab as part of IP Wave 2 decomposition.
 
   const [sr, setSr] = useState("");
   const [selected, setSelected] = useState(null);
@@ -283,75 +284,8 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
 
   // Issue planning state
   const [selIssue, setSelIssue] = useState(null);
-  const [showSiblings, setShowSiblings] = useState(false);
 
-  // Sections for the active issue, shared with Flatplan via the
-  // flatplan_sections table. Realtime-subscribed so creates/edits in
-  // either view propagate immediately.
-  const [issueSections, setIssueSections] = useState([]);
-  // Page-label formatter scoped to the active issue's pub type and
-  // sections — newspapers get "A1, B2", magazines stay linear.
-  const fmtPage = useMemo(() => {
-    const pubId = (issues || []).find(i => i.id === selIssue)?.pubId;
-    const pubType = pubs.find(p => p.id === pubId)?.type;
-    return (page) => pageLabel(page, issueSections, pubType);
-  }, [issueSections, issues, selIssue, pubs]);
-  useEffect(() => {
-    if (!selIssue) { setIssueSections([]); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await loadSectionsForIssue(selIssue);
-        if (!cancelled) setIssueSections(rows);
-      } catch (err) {
-        console.error("[Issue Planner] load sections failed:", err);
-      }
-    })();
-    const ch = supabase.channel(`ip-sections-${selIssue}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "flatplan_sections", filter: `issue_id=eq.${selIssue}` },
-        (payload) => {
-          if (payload.eventType === "DELETE") {
-            const oldId = payload.old?.id;
-            if (oldId) setIssueSections(prev => prev.filter(s => s.id !== oldId));
-          } else {
-            const r = payload.new;
-            if (!r) return;
-            const mapped = { id: r.id, issueId: r.issue_id, label: r.name, name: r.name, startPage: r.start_page, endPage: r.end_page, afterPage: (r.start_page ?? 1) - 1, color: r.color || null, kind: r.kind || "main", sortOrder: r.sort_order };
-            setIssueSections(prev => {
-              const idx = prev.findIndex(s => s.id === r.id);
-              const next = idx === -1 ? [...prev, mapped] : prev.map(s => s.id === r.id ? mapped : s);
-              next.sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0));
-              return next;
-            });
-          }
-        }).subscribe();
-    return () => { cancelled = true; supabase.removeChannel(ch); };
-  }, [selIssue]);
-
-  // When the issue changes, restore the per-issue collapsed-groups set
-  // from localStorage so editors don't lose the layout they shaped.
-  useEffect(() => {
-    if (!selIssue) { setCollapsedGroups(new Set()); return; }
-    try {
-      const raw = localStorage.getItem(`ip_collapsed_${selIssue}`);
-      setCollapsedGroups(new Set(raw ? JSON.parse(raw) : []));
-    } catch { setCollapsedGroups(new Set()); }
-  }, [selIssue]);
-  useEffect(() => {
-    if (!selIssue) return;
-    try { localStorage.setItem(`ip_collapsed_${selIssue}`, JSON.stringify([...collapsedGroups])); } catch {}
-  }, [collapsedGroups, selIssue]);
-  const toggleGroup = useCallback((key) => {
-    setCollapsedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  }, []);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [addingInlineStory, setAddingInlineStory] = useState(false);
-  const [sortCol, setSortCol] = useState("title");
-  const [sortDir, setSortDir] = useState("asc");
 
   // Archive-tab date range. Preset-driven (7d / this month / last month /
   // custom). `archiveFrom` / `archiveTo` are always the live window used
@@ -462,49 +396,51 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
   const openDetail = useCallback((story) => { setSelected(story); setEditorOpen(true); }, []);
   const closeEditor = useCallback(() => { setEditorOpen(false); setSelected(null); }, []);
 
-  const updateStory = (id, updates) => {
+  const updateStory = useCallback((id, updates) => {
     if (updates._deleted) {
       setStories(prev => prev.filter(s => s.id !== id));
       return;
     }
+    // Optimistic local update
     setStories(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     if (selected?.id === id) setSelected(s => ({ ...s, ...updates }));
-    // Auto-save to DB (fire-and-forget)
+
     if (!id) return;
+
+    // Build the DB-shape patch
     const dbFields = {};
-    if (updates.title !== undefined) dbFields.title = updates.title;
-    if (updates.author !== undefined) dbFields.author = updates.author;
-    if (updates.category !== undefined) dbFields.category = updates.category;
-    if (updates.status !== undefined) dbFields.status = updates.status;
-    if (updates.page !== undefined) dbFields.page = updates.page;
-    if (updates.page_number !== undefined) dbFields.page = updates.page_number;
-    if (updates.web_status !== undefined) dbFields.web_status = updates.web_status;
-    if (updates.sent_to_web !== undefined) dbFields.sent_to_web = updates.sent_to_web;
-    if (updates.published_at !== undefined) dbFields.published_at = updates.published_at;
+    if (updates.title             !== undefined) dbFields.title = updates.title;
+    if (updates.author            !== undefined) dbFields.author = updates.author;
+    if (updates.category          !== undefined) dbFields.category = updates.category;
+    if (updates.status            !== undefined) dbFields.status = updates.status;
+    if (updates.page              !== undefined) dbFields.page = updates.page;
+    if (updates.page_number       !== undefined) dbFields.page = updates.page_number;
+    if (updates.web_status        !== undefined) dbFields.web_status = updates.web_status;
+    if (updates.sent_to_web       !== undefined) dbFields.sent_to_web = updates.sent_to_web;
+    if (updates.published_at      !== undefined) dbFields.published_at = updates.published_at;
     if (updates.first_published_at !== undefined) dbFields.first_published_at = updates.first_published_at;
-    if (updates.word_limit !== undefined) dbFields.word_limit = updates.word_limit;
-    if (updates.priority !== undefined) dbFields.priority = updates.priority;
-    if (updates.has_images !== undefined) dbFields.has_images = !!updates.has_images;
-    if (updates.jump_to_page !== undefined) {
+    if (updates.word_limit        !== undefined) dbFields.word_limit = updates.word_limit;
+    if (updates.priority          !== undefined) dbFields.priority = updates.priority;
+    if (updates.has_images        !== undefined) dbFields.has_images = !!updates.has_images;
+    if (updates.jump_to_page      !== undefined) {
       const n = parseInt(updates.jump_to_page);
       dbFields.jump_to_page = isNaN(n) ? null : n;
     }
     if (Object.keys(dbFields).length === 0) return;
 
-    // Map page to integer for DB
     if (dbFields.page !== undefined) {
       const pgNum = parseInt(String(dbFields.page));
       dbFields.page = isNaN(pgNum) ? null : pgNum;
     }
 
-    if (id.startsWith("story-")) {
-      // New story — only INSERT once it has a title
+    // INSERT path for client-side temp ids ("story-…") — only after title is set
+    if (String(id).startsWith("story-")) {
       const full = storiesRaw.find(s => s.id === id) || {};
       const titleVal = updates.title || full.title || "";
-      if (!titleVal.trim()) return; // Don't persist untitled stories yet
+      if (!titleVal.trim()) return;
       const pubId = full.publication_id || full.publication || null;
       const issId = full.print_issue_id || full.issue_id || full.issueId || null;
-      supabase.from("stories").insert({
+      const insertRow = {
         title: titleVal,
         author: full.author || null,
         status: "Draft",
@@ -513,30 +449,39 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
         print_issue_id: issId,
         page: dbFields.page || null,
         ...dbFields,
-      }).select("id").single().then(({ data }) => {
+      };
+      const doInsert = async () => {
+        const { data, error } = await supabase
+          .from("stories")
+          .insert(insertRow)
+          .select("id")
+          .single();
+        if (error) throw error;
         if (data?.id) {
           setStories(prev => prev.map(s => s.id === id ? { ...s, id: data.id } : s));
         }
-      }).catch(err => console.error("Story insert error:", err));
-    } else {
-      // Surface errors. `.catch(() => {})` was hiding RLS rejections —
-      // writes silently returned 0 rows and the local optimistic update
-      // "stuck" until page reload revealed the DB hadn't changed.
-      // We .select() back the affected rows so 0-rows-affected is
-      // detectable and loggable (PostgREST doesn't throw on RLS — it
-      // just returns an empty array).
-      dbFields.updated_at = new Date().toISOString();
-      supabase.from("stories").update(dbFields).eq("id", id).select("id").then(({ data, error }) => {
-        if (error) {
-          console.error("[Issue Planner] stories update failed:", error.message, dbFields);
-          return;
-        }
-        if (!data || data.length === 0) {
-          console.error("[Issue Planner] stories update affected 0 rows (likely RLS). Fields:", Object.keys(dbFields));
-        }
-      });
+      };
+      save.track(doInsert(), { retry: () => save.track(doInsert()) }).catch(() => {});
+      return;
     }
-  };
+
+    // UPDATE path. .select() back so 0-rows-affected (RLS rejection)
+    // turns into a thrown error — PostgREST doesn't throw on its own,
+    // it just returns an empty array.
+    dbFields.updated_at = new Date().toISOString();
+    const doUpdate = async () => {
+      const { data, error } = await supabase
+        .from("stories")
+        .update(dbFields)
+        .eq("id", id)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Update affected 0 rows. The row may have been deleted, or you don't have permission.");
+      }
+    };
+    save.track(doUpdate(), { retry: () => save.track(doUpdate()) }).catch(() => {});
+  }, [storiesRaw, selected, setStories, save]);
 
   // ── Handle kanban drag-drop ─────────────────────────────────
   // Must be defined after updateStory — its dep array closes over the
@@ -572,221 +517,9 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     if (bus) bus.emit("story.published", { storyId: story.id, title: story.title });
   };
 
-  // ── Issues for planning tab ─────────────────────────────────
-  // Print-side planner — keep sent-to-press issues visible (they're
-  // still relevant context for layout cleanup and post-press lookups).
-  // Date filter still scopes to today-and-forward to keep the sidebar
-  // from filling with archive issues.
-  const futureIssues = useMemo(() => {
-    const byPub = {};
-    (issues || [])
-      .filter(i => i.date >= new Date().toISOString().slice(0, 10) && (fPub === "all" || i.publicationId === fPub || i.pubId === fPub))
-      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
-      .forEach(i => {
-        const pk = i.publicationId || i.pubId;
-        if (!byPub[pk]) byPub[pk] = [];
-        if (byPub[pk].length < 2) byPub[pk].push(i);
-      });
-    return Object.values(byPub).flat().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  }, [issues, fPub]);
 
-  // Sibling publication context for the selected issue
-  const siblingCtx = useMemo(() => {
-    if (!selIssue) return null;
-    const iss = issues.find(i => i.id === selIssue);
-    if (!iss) return null;
-    const pub = (pubs || []).find(p => p.id === iss.pubId);
-    // Mapper exposes site_settings.shared_content_with as sharedContentWith;
-    // fall back to settings.shared_content_with for any older code paths.
-    const siblings = pub?.sharedContentWith || pub?.settings?.shared_content_with || [];
-    if (siblings.length === 0) return null;
-    // Find sibling issues with the same date
-    const siblingIssues = siblings.map(sibId => {
-      const sibIss = issues.find(i => i.pubId === sibId && i.date === iss.date);
-      const sibPub = (pubs || []).find(p => p.id === sibId);
-      return sibIss && sibPub ? { issue: sibIss, pub: sibPub } : null;
-    }).filter(Boolean);
-    return siblingIssues.length > 0 ? siblingIssues : null;
-  }, [selIssue, issues, pubs]);
 
-  const issueStories = useMemo(() => {
-    if (!selIssue) return [];
-    // Print-side planner — never filters by web-publish state. A story
-    // can be live on the web AND still need print attention.
-    //
-    // Anchor strictly on print_issue_id. The legacy issue_id column
-    // (single-issue model from before print/web were split) sometimes
-    // drifts from print_issue_id, which made stories appear under two
-    // issue dates in the sidebar. print_issue_id is the editor-set
-    // value and the canonical print anchor.
-    //
-    // Also include stories linked to this issue as a sibling placement
-    // via also_in_issue_ids (see migration 090). Those render with a
-    // "↔ [Primary Pub]" badge so editors know they're the shared copy.
-    let list = stories
-      .filter(s => s.print_issue_id === selIssue
-                || (Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(selIssue)))
-      .map(s => s.print_issue_id === selIssue ? s : { ...s, _mirroredFrom: s.print_issue_id });
-    // Include sibling pub stories when toggled on
-    if (showSiblings && siblingCtx) {
-      const siblingIds = new Set(siblingCtx.map(sc => sc.issue.id));
-      const sibStories = stories
-        .filter(s => siblingIds.has(s.print_issue_id))
-        .map(s => ({ ...s, _fromSibling: true, _siblingPub: siblingCtx.find(sc => sc.issue.id === s.print_issue_id)?.pub?.name }));
-      list = [...list, ...sibStories];
-    }
-    return list.sort((a, b) => {
-      const av = a[sortCol] || "", bv = b[sortCol] || "";
-      const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [stories, selIssue, showSiblings, siblingCtx, sortCol, sortDir]);
 
-  // Phase 3b — group issueStories by destination page. Unassigned (page=null)
-  // is always pinned at index 0; remaining buckets sort numerically. Each
-  // group is a tuple [key, label, stories[], jumpsIn[]] where:
-  //   - key:        "unassigned" or the page number as a string
-  //   - label:      header text ("Unassigned" or "Page 6")
-  //   - stories[]:  primary story rows whose .page matches this group
-  //   - jumpsIn[]:  read-only continuation rows — stories whose
-  //                 .jump_to_page lands on this page (rendered as
-  //                 italic "(cont. from p.X)" rows under the group)
-  const pageGroups = useMemo(() => {
-    const buckets = new Map();
-    buckets.set("unassigned", { key: "unassigned", page: null, label: "Unassigned", stories: [], jumpsIn: [] });
-    issueStories.forEach(s => {
-      const p = (s.page_number ?? s.page);
-      const pn = (p === null || p === undefined || p === "" || isNaN(Number(p))) ? null : Number(p);
-      if (pn === null) {
-        buckets.get("unassigned").stories.push(s);
-        return;
-      }
-      const k = String(pn);
-      if (!buckets.has(k)) buckets.set(k, { key: k, page: pn, label: `Page ${pn}`, stories: [], jumpsIn: [] });
-      buckets.get(k).stories.push(s);
-    });
-    // Wire jump_to_page → destination group's jumpsIn
-    issueStories.forEach(s => {
-      const j = parseInt(s.jump_to_page);
-      if (isNaN(j)) return;
-      const k = String(j);
-      if (!buckets.has(k)) buckets.set(k, { key: k, page: j, label: `Page ${j}`, stories: [], jumpsIn: [] });
-      buckets.get(k).jumpsIn.push(s);
-    });
-    // Drop empty Unassigned to reduce visual noise.
-    if (buckets.get("unassigned").stories.length === 0) buckets.delete("unassigned");
-    // Order: Unassigned first, then numerical pages ascending.
-    return [...buckets.values()].sort((a, b) => {
-      if (a.key === "unassigned") return -1;
-      if (b.key === "unassigned") return 1;
-      return a.page - b.page;
-    });
-  }, [issueStories]);
-
-  // Reorder via drag-drop (Phase 3b/3c). Drop semantics:
-  //   - Different group  → page changes to destination, priority resets
-  //                        to the new in-group position (1..N, capped 6).
-  //   - Same group       → page stays, priority renumbered to match
-  //                        the new visual order.
-  //   - Unassigned drop  → page cleared (null), priority renumbered.
-  // Every story in the destination group gets renumbered so visual
-  // order = priority order in perpetuity. Cross-group drops also
-  // renumber the source group so it stays sequential after extraction.
-  const reorderStories = useCallback((targetGroupKey, dropBeforeId) => {
-    const draggedId = draggingId;
-    setDraggingId(null);
-    setDropTarget(null);
-    if (!draggedId) return;
-    const dragged = issueStories.find(s => s.id === draggedId);
-    if (!dragged) return;
-    const targetPage = targetGroupKey === "unassigned" ? null : Number(targetGroupKey);
-
-    // Source group key as it currently lives.
-    const currentPage = (dragged.page ?? null);
-    const sourceGroupKey = currentPage == null ? "unassigned" : String(currentPage);
-
-    // Build destination order with the dragged story inserted at the
-    // requested position (or appended).
-    const destGroup = pageGroups.find(g => g.key === targetGroupKey);
-    const destStories = (destGroup?.stories || []).filter(s => s.id !== draggedId);
-
-    // May Sim P2.3 — prompt before silently adding to a page that
-    // already has stories. Cross-group drops only (re-ordering within
-    // the same page is intentional and shouldn't ask). The "share page"
-    // pattern is normal for print but a tired Tuesday drop should
-    // confirm so a slip doesn't quietly land a story on the wrong page.
-    if (sourceGroupKey !== targetGroupKey && targetPage != null && destStories.length > 0) {
-      const occupants = destStories.slice(0, 3).map(s => `"${(s.title || "Untitled").slice(0, 28)}"`).join(", ");
-      const more = destStories.length > 3 ? ` + ${destStories.length - 3} more` : "";
-      const ok = window.confirm(
-        `Page ${targetPage} already has ${destStories.length} stor${destStories.length === 1 ? "y" : "ies"}: ${occupants}${more}.\n\n` +
-        `Add "${(dragged.title || "Untitled").slice(0, 40)}" to the same page?`
-      );
-      if (!ok) return;
-    }
-    let insertIdx = dropBeforeId == null ? destStories.length : destStories.findIndex(s => s.id === dropBeforeId);
-    if (insertIdx < 0) insertIdx = destStories.length;
-    const newDest = [
-      ...destStories.slice(0, insertIdx),
-      { ...dragged, page: targetPage },
-      ...destStories.slice(insertIdx),
-    ];
-    newDest.forEach((s, idx) => {
-      const newPriority = String(Math.min(6, idx + 1));
-      const updates = {};
-      const sPage = s.page ?? null;
-      if (sPage !== targetPage) updates.page = targetPage;
-      if (String(s.priority || "") !== newPriority) updates.priority = newPriority;
-      if (Object.keys(updates).length > 0) updateStory(s.id, updates);
-    });
-
-    // If we crossed groups, renumber what's left in the source.
-    if (sourceGroupKey !== targetGroupKey) {
-      const srcGroup = pageGroups.find(g => g.key === sourceGroupKey);
-      const remaining = (srcGroup?.stories || []).filter(s => s.id !== draggedId);
-      remaining.forEach((s, idx) => {
-        const newPriority = String(Math.min(6, idx + 1));
-        if (String(s.priority || "") !== newPriority) {
-          updateStory(s.id, { priority: newPriority });
-        }
-      });
-    }
-  }, [draggingId, issueStories, pageGroups]);
-
-  // ── Sibling issue resolver for a given story ──
-  // Returns every sibling-pub issue that shares the story's primary
-  // issue date. Siblings come from publications.settings.shared_content_with
-  // (seeded in migration 033). One story may have 0 or many siblings.
-  const siblingIssuesFor = useCallback((story) => {
-    const primary = issues.find(i => i.id === story.print_issue_id);
-    if (!primary) return [];
-    const primaryPubId = primary.publicationId || primary.pubId;
-    const primaryPub = (pubs || []).find(p => p.id === primaryPubId);
-    const siblings = primaryPub?.sharedContentWith || primaryPub?.settings?.shared_content_with || [];
-    return siblings.map(sibPubId => {
-      const sibPub = (pubs || []).find(p => p.id === sibPubId);
-      const sibIss = issues.find(i => (i.publicationId || i.pubId) === sibPubId && i.date === primary.date);
-      return sibIss && sibPub ? { issue: sibIss, pub: sibPub } : null;
-    }).filter(Boolean);
-  }, [issues, pubs]);
-
-  // ── Toggle a sibling-issue link on a story ──
-  // Flips the sibling issue id in/out of stories.also_in_issue_ids,
-  // persists, and updates local state. One canonical row — the planner
-  // surfaces it under the sibling issue via the array-contains filter.
-  const toggleSiblingLink = useCallback(async (story, siblingIssueId) => {
-    const current = Array.isArray(story.also_in_issue_ids) ? story.also_in_issue_ids : [];
-    const next = current.includes(siblingIssueId)
-      ? current.filter(x => x !== siblingIssueId)
-      : [...current, siblingIssueId];
-    setStories(prev => prev.map(s => s.id === story.id
-      ? { ...s, also_in_issue_ids: next, alsoInIssueIds: next }
-      : s));
-    const { error } = await supabase.from("stories")
-      .update({ also_in_issue_ids: next, updated_at: new Date().toISOString() })
-      .eq("id", story.id);
-    if (error) console.error("Sibling link toggle failed:", error);
-  }, [setStories]);
 
   // ── Inline new-story creator scoped to the selected issue ──
   // Used by the "+ New Story" affordance under the Page Map. Inserts
@@ -799,15 +532,19 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     const issue = issues.find(i => i.id === selIssue);
     if (!issue) return;
     const pubId = issue.publicationId || issue.pubId || null;
-    // Auto-priority: take the highest numeric priority used in this
-    // issue and add 1 (capped at 6 — the spec's max priority bucket).
-    // Lets editors hit "+ New Story" repeatedly and get an ordered
-    // priority stack without touching the dropdown each time.
+    // Auto-priority: highest numeric priority in this issue + 1 (capped
+    // at 6). Lets editors hit "+ New Story" repeatedly and get an
+    // ordered priority stack without touching the dropdown each time.
     const usedPriorities = (stories || [])
       .filter(s => s.print_issue_id === selIssue)
       .map(s => parseInt(s.priority))
       .filter(n => !isNaN(n));
     const nextPriority = Math.min(6, (usedPriorities.length ? Math.max(...usedPriorities) : 0) + 1);
+
+    // IP Wave 1: keep the button locked while the insert is in flight
+    // so a 5×-rapid-click doesn't insert 5 rows. Reset only on settle
+    // (success or failure) — failure surfaces the save badge and the
+    // user can click again rather than being silently no-op'd.
     setAddingInlineStory(true);
     const row = {
       title: "", status: "Draft", author: "",
@@ -817,23 +554,28 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
       web_status: "none", print_status: "none",
       site_id: pubId,
     };
-    const { data, error } = await supabase.from("stories").insert(row).select().single();
-    setAddingInlineStory(false);
-    if (error) {
-      console.error("Inline new story insert failed:", error.message, "code=", error.code, "details=", error.details, "hint=", error.hint, "row=", row);
-      return;
-    }
-    if (!data) return;
-    const mapped = {
-      id: data.id, title: "", status: "Draft", author: "",
-      publication_id: pubId, publication: pubId,
-      issueId: selIssue, issue_id: selIssue, print_issue_id: selIssue,
-      category: "News", priority: String(nextPriority),
-      web_status: "none", print_status: "none",
-      created_at: data.created_at,
+    const doInsert = async () => {
+      const { data, error } = await supabase.from("stories").insert(row).select().single();
+      if (error) throw error;
+      if (!data) throw new Error("Insert returned no row");
+      const mapped = {
+        id: data.id, title: "", status: "Draft", author: "",
+        publication_id: pubId, publication: pubId,
+        issueId: selIssue, issue_id: selIssue, print_issue_id: selIssue,
+        category: "News", priority: String(nextPriority),
+        web_status: "none", print_status: "none",
+        created_at: data.created_at,
+      };
+      setStories(prev => [mapped, ...prev]);
     };
-    setStories(prev => [mapped, ...prev]);
-  }, [selIssue, issues, addingInlineStory, setStories, stories]);
+    try {
+      await save.track(doInsert(), { retry: () => save.track(doInsert()) });
+    } catch (_) {
+      // Already surfaced via save.error
+    } finally {
+      setAddingInlineStory(false);
+    }
+  }, [selIssue, issues, addingInlineStory, setStories, stories, save]);
 
   // ── Web queue: Ready stories that haven't been pushed to web yet ──
   const webQueue = useMemo(() => {
@@ -859,14 +601,6 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     const ids = [...new Set(stories.map(s => s.assigned_to).filter(Boolean))];
     return ids.map(id => ({ id, name: tn(id, team) }));
   }, [stories, team]);
-
-  // Inactive author names — used to prune the author dropdown so ex-staff
-  // can't be picked for new stories. A story already assigned to an
-  // inactive author keeps the name in its row's dropdown (see row render)
-  // so the value doesn't appear to vanish.
-  const inactiveAuthorNames = useMemo(() => new Set(
-    (team || []).filter(m => m.isActive === false).map(m => m.name).filter(Boolean)
-  ), [team]);
 
   // ── Stats ───────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -1110,456 +844,28 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
         </div>
       )}
 
-      {/* STORIES VIEW (merged Issue Planning + Stories table) */}
+      {/* STORIES VIEW — IP Wave 2 lifted into IssuePlanningTab */}
       {tab === "stories" && (
-        <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "44px 1fr" : "260px 1fr", gap: 16, minHeight: 400, transition: "grid-template-columns 0.2s ease" }}>
-          {/* Collapsed-state rail — always-visible expand chevron so the
-              sidebar can be reopened even when no issue is selected. */}
-          {sidebarCollapsed && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4 }}>
-              <button
-                onClick={() => setSidebarCollapsed(false)}
-                title="Show Upcoming Issues"
-                style={{
-                  width: 36, height: 36, borderRadius: Ri,
-                  background: Z.sa, border: "1px solid " + Z.bd,
-                  cursor: "pointer", color: Z.tx,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 18, fontWeight: 700, lineHeight: 1, padding: 0,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = Z.ac + "18"; e.currentTarget.style.color = Z.ac; }}
-                onMouseLeave={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
-              >›</button>
-            </div>
-          )}
-          {/* Issue sidebar — collapsible for distraction-free story view */}
-          {!sidebarCollapsed && <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", maxHeight: 600 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", marginBottom: 4 }}>
-              <span style={{ fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: Z.tm, fontFamily: COND }}>Upcoming Issues</span>
-              <button
-                onClick={() => setSidebarCollapsed(true)}
-                title="Collapse — distraction-free story view"
-                style={{
-                  width: 32, height: 32, borderRadius: Ri,
-                  background: "transparent", border: "1px solid " + Z.bd,
-                  cursor: "pointer", color: Z.tm,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 18, fontWeight: 700, lineHeight: 1, padding: 0,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = Z.sa; e.currentTarget.style.color = Z.tx; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = Z.tm; }}
-              >‹</button>
-            </div>
-            {futureIssues.length === 0 && <div style={{ fontSize: FS.sm, color: Z.tm, padding: 12 }}>No upcoming issues</div>}
-            {futureIssues.map(iss => {
-              // Count matches the issueStories filter — primary placement
-              // plus any sibling links (also_in_issue_ids contains iss.id).
-              const stCount = stories.filter(s => s.print_issue_id === iss.id
-                || (Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(iss.id))).length;
-              const isSelected = selIssue === iss.id;
-              return (
-                <div key={iss.id} onClick={() => setSelIssue(iss.id)} style={{
-                  padding: "8px 10px", borderRadius: Ri, cursor: "pointer",
-                  background: isSelected ? Z.ac + "18" : "transparent",
-                }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: 700, color: Z.tx, fontFamily: COND }}>{pn(iss.publicationId || iss.pubId, pubs)}</div>
-                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginTop: 2 }}>
-                    {iss.date ? new Date(iss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : iss.label || "Issue"} · {stCount} stories
-                  </div>
-                </div>
-              );
-            })}
-          </div>}
-
-          {/* Issue detail / story data table */}
-          <div>
-            {!selIssue ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: Z.tm, fontSize: FS.base }}>
-                Select an issue to view assigned stories
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: Z.tx, fontFamily: COND }}>
-                    Stories for {issues.find(i => i.id === selIssue)?.label || "this issue"}
-                  </h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {siblingCtx && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.xs, color: showSiblings ? "var(--action)" : Z.tm, fontFamily: COND, cursor: "pointer" }}>
-                        <input type="checkbox" checked={showSiblings} onChange={e => setShowSiblings(e.target.checked)} style={{ accentColor: "var(--action)" }} />
-                        + {siblingCtx.map(sc => sc.pub.name).join(", ")}
-                      </label>
-                    )}
-                    <span style={{ fontSize: FS.xs, color: Z.tm, fontFamily: COND }}>{issueStories.length} stories</span>
-                  </div>
-                </div>
-                {/* Quick-stat strip (spec §4.1). Five at-a-glance counters
-                    across the issue: stories, pages assigned, ads placed,
-                    stories flagged for images, stories with jumps. */}
-                {(() => {
-                  const pagesAssigned = new Set(issueStories.map(s => s.page).filter(p => p != null && p !== "")).size;
-                  const adsPlaced = (sales || []).filter(s => s.issueId === selIssue && s.page != null && s.page > 0).length;
-                  const withImages = issueStories.filter(s => s.has_images).length;
-                  const withJumps = issueStories.filter(s => s.jump_to_page != null).length;
-                  const stat = (val, label, color) => (
-                    <div style={{ flex: 1, padding: "6px 10px", background: Z.sa, borderRadius: Ri, textAlign: "center" }}>
-                      <div style={{ fontSize: FS.lg, fontWeight: 800, color: color || Z.tx, fontFamily: DISPLAY }}>{val}</div>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: Z.tm, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: COND }}>{label}</div>
-                    </div>
-                  );
-                  return (
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {stat(issueStories.length, "Stories")}
-                      {stat(pagesAssigned, "Pages assigned")}
-                      {stat(adsPlaced, "Ads placed")}
-                      {stat(withImages, "With images", withImages > 0 ? Z.su : null)}
-                      {stat(withJumps, "Jumps", withJumps > 0 ? Z.wa : null)}
-                    </div>
-                  );
-                })()}
-                {/* Issue-level discussion thread (Phase 2 of editorial→production
-                    spec). One thread per issue, shared across surfaces — same
-                    underlying message_threads row as the Messages page Issue
-                    tab. Collapsed by default; opens inline. */}
-                <EntityThread
-                  refType="issue"
-                  refId={selIssue}
-                  title={`Issue: ${issues.find(i => i.id === selIssue)?.label || "Untitled"}`}
-                  team={team}
-                  currentUser={currentUser}
-                  label="Issue discussion"
-                  height={300}
-                />
-                {/* Print status pipeline */}
-                <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
-                  {PRINT_STAGES.slice(1).map(stage => {
-                    const count = issueStories.filter(s => s.print_status === stage.key).length;
-                    return (
-                      <div key={stage.key} style={{ flex: 1, textAlign: "center", padding: "6px 4px", background: count > 0 ? Z.ac + "12" : Z.sa, borderRadius: Ri }}>
-                        <div style={{ fontSize: FS.lg, fontWeight: 800, color: count > 0 ? Z.ac : Z.tm, fontFamily: DISPLAY }}>{count}</div>
-                        <div style={{ fontSize: FS.micro, fontWeight: 600, color: Z.tm, fontFamily: COND }}>{stage.label}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Mini flatplan — enlarged 30% from the original 40×48 */}
-                {(() => {
-                  const mfIssue = issues.find(i => i.id === selIssue);
-                  if (!mfIssue) return null;
-                  const mfPages = Array.from({ length: mfIssue.pageCount || 16 }, (_, i) => i + 1);
-                  const priVal = (s) => { const n = parseInt(s.priority); return isNaN(n) ? 999 : n; };
-                  const getStories = (pg) => issueStories.filter(s => { const p = String(s.page || s.page_number || ""); const pages = p.split(/[,-]/).map(Number).filter(Boolean); if (p.includes("-")) { const [a, b] = p.split("-").map(Number); return pg >= a && pg <= b; } return pages.includes(pg); }).sort((a, b) => priVal(a) - priVal(b));
-                  return <div style={{ background: Z.sa, borderRadius: Ri, padding: "10px 13px", marginBottom: 10 }}>
-                    <div style={{ fontSize: FS.base, fontWeight: 700, color: Z.tm, fontFamily: COND, marginBottom: 5 }}>Page Map</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                      {mfPages.map(pg => {
-                        const pgStories = getStories(pg);
-                        const hasContent = pgStories.length > 0;
-                        return <div key={pg} style={{ width: 52, height: 62, border: `1px solid ${Z.bd}`, borderRadius: 3, background: hasContent ? Z.ac + "12" : Z.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: 2, overflow: "hidden" }}>
-                          <div style={{ fontSize: FS.micro, fontWeight: 700, color: Z.td }}>{fmtPage(pg)}</div>
-                          {pgStories.slice(0, 3).map((s, idx) => <div key={s.id} title={`P${priVal(s)} — ${s.title}`} style={{ fontSize: 8, fontWeight: idx === 0 ? 800 : 600, color: Z.ac, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%", textAlign: "center", opacity: idx === 0 ? 1 : 0.75 }}>{(s.title || "").slice(0, 12)}</div>)}
-                        </div>;
-                      })}
-                    </div>
-                  </div>;
-                })()}
-                {/* Quick-add: inline story for the currently-selected issue.
-                    Inserts a blank row into the table without leaving the
-                    planner so titles can be batched in. */}
-                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 4, gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                  <Btn sm v="secondary" onClick={addInlineStoryForIssue} disabled={addingInlineStory}>
-                    <Ic.plus size={12} /> {addingInlineStory ? "Adding…" : "New Story"}
-                  </Btn>
-                  <Btn sm v="secondary" onClick={async () => {
-                    if (!selIssue) return;
-                    const labelStr = window.prompt("Section name (e.g. A, Sports, B):", "");
-                    if (!labelStr) return;
-                    const startStr = window.prompt("Starts at page number (use the global page #, leave blank for page 1):", "");
-                    const startNum = parseInt(startStr);
-                    const afterPage = isNaN(startNum) ? 0 : Math.max(0, startNum - 1);
-                    const kindAns = (window.prompt("Type — 'main' (newspaper page reset) or 'sub' (label only). Default: main", "main") || "main").toLowerCase();
-                    const kind = kindAns === "sub" ? "sub" : "main";
-                    try {
-                      const row = await createSectionDb({ issueId: selIssue, afterPage, label: labelStr, kind });
-                      setIssueSections(prev => [...prev, row].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
-                    } catch (err) {
-                      console.error("Create section failed:", err);
-                      alert("Could not save section: " + (err.message || "unknown error"));
-                    }
-                  }} disabled={!selIssue}>
-                    <Ic.plus size={12} /> New Section
-                  </Btn>
-                  {(() => {
-                    const pId = (issues || []).find(i => i.id === selIssue)?.pubId;
-                    const pub = pubs.find(p => p.id === pId);
-                    const defaults = Array.isArray(pub?.defaultSections) ? pub.defaultSections : [];
-                    if (!defaults.length || issueSections.length > 0) return null;
-                    return <Btn sm v="secondary" onClick={async () => {
-                      if (!selIssue) return;
-                      try {
-                        const rows = await applyDefaultSectionsToIssue(selIssue, defaults);
-                        setIssueSections(prev => [...prev, ...rows].sort((a, b) => (a.afterPage ?? 0) - (b.afterPage ?? 0)));
-                      } catch (err) {
-                        console.error("Apply default sections failed:", err);
-                        alert("Could not apply defaults: " + (err.message || "unknown error"));
-                      }
-                    }}>
-                      Apply pub defaults ({defaults.length})
-                    </Btn>;
-                  })()}
-                </div>
-                {/* Data table with inline editing */}
-                <div style={{ overflow: "hidden" }}>
-                  <DataTable>
-                    <thead>
-                      <tr>
-                        {[
-                          { key: "_drag", label: "" },
-                          { key: "title", label: "Title" },
-                          { key: "author", label: "Author" },
-                          { key: "category", label: "Section" },
-                          { key: "status", label: "Status" },
-                          { key: "page_number", label: "Page" },
-                          { key: "jump_to_page", label: "Jump" },
-                          { key: "priority", label: "Pri" },
-                          { key: "word_limit", label: "Limit" },
-                          { key: "_img", label: "Img" },
-                          { key: "_delete", label: "" },
-                        ].map(col => {
-                          const noSort = col.key === "_delete" || col.key === "_drag";
-                          return (
-                          <th key={col.key} onClick={!noSort ? () => { if (sortCol === col.key) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortCol(col.key); setSortDir("asc"); } } : undefined} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: Z.tm, fontSize: FS.xs, cursor: !noSort ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap", width: noSort ? 18 : undefined }}>
-                            {col.label} {sortCol === col.key ? (sortDir === "asc" ? "\u25B2" : "\u25BC") : ""}
-                          </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {issueStories.length === 0 && (
-                        <tr><td colSpan={11} style={{ padding: 24, textAlign: "center", color: Z.tm }}>No stories assigned to this issue yet</td></tr>
-                      )}
-                      {pageGroups.map((g, gi) => {
-                        const groupCollapsed = collapsedGroups.has(g.key);
-                        const wordSum = g.stories.reduce((sum, s) => sum + (Number(s.word_count || s.wordCount) || 0), 0);
-                        const isAppendTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId == null;
-                        // Inject a section divider above this group when a
-                        // section starts at or before this page (and either
-                        // it's the first group or the previous group fell in
-                        // a different section).
-                        const prevGroup = gi > 0 ? pageGroups[gi - 1] : null;
-                        const hereSection = g.page != null ? sectionForPage(g.page, issueSections) : null;
-                        const prevSection = prevGroup && prevGroup.page != null ? sectionForPage(prevGroup.page, issueSections) : null;
-                        const showSectionHeader = !!hereSection && (!prevSection || prevSection.id !== hereSection.id);
-                        return <Fragment key={g.key}>
-                          {showSectionHeader && (
-                            <tr style={{ background: Z.bg }}>
-                              <td colSpan={11} style={{ padding: "10px 12px 4px", borderTop: `2px solid ${ACCENT.indigo}40` }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 800, color: ACCENT.indigo, fontFamily: COND, padding: "2px 6px", background: ACCENT.indigo + "15", borderRadius: Ri, textTransform: "uppercase", letterSpacing: 0.6 }}>
-                                    {hereSection.kind === "sub" ? "SUB" : "SECTION"}
-                                  </span>
-                                  <input
-                                    value={hereSection.label || ""}
-                                    onChange={e => {
-                                      const val = e.target.value;
-                                      setIssueSections(prev => prev.map(s => s.id === hereSection.id ? { ...s, label: val } : s));
-                                    }}
-                                    onBlur={e => updateSectionDb(hereSection.id, { label: e.target.value }).catch(err => console.error("Section rename failed:", err))}
-                                    style={{ fontSize: FS.md, fontWeight: 800, color: Z.tx, fontFamily: DISPLAY, background: "transparent", border: "none", outline: "none", padding: 0, flex: 1 }}
-                                  />
-                                  <select
-                                    value={hereSection.kind || "main"}
-                                    onChange={async e => {
-                                      const val = e.target.value;
-                                      setIssueSections(prev => prev.map(s => s.id === hereSection.id ? { ...s, kind: val } : s));
-                                      try { await updateSectionDb(hereSection.id, { kind: val }); } catch (err) { console.error("Section kind change failed:", err); }
-                                    }}
-                                    title={(() => { const pId = (issues || []).find(i => i.id === selIssue)?.pubId; return pubs.find(p => p.id === pId)?.type === "Newspaper" ? "Main = resets newspaper page numbering. Sub = label only." : "Magazine: kind doesn't affect numbering"; })()}
-                                    style={{ fontSize: FS.micro, fontWeight: 700, fontFamily: COND, background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "2px 6px", color: Z.tm, cursor: "pointer" }}
-                                  >
-                                    <option value="main">Main</option>
-                                    <option value="sub">Sub</option>
-                                  </select>
-                                  <button
-                                    onClick={async () => {
-                                      if (!confirm(`Delete section "${hereSection.label}"?`)) return;
-                                      try {
-                                        await deleteSectionDb(hereSection.id);
-                                        setIssueSections(prev => prev.filter(s => s.id !== hereSection.id));
-                                      } catch (err) { console.error("Section delete failed:", err); }
-                                    }}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.md, padding: "0 4px" }}
-                                  >×</button>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          <tr
-                            style={{ background: isAppendTarget ? Z.ac + "20" : Z.sa, transition: "background 0.1s" }}
-                            onDragOver={(e) => {
-                              if (!draggingId) return;
-                              e.preventDefault();
-                              e.dataTransfer.dropEffect = "move";
-                              if (!dropTarget || dropTarget.groupKey !== g.key || dropTarget.beforeId !== null) {
-                                setDropTarget({ groupKey: g.key, beforeId: null });
-                              }
-                            }}
-                            onDrop={(e) => { e.preventDefault(); if (draggingId) reorderStories(g.key, null); }}
-                          >
-                            <td colSpan={11} style={{ padding: "6px 10px", borderBottom: `1px solid ${Z.bd}`, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.key)}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: COND, fontSize: FS.xs, fontWeight: 800, color: g.key === "unassigned" ? Z.wa : Z.tx, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                <span style={{ width: 12, color: Z.tm }}>{groupCollapsed ? "▸" : "▾"}</span>
-                                <span>{g.key === "unassigned" ? g.label : `Page ${fmtPage(g.page)}`}</span>
-                                <span style={{ color: Z.tm, fontWeight: 600, letterSpacing: 0 }}>{g.stories.length} {g.stories.length === 1 ? "story" : "stories"}{wordSum > 0 ? ` · ${wordSum.toLocaleString()} words` : ""}{g.jumpsIn.length ? ` · ${g.jumpsIn.length} jumping in` : ""}</span>
-                                {isAppendTarget && <span style={{ marginLeft: "auto", fontSize: FS.micro, color: Z.ac, fontWeight: 700 }}>Drop to append</span>}
-                              </div>
-                            </td>
-                          </tr>
-                          {!groupCollapsed && g.stories.map(s => {
-                        const inpS = { background: "transparent", border: `1px solid ${Z.bd}`, borderRadius: 3, color: Z.tx, fontSize: FS.sm, fontFamily: COND, outline: "none", padding: "3px 6px", width: "100%", boxSizing: "border-box" };
-                        const selS = { ...inpS, cursor: "pointer", WebkitAppearance: "none", MozAppearance: "none", appearance: "none" };
-                        const hasSavedTitle = s.title && s.title !== "";
-                        const isSibling = s._fromSibling;
-                        const isMirror = !!s._mirroredFrom; // rendered here because the current issue is in s.also_in_issue_ids
-                        const siblingOptions = !isMirror && !isSibling ? siblingIssuesFor(s) : [];
-                        const primaryPubName = isMirror ? (pubs.find(p => p.id === (issues.find(i => i.id === s._mirroredFrom)?.publicationId || issues.find(i => i.id === s._mirroredFrom)?.pubId))?.name || "primary") : null;
-                        const isDragging = draggingId === s.id;
-                        const isDropTarget = !!draggingId && dropTarget?.groupKey === g.key && dropTarget?.beforeId === s.id;
-                        return <tr
-                          key={s.id}
-                          style={{
-                            borderTop: isDropTarget ? `2px solid ${Z.ac}` : "none",
-                            borderBottom: `1px solid ${Z.bd}`,
-                            opacity: isSibling ? 0.6 : (isDragging ? 0.4 : 1),
-                            background: isDragging ? Z.sa : undefined,
-                          }}
-                          onDragOver={(e) => {
-                            if (!draggingId) return;
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = "move";
-                            if (!dropTarget || dropTarget.groupKey !== g.key || dropTarget.beforeId !== s.id) {
-                              setDropTarget({ groupKey: g.key, beforeId: s.id });
-                            }
-                          }}
-                          onDrop={(e) => { e.preventDefault(); if (draggingId) reorderStories(g.key, s.id); }}
-                        >
-                          {/* Drag handle ☰ — only this cell is draggable so the
-                              field cells don't fight with input edits/text
-                              selection. Sibling/mirror rows are read-only. */}
-                          <td
-                            draggable={!isSibling && !isMirror}
-                            onDragStart={(e) => {
-                              if (isSibling || isMirror) { e.preventDefault(); return; }
-                              setDraggingId(s.id);
-                              e.dataTransfer.effectAllowed = "move";
-                              e.dataTransfer.setData("text/plain", s.id);
-                            }}
-                            onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                            style={{ padding: "5px 4px", width: 18, textAlign: "center", color: Z.td, cursor: (isSibling || isMirror) ? "default" : "grab", fontSize: FS.md, userSelect: "none", opacity: (isSibling || isMirror) ? 0.3 : 1 }}
-                            title={(isSibling || isMirror) ? "" : "Drag to reorder"}
-                          >☰</td>
-                          <td style={{ padding: "5px 8px", maxWidth: 280 }}>
-                            {isSibling && <span style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s._siblingPub?.split(" ")[0]}</span>}
-                            {isMirror && <span title={`Also appears in this issue — lives on ${primaryPubName}`} style={{ fontSize: 9, fontWeight: 800, color: "var(--action)", background: "color-mix(in srgb, var(--action) 10%, transparent)", padding: "1px 5px", borderRadius: 3, marginRight: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>↔ {primaryPubName}</span>}
-                            {hasSavedTitle
-                              ? <span onClick={() => !isSibling && openDetail(s)} style={{ fontWeight: 700, color: isSibling ? Z.tm : Z.ac, cursor: isSibling ? "default" : "pointer", display: "inline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-                              : <input defaultValue="" placeholder="Story title..." autoFocus onBlur={e => updateStory(s.id, { title: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }} style={{ ...inpS, fontWeight: 700 }} />
-                            }
-                            {/* Sibling-link chips — only on primary rows, one per declared sibling pub. */}
-                            {siblingOptions.length > 0 && hasSavedTitle && (
-                              <div style={{ marginTop: 3, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                {siblingOptions.map(({ issue: sibIss, pub: sibPub }) => {
-                                  const linked = Array.isArray(s.also_in_issue_ids) && s.also_in_issue_ids.includes(sibIss.id);
-                                  return (
-                                    <button
-                                      key={sibIss.id}
-                                      onClick={() => toggleSiblingLink(s, sibIss.id)}
-                                      title={linked ? `Unlink from ${sibPub.name}` : `Also publish in ${sibPub.name} (${new Date(sibIss.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })})`}
-                                      style={{
-                                        fontSize: 9, fontWeight: 700, fontFamily: COND, letterSpacing: 0.3,
-                                        padding: "2px 7px", borderRadius: 10, cursor: "pointer",
-                                        background: linked ? "color-mix(in srgb, var(--action) 15%, transparent)" : Z.sa,
-                                        color: linked ? "var(--action)" : Z.tm,
-                                        border: `1px solid ${linked ? "color-mix(in srgb, var(--action) 40%, transparent)" : Z.bd}`,
-                                      }}
-                                    >
-                                      {linked ? "↔" : "⊕"} {sibPub.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: "5px 8px" }}>
-                            <FuzzyPicker value={s.author || ""} onChange={(v) => updateStory(s.id, { author: v })} options={[...new Set(stories.map(x => x.author).filter(Boolean))].sort().filter(a => !inactiveAuthorNames.has(a) || a === s.author).map(a => ({ value: a, label: a }))} placeholder="Author…" emptyLabel="—" size="sm" />
-                          </td>
-                          <td style={{ padding: "5px 8px" }}>
-                            <Sel value={s.category || ""} onChange={e => updateStory(s.id, { category: e.target.value })} options={[{ value: "", label: "—" }, ...["News", "Business", "Lifestyle", "Food", "Wine", "Culture", "Sports", "Opinion", "Events", "Community", "Outdoors", "Environment", "Real Estate", "Agriculture", "Marine", "Government", "Schools", "Travel", "Obituaries", "Crime"].map(c => ({ value: c, label: c }))]} style={{ padding: "3px 24px 3px 6px" }} />
-                          </td>
-                          {(() => { const sc = statusColorsOn ? (statusColors[s.status] || statusColors.Draft) : null; return (
-                          <td style={{ padding: "5px 8px" }}>
-                            <Sel value={s.status || "Draft"} onChange={e => updateStory(s.id, { status: e.target.value })} options={STORY_STATUSES.map(st => ({ value: st, label: st }))} style={{ padding: "3px 24px 3px 6px", color: sc ? "#fff" : Z.tx, fontWeight: 700, background: sc?.fg || "transparent", border: "none", borderRadius: 20 }} />
-                          </td>
-                          ); })()}
-                          <td style={{ padding: "5px 8px", width: 60 }}>
-                            <Sel value={String(s.page_number || s.page || "")} onChange={e => updateStory(s.id, { page_number: e.target.value, page: e.target.value })} options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]} style={{ padding: "3px 24px 3px 6px", width: 55 }} />
-                          </td>
-                          <td style={{ padding: "5px 8px", width: 60 }}>
-                            {/* Jump column — writes stories.jump_to_page. Empty = no
-                                jump. Edit on origin row only; jump lines render
-                                read-only at the destination (see page-group view). */}
-                            <Sel
-                              value={s.jump_to_page != null ? String(s.jump_to_page) : ""}
-                              onChange={e => updateStory(s.id, { jump_to_page: e.target.value || null })}
-                              options={[{ value: "", label: "—" }, ...Array.from({ length: issues.find(i => i.id === selIssue)?.pageCount || 24 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]}
-                              style={{ padding: "3px 24px 3px 6px", width: 55 }}
-                            />
-                          </td>
-                          <td style={{ padding: "5px 8px", width: 50 }}>
-                            <Sel value={String(s.priority || "4")} onChange={e => updateStory(s.id, { priority: e.target.value })} options={PRIORITY_OPTIONS} style={{ padding: "3px 24px 3px 6px", width: 45 }} />
-                          </td>
-                          <td style={{ padding: "5px 8px", width: 55 }}>
-                            <input value={s.word_limit || ""} onChange={e => updateStory(s.id, { word_limit: e.target.value ? Number(e.target.value) : null })} placeholder="—" style={{ ...inpS, width: 45, textAlign: "center", color: s.word_limit && (s.word_count || s.wordCount || 0) > s.word_limit ? Z.da : Z.tm }} />
-                          </td>
-                          {/* Images column — manual planning flag (stories.has_images).
-                              Independent of attachment state: an editor can flag a
-                              story for images before anything is uploaded. */}
-                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
-                            <input
-                              type="checkbox"
-                              checked={!!s.has_images}
-                              onChange={e => updateStory(s.id, { has_images: e.target.checked })}
-                              title="Will run with images"
-                              style={{ cursor: "pointer", accentColor: Z.ac, width: 14, height: 14 }}
-                            />
-                          </td>
-                          <td style={{ padding: "5px 4px", width: 32, textAlign: "center" }}>
-                            <button onClick={() => deleteStory(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: Z.td, fontSize: FS.md, padding: 2, lineHeight: 1 }} title="Delete story">{"\u00D7"}</button>
-                          </td>
-                        </tr>;
-                      })}
-                      {/* Jump-in continuation rows. Read-only — jumps are
-                          edited from the origin row only. Click the title to
-                          open the origin story in the editor. */}
-                      {!groupCollapsed && g.jumpsIn.map(s => (
-                        <tr key={`jump-${s.id}`} style={{ background: "rgba(232,176,58,0.04)", borderLeft: `3px solid ${Z.wa}` }}>
-                          <td colSpan={11} style={{ padding: "4px 10px 4px 16px", fontStyle: "italic", color: Z.tm, fontSize: FS.sm }}>
-                            <span style={{ color: Z.wa, fontWeight: 700, marginRight: 6 }}>↩</span>
-                            <span onClick={() => openDetail(s)} style={{ cursor: "pointer", color: Z.ac, fontWeight: 600, marginRight: 4 }}>{s.title || "Untitled"}</span>
-                            <span style={{ color: Z.td }}>(cont. from p.{s.jump_from_page ?? s.page})</span>
-                          </td>
-                        </tr>
-                      ))}
-                        </Fragment>;
-                      })}
-                    </tbody>
-                  </DataTable>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <IssuePlanningTab
+          stories={filtered}
+          setStories={setStories}
+          pubs={pubs}
+          issues={issues}
+          team={team}
+          sales={sales}
+          currentUser={currentUser}
+          statusColors={statusColors}
+          statusColorsOn={statusColorsOn}
+          fPub={fPub}
+          save={save}
+          selIssue={selIssue}
+          setSelIssue={setSelIssue}
+          openDetail={openDetail}
+          onUpdateStory={updateStory}
+          onDeleteStory={deleteStory}
+          onAddInlineStoryForIssue={addInlineStoryForIssue}
+          addingInlineStory={addingInlineStory}
+        />
       )}
 
       {/* FLATPLAN — embedded, seeded from the currently-selected Issue Planning
@@ -1577,7 +883,13 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
         const seedIssue = selIssue || lastFlatplanIssue;
         return (
           <Suspense fallback={<LazyFallback />}>
+            {/* IP Wave 2 task 2.10: explicit key forces a clean
+                unmount/remount on every tab return. The {tab === ...}
+                gate already does this in practice, but the key makes
+                the intent obvious and is cheap insurance against
+                future Suspense quirks holding a stale instance. */}
             <Flatplan
+              key="flatplan-tab"
               isActive={false}
               jurisdiction={jurisdiction}
               pubs={pubs}

@@ -50,6 +50,9 @@ function mapStoryRow(s) {
     correctedAfterPublish: s.corrected_after_publish === true,
     lastCorrectionAt: s.last_correction_at || null,
     createdAt: s.created_at, updatedAt: s.updated_at,
+    // snake_case mirror so the realtime echo dedup (IP Wave 1) can
+    // string-compare against optimistically-set local timestamps.
+    created_at: s.created_at, updated_at: s.updated_at,
   };
 }
 
@@ -753,7 +756,18 @@ export function DataProvider({ children, localData }) {
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "stories" }, (payload) => {
         const row = mapStoryRow(payload.new);
-        setStories(prev => prev.map(s => s.id === row.id ? { ...s, ...row } : s));
+        setStories(prev => prev.map(s => {
+          if (s.id !== row.id) return s;
+          // IP Wave 1: drop stale echoes. When an editor optimistically
+          // updates a story and the realtime echo arrives ~100ms later,
+          // it must not clobber a *follow-up* edit that landed in
+          // between. Compare ISO timestamps lexicographically (safe
+          // since both sides use Date.toISOString()).
+          const localStamp = s.updated_at || s.updatedAt || "";
+          const echoStamp = row.updated_at || row.updatedAt || "";
+          if (localStamp && echoStamp && echoStamp < localStamp) return s;
+          return { ...s, ...row };
+        }));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "stories" }, (payload) => {
         const id = payload.old?.id;
@@ -3143,12 +3157,81 @@ export function DataProvider({ children, localData }) {
   // The Publications page reads `allPubs` so dormant pubs remain visible/togglable.
   const activePubs = useMemo(() => pubs.filter(p => !p.dormant), [pubs]);
 
+  // ── Lookup indices (IP Wave 2) ─────────────────────────────
+  // The Issue Planner used to filter the full `stories` array on every
+  // render to find rows for the selected issue — at 11k+ rows this
+  // showed up in the profiler. These indices rebuild O(N) per change
+  // and turn per-issue lookups into O(1).
+
+  // id → story
+  const storiesById = useMemo(() => {
+    const m = new Map();
+    for (const s of stories) m.set(s.id, s);
+    return m;
+  }, [stories]);
+
+  // issueId → Set<storyId>. A story appears under its primary
+  // print_issue_id AND under any id in also_in_issue_ids (sibling-pub
+  // mirroring from migration 090).
+  const storiesByIssue = useMemo(() => {
+    const map = new Map();
+    const add = (issueId, storyId) => {
+      if (!issueId) return;
+      let set = map.get(issueId);
+      if (!set) { set = new Set(); map.set(issueId, set); }
+      set.add(storyId);
+    };
+    for (const s of stories) {
+      add(s.print_issue_id, s.id);
+      if (Array.isArray(s.also_in_issue_ids)) {
+        for (const sibId of s.also_in_issue_ids) add(sibId, s.id);
+      }
+    }
+    return map;
+  }, [stories]);
+
+  const getStoriesForIssue = useCallback((issueId) => {
+    const ids = storiesByIssue.get(issueId);
+    if (!ids) return [];
+    const out = [];
+    for (const id of ids) {
+      const s = storiesById.get(id);
+      if (s) out.push(s);
+    }
+    return out;
+  }, [storiesByIssue, storiesById]);
+
+  // pubId → publication
+  const pubsById = useMemo(() => {
+    const m = new Map();
+    for (const p of pubs) m.set(p.id, p);
+    return m;
+  }, [pubs]);
+
+  // pubId → ISO date → issue. Drives sibling-issue resolution: same
+  // pub group + same date = mirror destination.
+  const issuesByPubAndDate = useMemo(() => {
+    const m = new Map();
+    for (const i of issues) {
+      const pubId = i.publicationId || i.pubId;
+      const date  = i.date;
+      if (!pubId || !date) continue;
+      let inner = m.get(pubId);
+      if (!inner) { inner = new Map(); m.set(pubId, inner); }
+      inner.set(date, i);
+    }
+    return m;
+  }, [issues]);
+
   // ============================================================
   // Context value — memoized to prevent unnecessary re-renders
   // ============================================================
   const value = useMemo(() => ({
     // Original data + setters
-    pubs: activePubs, allPubs: pubs, setPubs, issues, setIssues, stories, setStories, clients, setClients,
+    pubs: activePubs, allPubs: pubs, setPubs, pubsById,
+    issues, setIssues, issuesByPubAndDate,
+    stories, setStories, storiesById, storiesByIssue, getStoriesForIssue,
+    clients, setClients,
     sales, setSales, proposals, setProposals, team, setTeam, notifications, setNotifications,
     // Phase 2 data + setters
     invoices, setInvoices, payments, setPayments,
