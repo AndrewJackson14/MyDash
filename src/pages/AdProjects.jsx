@@ -11,7 +11,7 @@ import EntityThread from "../components/EntityThread";
 import AssetPanel from "../components/AssetPanel";
 import ProofAnnotationOverlay from "../components/ProofAnnotationOverlay";
 import { getOrCreateThread, postSystemMessage } from "../lib/threads";
-import { fmtDateShort as fmtDate, fmtTime } from "../lib/formatters";
+import { fmtDateShort as fmtDate, fmtTime, prettifyPubSlug } from "../lib/formatters";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
 import { useAppData } from "../hooks/useAppData";
@@ -108,6 +108,34 @@ function LinkedEmailsPanel({ projectId }) {
       </a>)}
     </div>
   </div>;
+}
+
+// ReadOnlyField — visual match to <Inp> / <Sel> labels but renders
+// the value as static text. Used in the Create-Brief modal for
+// fields that come from the linked sale (publication, issue, ad
+// size) so the rep can't drift them away from the sale's record.
+function ReadOnlyField({ label, value, hint }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: FS.xs, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
+        {label}
+        {hint && <span style={{ marginLeft: 6, color: Z.tm, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>· {hint}</span>}
+      </label>
+      <div style={{
+        padding: "8px 12px",
+        borderRadius: Ri,
+        border: `1px solid ${Z.bd}`,
+        background: Z.sa,
+        color: Z.tx,
+        fontSize: FS.base,
+        fontWeight: 600,
+        fontFamily: COND,
+        minHeight: 36,
+        display: "flex",
+        alignItems: "center",
+      }}>{value}</div>
+    </div>
+  );
 }
 
 const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive, deepLink, onNavigate, digitalAdProducts, loadDigitalAdProducts, bus }) => {
@@ -1738,11 +1766,48 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <FuzzyPicker label="Client" value={form.clientId} onChange={(v) => setForm(f => ({ ...f, clientId: v }))} options={(clients || []).map(c => ({ value: c.id, label: c.name }))} placeholder="Search clients…" />
-          <Sel label="Publication" value={form.publicationId} onChange={e => setForm(f => ({ ...f, publicationId: e.target.value }))} options={[{ value: "", label: "Select publication..." }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
+          {/* Publication: read-only when the brief is tied to a sale —
+              the sale already declared the publication at close time
+              (mig 028 enforces it). Editable only on the rare manual
+              path where _saleId isn't set. The Sel guarantees the
+              pre-filled value renders even when pubs is empty by
+              including it as an explicit option. */}
+          {form._saleId ? (
+            <ReadOnlyField
+              label="Publication"
+              value={(pubs || []).find(p => p.id === form.publicationId)?.name || prettifyPubSlug(form.publicationId) || "—"}
+              hint="from sale"
+            />
+          ) : (
+            <Sel label="Publication" value={form.publicationId} onChange={e => setForm(f => ({ ...f, publicationId: e.target.value }))} options={[{ value: "", label: "Select publication..." }, ...(pubs || []).map(p => ({ value: p.id, label: p.name }))]} />
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Sel label="Issue" value={form.issueId} onChange={e => setForm(f => ({ ...f, issueId: e.target.value }))} options={[{ value: "", label: "Select issue..." }, ...(issues || []).filter(i => i.pubId === form.publicationId && i.date >= new Date().toISOString().slice(0, 10)).map(i => ({ value: i.id, label: i.label }))]} />
-          <Inp label="Ad Size" value={form.adSize} onChange={e => setForm(f => ({ ...f, adSize: e.target.value }))} placeholder="e.g. Full Page, 1/2 Page H" />
+          {/* Issue: same lock — sale.issueId is canonical (mig 028 +
+              SalesCRM's close-issue picker enforce it). The
+              previous editable Sel filtered to future-only issues,
+              which dropped the pre-filled value when the sale was
+              tied to today's or this week's print issue, leaving
+              the field blank on a card the user clicked from the
+              correct issue's row. */}
+          {form._saleId ? (
+            <ReadOnlyField
+              label="Issue"
+              value={(() => {
+                const iss = (issues || []).find(i => i.id === form.issueId);
+                if (!iss) return "—";
+                return iss.label || iss.date || "—";
+              })()}
+              hint="from sale"
+            />
+          ) : (
+            <Sel label="Issue" value={form.issueId} onChange={e => setForm(f => ({ ...f, issueId: e.target.value }))} options={[{ value: "", label: "Select issue..." }, ...(issues || []).filter(i => i.pubId === form.publicationId && i.date >= new Date().toISOString().slice(0, 10)).map(i => ({ value: i.id, label: i.label }))]} />
+          )}
+          {form._saleId ? (
+            <ReadOnlyField label="Ad Size" value={form.adSize || "—"} hint="from sale" />
+          ) : (
+            <Inp label="Ad Size" value={form.adSize} onChange={e => setForm(f => ({ ...f, adSize: e.target.value }))} placeholder="e.g. Full Page, 1/2 Page H" />
+          )}
         </div>
         <Sel label="Assign Designer" value={form.designerId} onChange={e => setForm(f => ({ ...f, designerId: e.target.value }))} options={[{ value: "", label: "Select designer..." }, ...designers.map(d => ({ value: d.id, label: d.name }))]} />
         <TA label="Design Instructions" value={form.designNotes} onChange={e => setForm(f => ({ ...f, designNotes: e.target.value }))} rows={4} placeholder="Describe the ad design direction, reference previous ads, include any client preferences..." />
