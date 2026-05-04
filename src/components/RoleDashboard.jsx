@@ -45,9 +45,9 @@ function DesignerWorkloadTile({ team, _issues, onNavigate, glass }) {
       const monthStart = today.slice(0, 7);
       const out = designers.map(d => {
         const ps = byDesigner.get(d.id) || [];
-        const active = ps.filter(p => !["signed_off", "placed"].includes(p.status)).length;
+        const active = ps.filter(p => !["ready_for_press", "placed"].includes(p.status)).length;
         const completed = ps
-          .filter(p => p.approved_at && ["approved", "signed_off", "placed"].includes(p.status))
+          .filter(p => p.approved_at && ["ready_for_press", "placed"].includes(p.status))
           .sort((a, b) => (b.approved_at || "").localeCompare(a.approved_at || ""))
           .slice(0, 30);
         const firstProofRate = completed.length > 0
@@ -1651,9 +1651,9 @@ const RoleDashboard = memo(({
 
   if (isAdDesigner) {
     // Active projects (not placed/signed off)
-    const activeProjects = adProjects.filter(p => !["signed_off", "placed"].includes(p.status));
+    const activeProjects = adProjects.filter(p => !["ready_for_press", "placed"].includes(p.status));
     const revisionProjects = activeProjects.filter(p => p.status === "revising");
-    const approvedProjects = adProjects.filter(p => p.status === "approved" || p.status === "signed_off");
+    const approvedProjects = adProjects.filter(p => p.status === "ready_for_press");
     const approvedThisWeek = approvedProjects.filter(p => p.updated_at && daysUntil(p.updated_at.slice(0, 10)) >= -7);
 
     // Also pull from creativeJobs as fallback
@@ -1707,11 +1707,13 @@ const RoleDashboard = memo(({
     };
 
     // Stats + DOSE computations
-    const statusColors = { brief: Z.wa, designing: ACCENT.blue, proof_sent: Z.wa, revising: Z.da, approved: Z.go, signed_off: Z.go, placed: Z.go, not_started: Z.td, in_progress: ACCENT.blue, revision_requested: Z.da, complete: Z.go };
+    // Mig 213 simplified the lifecycle — approved + signed_off folded into ready_for_press.
+    // Old keys kept for any in-flight rows mid-deploy and for creativeJobs statuses.
+    const statusColors = { brief: Z.wa, designing: ACCENT.blue, proof_sent: Z.wa, revising: Z.da, ready_for_press: Z.go, approved: Z.go, signed_off: Z.go, placed: Z.go, not_started: Z.td, in_progress: ACCENT.blue, revision_requested: Z.da, complete: Z.go };
 
     // DOSE metrics
     const thisMonthStr = today.slice(0, 7);
-    const allCompleted = adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status));
+    const allCompleted = adProjects.filter(p => ["ready_for_press", "placed"].includes(p.status));
     const completedThisMonth = allCompleted.filter(p => p.updated_at?.startsWith(thisMonthStr));
     // P3.36 — de-dupe legacy creative_jobs that were also migrated into ad_projects
     // by sale_id. Without this we double-count any sale that has both rows.
@@ -1838,7 +1840,7 @@ const RoleDashboard = memo(({
           { label: "Revisions", value: revisionProjects.length, color: revisionProjects.length > 0 ? Z.da : Z.go },
           { label: "Proofs Out", value: activeProjects.filter(p => p.status === "proof_sent").length, color: Z.wa },
           { label: "Approved (7d)", value: approvedThisWeek.length, color: Z.go },
-          { label: "Pick Up", value: adProjects.filter(p => !p.designer_id && !["approved", "signed_off", "placed"].includes(p.status)).length, color: adProjects.filter(p => !p.designer_id).length > 0 ? Z.wa : Z.go },
+          { label: "Pick Up", value: adProjects.filter(p => !p.designer_id && !["ready_for_press", "placed"].includes(p.status)).length, color: adProjects.filter(p => !p.designer_id).length > 0 ? Z.wa : Z.go },
         ].map(s => (
           <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
@@ -1858,7 +1860,7 @@ const RoleDashboard = memo(({
               <span style={{ fontSize: FS.xs, color: Z.tm }}>{filteredQueue.length} item{filteredQueue.length !== 1 ? "s" : ""}</span>
             </div>
             <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
-              {[["all", "All"], ["brief", "Brief"], ["designing", "Designing"], ["proof_sent", "Proof Sent"], ["revision", "Revisions"], ["approved", "Approved"]].map(([k, l]) => (
+              {[["all", "All"], ["brief", "Brief"], ["designing", "Designing"], ["proof_sent", "Proof Sent"], ["revision", "Revisions"], ["ready_for_press", "Ready for Press"]].map(([k, l]) => (
                 <button key={k} onClick={() => setAdFilter(k)} style={{ padding: "3px 10px", borderRadius: 14, border: "none", cursor: "pointer", fontSize: FS.xs, fontWeight: adFilter === k ? FW.bold : 500, background: adFilter === k ? Z.tx + "12" : "transparent", color: adFilter === k ? Z.tx : Z.td }}>{l}</button>
               ))}
             </div>
@@ -1901,7 +1903,7 @@ const RoleDashboard = memo(({
 
           {/* Pickup Queue — unassigned projects */}
           {(() => {
-            const pickupProjects = adProjects.filter(p => !p.designer_id && !["approved", "signed_off", "placed"].includes(p.status));
+            const pickupProjects = adProjects.filter(p => !p.designer_id && !["ready_for_press", "placed"].includes(p.status));
             if (pickupProjects.length === 0) return null;
             return <div style={glass}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1992,7 +1994,7 @@ const RoleDashboard = memo(({
                 <span style={{ color: Z.tm }}>Completed this month</span>
                 <span style={{ fontWeight: FW.bold, color: Z.tx }}>{(() => {
                   const monthStr = today.slice(0, 7);
-                  const adProjMonthly = adProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status) && p.updated_at?.startsWith(monthStr));
+                  const adProjMonthly = adProjects.filter(p => ["ready_for_press", "placed"].includes(p.status) && p.updated_at?.startsWith(monthStr));
                   const adProjSaleIds = new Set(adProjMonthly.map(p => p.sale_id).filter(Boolean));
                   const legacyMonthly = _jobs.filter(j => j.status === "complete" && j.completedAt?.startsWith(monthStr) && !adProjSaleIds.has(j.sale_id));
                   return adProjMonthly.length + legacyMonthly.length;

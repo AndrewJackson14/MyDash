@@ -98,7 +98,7 @@ export const FlatplanPage = ({ pageNum, pageDisplay, pub, adsOnPage, dragId, onD
       const today = new Date().toISOString().slice(0, 10);
       const adProj = isSold && adProjectBySaleId ? adProjectBySaleId.get(p.id) : null;
       const adProjStatus = adProj?.status;
-      const isReady = isSold && adProjStatus && ["approved", "signed_off", "placed"].includes(adProjStatus);
+      const isReady = isSold && adProjStatus && ["ready_for_press", "placed"].includes(adProjStatus);
       const isInFlight = isSold && adProjStatus && ["proof_sent", "revising"].includes(adProjStatus);
       const isLate = isSold && !isReady && issueAdDeadline && issueAdDeadline < today;
       // Default isStaging covers brief / awaiting_art / designing / no project at all.
@@ -462,7 +462,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           .maybeSingle();
 
         if (adProj
-            && adProj.status === "signed_off"
+            && adProj.status === "ready_for_press"
             && (adProj.revision_charges || 0) > 0
             && !adProj.revision_charges_billed) {
           const charge = Number(adProj.revision_charges) || 0;
@@ -1083,7 +1083,7 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
           let pill = null;
           if (!isPending) {
             const status = adProj?.status;
-            const isApproved = status && ["approved", "signed_off", "placed"].includes(status);
+            const isApproved = status && ["ready_for_press", "placed"].includes(status);
             const isUnready = !adProj || ["brief", "awaiting_art", "designing"].includes(status);
             const pillStyle = (color, label, char) => <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: FW.bold, background: color + "22", color, fontFamily: COND, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 4 }}>{char}{label}</span>;
             if (isApproved) pill = pillStyle(Z.go, "Ready", "✓ ");

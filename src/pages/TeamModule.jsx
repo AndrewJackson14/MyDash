@@ -603,8 +603,8 @@ const TeamModule = ({ team, setTeam, sales, stories, tickets, subscribers, legal
     if (["Graphic Designer", "Photo Editor", "Ad Designer", "Layout Designer", "Production Manager"].includes(role)) {
       // Use ad_projects assigned to this designer
       const myProjects = (window.__adProjectsCache || []).filter(p => p.designer_id === t.id);
-      const active = myProjects.filter(p => !["approved", "signed_off", "placed"].includes(p.status)).length;
-      const completed = myProjects.filter(p => ["approved", "signed_off", "placed"].includes(p.status)).length;
+      const active = myProjects.filter(p => !["ready_for_press", "placed"].includes(p.status)).length;
+      const completed = myProjects.filter(p => ["ready_for_press", "placed"].includes(p.status)).length;
       return [{ label: "Active", value: active }, { label: "Completed", value: completed }];
     }
     if (["Office Manager", "Office Administrator"].includes(role)) {

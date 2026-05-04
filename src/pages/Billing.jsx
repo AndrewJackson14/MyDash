@@ -195,7 +195,7 @@ const PendingRevisionChargesWidget = ({ clients, pubs, issues }) => {
     const { data } = await supabase
       .from("ad_projects")
       .select("id, client_id, publication_id, issue_id, sale_id, revision_charges, revision_billable_count, designer_signoff_at, status")
-      .eq("status", "signed_off")
+      .eq("status", "ready_for_press")
       .gt("revision_charges", 0)
       .eq("revision_charges_billed", false)
       .eq("revision_charges_written_off", false)

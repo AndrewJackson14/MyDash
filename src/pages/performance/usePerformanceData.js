@@ -442,7 +442,7 @@ function buildProductionMetrics({ stories, adProjects, issues, team, range, team
   // Wins — recently placed ads and On-Page stories
   const wins = [
     ...adScoredWithItem
-      .filter(s => s.ad.status === "placed" || s.ad.status === "signed_off")
+      .filter(s => s.ad.status === "placed" || s.ad.status === "ready_for_press")
       .slice(0, 3)
       .map(s => ({ id: s.ad.id, label: s.ad.clientName || s.ad.title || "Ad", sub: `Placed · ${s.issue?.label || ""}` })),
     ...layoutScoredWithStory

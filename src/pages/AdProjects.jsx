@@ -23,32 +23,40 @@ import { TokenAdminMenu } from "../components/TokenAdminMenu";
 // Backward moves are deliberately not allowed via drag — they require
 // a deliberate path through the project detail page so we don't lose
 // proof history by accident.
+// Lifecycle (Editorial Wave Sales+Design simplification, mig 213):
+//
+//   needs_brief → brief → designing → proof_sent ⇄ revising → ready_for_press → placed
+//
+// `approved` was dropped — designers no longer self-sign-off; only the
+// salesperson (representing client approval) advances a project past
+// proof_sent. `signed_off` was renamed to `ready_for_press` for ops
+// clarity.
 const NEXT_STAGES = {
-  brief:        ["designing"],
-  awaiting_art: ["designing", "approved"],
-  designing:    ["proof_sent"],
-  proof_sent:   ["revising", "approved"],
-  revising:     ["proof_sent"],
-  approved:     ["signed_off"],
-  signed_off:   ["placed"],
+  brief:           ["designing"],
+  awaiting_art:    ["designing", "ready_for_press"],
+  designing:       ["proof_sent"],
+  proof_sent:      ["revising", "ready_for_press"],
+  revising:        ["proof_sent"],
+  ready_for_press: ["placed"],
 };
 
 const STATUSES = {
-  brief: { label: "Brief", color: Z.wa },
-  awaiting_art: { label: "Awaiting Art", color: Z.wa },
-  designing: { label: "Designing", color: Z.ac },
-  proof_sent: { label: "Proof Sent", color: Z.pu },
-  revising: { label: "Revising", color: Z.wa },
-  approved: { label: "Approved", color: Z.go },
-  signed_off: { label: "Signed Off", color: Z.go },
-  placed: { label: "Placed", color: Z.go },
+  brief:           { label: "Brief",          color: Z.wa },
+  awaiting_art:    { label: "Awaiting Art",   color: Z.wa },
+  designing:       { label: "Designing",      color: Z.ac },
+  proof_sent:      { label: "Proof Sent",     color: Z.pu },
+  revising:        { label: "Revising",       color: Z.wa },
+  ready_for_press: { label: "Ready for Press", color: Z.go },
+  placed:          { label: "Placed",         color: Z.go },
 };
 
-const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "approved"];
+const KANBAN_COLS = ["brief", "designing", "proof_sent", "revising", "ready_for_press"];
 
 // Columns for the Active-tab issue × status grid. needs_brief is a
 // synthetic column for closed sales that don't yet have an ad_project.
-const STATUS_COLS = ["needs_brief", "brief", "designing", "proof_sent", "revising", "approved"];
+// ready_for_press shows up here — pre-mig-213 it would have been the
+// dropped 'approved' column.
+const STATUS_COLS = ["needs_brief", "brief", "designing", "proof_sent", "revising", "ready_for_press"];
 
 // Non-display product types that Flatplan already excludes — these
 // don't need design work in the same sense.
@@ -357,17 +365,17 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     let list = projects;
     if (tab === "Active") {
       list = list.filter(p => {
-        if (["signed_off", "placed"].includes(p.status)) return false;
+        if (["ready_for_press", "placed"].includes(p.status)) return false;
         const iss = (issues || []).find(i => i.id === p.issue_id);
         // Show if: issue within 30 days, OR overdue (past deadline and not complete), OR no issue linked
         if (!iss) return true;
         if (iss.date <= cutoff30d) return true;
         // Past press but incomplete — flag these
-        if (iss.date < today && !["approved", "signed_off", "placed"].includes(p.status)) return true;
+        if (iss.date < today && !["ready_for_press", "placed"].includes(p.status)) return true;
         return false;
       });
     } else if (tab === "Completed") {
-      list = list.filter(p => ["signed_off", "placed"].includes(p.status));
+      list = list.filter(p => ["ready_for_press", "placed"].includes(p.status));
     }
     if (fPub !== "all") list = list.filter(p => p.publication_id === fPub);
     if (fDesigner !== "all") list = list.filter(p => p.designer_id === fDesigner);
@@ -450,9 +458,9 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         if (col === "needs_brief" || col === "brief") inQueue += n;
         else if (col === "designing") inProgress += n;
         else if (col === "proof_sent" || col === "revising") proofsOut += n;
-        else if (col === "approved") approved += n;
-        if (isUrgent && col !== "approved") atRisk += n;
-        if (col !== "approved") issueCount += n;
+        else if (col === "ready_for_press") approved += n;
+        if (isUrgent && col !== "ready_for_press") atRisk += n;
+        if (col !== "ready_for_press") issueCount += n;
       }
       countByIssueId.set(row.issue.id, issueCount);
     }
@@ -576,15 +584,32 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
 
         if (proof) {
           setProofs(prev => [proof, ...prev]);
-          // Update project status + revision billing
+          // Update project status + revision billing.
+          //
+          // Status transition rule (mig 213 simplified flow):
+          //   brief, awaiting_art, designing → proof_sent (designer
+          //     just dropped a v1; advance forward).
+          //   proof_sent → proof_sent (a second upload before sending
+          //     the first to the client; stays put).
+          //   revising → revising (designer is iterating on a request;
+          //     stays in revising lane until sendProofToClient flips it
+          //     back to proof_sent — keeps the lane meaningful instead
+          //     of clobbering it on every uploaded version).
+          //   ready_for_press, placed → no transition (rare; would mean
+          //     re-uploading after press-ready, leave status alone).
           const billableCount = version > 4 ? version - 4 : 0;
           const revCharges = billableCount * 25;
+          const newStatus = (proj?.status === "revising"
+                          || proj?.status === "ready_for_press"
+                          || proj?.status === "placed")
+            ? proj.status
+            : "proof_sent";
           await supabase.from("ad_projects").update({
-            status: "proof_sent", revision_count: version,
+            status: newStatus, revision_count: version,
             revision_billable_count: billableCount, revision_charges: revCharges,
             updated_at: new Date().toISOString(),
           }).eq("id", projectId);
-          setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: "proof_sent", revision_count: version, revision_billable_count: billableCount, revision_charges: revCharges } : p));
+          setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus, revision_count: version, revision_billable_count: billableCount, revision_charges: revCharges } : p));
           // Activity log: proof_sent_for_approval (v1) or revision_sent (v2+).
           await logActivity?.(
             version === 1
@@ -656,32 +681,40 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     return <span style={{ marginLeft: 6, fontSize: 9, color, fontWeight: FW.bold, textTransform: "uppercase", letterSpacing: 0.5 }}>{text}</span>;
   };
 
-  // ── Sign off ───────────────────────────────────────────
-  const signOff = async (projectId, role) => {
-    // P1.15: stamp approved_at on the designer-signoff path so the
-    // first-proof-rate + on-time-rate metrics have a stable, role-
-    // specific timestamp (separate from updated_at, which moves on
-    // every brief edit / status flip).
+  // ── Confirm client approval ────────────────────────────
+  // Mig 213 lifecycle: only the salesperson (representing client
+  // approval) advances a project past proof_sent. The designer's
+  // self-signoff path is gone — designers signal "ready" via the
+  // proof's internal_status field (Mark Ready → Send to Client),
+  // which lights up the SalesCRM "Proof Ready" badge so the rep
+  // knows to chase the client. Once the rep confirms here, the
+  // project flips to ready_for_press and (for digital ads) trigger
+  // 076 auto-creates the placement row.
+  const confirmClientApproval = async (projectId) => {
     const now = new Date().toISOString();
-    const updates = role === "designer"
-      ? { designer_signoff: true, designer_signoff_at: now, status: "approved", approved_at: now }
-      : { salesperson_signoff: true, salesperson_signoff_at: now, status: "signed_off" };
+    const proj = projects.find(p => p.id === projectId);
+    const updates = {
+      salesperson_signoff: true,
+      salesperson_signoff_at: now,
+      status: "ready_for_press",
+      // Stamp approved_at on first arrival at ready_for_press so
+      // first-proof-rate and on-time-rate metrics have a stable
+      // timestamp independent of updated_at.
+      approved_at: proj?.approved_at || now,
+      updated_at: now,
+    };
     await supabase.from("ad_projects").update(updates).eq("id", projectId);
     setProjects(prev => prev.map(p => p.id === projectId ? { ...p, ...updates } : p));
-    // Activity log: proof_approved (designer) or ad_press_ready (salesperson).
-    const proj = projects.find(p => p.id === projectId);
-    // Wave 2 — emit so SalesCRM's proofReadyMap can update without a refetch.
+    // SalesCRM's Wave 2 proofReadyMap clears via this event.
     if (bus && proj?.source_contract_id) {
-      bus.emit(role === "designer" ? "proof.designerSignoff" : "proof.salespersonSignoff", {
+      bus.emit("proof.salespersonSignoff", {
         contractId: proj.source_contract_id,
         projectId,
       });
     }
     await logActivity?.(
-      role === "designer"
-        ? `approved proof — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim()
-        : `signed off — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
-      role === "designer" ? 'proof_approved' : 'ad_press_ready',
+      `signed off — ${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
+      'ad_press_ready',
       proj?.client_id || null,
       proj?.client_name || null,
       {
@@ -691,25 +724,24 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         entityId:      projectId,
         entitySummary: `${proj?.client_name || 'client'} ${proj?.ad_size || ''}`.trim(),
         publicationId: proj?.publication_id || null,
-        metadata: { signoff_role: role },
+        metadata: { signoff_role: 'salesperson' },
       }
     );
   };
 
-  // P3.29 — bulk sign-off. Power-action used on the Issue × Status
-  // grid: select N approved cards, click "Sign off N selected" → all
-  // get both signoffs flipped + status="signed_off" in a single
-  // round-trip. Optimistic update so the cards animate out without
-  // waiting on the server.
+  // P3.29 — bulk client-approval confirmation. Power-action on the
+  // Issue × Status grid: select N ready_for_press-eligible cards,
+  // click the bulk-signoff button → all flip to ready_for_press in
+  // one round-trip. Mig 213 dropped the designer half of signoff;
+  // this is purely "salesperson confirms client said yes" at scale.
   const bulkSignOff = async () => {
     if (selectedSignoff.size === 0 || bulkSigning) return;
     const ids = [...selectedSignoff];
     setBulkSigning(true);
     const now = new Date().toISOString();
     const updates = {
-      designer_signoff: true, designer_signoff_at: now,
       salesperson_signoff: true, salesperson_signoff_at: now,
-      status: "signed_off", updated_at: now,
+      status: "ready_for_press", updated_at: now,
     };
     const { error } = await supabase.from("ad_projects").update(updates).in("id", ids);
     if (!error) {
@@ -764,7 +796,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     const updates = { status: targetCol, updated_at: now };
     // Stamp approved_at on the proof_sent → approved path for metric
     // accuracy (mirrors the project-detail advanceStatus flow).
-    if (targetCol === "approved") updates.approved_at = now;
+    if (targetCol === "ready_for_press") updates.approved_at = now;
     const { error } = await supabase.from("ad_projects").update(updates).eq("id", project.id);
     if (!error) {
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...updates } : p));
@@ -877,7 +909,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   if (viewProject) {
     const st = STATUSES[viewProject.status] || STATUSES.brief;
     const latestProof = viewProofs[0];
-    const STAGES = ["brief", "designing", "proof_sent", "revising", "approved", "signed_off", "placed"];
+    const STAGES = ["brief", "designing", "proof_sent", "revising", "ready_for_press", "placed"];
     const currentIdx = STAGES.indexOf(viewProject.status);
     const spName = (team || []).find(t => t.id === viewProject.salesperson_id)?.name;
 
@@ -887,7 +919,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
     const advanceStatus = async (newStatus) => {
       const now = new Date().toISOString();
       const patch = { status: newStatus, updated_at: now };
-      if (newStatus === "approved" && !viewProject.approved_at) patch.approved_at = now;
+      if (newStatus === "ready_for_press" && !viewProject.approved_at) patch.approved_at = now;
       await supabase.from("ad_projects").update(patch).eq("id", viewProject.id);
       setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, ...patch } : p));
     };
@@ -994,7 +1026,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             })}
           </div>
           {showMarkArtReceived && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-            <Btn sm onClick={() => advanceStatus("approved")}><Ic.check size={12} /> Mark Art Received</Btn>
+            <Btn sm onClick={() => advanceStatus("ready_for_press")}><Ic.check size={12} /> Mark Art Received</Btn>
           </div>}
         </>;
       })()}
@@ -1193,8 +1225,33 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   <div style={{ padding: "10px 14px", borderTop: `1px solid ${Z.bd}`, display: "flex", gap: 4, flexWrap: "wrap" }}>
                     <Btn sm v="ghost" onClick={() => window.open(latestProof.proof_url, "_blank")} style={{ flex: 1 }}>View Full</Btn>
                     {!latestProof.saved_at && <Btn sm v="success" onClick={() => saveProof(latestProof.id)} style={{ flex: 1 }} title="Save permanently — unsaved proofs expire in 7 days"><Ic.check size={11} /> Save</Btn>}
-                    {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p)); }} style={{ flex: 1 }}>Mark Ready</Btn>}
-                    {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => { await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id); setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p)); }} style={{ flex: 1 }}>Request Edit</Btn>}
+                    {(latestProof.internal_status || "uploaded") === "uploaded" && <Btn sm v="secondary" onClick={async () => {
+                      // Mark Ready: designer's internal QA pass. Mig 213 made
+                      // this the trigger for "salesperson should chase the
+                      // client" — emit on the bus so SalesCRM's pipeline
+                      // card shows the Proof Ready badge.
+                      await supabase.from("ad_proofs").update({ internal_status: "ready" }).eq("id", latestProof.id);
+                      setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "ready" } : p));
+                      if (bus && viewProject?.source_contract_id) {
+                        bus.emit("proof.designerSignoff", {
+                          contractId: viewProject.source_contract_id,
+                          projectId: viewProject.id,
+                        });
+                      }
+                    }} style={{ flex: 1 }}>Mark Ready</Btn>}
+                    {latestProof.internal_status === "ready" && <Btn sm v="secondary" onClick={async () => {
+                      // Flip the proof's internal_status AND advance the
+                      // project to the revising lane so the grid shows
+                      // the card in the right column. Pre-mig-213 this
+                      // only updated the proof, leaving the project
+                      // stuck at "proof_sent" — the revising lane was
+                      // unreachable.
+                      await supabase.from("ad_proofs").update({ internal_status: "edit" }).eq("id", latestProof.id);
+                      setProofs(prev => prev.map(p => p.id === latestProof.id ? { ...p, internal_status: "edit" } : p));
+                      const now = new Date().toISOString();
+                      await supabase.from("ad_projects").update({ status: "revising", updated_at: now }).eq("id", viewProject.id);
+                      setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, status: "revising" } : p));
+                    }} style={{ flex: 1 }}>Request Edit</Btn>}
                     {(latestProof.internal_status === "ready" || latestProof.internal_status === "approved" || latestProof.internal_status === "sent_to_client") && <Btn sm onClick={() => sendProofToClient(latestProof)} disabled={sendingProof === latestProof.id} style={{ flex: 1 }} title={latestProof.sent_to_client_at ? `Last sent ${new Date(latestProof.sent_to_client_at).toLocaleString()}` : undefined}>{sendingProof === latestProof.id ? "Sending…" : (latestProof.sent_to_client_at ? "Resend to Client" : "Send to Client")}</Btn>}
                     <Btn sm v="secondary" onClick={() => setProofModal(true)} disabled={uploading || viewProofs.length >= 5} title={viewProofs.length >= 5 ? "Proof cap reached (5)" : undefined} style={{ flex: 1 }}><Ic.up size={11} /> New Version</Btn>
                   </div>
@@ -1273,20 +1330,27 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
             </GlassCard>;
           })()}
 
-          {/* Sign-off */}
-          {(viewProject.status === "approved" || viewProject.revision_count > 0) && <GlassCard>
-            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Sign-Off</div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1, padding: "10px 14px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Designer</div>
-                {viewProject.designer_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>✓ Signed off</div>
-                  : <Btn sm style={{ marginTop: 4 }} onClick={() => signOff(viewProject.id, "designer")}>Sign Off</Btn>}
+          {/* Client Approval — single button (mig 213). Designer
+              self-signoff was removed; only the salesperson, after
+              hearing back from the client, advances the project.
+              Gate: latest proof exists AND has been sent to the
+              client (or designer marked it internally approved) AND
+              salesperson hasn't already confirmed. The button text
+              changes to "Confirmed" once done so reps see the state
+              without losing the row. */}
+          {latestProof
+            && ["sent_to_client", "approved"].includes(latestProof.internal_status || "")
+            && <GlassCard>
+            <div style={{ fontSize: FS.xs, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, fontFamily: COND, marginBottom: 8 }}>Client Approval</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: Z.bg, borderRadius: Ri }}>
+              <div style={{ fontSize: FS.sm, color: Z.tm }}>
+                {viewProject.salesperson_signoff
+                  ? <span>Confirmed{viewProject.salesperson_signoff_at ? ` ${fmtDate(viewProject.salesperson_signoff_at.slice(0, 10))}` : ""} — ad is press-ready.</span>
+                  : <span>Did the client approve this proof? Confirming sends it to press.</span>}
               </div>
-              <div style={{ flex: 1, padding: "10px 14px", background: Z.bg, borderRadius: Ri, textAlign: "center" }}>
-                <div style={{ fontSize: FS.sm, fontWeight: FW.bold, color: Z.tx }}>Salesperson</div>
-                {viewProject.salesperson_signoff ? <div style={{ color: Z.go, fontWeight: FW.bold, marginTop: 4 }}>✓ Signed off</div>
-                  : <Btn sm style={{ marginTop: 4 }} onClick={() => signOff(viewProject.id, "salesperson")}>Sign Off</Btn>}
-              </div>
+              {viewProject.salesperson_signoff
+                ? <div style={{ color: Z.go, fontWeight: FW.bold }}><Ic.check size={14} /> Confirmed</div>
+                : <Btn sm onClick={() => confirmClientApproval(viewProject.id)}><Ic.check size={12} /> Sign Off — Client Approved</Btn>}
             </div>
           </GlassCard>}
         </div>
@@ -1358,8 +1422,8 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         { label: "In Queue", value: filtered.filter(p => p.status === "brief" || p.status === "awaiting_art").length, color: Z.tm },
         { label: "In Progress", value: filtered.filter(p => p.status === "designing").length, color: ACCENT.blue },
         { label: "Proofs Out", value: filtered.filter(p => p.status === "proof_sent" || p.status === "revising").length, color: Z.wa },
-        { label: "Approved", value: filtered.filter(p => p.status === "approved").length, color: Z.go },
-        { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["approved", "signed_off", "placed"].includes(p.status); }).length, color: Z.da },
+        { label: "Ready for Press", value: filtered.filter(p => p.status === "ready_for_press").length, color: Z.go },
+        { label: "At Risk", value: filtered.filter(p => { const iss = (issues || []).find(i => i.id === p.issue_id); return iss?.adDeadline && Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) <= 3 && !["ready_for_press", "placed"].includes(p.status); }).length, color: Z.da },
       ]).map(s => (
         <div key={s.label} style={{ padding: "8px 12px", background: Z.sf, border: `1px solid ${Z.bd}`, borderRadius: Ri, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: FS.micro, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</span>
@@ -1401,7 +1465,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
                   const count = tab === "Active"
                     ? (gridStats.countByIssueId.get(iss.id) || 0)
-                    : filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["approved", "signed_off", "placed"].includes(p.status)).length;
+                    : filtered.filter(p => p.publication_id === pub.id && p.issue_id === iss.id && !["ready_for_press", "placed"].includes(p.status)).length;
                   const dotColor = count === 0 ? Z.bd : adDl <= 3 ? "#DC2626" : adDl <= 7 ? "#D97706" : "#16A34A";
                   const isActive = heatmapFilter?.pubId === pub.id && heatmapFilter?.issueId === iss.id;
                   // P3.28 — scale dots: 9+ for 10-99, 99+ for 100+; bump size to 32 for 99+
@@ -1497,7 +1561,11 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                     const isNeedsBrief = !project;
                     const isUnassigned = project && !project.designer_id;
                     // P3.29 — only approved cards can be bulk-signed-off
-                    const canSignoff = project && project.status === "approved";
+                    // Pre-mig-213 this enabled bulk-signoff on cards in
+                    // the "approved" column. Now that designer signoff
+                    // is gone, the bulk action is only meaningful on
+                    // ready_for_press rows still pending placement.
+                    const canSignoff = project && project.status === "ready_for_press";
                     const isSelected = canSignoff && selectedSignoff.has(project.id);
                     return (
                       <div
@@ -1626,7 +1694,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
               const latestProof = proofs.filter(pr => pr.project_id === p.id).sort((a, b) => (b.version || 0) - (a.version || 0))[0];
               const isCameraReady = p.art_source === "camera_ready";
               const daysAgo = p.updated_at ? Math.round((new Date() - new Date(p.updated_at)) / 86400000) : 0;
-              const approvedOpacity = col === "approved" ? Math.max(0.6, 1 - daysAgo * 0.15) : 1;
+              const approvedOpacity = col === "ready_for_press" ? Math.max(0.6, 1 - daysAgo * 0.15) : 1;
 
               return <div key={p.id} onClick={() => setViewId(p.id)} style={{
                 padding: "10px 12px", background: Z.bg, borderRadius: Ri, cursor: "pointer",
@@ -1648,7 +1716,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
                   {latestProof?.proof_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) && <img src={latestProof.proof_url} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
                 </div>
                 {/* Overdue / incomplete-after-press flags */}
-                {iss && iss.date < today && !["approved", "signed_off", "placed"].includes(p.status) && <div style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "2px 6px", borderRadius: Ri, marginTop: 4, display: "inline-block" }}>INCOMPLETE — PAST PRESS</div>}
+                {iss && iss.date < today && !["ready_for_press", "placed"].includes(p.status) && <div style={{ fontSize: 9, fontWeight: FW.bold, color: "#fff", background: Z.da, padding: "2px 6px", borderRadius: Ri, marginTop: 4, display: "inline-block" }}>INCOMPLETE — PAST PRESS</div>}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
                   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                     {adDl < 99 && adDl > 0 && <span style={{ fontSize: FS.micro, fontWeight: FW.bold, color: urgColor }}>{adDl}d</span>}
@@ -1829,7 +1897,7 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
           {form.clientId ? (() => {
-            const prevAd = projects.filter(p => p.client_id === form.clientId && ["approved", "signed_off", "placed"].includes(p.status)).sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))[0];
+            const prevAd = projects.filter(p => p.client_id === form.clientId && ["ready_for_press", "placed"].includes(p.status)).sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))[0];
             return prevAd ? <Btn sm v="ghost" onClick={() => setForm(f => ({ ...f, publicationId: prevAd.publication_id || f.publicationId, adSize: prevAd.ad_size || f.adSize, designNotes: `Repeat of previous ad (${prevAd.ad_size || "ad"}). ${prevAd.design_notes || ""}`.trim(), designerId: prevAd.designer_id || f.designerId, clientContactName: prevAd.client_contact_name || f.clientContactName, clientContactEmail: prevAd.client_contact_email || f.clientContactEmail }))}>Clone from last ad</Btn> : <span />;
           })() : <span />}
           <div style={{ display: "flex", gap: 8 }}>

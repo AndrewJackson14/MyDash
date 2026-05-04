@@ -408,7 +408,7 @@ export function useSignalFeed({
       const [{ data: projs }, { data: proofs }] = await Promise.all([
         supabase.from("ad_projects")
           .select("id, status, client_id, publication_id, issue_id, ad_size, designer_id, updated_at")
-          .not("status", "in", '("approved","signed_off","placed")'),
+          .not("status", "in", '("ready_for_press","placed")'),
         supabase.from("ad_proofs")
           .select("project_id, version, sent_to_client_at")
           .not("sent_to_client_at", "is", null),
@@ -432,12 +432,12 @@ export function useSignalFeed({
         if (!iss) continue;
         const adDl = iss.adDeadline ? Math.ceil((new Date(iss.adDeadline + "T12:00:00") - new Date()) / 86400000) : 99;
         // 1. Past press, not signed off — catastrophic.
-        if (iss.date < today && !["approved", "signed_off", "placed"].includes(p.status)) {
+        if (iss.date < today && !["ready_for_press", "placed"].includes(p.status)) {
           alerts.push({ ...p, flag: "INCOMPLETE — PAST PRESS", level: "black", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
           continue;
         }
         // 2. Past ad deadline, not approved.
-        if (adDl <= 0 && !["approved", "signed_off", "placed"].includes(p.status)) {
+        if (adDl <= 0 && !["ready_for_press", "placed"].includes(p.status)) {
           alerts.push({ ...p, flag: "OVERDUE", level: "red", color: Z.da, issueLabel: iss.label, pubId: iss.pubId, issueId: iss.id });
           continue;
         }

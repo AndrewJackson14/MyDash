@@ -85,7 +85,7 @@ const Contracts = ({ contracts, clients, pubs, sales, team, jurisdiction, curren
       });
       // Pick headline status by urgency.
       let headline = null;
-      const order = ["proof_sent", "revising", "designing", "brief", "awaiting_art", "approved", "signed_off", "placed"];
+      const order = ["proof_sent", "revising", "designing", "brief", "awaiting_art", "ready_for_press", "placed"];
       for (const st of order) {
         const hit = projects.find(p => p.status === st);
         if (hit) { headline = st; break; }

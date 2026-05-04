@@ -16,8 +16,9 @@ const WINDOW_DAYS = 14;
 
 // Editorial "ready" statuses — everything else counts as at-risk.
 const STORY_READY = new Set(["Approved", "Edited", "Published", "Web Published"]);
-// Production "ready" statuses for ad projects.
-const AD_READY = new Set(["approved", "signed_off", "placed"]);
+// Production "ready" statuses for ad projects (mig 213 simplified
+// the lifecycle — approved + signed_off folded into ready_for_press).
+const AD_READY = new Set(["ready_for_press", "placed"]);
 
 const lightColor = (level) => level === "red" ? Z.da : level === "amber" ? Z.wa : Z.go;
 const lightLabel = (level) => level === "red" ? "At risk" : level === "amber" ? "Watch" : "On pace";
