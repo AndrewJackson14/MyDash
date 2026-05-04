@@ -709,43 +709,83 @@ export function DataProvider({ children, localData }) {
     } : p));
   }, []);
 
-  // Stories — loaded when Editorial or Flatplan needs them
-  // Paginates through all stories to bypass the 1,000-row PostgREST limit
+  // Stories — loaded when Editorial or Flatplan needs them.
+  //
+  // Column allowlist (perf): bulk planner/archive list views never render
+  // body or content_json (~219 MB across 78k+ rows in prod). StoryEditor
+  // re-fetches body/content_json/excerpt/etc. on detail-open. Dropping
+  // those from the bulk select cuts payload ~95%.
+  const STORY_LIST_COLS = [
+    "id", "title", "author", "status",
+    "publication_id", "issue_id", "print_issue_id", "also_in_issue_ids",
+    "category", "category_id", "page", "print_page",
+    "word_count", "word_limit", "priority", "story_type", "source",
+    "due_date", "scheduled_at",
+    "slug", "web_status", "print_status",
+    "sent_to_web", "sent_to_print",
+    "published_at", "first_published_at", "print_published_at",
+    "last_significant_edit_at", "edit_count", "sent_to_press_at",
+    "assigned_to", "author_id", "editor_id", "assigned_by", "edited_by",
+    "is_featured", "is_premium", "is_sponsored", "sponsor_name",
+    "featured_image_url", "photo_credit", "audience", "source_type",
+    "corrected_after_publish", "last_correction_at",
+    "images", "freelancer_name", "freelancer_email",
+    "has_images", "jump_to_page", "jump_from_page",
+    "placed_by", "laid_out_at",
+    "created_at", "updated_at",
+  ].join(", ");
+
+  // Bulk load is bounded to a [-5d, +90d] activity window. Workflow,
+  // Issue Planning, Flatplan, and Web Queue only show stories within
+  // this window — the 5d look-back covers recently-published rows that
+  // need post-pub touch-ups; the 90d look-ahead covers everything
+  // scheduled for upcoming issues. Pre-window: 78k+ rows / ~78
+  // sequential round trips / 12-20s cold load. Post-window: ~5k rows /
+  // 1-5 round trips / ~1-2s.
+  //
+  // The Archive view escapes this bound via loadStoriesArchive (below)
+  // — it queries by an explicit date range and merges results into
+  // `stories` with dedup, so a single source of truth is preserved.
   const [storiesLoaded, setStoriesLoaded] = useState(false);
   const loadStories = useCallback(async () => {
     if (storiesLoaded || !isOnline()) return;
+
+    const now = Date.now();
+    const fiveBackIso = new Date(now - 5 * 86400000).toISOString();
+    const ninetyAheadIso = new Date(now + 90 * 86400000).toISOString();
+    const fiveBackDate = fiveBackIso.slice(0, 10);
+    const ninetyAheadDate = ninetyAheadIso.slice(0, 10);
+
+    // Issue IDs whose date falls in the window. The issues array is
+    // already loaded on bootstrap (it's a tiny table — ~hundreds of
+    // rows). Stories attached to in-window issues are pulled in even
+    // if their own date columns are stale (e.g., a draft for a
+    // future issue that hasn't been edited recently).
+    const windowIssueIds = (issues || [])
+      .filter(i => i.date && i.date >= fiveBackDate && i.date <= ninetyAheadDate)
+      .map(i => i.id);
+
+    // PostgREST OR filter — ANDed with the keyset cursor below so the
+    // pagination still works when the window is large enough to span
+    // more than one page (rare with the bound, but defensive).
+    const orParts = [
+      `updated_at.gte.${fiveBackIso}`,
+      `published_at.gte.${fiveBackIso}`,
+      `and(scheduled_at.gte.${fiveBackIso},scheduled_at.lte.${ninetyAheadIso})`,
+      `and(due_date.gte.${fiveBackDate},due_date.lte.${ninetyAheadDate})`,
+    ];
+    if (windowIssueIds.length > 0) {
+      orParts.push(`issue_id.in.(${windowIssueIds.join(',')})`);
+      orParts.push(`print_issue_id.in.(${windowIssueIds.join(',')})`);
+    }
+    const orFilter = orParts.join(',');
+
     let allStories = [];
-    // Keyset on id (UUID); created_at order isn't needed here — downstream
-    // map+sort handles display order. Was OFFSET .range() causing degradation
-    // as story count grew.
-    //
-    // Column allowlist (perf): bulk planner/archive list views never render
-    // body or content_json (~219 MB across 78k+ rows in prod). StoryEditor
-    // re-fetches body/content_json/excerpt/etc. on detail-open. Dropping
-    // those from the bulk select cuts payload ~95%.
-    const STORY_LIST_COLS = [
-      "id", "title", "author", "status",
-      "publication_id", "issue_id", "print_issue_id", "also_in_issue_ids",
-      "category", "category_id", "page", "print_page",
-      "word_count", "word_limit", "priority", "story_type", "source",
-      "due_date", "scheduled_at",
-      "slug", "web_status", "print_status",
-      "sent_to_web", "sent_to_print",
-      "published_at", "first_published_at", "print_published_at",
-      "last_significant_edit_at", "edit_count", "sent_to_press_at",
-      "assigned_to", "author_id", "editor_id", "assigned_by", "edited_by",
-      "is_featured", "is_premium", "is_sponsored", "sponsor_name",
-      "featured_image_url", "photo_credit", "audience", "source_type",
-      "corrected_after_publish", "last_correction_at",
-      "images", "freelancer_name", "freelancer_email",
-      "has_images", "jump_to_page", "jump_from_page",
-      "placed_by", "laid_out_at",
-      "created_at", "updated_at",
-    ].join(", ");
     const pageSize = 1000;
     let storyCursor = '00000000-0000-0000-0000-000000000000';
     while (true) {
       const { data } = await supabase.from('stories').select(STORY_LIST_COLS)
+        .or(orFilter)
         .gt('id', storyCursor)
         .order('id')
         .limit(pageSize);
@@ -756,7 +796,42 @@ export function DataProvider({ children, localData }) {
     }
     if (allStories.length > 0) setStories(allStories.map(mapStoryRow));
     setStoriesLoaded(true);
-  }, [storiesLoaded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storiesLoaded, issues]);
+
+  // Archive view escape hatch — the Editorial Archive tab needs
+  // arbitrary date-range queries (e.g., "show me everything published
+  // last quarter") that the bulk load excludes. Pulls only stories
+  // published in [fromIso, toIso], merges into `stories` with dedup
+  // so no row is duplicated and so realtime updates still apply
+  // uniformly. Idempotent: calling with the same range twice is a
+  // no-op (the second call's rows already exist in state).
+  const loadStoriesArchive = useCallback(async (fromIso, toIso) => {
+    if (!fromIso || !toIso || !isOnline()) return;
+    let allStories = [];
+    const pageSize = 1000;
+    let storyCursor = '00000000-0000-0000-0000-000000000000';
+    while (true) {
+      const { data } = await supabase.from('stories').select(STORY_LIST_COLS)
+        .gte('published_at', fromIso)
+        .lte('published_at', toIso)
+        .gt('id', storyCursor)
+        .order('id')
+        .limit(pageSize);
+      if (!data || data.length === 0) break;
+      allStories = allStories.concat(data);
+      if (data.length < pageSize) break;
+      storyCursor = data[data.length - 1].id;
+    }
+    if (allStories.length === 0) return;
+    const mapped = allStories.map(mapStoryRow);
+    setStories(prev => {
+      const seen = new Set(prev.map(s => s.id));
+      const novel = mapped.filter(s => !seen.has(s.id));
+      return novel.length > 0 ? [...prev, ...novel] : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Realtime: keep the in-memory stories list in sync so an editor's
   // page/jump/has_images/priority/status edit propagates to every
@@ -3395,7 +3470,7 @@ export function DataProvider({ children, localData }) {
     loadClientDetails, clientDetailsLoaded,
     loadProposals, proposalsLoaded, loadProposalHistory,
     retainInquiriesRealtime,
-    loadStories, storiesLoaded,
+    loadStories, storiesLoaded, loadStoriesArchive,
     loadBilling, billingLoaded, loadInvoiceLines, loadPaidInvoices, loadAllPaymentsForClient,
     bills, setBills, loadBills, billsLoaded, insertBill, updateBill, deleteBill,
     loadCirculation, circulationLoaded,
@@ -3474,7 +3549,7 @@ export function DataProvider({ children, localData }) {
     commissionsLoaded, outreachLoaded, prioritiesLoaded, contractsLoaded, allSalesLoaded, editionsLoaded, inquiriesLoaded,
     mediaAssetsLoaded, adProjectsLoaded,
     // Callbacks are stable (useCallback) so they won't trigger re-renders
-    loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadProposalHistory, loadStories, loadBilling,
+    loadFullSales, loadSalesForClient, loadClientDetails, loadProposals, loadProposalHistory, loadStories, loadStoriesArchive, loadBilling,
     retainInquiriesRealtime,
     loadCirculation, loadTickets, loadLegals, loadCreative, loadCommissions,
     loadOutreach, loadPriorities, loadContracts, loadAllSales, loadEditions, loadInquiries,

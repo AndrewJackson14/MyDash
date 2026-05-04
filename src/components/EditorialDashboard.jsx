@@ -218,7 +218,7 @@ const KanbanCol = memo(function KanbanCol({ col, stories, pubs, team, onDrop, on
 // ══════════════════════════════════════════════════════════════════
 // MAIN EDITORIAL DASHBOARD
 // ══════════════════════════════════════════════════════════════════
-const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, setIssues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive, deepLink,
+const EditorialDashboard = ({ stories: storiesRaw, setStories, loadStoriesArchive, pubs, issues, setIssues, team, bus, editorialPermissions, currentUser, publishStory, unpublishStory, editions, setEditions, isActive, deepLink,
   // Flatplan-tab props — forwarded straight through so the embedded Flatplan
   // uses the same shared state (sales, placements, page-story map) as the
   // top-level Flatplan route.
@@ -324,6 +324,23 @@ const EditorialDashboard = ({ stories: storiesRaw, setStories, pubs, issues, set
     }
     // "custom" leaves the current from/to intact so the user can edit.
   }, []);
+
+  // Lazy-fetch stories outside the bulk-load window. The bulk
+  // loadStories caps at [-5d, +90d] so Workflow / IP / Flatplan / Web
+  // Queue stay snappy. Archive can ask for arbitrary ranges; when its
+  // range crosses the back-cutoff we top up `stories` with a separate
+  // ranged query. Memoized cutoff so the effect doesn't refire each
+  // render. dedup-on-merge means firing this twice is harmless.
+  const archiveBulkCutoffISO = useMemo(() =>
+    new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10),
+  []);
+  useEffect(() => {
+    if (!isActive || viewScope !== "archive" || !loadStoriesArchive) return;
+    if (!archiveFrom || archiveFrom >= archiveBulkCutoffISO) return; // already in bulk
+    const fromIso = new Date(archiveFrom + "T00:00:00").toISOString();
+    const toIso = new Date((archiveTo || archiveBulkCutoffISO) + "T23:59:59").toISOString();
+    loadStoriesArchive(fromIso, toIso);
+  }, [isActive, viewScope, archiveFrom, archiveTo, archiveBulkCutoffISO, loadStoriesArchive]);
 
   // ── Filtered stories ────────────────────────────────────────
   // Active: default daily-work surface. Anything published > 90 days ago
