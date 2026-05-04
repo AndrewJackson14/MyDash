@@ -252,7 +252,19 @@ const AdProjects = ({ pubs, clients, sales, issues, team, currentUser, isActive,
   const cn = (id) => (clients || []).find(c => c.id === id)?.name || "\u2014";
   const pn = (id) => (pubs || []).find(p => p.id === id)?.name || "\u2014";
   const tn = (id) => (team || []).find(t => t.id === id)?.name || "\u2014";
-  const designers = (team || []).filter(t => ["Graphic Designer", "Production Manager"].includes(t.role) && t.isActive !== false);
+  // Anyone who designs ads gets surfaced in the Assign Designer
+  // dropdown. Pre-Wave-4 this filtered to ["Graphic Designer",
+  // "Production Manager"] — but "Graphic Designer" isn't a canonical
+  // TEAM_ROLES value (the enum settled on "Ad Designer" and "Layout
+  // Designer"), so the modal was matching zero rows for users with
+  // roles set correctly. Now matches the same superset the page-level
+  // filter uses, plus Production Manager who typically owns assignment
+  // and occasionally designs.
+  const designers = (team || []).filter(t =>
+    ["Ad Designer", "Layout Designer", "Graphic Designer", "Production Manager"].includes(t.role)
+    && t.isActive !== false
+    && !t.isHidden && !t.is_hidden
+  );
 
   // ── Load data ──────────────────────────────────────────
   // ad_projects is loaded via useAppData (shared cache). Proofs + threads
