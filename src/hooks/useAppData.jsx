@@ -377,7 +377,23 @@ export function DataProvider({ children, localData }) {
 
         console.time('boot-transform');
 
-        if (pubsRes.data && adSizesRes.data) {
+        // Decouple pubs from ad_sizes. Pre-fix this guarded the setPubs
+        // call on `pubsRes.data && adSizesRes.data`, which meant a
+        // transient ad_sizes failure (network, timeout, RLS context
+        // race) silently zeroed pubs for the entire session. Symptoms
+        // surfaced as slug-only labels in Issue Planning, empty
+        // publication choosers in Flatplan, and empty pub Sels in the
+        // proposal wizard — all the same bug.
+        //
+        // Now: if pubs succeeded, render them. ad_sizes is per-pub
+        // ratecard data; when its query failed each pub gets an empty
+        // adSizes array. Rate-card features degrade (ratecards show
+        // "no sizes configured") instead of nuking the whole list.
+        if (pubsRes.data) {
+          const adSizesByPub = (adSizesRes.data || []).reduce((acc, a) => {
+            (acc[a.pub_id] ??= []).push(a);
+            return acc;
+          }, {});
           setPubs(pubsRes.data.map(p => ({
             id: p.id, name: p.name, color: p.color, type: p.type,
             pageCount: p.page_count, width: Number(p.width), height: Number(p.height),
@@ -395,7 +411,7 @@ export function DataProvider({ children, localData }) {
             legalNameChangeFlat: p.legal_name_change_flat != null ? Number(p.legal_name_change_flat) : null,
             legalFbnFlat: p.legal_fbn_flat != null ? Number(p.legal_fbn_flat) : null,
             timezone: p.timezone || 'America/Los_Angeles',
-            adSizes: adSizesRes.data.filter(a => a.pub_id === p.id).map(a => ({
+            adSizes: (adSizesByPub[p.id] || []).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
               rate: a.rate, rate6: a.rate_6, rate12: a.rate_12, rate18: a.rate_18,
             })),
