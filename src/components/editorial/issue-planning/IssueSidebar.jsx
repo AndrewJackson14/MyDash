@@ -1,6 +1,7 @@
 import React from "react";
 import { Z, COND, FS, Ri } from "../../../lib/theme";
 import { Ic } from "../../ui";
+import { prettifyPubSlug } from "../../../lib/formatters";
 
 // Left rail — list of upcoming issues + collapse affordance. Reads
 // per-issue story counts from the storiesByIssue index (O(1) lookup)
@@ -56,7 +57,10 @@ function IssueSidebar({
       {futureIssues.map(iss => {
         const isSelected = selIssue === iss.id;
         const pubId = iss.publicationId || iss.pubId;
-        const pubName = pubsById.get(pubId)?.name || pubId;
+        // Lookup miss (or stored name is itself a slug) → humanize the
+        // pubId so the sidebar never shows a raw "pub-foo-bar" string.
+        const lookedUp = pubsById.get(pubId)?.name;
+        const pubName = (lookedUp && !lookedUp.startsWith("pub-")) ? lookedUp : prettifyPubSlug(pubId);
         const stCount = getStoryCount(iss.id);
         // IP Wave 3 task 3.9: dim issues that have no stories yet so
         // populated issues stand out in a long sidebar.

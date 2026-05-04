@@ -60,3 +60,21 @@ export const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86
 // ─── Names ─────────────────────────────────────────────
 /** "JD" from "John Doe" */
 export const initials = (name) => name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
+
+/**
+ * Humanize a publication-id slug for display when the pubs lookup
+ * misses. e.g. "pub-atascadero-news" → "Atascadero News",
+ * "pub-the-malibu-times" → "The Malibu Times". Used as a fallback in
+ * Issue Planning's sidebar and Flatplan's pub chooser so the UI never
+ * shows raw slugs even when the publications query is empty or the
+ * stored .name happens to be the slug itself.
+ */
+export const prettifyPubSlug = (slug) => {
+  if (!slug) return "";
+  return String(slug)
+    .replace(/^pub[-_]/i, "")
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+};

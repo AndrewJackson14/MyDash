@@ -8,6 +8,7 @@ import { sendGmailEmail } from "../lib/gmail";
 import { generateInvoiceHtml } from "../lib/invoiceTemplate";
 import { deriveTransactionType } from "../lib/qboTransactionType";
 import { useNav } from "../hooks/useNav";
+import { prettifyPubSlug } from "../lib/formatters";
 import { rasterizePdfFirstPage } from "../lib/pdfRender";
 import { loadSectionsForIssue, createSection as createSectionDb, updateSection as updateSectionDb, deleteSection as deleteSectionDb, applyDefaultSectionsToIssue, pageLabel } from "../lib/sections";
 
@@ -1000,7 +1001,20 @@ const Flatplan = ({ pubs, issues, setIssues, sales, setSales, updateSale, client
       <div style={{ display: "flex", alignItems: "center", gap: 3, background: Z.sa, borderRadius: Ri, padding: "6px 10px", border: `1px solid ${Z.bd}` }}><button onClick={() => setZoom(z => Math.max(0.5, z - 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>−</button><span style={{ fontSize: FS.base, fontWeight: FW.bold, color: Z.tm, minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(z => Math.min(2, z + 0.15))} style={{ background: "none", border: "none", cursor: "pointer", color: Z.tm, fontSize: 15, fontWeight: FW.black }}>+</button></div>
     </div>
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <Sel value={selPub} onChange={e => handlePubChange(e.target.value)} options={[{ value: "", label: "Choose publication" }, ...fpPubs.filter(p => issues.some(i => i.pubId === p.id)).map(p => ({ value: p.id, label: p.name }))]} style={{ minWidth: 180 }} />
+      <Sel value={selPub} onChange={e => handlePubChange(e.target.value)} options={[{ value: "", label: "Choose publication" }, ...(() => {
+        // Build chooser options from pubs that have at least one issue.
+        // Fallback: when fpPubs is empty (rare — happens when the
+        // publications query is RLS-filtered or the user has no pub
+        // assignments) but issues are loaded, derive options from the
+        // distinct pubIds in issues with humanized labels. Beats an
+        // empty chooser the user can't recover from.
+        const pubsWithIssues = fpPubs.filter(p => issues.some(i => i.pubId === p.id));
+        if (pubsWithIssues.length > 0) {
+          return pubsWithIssues.map(p => ({ value: p.id, label: p.name && !p.name.startsWith("pub-") ? p.name : prettifyPubSlug(p.id) }));
+        }
+        const distinctIds = [...new Set((issues || []).map(i => i.pubId).filter(Boolean))];
+        return distinctIds.map(id => ({ value: id, label: prettifyPubSlug(id) }));
+      })()]} style={{ minWidth: 180 }} />
       <Sel value={selIssue} disabled={!selPub} onChange={e => { setSelIssue(e.target.value); setSelPage(null); if (onSelectionChange) onSelectionChange(selPub, e.target.value); }} options={[{ value: "", label: selPub ? "Choose issue" : "Select a publication first" }, ...visibleIssues.map(i => ({ value: i.id, label: `${i.label} — ${i.date}${i.date >= today ? " ★" : ""}` }))]} style={{ minWidth: 200, opacity: selPub ? 1 : 0.5 }} />
       {issue && <div style={{ display: "flex", gap: 6, fontSize: FS.sm, color: Z.tm }}>
         <span>{issSales.length} ads</span>
