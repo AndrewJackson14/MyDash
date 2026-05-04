@@ -5,6 +5,14 @@ import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, cardSurface } from "../components/ui";
 import { supabase } from "../lib/supabase";
 import { updatePubDefaultSections } from "../lib/sections";
+import {
+  loadPubCategories,
+  loadCanonicalCategories,
+  addPubCategory,
+  removePubCategory,
+  reorderPubCategories,
+  createCategory,
+} from "../lib/publicationCategories";
 import { COMMON_TIMEZONES } from "../lib/timezone";
 import EZSchedule from "./EZSchedule";
 import SocialAccountsSection from "../components/SocialAccountsSection";
@@ -487,6 +495,205 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
   </div>;
 };
 
+// ============================================================
+// CategoriesSection — per-pub category selector + canonical "Add new".
+//
+// Lives inside the pub edit modal. Reads/writes publication_categories
+// against the canonical categories catalog (mig 213-215). Position
+// drives BOTH the Story Editor's category dropdown order AND (after
+// Phase 5) the public site nav order — same source of truth.
+// ============================================================
+const CategoriesSection = ({ pubId }) => {
+  const [selected, setSelected] = useState([]);
+  const [allCats, setAllCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [picker, setPicker] = useState("");
+  const [newName, setNewName] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!pubId) return;
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([loadPubCategories(pubId), loadCanonicalCategories()])
+      .then(([sel, all]) => {
+        if (!alive) return;
+        setSelected(sel);
+        setAllCats(all);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        setError(err.message || String(err));
+        setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [pubId]);
+
+  const refresh = async () => {
+    try {
+      const sel = await loadPubCategories(pubId);
+      setSelected(sel);
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  };
+
+  const handleAddExisting = async () => {
+    if (!picker || busy) return;
+    setBusy(true); setError(null);
+    try {
+      await addPubCategory(pubId, picker);
+      setPicker("");
+      await refresh();
+    } catch (err) { setError(err.message || String(err)); }
+    setBusy(false);
+  };
+
+  const handleRemove = async (categoryId) => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      await removePubCategory(pubId, categoryId);
+      await refresh();
+    } catch (err) { setError(err.message || String(err)); }
+    setBusy(false);
+  };
+
+  const handleMove = async (idx, dir) => {
+    const to = idx + dir;
+    if (to < 0 || to >= selected.length || busy) return;
+    const next = [...selected];
+    [next[idx], next[to]] = [next[to], next[idx]];
+    setSelected(next);
+    setBusy(true); setError(null);
+    try {
+      await reorderPubCategories(pubId, next.map((c) => c.id));
+      await refresh();
+    } catch (err) {
+      setError(err.message || String(err));
+      await refresh();
+    }
+    setBusy(false);
+  };
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const created = await createCategory({ name });
+      setAllCats((arr) => [...arr, created].sort((a, b) => a.name.localeCompare(b.name)));
+      await addPubCategory(pubId, created.id);
+      setNewName("");
+      setShowCreate(false);
+      await refresh();
+    } catch (err) {
+      const msg = err.message || String(err);
+      if (/duplicate key|categories_name_unique|categories_slug_unique/i.test(msg)) {
+        setError(`A category named "${name}" already exists. Use the picker to add it.`);
+      } else {
+        setError(msg);
+      }
+    }
+    setBusy(false);
+  };
+
+  if (!pubId) return null;
+  const selectedIds = new Set(selected.map((s) => s.id));
+  const availableForAdd = allCats.filter((c) => !selectedIds.has(c.id));
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: FS.sm, fontWeight: FW.heavy, color: Z.td, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Categories</div>
+      <div style={{ padding: 12, background: Z.bg, borderRadius: R, border: `1px solid ${Z.bd}` }}>
+        <div style={{ fontSize: FS.xs, color: Z.tm, marginBottom: 10, lineHeight: 1.5 }}>
+          Categories editors can tag stories with on this publication. Order here drives the Story Editor dropdown and (once the public site cuts over) the website nav order.
+        </div>
+
+        {error && (
+          <div style={{ fontSize: FS.sm, color: Z.da, padding: "6px 10px", background: Z.da + "10", borderRadius: Ri, border: `1px solid ${Z.da}40`, marginBottom: 8 }}>
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic" }}>Loading…</div>
+        ) : selected.length === 0 ? (
+          <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", marginBottom: 10 }}>No categories selected for this publication.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            {selected.map((c, idx) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
+                <span style={{ fontSize: FS.micro, fontWeight: 800, color: Z.td, fontFamily: COND, width: 16, textAlign: "center" }}>{idx + 1}</span>
+                <span style={{ flex: 1, fontSize: FS.sm, fontWeight: FW.semi, color: Z.tx, fontFamily: COND }}>{c.name}</span>
+                <span style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND }}>{c.slug}</span>
+                <button
+                  onClick={() => handleMove(idx, -1)}
+                  disabled={idx === 0 || busy}
+                  style={{ background: "none", border: "none", cursor: idx === 0 || busy ? "default" : "pointer", color: idx === 0 ? Z.bd : Z.tm, fontSize: FS.sm, padding: "0 4px" }}
+                  title="Move up"
+                >▲</button>
+                <button
+                  onClick={() => handleMove(idx, 1)}
+                  disabled={idx === selected.length - 1 || busy}
+                  style={{ background: "none", border: "none", cursor: idx === selected.length - 1 || busy ? "default" : "pointer", color: idx === selected.length - 1 ? Z.bd : Z.tm, fontSize: FS.sm, padding: "0 4px" }}
+                  title="Move down"
+                >▼</button>
+                <button
+                  onClick={() => handleRemove(c.id)}
+                  disabled={busy}
+                  style={{ background: "none", border: "none", cursor: busy ? "default" : "pointer", color: Z.da, fontSize: FS.md, padding: "0 4px" }}
+                  title="Remove from publication"
+                >×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={picker}
+            onChange={(e) => setPicker(e.target.value)}
+            disabled={busy || availableForAdd.length === 0}
+            style={{ flex: 1, minWidth: 200, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "6px 8px", color: Z.tx, fontSize: FS.sm, fontFamily: COND, cursor: busy ? "default" : "pointer" }}
+          >
+            <option value="">{availableForAdd.length === 0 ? "Every category is already selected" : "Add an existing category…"}</option>
+            {availableForAdd.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <Btn sm v="secondary" onClick={handleAddExisting} disabled={!picker || busy}>Add</Btn>
+          {!showCreate && (
+            <Btn sm v="secondary" onClick={() => setShowCreate(true)} disabled={busy}>
+              <Ic.plus size={12} /> New category
+            </Btn>
+          )}
+        </div>
+
+        {showCreate && (
+          <div style={{ marginTop: 10, padding: 10, background: Z.sf, borderRadius: Ri, border: `1px solid ${Z.bd}`, display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="New category name (e.g. Local News)"
+              disabled={busy}
+              style={{ flex: 1, background: Z.bg, border: `1px solid ${Z.bd}`, borderRadius: Ri, padding: "6px 8px", color: Z.tx, fontSize: FS.sm, fontFamily: COND, outline: "none" }}
+            />
+            <Btn sm onClick={handleCreate} disabled={!newName.trim() || busy}>Create + Add</Btn>
+            <Btn sm v="cancel" onClick={() => { setShowCreate(false); setNewName(""); }} disabled={busy}>Cancel</Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, insertPublication, updatePublication, insertAdSizes, updatePubGoal, updateIssueGoal, sales, isActive, commissionGoals = [], salespersonPubAssignments = [], team = [], deepLink }) => {
   const { teamMember } = useAuth();
   // Publisher-level access: either the Publisher role, or any team member
@@ -915,6 +1122,9 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
           </Btn>
         </div>
       </div>
+
+      {/* Categories — per-pub selection from the canonical catalog. */}
+      <CategoriesSection pubId={sel.id} />
 
       {/* Discount tier info */}
       <div style={{ marginTop: 12, padding: 10, background: Z.bg, borderRadius: Ri, border: `1px solid ${Z.bd}` }}>
