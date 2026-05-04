@@ -136,9 +136,10 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, onOpenStory, pu
   }, [story.id]);
 
   // ── Load categories for selected publications ───────────────
-  // Order by sort_order so the publication's intended ordering wins
-  // (e.g. Featured first for magazines), falling back to alphabetical
-  // for any category that shares a sort_order.
+  // Reads via publication_categories (the per-pub selection layer
+  // introduced in mig 214). Order is the publisher's chosen position
+  // for the pub. Stories spanning multiple pubs dedupe by canonical id.
+  //
   // Stable-key guard: stringify the array so React effect equality
   // doesn't trigger on every parent render (the .join(",") variant
   // worked but mis-typed the dep — eslint-react-hooks treats it as a
@@ -147,12 +148,21 @@ const StoryEditor = ({ story, onClose, onUpdate, onDraftCreated, onOpenStory, pu
   useEffect(() => {
     if (!selectedPubs.length) { setCategories([]); return; }
     let alive = true;
-    supabase.from("categories")
-      .select("id, name, slug, publication_id, sort_order")
+    supabase.from("publication_categories")
+      .select("position, category:categories(id, name, slug, sort_order)")
       .in("publication_id", selectedPubs)
-      .order("sort_order", { ascending: true, nullsFirst: false })
-      .order("name")
-      .then(({ data }) => { if (alive && data) setCategories(data); });
+      .order("position", { ascending: true })
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) { console.error("[StoryEditor] categories load failed:", error); return; }
+        const seen = new Set();
+        const flat = [];
+        for (const row of data || []) {
+          const c = row.category;
+          if (c && !seen.has(c.id)) { seen.add(c.id); flat.push(c); }
+        }
+        setCategories(flat);
+      });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPubsKey]);
