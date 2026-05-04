@@ -44,7 +44,7 @@ function SEOPanel({ meta, setMeta, saveMeta, primaryPub, currentUser }) {
         <Inp
           label="SEO Title"
           value={meta.seo_title || ""}
-          onChange={v => setMeta(m => ({ ...m, seo_title: v }))}
+          onChange={e => setMeta(m => ({ ...m, seo_title: e.target.value }))}
           onBlur={() => saveMeta("seo_title", meta.seo_title)}
         />
         <div style={{ fontSize: FS.micro, color: titleLen >= 50 && titleLen <= 60 ? (Z.su || "#22c55e") : Z.tm, fontFamily: COND, textAlign: "right" }}>{titleLen}/60</div>
@@ -53,7 +53,7 @@ function SEOPanel({ meta, setMeta, saveMeta, primaryPub, currentUser }) {
         <TA
           label="SEO Description"
           value={meta.seo_description || ""}
-          onChange={v => setMeta(m => ({ ...m, seo_description: v }))}
+          onChange={e => setMeta(m => ({ ...m, seo_description: e.target.value }))}
           onBlur={() => saveMeta("seo_description", meta.seo_description)}
           rows={2}
         />
