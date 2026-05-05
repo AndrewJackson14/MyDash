@@ -5,6 +5,7 @@ import { usePageHeader } from "../contexts/PageHeaderContext";
 import { supabase, isOnline, EDGE_FN_URL } from "../lib/supabase";
 import { useDialog } from "../hooks/useDialog";
 import { uploadMedia } from "../lib/media";
+import { loadPubCategories } from "../lib/publicationCategories";
 
 // ── Upload via Edge Function ─────────────────────────────────────
 async function uploadImage(file, path) {
@@ -774,6 +775,10 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
   const [sites, setSites] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
+  // Read-only mirror of publication_categories for the selected pub.
+  // Edits happen in the Publications page; this view just shows what's
+  // currently in nav so the publisher can see it from the MySites surface.
+  const [navCats, setNavCats] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -804,13 +809,27 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       });
   }, []);
 
+  // Reload nav categories whenever the selected pub changes. Source of
+  // truth: publication_categories ⨝ categories (mig 213-216). Read-only
+  // here — edits land in Publications → pub modal → Categories.
+  useEffect(() => {
+    if (!selectedId) { setNavCats([]); return; }
+    let alive = true;
+    loadPubCategories(selectedId)
+      .then(rows => { if (alive) setNavCats(rows); })
+      .catch(() => { if (alive) setNavCats([]); });
+    return () => { alive = false; };
+  }, [selectedId]);
+
   const buildDraft = (site) => ({
     logo_url: site.logo_url || site.settings?.logo_url || "",
     favicon_url: site.favicon_url || "",
     primary_color: site.settings?.primary_color || "#1a202c",
     secondary_color: site.settings?.secondary_color || "#2b6cb0",
     tagline: site.settings?.tagline || "",
-    nav_categories: site.settings?.nav_categories || [],
+    // nav_categories now lives in publication_categories (mig 213-216).
+    // SiteEditor displays them read-only via NavCategoriesPanel below;
+    // editing happens in Publications → pub modal → Categories.
     homepage_main: site.settings?.homepage_main || [],
     homepage_bottom: site.settings?.homepage_bottom || [],
     best_of_slug: site.settings?.best_of_slug || "",
@@ -882,7 +901,6 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
       primary_color: draft.primary_color,
       secondary_color: draft.secondary_color,
       tagline: draft.tagline,
-      nav_categories: draft.nav_categories,
       homepage_main: draft.homepage_main,
       homepage_bottom: draft.homepage_bottom,
       best_of_slug: draft.best_of_slug,
@@ -1272,7 +1290,24 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
           <div>
             <Section title="Navigation & Layout">
               <Field label="Nav Categories">
-                <OrderableList items={draft.nav_categories} onChange={v => update("nav_categories", v)} placeholder="Add category (e.g. News)..." showSlug />
+                <div style={{ background: Z.sa, borderRadius: 3, border: "1px solid " + Z.bd, padding: "6px 8px" }}>
+                  <div style={{ fontSize: FS.micro, color: Z.tm, fontFamily: COND, marginBottom: 6, lineHeight: 1.4 }}>
+                    Managed in <button onClick={() => onNavigate && onNavigate("publications")} style={{ background: "none", border: "none", padding: 0, color: Z.ac, fontSize: FS.micro, fontFamily: COND, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Publications → {site?.name || "this pub"} → Categories</button>. This list mirrors what editors see in the Story Editor and what the public site nav renders.
+                  </div>
+                  {navCats.length === 0 ? (
+                    <div style={{ fontSize: FS.sm, color: Z.td, fontStyle: "italic", padding: "4px 0" }}>No categories selected for this publication.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {navCats.map((c, i) => (
+                        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 4px", fontSize: FS.sm }}>
+                          <span style={{ color: Z.td, fontFamily: COND, width: 16, textAlign: "center", fontWeight: 700, fontSize: FS.micro }}>{i + 1}</span>
+                          <span style={{ flex: 1, color: Z.tx, fontWeight: 600, fontFamily: COND }}>{c.name}</span>
+                          <span style={{ color: Z.tm, fontFamily: COND, fontSize: FS.micro }}>{c.slug}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
               <Field label="Homepage Main Grid (top section)">
                 <OrderableList items={draft.homepage_main} onChange={v => update("homepage_main", v)} placeholder="Add category slug (e.g. news)..." />
@@ -1381,12 +1416,12 @@ export default function MySites({ pubs, setPubs, isActive, sales, clients, digit
                     {draft.logo_url && <img src={draft.logo_url} alt="" style={{ height: 28, objectFit: "contain" }} />}
                     <span style={{ color: INV.light, fontSize: FS.md, fontWeight: 700, fontFamily: COND }}>{site.name}</span>
                   </div>
-                  {draft.nav_categories.length > 0 && (
+                  {navCats.length > 0 && (
                     <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                      {draft.nav_categories.slice(0, 6).map(c => (
-                        <span key={c} style={{ color: "rgba(255,255,255,0.8)", fontSize: FS.micro, fontWeight: 600, fontFamily: COND }}>{c}</span>
+                      {navCats.slice(0, 6).map(c => (
+                        <span key={c.id} style={{ color: "rgba(255,255,255,0.8)", fontSize: FS.micro, fontWeight: 600, fontFamily: COND }}>{c.name}</span>
                       ))}
-                      {draft.nav_categories.length > 6 && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: FS.micro, fontFamily: COND }}>+{draft.nav_categories.length - 6}</span>}
+                      {navCats.length > 6 && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: FS.micro, fontFamily: COND }}>+{navCats.length - 6}</span>}
                     </div>
                   )}
                 </div>
