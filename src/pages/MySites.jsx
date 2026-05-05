@@ -606,6 +606,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
       rate_12mo: null,
       sort_order: 0,
       is_active: true,
+      preview_url: null,
     });
     const otherRows = products.filter(p => !p.zone_id);
     setDraft([...zoneRows, ...otherRows]);
@@ -614,7 +615,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
   if (!pubId) return <div style={{ padding: 24, color: Z.tm, fontSize: FS.sm, fontFamily: COND }}>This site has no linked publication; the digital catalog can't be edited.</div>;
 
   const slugify = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  const addOtherRow = () => setDraft(d => [...d, { _new: true, pub_id: pubId, name: "", slug: "", product_type: "newsletter_sponsor", rate_monthly: 0, rate_6mo: null, rate_12mo: null, sort_order: d.length + 1, is_active: true }]);
+  const addOtherRow = () => setDraft(d => [...d, { _new: true, pub_id: pubId, name: "", slug: "", product_type: "newsletter_sponsor", rate_monthly: 0, rate_6mo: null, rate_12mo: null, sort_order: d.length + 1, is_active: true, preview_url: null }]);
   const updateRow = (idx, patch) => setDraft(d => d.map((r, i) => i === idx ? { ...r, ...patch } : r));
   const removeRow = (idx) => setDraft(d => d.filter((_, i) => i !== idx));
 
@@ -645,6 +646,7 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
           height: r.height ? Number(r.height) : null,
           sort_order: Number(r.sort_order) || 0,
           is_active: r.is_active !== false,
+          preview_url: r.preview_url || null,
           updated_at: new Date().toISOString(),
         };
         if (r._isZonePlaceholder) {
@@ -677,12 +679,33 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
   // Single editable rate column (monthly). 6mo/12mo are derived on
   // save and shown inline as a "tier" hint so the publisher sees the
   // cascaded discounts without a separate input each.
-  const headerCols = "1.4fr 0.9fr 1.1fr 0.7fr 1.5fr 0.55fr 24px";
+  const headerCols = "44px 1.4fr 0.9fr 1.1fr 0.7fr 1.5fr 0.55fr 24px";
   const headerCells = (
     <div style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "6px 8px", background: Z.sa, fontSize: FS.micro, fontWeight: 700, color: Z.td, textTransform: "uppercase", letterSpacing: 0.5, fontFamily: COND }}>
-      <div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>Discount Tiers (auto)</div><div>Sort</div><div></div>
+      <div>Img</div><div>Name</div><div>House Ads</div><div>Type</div><div>Mo $</div><div>Discount Tiers (auto)</div><div>Sort</div><div></div>
     </div>
   );
+
+  const handlePreviewUpload = async (rowIdx, productName) => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      try {
+        const row = await uploadMedia(f, {
+          category: "pub_asset",
+          publicationId: pubId || null,
+          caption: `Digital product preview: ${productName || ""}`,
+        });
+        updateRow(rowIdx, { preview_url: row.cdn_url });
+      } catch (err) {
+        await dialog.alert("Upload failed: " + (err.message || "unknown"));
+      }
+    };
+    inp.click();
+  };
 
   const renderRow = (r, idx, kind) => {
     const houseAds = r.zone_id ? (houseAdCounts[r.zone_id] || 0) : null;
@@ -692,6 +715,15 @@ function DigitalCatalogTab({ site, pubs, digitalAdProducts, loadDigitalAdProduct
     const mo12 = priced ? deriveTier(monthly, 0.30) : null;
     return (
       <div key={r.id || `_n${idx}_${kind}`} style={{ display: "grid", gridTemplateColumns: headerCols, gap: 4, padding: "5px 8px", background: Z.sf, borderRadius: 3, alignItems: "center", borderLeft: priced ? `2px solid ${Z.su}` : (r.zone_id ? `2px solid ${Z.wa}` : "2px solid transparent") }}>
+        <button
+          onClick={() => handlePreviewUpload(draft.indexOf(r), r.name)}
+          title={r.preview_url ? "Replace preview image (click to upload)" : "Upload preview image"}
+          style={{ width: 32, height: 32, borderRadius: 3, border: r.preview_url ? `1px solid ${Z.bd}` : `1px dashed ${Z.bd}`, background: r.preview_url ? "transparent" : Z.sa, padding: 0, cursor: "pointer", overflow: "hidden", position: "relative" }}
+        >
+          {r.preview_url
+            ? <img src={r.preview_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : <span style={{ fontSize: FS.xs, color: Z.td, fontFamily: COND, fontWeight: 700 }}>+</span>}
+        </button>
         <Inp value={r.name || ""} onChange={e => updateRow(draft.indexOf(r), { name: e.target.value })} />
         <div style={{ fontSize: FS.xs, color: houseAds > 0 ? Z.wa : Z.td, fontFamily: COND, textAlign: "center" }}>
           {r.zone_id ? `${houseAds} placed` : "—"}
