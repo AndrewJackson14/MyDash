@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Z, SC, COND, DISPLAY, FS, FW, Ri, CARD, R, INV, TOGGLE, ACCENT } from "../lib/theme";
 import { Ic, Badge, Btn, Inp, Sel, TA, Card, SB, TB, Stat, Modal, Bar, FilterBar, SortHeader, BackBtn, ThemeToggle , GlassCard, PageHeader, SolidTabs, GlassStat, SectionTitle, TabRow, TabPipe, DataTable, ListCard, ListDivider, ListGrid, glass, cardSurface } from "../components/ui";
 import { supabase } from "../lib/supabase";
+import { uploadMedia } from "../lib/media";
 import { updatePubDefaultSections } from "../lib/sections";
 import {
   loadPubCategories,
@@ -496,6 +497,67 @@ const GoalsSubtab = ({ pubs, issues, commissionGoals, salespersonPubAssignments,
 };
 
 // ============================================================
+// AdSizePreviewCell — thumbnail + upload control for an ad-size row
+// in the Rate Card. The preview drives the StellarPress Browse-and-
+// Book catalog tile so customers see what each size looks like
+// instead of a text-only chip.
+// ============================================================
+const AdSizePreviewCell = ({ adSize, editMode, pubId, onChange }) => {
+  const [uploading, setUploading] = useState(false);
+  const url = adSize?.previewUrl || null;
+  const handleUpload = () => {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      setUploading(true);
+      try {
+        const row = await uploadMedia(f, {
+          category: "pub_asset",
+          publicationId: pubId || null,
+          caption: `Ad size preview: ${adSize?.name || ""}`,
+        });
+        onChange(row.cdn_url);
+      } catch (err) {
+        alert("Upload failed: " + (err.message || "unknown error"));
+      }
+      setUploading(false);
+    };
+    inp.click();
+  };
+  if (!editMode) {
+    return url
+      ? <img src={url} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa }} />
+      : <span style={{ color: Z.td, fontSize: FS.micro, fontFamily: COND }}>—</span>;
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {url
+        ? <img src={url} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.sa }} />
+        : <div style={{ width: 32, height: 32, borderRadius: Ri, border: `1px dashed ${Z.bd}`, background: Z.sa }} />}
+      <button
+        onClick={handleUpload}
+        disabled={uploading}
+        style={{ padding: "3px 8px", borderRadius: Ri, border: `1px solid ${Z.bd}`, background: Z.bg, color: Z.tm, fontSize: FS.micro, fontFamily: COND, fontWeight: 700, cursor: uploading ? "default" : "pointer" }}
+        title={url ? "Replace preview image" : "Upload preview image"}
+      >
+        {uploading ? "..." : (url ? "Replace" : "Upload")}
+      </button>
+      {url && (
+        <button
+          onClick={() => onChange(null)}
+          disabled={uploading}
+          style={{ background: "none", border: "none", cursor: "pointer", color: Z.da, fontSize: FS.md, padding: "0 2px" }}
+          title="Remove preview"
+        >×</button>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
 // CategoriesSection — per-pub category selector + canonical "Add new".
 //
 // Lives inside the pub edit modal. Reads/writes publication_categories
@@ -740,7 +802,11 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
     setSel(editPub);
     setEditMode(false);
   };
-  const updateAdSize = (idx, field, val) => { setEditPub(p => ({ ...p, adSizes: p.adSizes.map((a, i) => i === idx ? { ...a, [field]: field === "name" || field === "dims" ? val : Number(val) || 0 } : a) })); };
+  const updateAdSize = (idx, field, val) => {
+    const stringField = field === "name" || field === "dims" || field === "previewUrl";
+    const next = stringField ? val : (Number(val) || 0);
+    setEditPub(p => ({ ...p, adSizes: p.adSizes.map((a, i) => i === idx ? { ...a, [field]: next } : a) }));
+  };
 
   const handleAddPub = async () => {
     const id = "pub-" + newPub.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "").slice(0, 20);
@@ -956,8 +1022,9 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
 
       {/* Rate card table — editable in edit mode */}
         <DataTable>
-          <thead><tr>{["Ad Size", "Dimensions", "1× Rate", "6–11 Rate", "12+ Rate", ...(editMode ? [""] : [])].map(h => <th key={h}>{h}</th>)}</tr></thead>
+          <thead><tr>{["Preview", "Ad Size", "Dimensions", "1× Rate", "6–11 Rate", "12+ Rate", ...(editMode ? [""] : [])].map(h => <th key={h}>{h}</th>)}</tr></thead>
           <tbody>{(editMode ? editPub.adSizes : sel.adSizes || []).map((a, i) => <tr key={i}>
+            <td><AdSizePreviewCell adSize={a} editMode={editMode} pubId={(editMode ? editPub : sel)?.id} onChange={url => updateAdSize(i, "previewUrl", url)} /></td>
             <td>{editMode ? <input value={a.name} onChange={e => updateAdSize(i, "name", e.target.value)} style={{ background: "transparent", border: "none", color: Z.tx, fontSize: FS.md, fontFamily: COND, outline: "none", width: "100%", fontWeight: FW.bold }} /> : <span style={{ fontWeight: FW.bold, color: Z.tx }}>{a.name}</span>}</td>
             <td>{editMode ? <input value={a.dims} onChange={e => updateAdSize(i, "dims", e.target.value)} style={{ background: "transparent", border: "none", color: Z.tm, fontSize: FS.md, fontFamily: COND, outline: "none", width: "100%" }} /> : <span style={{ color: Z.tm }}>{a.dims}</span>}</td>
             <td>{editMode ? <input type="number" value={a.rate} onChange={e => updateAdSize(i, "rate", e.target.value)} style={{ background: "transparent", border: "none", color: Z.su, fontSize: FS.md, fontFamily: COND, outline: "none", width: 80, fontWeight: FW.bold }} /> : <span style={{ fontWeight: FW.bold, color: Z.su }}>${(a.rate || 0).toLocaleString()}</span>}</td>
@@ -966,7 +1033,7 @@ const Publications = ({ pubs, setPubs, issues, setIssues, insertIssuesBatch, ins
             {editMode && <td><button onClick={() => setEditPub(p => ({ ...p, adSizes: p.adSizes.filter((_, j) => j !== i) }))} style={{ background: Z.da, border: "none", borderRadius: Ri, padding: "4px 8px", cursor: "pointer", color: INV.light, fontSize: FS.xs, fontWeight: FW.bold }}>✕</button></td>}
           </tr>)}</tbody>
         </DataTable>
-        {editMode && <Btn sm v="ghost" onClick={() => setEditPub(p => ({ ...p, adSizes: [...(p.adSizes || []), { name: "", dims: "", rate: 0, rate6: 0, rate12: 0, w: 0, h: 0 }] }))}>+ Add Ad Size</Btn>}
+        {editMode && <Btn sm v="ghost" onClick={() => setEditPub(p => ({ ...p, adSizes: [...(p.adSizes || []), { name: "", dims: "", rate: 0, rate6: 0, rate12: 0, w: 0, h: 0, previewUrl: null }] }))}>+ Add Ad Size</Btn>}
 
       {/* Premium Placements — Publisher/admin only */}
       {isPublisher && <PlacementsSection

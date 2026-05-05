@@ -414,6 +414,7 @@ export function DataProvider({ children, localData }) {
             adSizes: (adSizesByPub[p.id] || []).map(a => ({
               name: a.name, dims: a.dims, w: Number(a.width), h: Number(a.height),
               rate: a.rate, rate6: a.rate_6, rate12: a.rate_12, rate18: a.rate_18,
+              previewUrl: a.preview_url || null,
             })),
           })));
         }
@@ -3137,6 +3138,7 @@ export function DataProvider({ children, localData }) {
           pub_id: pubId, name: a.name, dims: a.dims || '', width: a.w || a.width || 0,
           height: a.h || a.height || 0, rate: a.rate, rate_6: a.rate6 || a.rate_6 || 0,
           rate_12: a.rate12 || a.rate_12 || 0, rate_18: a.rate18 || a.rate_18 || 0, sort_order: i,
+          preview_url: a.previewUrl || a.preview_url || null,
         }));
         await supabase.from('ad_sizes').insert(rows);
       }
