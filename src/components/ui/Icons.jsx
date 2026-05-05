@@ -14,6 +14,7 @@ const Ic = {
   chart:  p => <Iv d="M18 20V10 M12 20V4 M6 20v-6" {...p} />,
   plus:   p => <Iv d="M12 5v14M5 12h14" {...p} />,
   close:  p => <Iv d="M18 6L6 18M6 6l12 12" {...p} />,
+  x:      p => <Iv d="M18 6L6 18M6 6l12 12" {...p} />,
   check:  p => <Iv d="M20 6L9 17l-5-5" {...p} />,
   search: p => <Iv d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" {...p} />,
   send:   p => <Iv d="M22 2L11 13M22 2l-7 20-4-9-9-4z" {...p} />,
