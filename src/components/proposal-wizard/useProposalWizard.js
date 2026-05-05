@@ -9,7 +9,7 @@
 // generateProposalHtml work without changes.
 // ============================================================
 
-import { useReducer, useEffect, useMemo, useRef, useCallback } from "react";
+import { useReducer, useEffect, useMemo, useRef, useCallback, useState } from "react";
 import { getAutoTier, getAutoTermLabel } from "../../pages/sales/constants";
 import {
   AUTO_SAVE_DEBOUNCE_MS,
@@ -305,6 +305,13 @@ function reducer(state, action) {
     // Hydrate
     case "HYDRATE":
       return { ...action.state, isDirty: false };
+
+    // Clear isDirty without other side effects. Used after the
+    // hydration grace period to discard the dirty flag set by mount-time
+    // auto-fill effects (Step1 client name, Step7 email defaults, etc.)
+    // so auto-save doesn't fire on the rep's first open.
+    case "RESET_DIRTY":
+      return { ...state, isDirty: false };
 
     default:
       return state;
@@ -608,8 +615,30 @@ export function useProposalWizard({
   const updateRef = useRef(updateProposal);
   updateRef.current = updateProposal;
 
+  // Hydration grace: in edit mode, mount-time auto-fill effects
+  // (Step1 client-name, Step7 email defaults, etc.) dispatch through
+  // the dirty() helper and set isDirty=true even though the rep hasn't
+  // touched anything. Without this guard, auto-save fires within 2s of
+  // open and overwrites scalar proposal fields (e.g. self-serve total)
+  // with values recomputed from the partially-hydrated state.
+  //
+  // The 1500ms window covers React's commit + step-component effects,
+  // then we RESET_DIRTY to clear stale auto-fill flags and arm auto-save.
+  // Real user actions take longer than 1500ms to occur, so this cleanly
+  // separates "auto-fill on open" from "rep edited a field".
+  const [autoSaveReady, setAutoSaveReady] = useState(!hydratedState);
+  useEffect(() => {
+    if (autoSaveReady) return;
+    const t = setTimeout(() => {
+      dispatch({ type: "RESET_DIRTY" });
+      setAutoSaveReady(true);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [autoSaveReady]);
+
   useEffect(() => {
     if (!enableAutoSave) return;
+    if (!autoSaveReady) return;
     if (!state.isDirty) return;
     if (!state.clientId || !state.proposalName?.trim()) return;
     if (state.saveRetries >= AUTO_SAVE_MAX_RETRIES) return;
